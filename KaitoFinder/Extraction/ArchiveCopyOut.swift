@@ -54,12 +54,11 @@ import AppKit
         if progress.isCancelled || Task.isCancelled { throw CancellationError() }
         guard !prepared.urls.isEmpty else { return [] }
         let urls = prepared.urls
-        let text = prepared.paths.joined(separator: "\n")
         let items = urls.enumerated().map { index, url in
             let item = NSPasteboardItem()
             item.setString(url.absoluteString, forType: .fileURL)
-            // 一つ目は全選択の文字列にし、テキストの通常の paste でも全項目を得る。
-            item.setString(index == 0 ? text : prepared.paths[index], forType: .string)
+            // pasteboard は各項目の文字列を連結するため、それぞれのパスを一度だけ渡す。
+            item.setString(prepared.paths[index], forType: .string)
             return item
         }
         pasteboard.clearContents()

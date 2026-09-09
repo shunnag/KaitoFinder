@@ -1,5 +1,92 @@
 # M1b drag / copy out の検証（2026-09-10）
 
+## 追補: サービス利用可能な環境で見つかった 2 件の修正
+
+基準コミットは `e626bbb`。コーディネーターが LaunchServices と名前付き pasteboard
+を利用できる環境で全 53 テストを再実行したところ、2 件が失敗した。
+初回 sandbox 実行の「50 成功、3 skip」は、正常なサービス上での正しさの証明では
+なかった。以下に提供された実測と今回の修正を記録する。
+
+- `testInvalidPromiseTypeFallsBackToData` の期待値を訂正した。`public.url` は
+  `public.data` に準拠するため、`validatedType(.url)` が `.url` を返すのが正しい。
+  無効型の検証には data/directory のどちらにも準拠しない `.item` を使い、
+  `.item -> .data`、`.folder -> .folder`、`.data -> .data` を assert する。
+  この三つの期待値は LaunchServices の有無で変わらない。
+  `ArchiveFilePromise.validatedType` の実装は変更していない。
+- `ArchiveCopyOut.copy` は、各 pasteboard item の `.string` にその項目自身の
+  書庫内パスだけを設定する。先頭 item へ全選択の文字列を入れる処理を削除した。
+  pasteboard 全体の string 読み出しは各 item の文字列を連結するため、先頭に全体を
+  入れると後続パスが二重になる。
+- `testCopyPublishesExistingRealURLsAndPlainTextOnNamedPasteboard` は同じテスト内で
+  2 項目と 3 項目の選択を検証する。集約文字列だけでなく各 item の `.string` と
+  `.fileURL`、件数と順序、読み戻した実ファイルの内容、promise metadata がないことを
+  assert する。テスト数は 53 件のまま、既存の 3 個の XCTSkip probe も維持する。
+
+コーディネーターが報告した修正前の実出力:
+
+```text
+testInvalidPromiseTypeFallsBackToData
+XCTAssertEqual failed: ("public.url") is not equal to ("public.data")
+
+testCopyPublishesExistingRealURLsAndPlainTextOnNamedPasteboard
+XCTAssertEqual failed: ("folder\nother.txt\nother.txt") is not equal to ("folder\nother.txt")
+
+** TEST FAILED **
+53 tests, 2 failures
+```
+
+名前付き pasteboard のテストは「どの環境でも未実行」ではない。
+サービスのある環境で実行され、取消し時の元の文字列・changeCount・fileURL 非公開を
+確認するテストと実 folder provider のテストは、コーディネーターの報告では成功した。
+公開テストは実 URL とテキストを読み戻し、文字列の二重掲載という実装上の欠陥を検出した。
+修正後の 2 項目・3 項目の期待値はそれぞれ `folder\nother.txt` と
+`folder\nother.txt\nthird.txt` である。
+
+**確認済み(2026-09-10)。** 修正後の作業ツリーを、LaunchServices と pasteboard
+サービスが利用できる環境で `xcodebuild test` にかけた結果は次のとおり。
+
+```
+Executed 53 tests, with 0 failures (0 unexpected) in 10.287 (10.302) seconds
+** TEST SUCCEEDED **
+```
+
+- XCTest の skip は **0 件**(`Test Case .* skipped` の一致数 0)。
+- Swift コンパイラ警告は **0 件**。
+- sandbox で skip されていた 3 件と、誤った前提で通っていた 1 件は、いずれも実行され
+  成功した。
+
+| テスト | 結果 |
+|---|---|
+| `testFolderProviderUsesFolderUTI` | passed (0.068 s) |
+| `testCopyPublishesExistingRealURLsAndPlainTextOnNamedPasteboard` | passed (0.136 s) |
+| `testCancelledCopyPreservesPasteboardWithoutPartialURLs` | passed (0.717 s) |
+| `testInvalidPromiseTypeFallsBackToData` | passed (0.001 s) |
+
+後段の初回実行表・ログは履歴として保持する。
+
+> **Confirmed (2026-09-10).** The corrected tree was rerun with LaunchServices and
+> pasteboard services available: `Executed 53 tests, with 0 failures (0 unexpected)`,
+> `** TEST SUCCEEDED **`, zero XCTest skips and zero Swift compiler warnings. The
+> three cases the sandbox had skipped, and the one that had passed on a false
+> premise, all ran and passed.
+>
+> **Two corrections following a service-enabled run.** The coordinator reran all
+> 53 tests on e626bbb with LaunchServices and pasteboard services available and
+> reported two failures. public.url conforms to public.data, so the production
+> validator was correct. The invalid-type test now uses public.item and retains
+> the folder/data cases; all three assertions have the same expected values with
+> or without LaunchServices. The validator implementation is unchanged.
+> Copy-out now assigns only each item's own path to its string representation.
+> The pasteboard's aggregate read then joins every selected path exactly once.
+> The existing publication test covers both two and three items, checking aggregate
+> text, per-item strings and URLs, order, counts, file contents and absence of
+> promise metadata. All three existing service probes remain; the suite still
+> contains 53 tests. These integration tests did run outside the sandbox: the
+> cancellation-preservation and folder-provider tests passed in the coordinator's
+> report, while publication caught a real duplication bug. Post-fix success of all
+> 53 tests with zero skips requires the service-enabled rerun result; neither the
+> pre-fix report nor sandbox skips establish it. Historical results remain below.
+
 ## 対象と結果
 
 M1a の展開エンジンに、世代付きの項目識別、file promise による drag out、
@@ -14,7 +101,8 @@ concurrency、MainActor 既定隔離と Approachable Concurrency を維持した
 生成された dylib は `Mach-O 64-bit dynamically linked shared library arm64`。
 Xcode の AppIntents metadata 警告と Simulator 等の環境診断は残る。警告抑制は追加していない。
 
-XCTest を実アプリ dylib とともに直接実行した結果は **53 件、50 成功、3 skip、0 失敗**。
+初回の sandbox 内で XCTest を実アプリ dylib とともに直接実行した結果は
+**53 件、50 成功、3 skip、0 失敗**（この結果の限界と後日の実測は上の追補を参照）。
 既存 35 件はすべて成功した。追加 18 件のうち 15 件が成功した。
 3 件の skip は名前付き pasteboard 2 件と、LaunchServices を必要とするフォルダ
 provider 構築 1 件。**全 acceptance criteria がこの環境で実証済み、とは主張しない。**
@@ -169,6 +257,7 @@ M1a が 128 KiB read/write loop 内でも停止を確認する。文書を閉じ
 
 ## 追加 XCTest
 
+以下は初回 sandbox 実行時の表。修正後の確認内容とコーディネーターの実測は追補を参照。
 すべて `KaitoFinderTests/DragCopyOutTests.swift`。入力 ZIP/tar は各テストで Python 標準
 writer により生成する。folder fixture の body-less hard link は先行ファイルを参照し、
 内容だけでなく inode の一致を assert する。
@@ -220,7 +309,9 @@ callback と同じ展開を行う。成功・失敗・取消しごとに同期�
 この実行 sandbox では名前付き pasteboard の `setString` が false を返した。
 テストはランダムな名前だけを使い、**`NSPasteboard.general` には一切触れていない**。
 サービスの preflight が通らなければ該当 2 件を XCTSkip にする。そのため acceptance 7 の
-実 pasteboard round trip と acceptance 8 の pasteboard 不変性は未実証。
+実 pasteboard round trip と acceptance 8 の pasteboard 不変性は、この sandbox 実行だけでは
+未実証だった。後日のサービス利用可能な環境では取消し保護のテストは成功し、
+公開テストは二重文字列の欠陥を検出した（追補参照）。
 事前展開の実体・内容・途中取消しは別テストで成功した。
 
 また LaunchServices が `UTType.folder.conforms(to: .directory)` を false とし、有効な
@@ -232,7 +323,9 @@ Swift のエラーにする。実 folder provider のテスト 1 件は prefligh
 
 通常環境での残作業:
 
-1. 通常の `xcodebuild test` で全 53 件を実行し、3 件の skip がなくなることを確認する。
+1. ~~修正後の `xcodebuild test` をサービス利用可能な環境で再実行し、全 53 件・0 skip・
+   0 失敗を確認する。~~ **完了**(上記)。初回のサービス利用可能な実行が、追補に記した
+   2 件の失敗を検出した。
 2. 単一ファイル・仮想フォルダ・hard link を含むフォルダ・複数選択を Finder へ drag し、
    内容、改名された受取先、copy カーソル、declined drop を確認する。
 3. Cmd-C → Finder Cmd-V とテキストエディタへの paste を確認する。window を閉じても
@@ -249,7 +342,9 @@ Swift のエラーにする。実 folder provider のテスト 1 件は prefligh
 > The sandbox also rejects writes to randomly named pasteboards. Tests never touch
 > NSPasteboard.general and skip the two integration cases when preflight fails.
 > Thus acceptance 7's pasteboard round trip and acceptance 8's unchanged clipboard
-> remain unproven here, although eager preparation and partial cancellation pass.
+> were unproven by this sandbox run. The coordinator's later service-enabled run
+> passed cancellation preservation and caught the publication duplication bug;
+> see the addendum. Eager preparation and partial cancellation pass independently.
 > LaunchServices cannot resolve the valid folder UTI in this sandbox; one provider
 > construction case is also skipped. The production factory checks before calling
 > AppKit and returns a Swift error when required type information is unavailable.

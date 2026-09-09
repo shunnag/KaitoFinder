@@ -204,29 +204,48 @@ nonisolated final class DragCopyOutTests: XCTestCase {
     }
 
     @MainActor func testInvalidPromiseTypeFallsBackToData() {
-        XCTAssertEqual(ArchiveFilePromise.validatedType(.url), .data)
+        // item は data/directory のどちらにも準拠しない。url は data に準拠するため使わない。
+        // この三つの期待値は LaunchServices が利用できない環境でも変わらない。
+        XCTAssertEqual(ArchiveFilePromise.validatedType(.item), .data)
         XCTAssertEqual(ArchiveFilePromise.validatedType(.folder), .folder)
         XCTAssertEqual(ArchiveFilePromise.validatedType(.data), .data)
     }
 
     @MainActor func testCopyPublishesExistingRealURLsAndPlainTextOnNamedPasteboard() async throws {
         let fixture = try Fixture()
+        try fixture.writeZIP([("folder/a.txt", "hello"), ("folder/deep/b.txt", "world"),
+                              ("other.txt", "other"), ("third.txt", "third")])
         let session = try ArchiveSession(url: fixture.archive)
         let pasteboard = NSPasteboard(name: .init("KaitoFinderTests-" + UUID().uuidString))
         defer { pasteboard.releaseGlobally() }
         guard pasteboard.setString("probe", forType: .string) else {
             throw XCTSkip("この実行環境では名前付き pasteboard サービスへ書き込めません")
         }
-        let payloads = [fixture.payload("folder", session: session, directory: true), fixture.payload("other.txt", session: session, index: 2)]
-        let urls = try await ArchiveCopyOut.copy(payloads, from: session, to: pasteboard, progress: Progress(totalUnitCount: 0),
-            temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.parent.appendingPathComponent("temp")))
-        let read = try XCTUnwrap(pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])
-        XCTAssertEqual(read, urls)
-        XCTAssertEqual(pasteboard.string(forType: .string), "folder\nother.txt")
-        XCTAssertEqual(try String(contentsOf: read[0].appendingPathComponent("a.txt"), encoding: .utf8), "hello")
-        XCTAssertEqual(try String(contentsOf: read[0].appendingPathComponent("deep/b.txt"), encoding: .utf8), "world")
-        XCTAssertEqual(try String(contentsOf: read[1], encoding: .utf8), "other")
-        XCTAssertFalse(pasteboard.types?.contains(NSPasteboard.PasteboardType("com.apple.NSFilePromiseItemMetaData")) ?? true)
+        let allPayloads = [fixture.payload("folder", session: session, directory: true),
+                           fixture.payload("other.txt", session: session, index: 2),
+                           fixture.payload("third.txt", session: session, index: 3)]
+        for count in [2, 3] {
+            let expectedPaths = Array(["folder", "other.txt", "third.txt"].prefix(count))
+            let urls = try await ArchiveCopyOut.copy(Array(allPayloads.prefix(count)), from: session, to: pasteboard,
+                progress: Progress(totalUnitCount: 0),
+                temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.parent.appendingPathComponent("temp")))
+            let read = try XCTUnwrap(pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL])
+            XCTAssertEqual(read.count, count)
+            XCTAssertEqual(read, urls)
+            // 全体の連結結果と個々の項目を両方検査し、後続パスの二重掲載を防ぐ。
+            XCTAssertEqual(pasteboard.string(forType: .string), expectedPaths.joined(separator: "\n"))
+            let items = try XCTUnwrap(pasteboard.pasteboardItems)
+            XCTAssertEqual(items.count, count)
+            XCTAssertEqual(items.compactMap { $0.string(forType: .string) }, expectedPaths)
+            XCTAssertEqual(items.compactMap { $0.string(forType: .fileURL) }, urls.map(\.absoluteString))
+            let folder = try XCTUnwrap(read.first)
+            XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("a.txt"), encoding: .utf8), "hello")
+            XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("deep/b.txt"), encoding: .utf8), "world")
+            for (url, expected) in zip(read.dropFirst(), ["other", "third"]) {
+                XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), expected)
+            }
+            XCTAssertFalse(pasteboard.types?.contains(NSPasteboard.PasteboardType("com.apple.NSFilePromiseItemMetaData")) ?? true)
+        }
     }
 
     @MainActor func testCancelledCopyPreservesPasteboardWithoutPartialURLs() async throws {
