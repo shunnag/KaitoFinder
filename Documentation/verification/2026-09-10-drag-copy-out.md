@@ -83,9 +83,10 @@ Executed 53 tests, with 0 failures (0 unexpected) in 10.287 (10.302) seconds
 > promise metadata. All three existing service probes remain; the suite still
 > contains 53 tests. These integration tests did run outside the sandbox: the
 > cancellation-preservation and folder-provider tests passed in the coordinator's
-> report, while publication caught a real duplication bug. Post-fix success of all
-> 53 tests with zero skips requires the service-enabled rerun result; neither the
-> pre-fix report nor sandbox skips establish it. Historical results remain below.
+> report, while publication caught a real duplication bug. The coordinator
+> subsequently confirmed the corrected two- and three-item cases and all 53 tests
+> passing with zero skips in the service-enabled environment, as recorded above.
+> Historical sandbox results remain below.
 
 ## 対象と結果
 
@@ -349,8 +350,9 @@ Swift のエラーにする。実 folder provider のテスト 1 件は prefligh
 > construction case is also skipped. The production factory checks before calling
 > AppKit and returns a Swift error when required type information is unavailable.
 > Folder output and hard links are independently verified through direct writes.
-> In a normal environment, run all 53 tests without those skips, then manually
-> exercise Finder drag/paste, other apps, window-independent clipboard lifetime,
+> The coordinator has now confirmed all 53 tests without skips in a normal
+> environment. Remaining manual checks cover Finder drag/paste, other apps,
+> window-independent clipboard lifetime,
 > the directory picker and progress/cancellation UI.
 
 ## 実行コマンドと末尾出力
