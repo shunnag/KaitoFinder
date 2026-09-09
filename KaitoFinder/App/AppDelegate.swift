@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        do { try ExtractionTemporaryDirectory().sweepOnLaunch() }
+        catch { NSLog("一時展開領域の掃除に失敗しました: %@", String(describing: error)) }
         documentController = NSDocumentController.shared
         NSApp.mainMenu = makeMenu()
     }
