@@ -519,17 +519,23 @@ KaitoKit が既に対応しており、これは残す。
 
 ## 10. マイルストーン
 
-| | 内容 | 出来上がるもの |
-|---|---|---|
-| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える |
-| **M1** | drag out(file promise)、copy out、Quick Look、進捗と取り消し、path traversal 対策、quarantine 伝播 | **15 形式すべてで取り出せる**。ここまで read-only |
-| **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる |
+| | 内容 | 出来上がるもの | 状態 |
+|---|---|---|---|
+| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える | **完了** `163fafd` |
+| **M1a** | 安全な展開エンジン(path traversal、quarantine 伝播、取り消し、fd 相対書き込み) | 展開の土台 | **完了** `5458eaf` / `4456df4` |
+| **M1b** | drag out(file promise)、copy out(明示展開)、世代付き識別、進捗と取り消し | Finder へ取り出せる | **完了** `1871791` |
+| **M1c** | Quick Look、Space、Open / Open With、遅延実体化 | 中身を見られる | **完了** `0902444` |
+| **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | 進行中 |
 | **M3** | 削除・改名・新規フォルダ、atomic replace、undo | 書庫内編集 |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ |
 | **M5** | tar writer、7z writer、LHA writer、形式変換 | 書ける形式が増える |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。
+
+M1 は三つに割った。安全側の中核(M1a)を先に単体で固め、UI を被せる前に
+敵対的レビューへかけたためで、実際に 21 件の候補から 5 件の実在する欠陥が出た
+(`Documentation/verification/2026-09-10-extraction-safety.md`)。
 
 ## 11. 検証方針
 
@@ -554,14 +560,22 @@ KaitoKit の作法を引き継ぐ。
 3. **undo をどう持つか。** `NSDocument` の編集機構を止めているので Cmd-Z が無い。
    `NSFileVersion.addOfItem` による世代 snapshot か、entry model 上の undo stack か。
    Finder にはファイル操作の undo があり、Finder を名乗る以上期待される。
-4. **`reopen()` の並列展開は本当に速いか。** 同じ `ByteSource` の fd を全 reader が
-   共有する。`pread` なので直列化しないはずだが未計測。
+4. ~~**`reopen()` の並列展開は本当に速いか。**~~ **解決(2026-09-10)。** 実測した。
+   独立 entry は 8 worker で 6.76x 伸び、`pread` は直列化しない。ただし solid 群を
+   分断すると直列より遅く(0.95x)、`solidGroup` で束ねるだけの実装は独立 entry が
+   `-1` を共有するため ZIP を直列に落とす(0.99x)。正しい規則と数値は
+   `Documentation/verification/2026-09-10-parallel-extraction.md`。
+   現状の `ExtractionService` は一要求一 reader の直列で、この伸びしろは未取得。
 
 > **Open questions.** Four things are deliberately left to be settled with the
 > real app rather than guessed at now: whether Finder actually fulfills a
 > directory promise (the API permits it, but synthetic keystrokes are blocked in
 > this environment, so it is confirmed by hand at M1);> what `LSFileQuarantineEnabled` actually does, since over-applying it is hostile
 > and under-applying it makes the app a Gatekeeper bypass; how undo is modelled
-> given that NSDocument's own editing machinery is switched off; and whether
-> parallel extraction through `reopen()` genuinely scales across readers sharing
-> one file descriptor.
+> given that NSDocument's own editing machinery is switched off. The fourth —
+> whether parallel extraction through `reopen()` scales — was **settled by
+> measurement on 2026-09-10**: independent entries reach 6.76x at eight workers
+> because `pread` does not serialize, while splitting a solid group is *slower*
+> than serial, and bucketing purely by `solidGroup` collapses a ZIP to one bucket
+> because independent entries all share `-1`. The engine is still one serial
+> reader per request, so that speedup remains unclaimed.
