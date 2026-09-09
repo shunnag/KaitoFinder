@@ -135,9 +135,15 @@ central の extra field 長は正当に異なる(ditto は 16 / 12、Info-ZIP �
 対応しない形式では `nil` を返す。ZIP・tar・LHA が対象で、7z の solid folder は
 `nil`。これは reader の**追加**であり、既存の解析経路と出力は変わらない。
 
-updater 側には併せて二つの門番を置く。**SFX 付き ZIP は編集しない**
+updater 側には併せて**三つの門番**を置く。**SFX 付き ZIP は編集しない**
 (prefix があると central directory の offset 基準がずれる)。**EOCD の後ろに
-trailing data がある ZIP も編集しない**。どちらも読み取りは従来どおり行う。
+trailing data がある ZIP も編集しない**。そして **EOCD.cdOffset が
+`PK\x01\x02` を指さない ZIP も編集しない** —— これは実測で見つけた実在の罠で、
+`ditto`(Finder の「圧縮」)は 4 GiB 超の entry を ZIP64 なしで書き、
+uncompressed size / compressed size / EOCD の CD offset を mod 2^32 で切る。
+その状態で descriptor を算術で探すと deflate stream の途中を指し、編集が
+静かに壊す。詳細は `Documentation/verification/2026-09-10-ditto-zip64.md`。
+いずれも読み取りは従来どおり行い、read-only の理由を UI で言う。
 
 > **KaitoKit changes — additive only, three of them.** (i) `reopen()` gains a
 > `sending` return type; measured on Swift 6.4, without it an actor-wrapped
@@ -482,27 +488,19 @@ KaitoKit の作法を引き継ぐ。
    Accessibility 権限が要り、この環境では keystroke 送信が拒否された。**M1 で
    実アプリを使って手で確認する。** 満たさない場合は、部分木を一つの promise で
    なく、展開済み temp を渡す経路へ落とす(hard link の扱いが劣化する)。
-2. **Archive Utility は compressed size も mod 2^32 で切るか。** uncompressed が
-   切られるのは実測済み。compressed も切られると、data descriptor を
-   `LFH + 30 + nameLen + extraLen + CD.compressedSize` で求める式が deflate stream の
-   途中を指し、更新のたびに静かに壊す。非圧縮データ 5 GiB を `ditto -c -k` して
-   確かめる。切られるなら、そうした書庫は編集を断るか、inflate して終端を探す。
-3. **`LSFileQuarantineEnabled` は無条件に付けるのか、伝播するのか。** 付けすぎれば
+2. **`LSFileQuarantineEnabled` は無条件に付けるのか、伝播するのか。** 付けすぎれば
    自分の書庫にまで印が付いて邪魔、付けなければ迂回路になる。宣言した版と
    しない版を作り、Safari 由来の書庫とローカル生成の書庫の両方で `xattr -p` する。
-4. **undo をどう持つか。** `NSDocument` の編集機構を止めているので Cmd-Z が無い。
+3. **undo をどう持つか。** `NSDocument` の編集機構を止めているので Cmd-Z が無い。
    `NSFileVersion.addOfItem` による世代 snapshot か、entry model 上の undo stack か。
    Finder にはファイル操作の undo があり、Finder を名乗る以上期待される。
-5. **`reopen()` の並列展開は本当に速いか。** 同じ `ByteSource` の fd を全 reader が
+4. **`reopen()` の並列展開は本当に速いか。** 同じ `ByteSource` の fd を全 reader が
    共有する。`pread` なので直列化しないはずだが未計測。
 
-> **Open questions.** Five things are deliberately left to be settled with the
+> **Open questions.** Four things are deliberately left to be settled with the
 > real app rather than guessed at now: whether Finder actually fulfills a
 > directory promise (the API permits it, but synthetic keystrokes are blocked in
-> this environment, so it is confirmed by hand at M1); whether Archive Utility
-> truncates the compressed size as well as the uncompressed one, which would make
-> arithmetic data-descriptor location corrupt such archives on every edit;
-> what `LSFileQuarantineEnabled` actually does, since over-applying it is hostile
+> this environment, so it is confirmed by hand at M1);> what `LSFileQuarantineEnabled` actually does, since over-applying it is hostile
 > and under-applying it makes the app a Gatekeeper bypass; how undo is modelled
 > given that NSDocument's own editing machinery is switched off; and whether
 > parallel extraction through `reopen()` genuinely scales across readers sharing
