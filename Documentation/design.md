@@ -11,8 +11,9 @@ KaitoFinder は「書庫を一覧できる圧縮ソフト」ではなく、**名
 - 他アプリから書庫へ **drag & drop** と **copy & paste** で追加する。
 - 対象は Apple Silicon のみ、deployment target は macOS 26.0(ホストは macOS 27)。
 - 可能な限り macOS らしい技術で作る。
-- 書庫エンジンは KaitoKit。改造してよいが他の KaitoKit 利用ソフト
-  (cooViewer)へ影響を出さない。
+- 読み取りエンジンは KaitoKit(解凍Kit)。改造してよいが他の KaitoKit
+  利用ソフト(cooViewer)へ影響を出さない。
+- 書き込みは GyoshukuKit(凝縮Kit)として独立した framework にする。
 - 配布は cooViewer と同じ non-sandbox + hardened runtime + Developer ID +
   notarization。App Store は目標にしない。
 - 書き込み対応は **ZIP → tar → 7z → LHA/LZH** の順に進め、拡張しやすい形にする。
@@ -29,49 +30,85 @@ KaitoFinder は「書庫を一覧できる圧縮ソフト」ではなく、**名
 
 ## 2. 全体構成
 
-三層に分ける。下二層は KaitoKit リポジトリ、最上層が KaitoFinder リポジトリ。
+三層に分ける。**それぞれ独立したリポジトリ**にする。
 
-| 層 | 置き場所 | 役割 |
+| 層 | リポジトリ | 役割 |
 |---|---|---|
-| `KaitoKit` | KaitoKit repo(既存) | 読み取り。**原則として触らない** |
-| `KaitoKitWrite` | KaitoKit repo(新規 target) | 書き込み。純 Swift、追加のみ |
-| `KaitoFinder` | 本 repo | アプリ本体。AppKit |
+| `KaitoKit`(解凍Kit) | shunnag/KaitoKit(既存) | 読み取り。**原則として触らない** |
+| `GyoshukuKit`(凝縮Kit) | shunnag/GyoshukuKit(新規) | 書き込み。純 Swift |
+| `KaitoFinder` | shunnag/KaitoFinder(本 repo) | アプリ本体。AppKit |
 
-`KaitoKitWrite` を **新しい target と product** にするのが要点で、既存の
-`KaitoKit` / `KaitoKitCompat` / `KaitoKitDynamic` を変更しない。とくに
-`KaitoKitDynamic` は cooViewer が埋め込む framework の実体なので、
-**writer をここへ足さない**。これで「他の KaitoKit 利用ソフトへの影響ゼロ」が
-文言ではなく構造として成立する。
+解凍(KaitoKit)と凝縮(GyoshukuKit)を対にする。書き込みを KaitoKit の
+中の target にせず**別リポジトリとして独立**させることで、「他の KaitoKit
+利用ソフトへの影響ゼロ」が文言ではなく構造として成立する。cooViewer が埋め込む
+`KaitoKitDynamic` には writer の byte が一切入らない。
 
-### 2.1 KaitoFinder はどうやって両方を掴むか
+GyoshukuKit は KaitoKit と同じ性格で作る。純 Swift、外部依存なし、OS 同梱の
+zlib・libbz2・Apple Compression だけをサポートされた形で使う。macOS 26 以上、
+Swift 6、MIT。単体で「書庫を作る・書き換える」ライブラリとして成立させ、
+KaitoFinder 専用の作りにしない。
+
+### 2.1 GyoshukuKit は KaitoKit に依存するか
+
+**依存させる。** 書庫の更新(削除・改名・追加)は、生き残る entry を
+再圧縮せずに運ぶために既存書庫を読む必要があり、そのための堅い parser を
+KaitoKit が既に持っている。二つ目の ZIP parser を書くのは危険で無駄。
+
+依存の向きは `GyoshukuKit → KaitoKit` の一方向だけ。KaitoKit は
+GyoshukuKit を知らない。SwiftPM の package 依存として
+`.package(path: "../KaitoKit")` を持ち、release では tag 参照へ切り替える。
+
+### 2.2 checkout の配置と参照
+
+現状の配置は次のとおり。KaitoFinder だけ `~/Github/` の下にある。
+
+```
+~/KaitoKit          既存
+~/GyoshukuKit       新規(KaitoKit と並べる)
+~/cooViewer         既存。KaitoKit.framework を埋め込む
+~/Github/KaitoFinder 本 repo
+```
+
+`~/Github/KaitoFinder` から見た相対パスは `../../KaitoKit` と
+`../../GyoshukuKit` で正しく解決する(実測)。`.xcodeproj` はこの二つを
+**SwiftPM の local package として参照**し、静的に link する。
 
 cooViewer は `Scripts/build-framework.sh` が作る universal framework を
 `Frameworks/` へ ditto して embed する。**KaitoFinder はこれを踏襲しない。**
-
-理由は二つ。第一に、その script が組み立てる `KaitoKitDynamic` には
-(意図どおり)`KaitoKitWrite` が入らないので、framework 経路には writer が
-存在しない。第二に、`KaitoKitWriteDynamic` という二つ目の dynamic product を
-足す素直な解決策は壊れる。SwiftPM の `.dynamic` product は依存 target を
-**dylib の中へ静的に畳み込む**ため、`KaitoKitWrite.framework` が `KaitoKit` の
-二つ目の複製を抱え、`KaitoKit.framework` と link / load 時に衝突する。
-
-そこで KaitoFinder は `.xcodeproj` から **sibling checkout `../KaitoKit` を
-SwiftPM の local package として参照**し、`KaitoKit` と `KaitoKitWrite` を
-静的に link する。`../KaitoKit` は `build-kaitokit-framework.sh` が既に前提に
-している場所なので、開発時の配置は変わらない。
+その script が組み立てる `KaitoKitDynamic` に writer は(意図どおり)入らず、
+かといって二つ目の dynamic product を足す素直な解決策は壊れるからだ ——
+SwiftPM の `.dynamic` product は依存 target を **dylib の中へ静的に畳み込む**ため、
+`GyoshukuKit.framework` が `KaitoKit` の二つ目の複製を抱え、
+`KaitoKit.framework` と link / load 時に衝突する。
 
 cooViewer 側の framework 経路は、その script のコメントどおり「書庫エンジンを
 差し替えて検証する」ために存在する。KaitoFinder にその要件は無いので、
-複雑さを引き継ぐ理由も無い。cooViewer の framework 構成は一切変えない。
+複雑さを引き継ぐ理由も無い。**cooViewer の構成は一切変えない。**
 
-> **Layering.** Three layers: the untouched read-only `KaitoKit`, a new additive
-> `KaitoKitWrite` target in the same repository, and the KaitoFinder app. Making
-> the writer a separate target and product — and deliberately keeping it out of
-> the `KaitoKitDynamic` product that cooViewer embeds — makes "zero impact on
-> other KaitoKit users" structural rather than merely asserted. KaitoFinder
-> consumes the framework exactly as cooViewer does: built from a sibling
-> checkout, dittoed into a gitignored `Frameworks/`, embedded by a hand-authored
-> `.xcodeproj`.
+> **Layering.** Three layers in three separate repositories: the untouched
+> read-only `KaitoKit` (解凍Kit, "extraction kit"), the new `GyoshukuKit`
+> (凝縮Kit, "compression kit") for writing, and the KaitoFinder app. Keeping the
+> writer in its own repository rather than as a target inside KaitoKit makes
+> "zero impact on other KaitoKit users" structural rather than merely asserted —
+> not one byte of writer code enters the `KaitoKitDynamic` product cooViewer
+> embeds. GyoshukuKit is built with KaitoKit's own character: pure Swift, no
+> external dependencies, only OS-bundled zlib, libbz2 and Apple Compression
+> through supported APIs, macOS 26+, Swift 6, MIT — and it stands on its own as
+> an archive-writing library rather than being shaped around KaitoFinder.
+>
+> GyoshukuKit does depend on KaitoKit, in one direction only: updating an archive
+> means reading the existing one to carry surviving entries across without
+> recompressing them, and KaitoKit already has the hardened parser for that. A
+> second ZIP parser would be both dangerous and wasteful. KaitoKit never learns
+> about GyoshukuKit.
+>
+> On checkout layout: KaitoKit and GyoshukuKit sit at `~/`, KaitoFinder under
+> `~/Github/`, so `../../KaitoKit` and `../../GyoshukuKit` resolve correctly
+> (verified) and the `.xcodeproj` references both as local SwiftPM packages,
+> linked statically. KaitoFinder deliberately does not copy cooViewer's embedded
+> universal-framework route: that framework carries no writer, and adding a second
+> dynamic product would fold a duplicate copy of `KaitoKit` into it and collide at
+> link time. cooViewer's own configuration is left completely untouched.
 
 ## 3. KaitoKit への変更(追加のみ、3 点)
 
@@ -318,15 +355,15 @@ promise は使えないので、⌘C で temp へ**展開してから**実 file 
 > `NSFilePromiseReceiver` in preference to `NSURL`, target the folder row under
 > the cursor, and never probe the pasteboard speculatively.
 
-## 7. 書き込み(KaitoKitWrite)
+## 7. 書き込み(GyoshukuKit / 凝縮Kit)
 
 ### 7.1 方針
 
 **純 Swift で書く。** システムの libarchive は `archive_write_set_format_zip` /
 `_7zip` などを実際に export しており dlopen で解決もできるが、SDK に
 `archive.h` が無い(実測)。ヘッダの無いシステムライブラリに prototype を
-手書きして依存するのは、KaitoKit の「外部依存なし・OS 同梱ライブラリを
-サポートされた形でだけ使う」という性格と合わない。さらに libarchive には
+手書きして依存するのは、KaitoKit から引き継ぐ「外部依存なし・OS 同梱
+ライブラリをサポートされた形でだけ使う」という GyoshukuKit の性格と合わない。さらに libarchive には
 **in-place update が無い**ので、書庫内編集という中核機能のためにどのみち
 自前の updater が要る。二つの writer が同じ ZIP を別々の作法で書く方が危険。
 
@@ -461,9 +498,9 @@ KaitoKit が既に対応しており、これは残す。
 
 | | 内容 | 出来上がるもの |
 |---|---|---|
-| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える |
+| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える |
 | **M1** | drag out(file promise)、copy out、Quick Look、進捗と取り消し、path traversal 対策、quarantine 伝播 | **15 形式すべてで取り出せる**。ここまで read-only |
-| **M2** | `KaitoKitWrite` の ZIP writer、append、drag in / paste in | 書庫へ入れられる |
+| **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる |
 | **M3** | 削除・改名・新規フォルダ、atomic replace、undo | 書庫内編集 |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ |
 | **M5** | tar writer、7z writer、LHA writer、形式変換 | 書ける形式が増える |
