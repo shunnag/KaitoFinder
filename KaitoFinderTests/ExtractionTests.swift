@@ -12,8 +12,8 @@ nonisolated final class ExtractionTests: XCTestCase {
         let archive: URL
 
         init(_ script: String, suffix: String = "zip") throws {
-            parent = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("build/Fixtures/Extraction-" + UUID().uuidString)
+            parent = FileManager.default.temporaryDirectory
+                .appendingPathComponent("KaitoFinder-ExtractionTests-" + UUID().uuidString)
             destination = parent.appendingPathComponent("out", isDirectory: true)
             archive = parent.appendingPathComponent("fixture." + suffix)
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
@@ -466,6 +466,7 @@ nonisolated final class ExtractionTests: XCTestCase {
                 i.external_attr = (stat.S_IFLNK | 0o777) << 16
                 z.writestr(i, target)
         """)
+        XCTAssertTrue(ExtractionPath.isInside(fixture.destination, root: FileManager.default.temporaryDirectory))
         let result = try await fixture.extract()
         XCTAssertEqual(result.failures.map(\.name), ["cycleB", "self"])
         XCTAssertEqual(try fixture.text("chain"), "yes")
@@ -518,6 +519,136 @@ nonisolated final class ExtractionTests: XCTestCase {
         XCTAssertEqual(lstat(fixture.destination.appendingPathComponent("dir").path, &info), 0)
         XCTAssertEqual(info.st_mode & 0o777, 0o500)
         XCTAssertEqual(info.st_mtimespec.tv_sec, 1000000000)
+    }
+
+    func testTemporaryRootSymlinksAllowRootTargetsAndRejectSelfAliases() async throws {
+        let fixture = try Fixture("""
+        import os
+        with zipfile.ZipFile(p, 'w') as z:
+            for name, target in [('dot', '.'), ('sub/up', '..'),
+                                 ('absoluteRoot', os.path.join(os.path.dirname(p), 'out'))]:
+                i = zipfile.ZipInfo(name)
+                i.create_system = 3
+                i.external_attr = (stat.S_IFLNK | 0o777) << 16
+                z.writestr(i, target)
+        """)
+        XCTAssertTrue(ExtractionPath.isInside(fixture.destination, root: FileManager.default.temporaryDirectory))
+        let result = try await fixture.extract()
+        XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
+        var root = stat()
+        XCTAssertEqual(stat(fixture.destination.path, &root), 0)
+        for name in ["dot", "sub/up", "absoluteRoot"] {
+            var target = stat()
+            XCTAssertEqual(stat(fixture.destination.appendingPathComponent(name).path, &target), 0, name)
+            XCTAssertEqual(target.st_dev, root.st_dev)
+            XCTAssertEqual(target.st_ino, root.st_ino)
+        }
+        let destination = try ExtractionDestination(url: fixture.destination, quarantine: nil)
+        XCTAssertEqual(destination.url([]).path, ExtractionPath.resolvedPath(fixture.destination.path))
+        print("TEMP ROOT: \(fixture.destination.path); CANONICAL ROOT: \(destination.url([]).path)")
+        // 大文字小文字を区別しないボリュームでは、文字列比較で検出できない自己参照も検証する。
+        try Data().write(to: fixture.destination.appendingPathComponent("caseProbe"))
+        if FileManager.default.fileExists(atPath: fixture.destination.appendingPathComponent("CASEPROBE").path) {
+            XCTAssertThrowsError(try destination.symlink(["SelfCase"], target: "selfcase"))
+            var info = stat()
+            XCTAssertEqual(lstat(fixture.destination.appendingPathComponent("SelfCase").path, &info), -1)
+            XCTAssertEqual(errno, ENOENT)
+        }
+    }
+
+    func testTemporarySweepRemovesThreeHundredLevelsWithBoundedDescriptors() throws {
+        let fixture = try Fixture("with zipfile.ZipFile(p, 'w'): pass")
+        let temporary = ExtractionTemporaryDirectory(root: fixture.parent.appendingPathComponent("owned"))
+        let extracted = try temporary.create()
+        var descriptor = open(extracted.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        XCTAssertGreaterThanOrEqual(descriptor, 0)
+        guard descriptor >= 0 else { return }
+        do {
+            for _ in 0..<300 {
+                guard mkdirat(descriptor, "d", 0o700) == 0 else { throw ExtractionFailure.system(errno) }
+                let child = openat(descriptor, "d", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+                guard child >= 0 else { throw ExtractionFailure.system(errno) }
+                close(descriptor)
+                descriptor = child
+            }
+        } catch { close(descriptor); throw error }
+        close(descriptor)
+        let sibling = try temporary.create()
+        try Data("also removed".utf8).write(to: sibling.appendingPathComponent("file"))
+        // runner の上限を変更せず、通常の fd 上限下で深い木と兄弟を両方掃除する。
+        try temporary.sweepOnLaunch()
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: temporary.root.path).isEmpty)
+        try temporary.sweepOnLaunch()
+    }
+
+    func testTwentyThousandDirectoryPromotionsKeepUniqueResults() throws {
+        let fixture = try Fixture("with zipfile.ZipFile(p, 'w'): pass")
+        let destination = try ExtractionDestination(url: fixture.destination, quarantine: nil)
+        let count = 20_000
+        for index in 0..<count { try destination.directory(["d\(index)"], explicit: false) }
+        let clock = ContinuousClock()
+        let elapsed = try clock.measure {
+            for index in 0..<count { try destination.directory(["d\(index)"], explicit: true) }
+        }
+        // 実時間の固定閾値は使わず、大量の昇格で作成物と順序を失わないことを確認する。
+        XCTAssertEqual(destination.createdDirectories.count, count)
+        XCTAssertEqual(Set(destination.createdDirectories.map(\.lastPathComponent)).count, count)
+        XCTAssertEqual(destination.createdDirectories.first?.lastPathComponent, "d0")
+        XCTAssertEqual(destination.createdDirectories.last?.lastPathComponent, "d19999")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.destination.path).count, count)
+        print("DIRECTORY PROMOTIONS: \(count), elapsed: \(elapsed)")
+    }
+
+    @MainActor
+    func testDocumentOptsIntoConcurrentReadingAndParsesOffMainThread() async throws {
+        let fixture = try Fixture("""
+        with tarfile.open(p, 'w', format=tarfile.USTAR_FORMAT) as t:
+            i = tarfile.TarInfo('background')
+            i.size = 4
+            t.addfile(i, io.BytesIO(b'data'))
+        """, suffix: "tar")
+        XCTAssertTrue(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.tar-archive"))
+        XCTAssertTrue(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.zip-archive"))
+        let archive = fixture.archive
+        // NSDocument の並行読み込み契約と、read が呼ぶ parser の非 main 実行を分けて検証する。
+        // NSDocument 自体を Swift Task へ転送せず、AppKit の隔離規約を維持する。
+        let session = try await Task.detached {
+            XCTAssertFalse(Thread.isMainThread)
+            return try ArchiveSession(url: archive)
+        }.value
+        XCTAssertEqual(session.sourceURL, archive)
+        let entries = await session.entries()
+        XCTAssertEqual(entries.map(\.name), ["background"])
+    }
+
+    func testRestoredFileAndDirectoryPermissionsRespectProcessUmask() async throws {
+        let fixture = try Fixture("""
+        with zipfile.ZipFile(p, 'w') as z:
+            for name, kind, mode in [('executable', stat.S_IFREG, 0o777),
+                                      ('file', stat.S_IFREG, 0o666), ('dir/', stat.S_IFDIR, 0o777)]:
+                i = zipfile.ZipInfo(name)
+                i.create_system = 3
+                i.external_attr = (kind | mode) << 16
+                z.writestr(i, '' if name.endswith('/') else 'data')
+        """)
+        // open の mode は OS が umask を適用する。プロセスの値をテスト中に変更しない。
+        let probe = open(fixture.parent.appendingPathComponent("mask-probe").path,
+                         O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o777)
+        XCTAssertGreaterThanOrEqual(probe, 0)
+        guard probe >= 0 else { return }
+        var original = stat()
+        XCTAssertEqual(fstat(probe, &original), 0)
+        close(probe)
+        let allowed = original.st_mode & 0o777
+        XCTAssertEqual(allowed & 0o022, 0, "この回帰テストは通常の umask（022 等）で実行する")
+        let result = try await fixture.extract()
+        XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
+        for (name, declared) in [("executable", mode_t(0o777)), ("file", mode_t(0o666)), ("dir", mode_t(0o777))] {
+            var info = stat()
+            XCTAssertEqual(lstat(fixture.destination.appendingPathComponent(name).path, &info), 0)
+            XCTAssertEqual(info.st_mode & 0o777, declared & allowed, name)
+            XCTAssertEqual(info.st_mode & 0o022, 0, name)
+        }
     }
 
 }

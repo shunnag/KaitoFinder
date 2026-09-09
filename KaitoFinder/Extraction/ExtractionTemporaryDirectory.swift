@@ -39,39 +39,59 @@ nonisolated struct ExtractionTemporaryDirectory {
     }
 
     private func removeChildren(_ directory: Int32) throws {
-        let copy = dup(directory)
-        guard copy >= 0 else { throw ExtractionFailure.system(errno) }
-        guard let stream = fdopendir(copy) else { close(copy); throw ExtractionFailure.system(errno) }
-        defer { closedir(stream) }
-        while true {
-            errno = 0
-            guard let item = readdir(stream) else {
-                guard errno == 0 else { throw ExtractionFailure.system(errno) }
-                break
-            }
-            let name = withUnsafePointer(to: &item.pointee.d_name) {
-                $0.withMemoryRebound(to: CChar.self, capacity: Int(item.pointee.d_namlen) + 1) { String(cString: $0) }
-            }
-            if name == "." || name == ".." { continue }
-            var info = stat()
-            guard fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
-                throw ExtractionFailure.system(errno)
-            }
-            let isDirectory = info.st_mode & S_IFMT == S_IFDIR
-            if isDirectory {
-                // 展開で復元した読み取り専用属性も掃除できる。リンク自身は辿らない。
-                guard fchmodat(directory, name, 0o700, AT_SYMLINK_NOFOLLOW) == 0 else {
+        // fd を深さ分保持せず、root 相対の成分と訪問状態だけを積む。
+        // 各処理の fd は次のディレクトリへ進む前に必ず閉じる。
+        var pending: [(components: [String], remove: Bool)] = [([], false)]
+        while let step = pending.popLast() {
+            let components = step.remove ? Array(step.components.dropLast()) : step.components
+            let current = try openDirectory(components, below: directory)
+            defer { close(current) }
+            if step.remove {
+                guard unlinkat(current, step.components.last!, AT_REMOVEDIR) == 0 else {
                     throw ExtractionFailure.system(errno)
                 }
-                let child = openat(directory, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-                guard child >= 0 else { throw ExtractionFailure.system(errno) }
-                do { try removeChildren(child) }
-                catch { close(child); throw error }
-                close(child)
+                continue
             }
-            guard unlinkat(directory, name, isDirectory ? AT_REMOVEDIR : 0) == 0 else {
-                throw ExtractionFailure.system(errno)
+            if !step.components.isEmpty { pending.append((step.components, true)) }
+            let copy = dup(current)
+            guard copy >= 0 else { throw ExtractionFailure.system(errno) }
+            guard let stream = fdopendir(copy) else { close(copy); throw ExtractionFailure.system(errno) }
+            defer { closedir(stream) }
+            while true {
+                errno = 0
+                guard let item = readdir(stream) else {
+                    guard errno == 0 else { throw ExtractionFailure.system(errno) }
+                    break
+                }
+                let name = withUnsafePointer(to: &item.pointee.d_name) {
+                    $0.withMemoryRebound(to: CChar.self, capacity: Int(item.pointee.d_namlen) + 1) { String(cString: $0) }
+                }
+                if name == "." || name == ".." { continue }
+                var info = stat()
+                guard fstatat(current, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
+                    throw ExtractionFailure.system(errno)
+                }
+                if info.st_mode & S_IFMT == S_IFDIR {
+                    // 展開で復元した読み取り専用属性も掃除できる。リンク自身は辿らない。
+                    guard fchmodat(current, name, 0o700, AT_SYMLINK_NOFOLLOW) == 0 else {
+                        throw ExtractionFailure.system(errno)
+                    }
+                    pending.append((step.components + [name], false))
+                } else if unlinkat(current, name, 0) != 0 { throw ExtractionFailure.system(errno) }
             }
         }
+    }
+
+    private func openDirectory(_ components: [String], below root: Int32) throws -> Int32 {
+        var current = dup(root)
+        guard current >= 0 else { throw ExtractionFailure.system(errno) }
+        for component in components {
+            let next = openat(current, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            let code = errno
+            close(current)
+            guard next >= 0 else { throw ExtractionFailure.system(code) }
+            current = next
+        }
+        return current
     }
 }

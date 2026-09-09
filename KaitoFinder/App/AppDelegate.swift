@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var documentController: NSDocumentController!
 
     static func main() {
+        // umask の取得中に他の worker がファイルを作らないよう、AppKit 起動前に確定する。
+        _ = ExtractionPermissions.processMask
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate

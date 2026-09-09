@@ -8,17 +8,24 @@ nonisolated final class ExtractionDestination {
     private let root: URL
     private let descriptor: Int32
     private let quarantine: Data?
+    private let permissionMask: mode_t
     private(set) var createdDirectories: [URL] = []
+    private var createdDirectoryPaths = Set<String>()
     private var identities: [String: (dev_t, ino_t)] = [:]
     private static let directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
 
     init(url: URL, quarantine: Data?) throws {
         guard url.isFileURL else { throw ExtractionFailure.refused("出力先は file URL が必要です") }
-        // root 自身の symlink は解決前に拒否する（/tmp など祖先の別名は許す）。
+        guard let resolvedRoot = ExtractionPath.resolvedPath(url.path) else {
+            throw ExtractionFailure.refused("出力先の実パスを解決できません")
+        }
+        // 元のパスを NOFOLLOW で開き、root 自身の symlink を拒否する（祖先の別名は許す）。
         descriptor = Darwin.open(url.path, Self.directoryFlags)
         guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
-        root = url.resolvingSymlinksInPath().standardizedFileURL
+        // target と同じ正規化を使い、Foundation による /private の省略と混在させない。
+        root = URL(fileURLWithPath: resolvedRoot, isDirectory: true)
         self.quarantine = quarantine
+        permissionMask = ExtractionPermissions.processMask
     }
 
     deinit { Darwin.close(descriptor) }
@@ -58,6 +65,7 @@ nonisolated final class ExtractionDestination {
                         throw error
                     }
                     createdDirectories.append(url(traversed))
+                    createdDirectoryPaths.insert(traversed.joined(separator: "/"))
                 }
                 close(current)
                 current = next
@@ -71,7 +79,7 @@ nonisolated final class ExtractionDestination {
 
     func directory(_ components: [String], explicit: Bool) throws {
         // 今回合成した directory だけを明示 entry に昇格できる。既存の属性は奪わない。
-        if explicit, !createdDirectories.contains(url(components)) {
+        if explicit, !createdDirectoryPaths.contains(components.joined(separator: "/")) {
             let parent = try openDirectory(Array(components.dropLast()), create: true)
             defer { close(parent) }
             var info = stat()
@@ -133,7 +141,19 @@ nonisolated final class ExtractionDestination {
         }
         let leaf = components.last!
         guard symlinkat(target, parent, leaf) == 0 else { throw ExtractionFailure.system(errno) }
-        do { try ExtractionQuarantine.apply(quarantine, to: url(components)) }
+        do {
+            // 大文字小文字など、文字列が違っても同じ inode を指す自己参照を拒否する。
+            var linkInfo = stat(), targetInfo = stat()
+            guard fstatat(parent, leaf, &linkInfo, AT_SYMLINK_NOFOLLOW) == 0 else {
+                throw ExtractionFailure.system(errno)
+            }
+            if lstat(resolved, &targetInfo) == 0 {
+                guard linkInfo.st_dev != targetInfo.st_dev || linkInfo.st_ino != targetInfo.st_ino else {
+                    throw ExtractionFailure.refused("シンボリックリンクが自分自身を参照します")
+                }
+            } else if errno != ENOENT { throw ExtractionFailure.system(errno) }
+            try ExtractionQuarantine.apply(quarantine, to: url(components))
+        }
         catch { unlinkat(parent, leaf, 0); throw error }
     }
 
@@ -174,8 +194,10 @@ nonisolated final class ExtractionDestination {
             guard futimens(descriptor, &times) == 0 else { throw ExtractionFailure.system(errno) }
         }
         if let mode = entry.posixPermissions {
-            // 書庫由来の setuid/setgid/sticky は復元しない。
-            guard fchmod(descriptor, mode_t(mode & 0o777)) == 0 else { throw ExtractionFailure.system(errno) }
+            // 特殊ビットを除去し、fchmod にも起動時の umask を明示的に反映する。
+            guard fchmod(descriptor, mode_t(mode & 0o777) & ~permissionMask) == 0 else {
+                throw ExtractionFailure.system(errno)
+            }
         }
     }
 }

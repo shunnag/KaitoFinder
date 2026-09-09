@@ -1,5 +1,78 @@
 # M1a 展開エンジンと安全性の検証（2026-09-10）
 
+## 追補: 独立レビュー後の 5 件の修正
+
+基準コミットは `5458eaf`。以下はその上に加えた修正で、後段の初回 M1a 検証記録は
+履歴として残す。既存の展開モデルと KaitoKit は変更していない。
+
+1. **一時領域の symlink 判定**: destination root も `ExtractionPath.resolvedPath` で
+   一度だけ正規化し、target・root・作成先で `/private` の有無が食い違わないようにした。
+   さらにリンク作成直後に `fstatat(..., AT_SYMLINK_NOFOLLOW)` で取得したリンク自身と
+   解決先の device/inode を比較し、大文字小文字等の別名による自己参照も除去する。
+   Fixture は `FileManager.default.temporaryDirectory` 以下へ移した。元の cycle テストは
+   修正前コードで `[] != ["cycleB", "self"]` と実際に失敗し、修正後は成功する。
+   `dot -> .`、`sub/up -> ..`、root への絶対リンクも許可されることを inode で確認する。
+2. **深い一時ディレクトリの掃除**: 再帰呼び出しを、成分配列と訪問状態だけを持つ
+   明示 stack に置換した。fd は各訪問の終了時に閉じ、再訪問は root fd から
+   `openat(O_DIRECTORY | O_NOFOLLOW)` で一成分ずつ開く。掃除自身が同時保持する fd は
+   深さに依存せず最大 3 個。300 段の木と兄弟の作成物を削除し、再掃除も成功する。
+   権限 000 の directory と外向きリンクを安全に処理する既存テストも維持した。
+3. **ディレクトリ昇格の検索**: 出力順を保つ `[URL]` は結果用に残し、既作成かの検査は
+   結合済みパス成分をキーにした `Set<String>` へ分離した。線形の URL 比較をやめ、
+   検索を平均 O(1) にする。20,000 個を合成後に明示 directory へ昇格させ、結果の件数・
+   一意性・順序と実ディレクトリ数を検査する。実行時間も記録するが、CI の速度に依存する
+   固定時間の合否閾値は設けない。
+4. **文書のバックグラウンド読み込み**: `canConcurrentlyReadDocuments(ofType:)` を
+   nonisolated override して true を返し、AppKit の並行読み込みを有効にした。
+   `read` が触るのは URL/type 引数、`ArchiveSession(url:)` と nonisolated な
+   `Mutex<ArchiveSession?>` だけ。session 初期化は quarantine 読み取りと
+   `ArchiveReader.open` を行う。window、tree、loadingTask、main-actor の session accessor
+   には触れない。テストでは AppKit の opt-in を assert し、同じ parser 初期化を
+   main thread 外で実行して一覧を検証する。NSDocument 自体を Swift Task に転送せず、
+   unsafe Sendable 宣言も追加していない。AppKit が実際に dispatch する様子の GUI 計測は
+   このテストに含めない。
+5. **復元 permission と umask**: `ExtractionPermissions.processMask` でプロセスの
+   umask を一度だけ取得して直ちに復元する。AppDelegate.main の最初、NSApplication
+   の初期化と worker 起動より前に確定する。各 worker はキャッシュだけを読み、
+   fchmod には `mode & 0777 & ~processMask` を渡す。テスト runner を umask 022 で
+   起動し、OS の open(0777) による probe と比較する。0777/0666 の file と 0777 の
+   directory が group/other writable にならないことを確認する。テスト中に umask は
+   変更しない。実行中にプロセスの umask を変更する API はアプリにない。
+
+追加 XCTest は次の 5 件。既存 30 件と合わせて **35 件**。
+
+| 修正 | 新しい XCTest |
+|---|---|
+| 1 | `testTemporaryRootSymlinksAllowRootTargetsAndRejectSelfAliases` |
+| 2 | `testTemporarySweepRemovesThreeHundredLevelsWithBoundedDescriptors` |
+| 3 | `testTwentyThousandDirectoryPromotionsKeepUniqueResults` |
+| 4 | `testDocumentOptsIntoConcurrentReadingAndParsesOffMainThread` |
+| 5 | `testRestoredFileAndDirectoryPermissionsRespectProcessUmask` |
+
+既存の `testSymlinkChainsAbsoluteInternalTargetsAndCycles` も一時領域への包含を明示的に
+assert するようにした。修正前の再現と最終コマンド出力は末尾の追補ログに記録する。
+
+> **Five review fixes on top of 5458eaf.** Destination roots now use the same
+> canonicalizer as link targets. A post-creation device/inode check also removes
+> self-references through filesystem aliases. Fixtures now live under
+> FileManager.default.temporaryDirectory; the existing cycle test was observed
+> failing on the old implementation and passing after the correction. Root-target
+> links are verified by inode. Cleanup uses an explicit stack with component paths,
+> reopening from the root with O_NOFOLLOW; it holds at most three descriptors of
+> its own regardless of depth. A 300-level tree and its sibling are removed.
+> Directory membership uses a Set of joined components, preserving the separate
+> ordered URL results. A 20,000-directory promotion test checks count, uniqueness,
+> order and filesystem contents, and records timing without a brittle time limit.
+> NSDocument now opts into concurrent reading. Its nonisolated read path only
+> constructs the session and updates the mutex, with no UI or main-actor state
+> access. Tests check the opt-in and execute the same parser initialization off
+> the main thread; they do not simulate AppKit's GUI dispatch or transfer a
+> non-Sendable NSDocument across Swift tasks. Permission restoration applies the
+> process umask, captured once before AppKit or workers start, in addition to
+> stripping special bits. Under umask 022, declared 0777/0666 files and 0777
+> directories match an OS-created permission probe and are not group/other writable.
+> The five new test names are listed above; the suite now contains 35 tests.
+
 ## 対象と結果
 
 中断された作業の `ExtractionPath`、`ExtractionQuarantine`、`ExtractionService`、
@@ -442,3 +515,270 @@ XCTest の Python 起動にも、この環境では `DARWIN_USER_TEMP_DIR` の�
 > is outside the caller's exclusive-ownership contract. Existing symlink escape
 > attempts are tested. Requests are not subdivided among multiple workers;
 > independent readers for concurrent requests are tested.
+
+## 追補ログ: 修正前の再現と修正後の検証
+
+`git archive 5458eaf KaitoFinder KaitoFinderTests KaitoFinder.xcodeproj` を
+`build/ExtractionFixesBaseline` へ展開し、実装は変更せず、fixture の親だけを
+`FileManager.default.temporaryDirectory` へ移した。ログ用の print と、隔離コピーから
+同じ KaitoKit を参照するための package path 調整のみを加えた。
+作業中の修正版を巻き戻さずに、この基準版を別の DerivedData へビルドした。
+`TMPDIR` を runner に引き継ぎ、実際の `/var/folders/.../T` を使って cycle テストを
+単独実行した結果は以下のとおり。修正前は本当に失敗している。
+
+```text
+Test Suite 'Selected tests' started at 2026-09-10 06:12:03.932.
+Test Suite 'KaitoFinderTests.xctest' started at 2026-09-10 06:12:03.932.
+Test Suite 'ExtractionTests' started at 2026-09-10 06:12:03.932.
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkChainsAbsoluteInternalTargetsAndCycles]' started.
+/Users/nagash/Github/KaitoFinder/build/ExtractionFixesBaseline/KaitoFinderTests/ExtractionTests.swift:471: error: -[KaitoFinderTests.ExtractionTests testSymlinkChainsAbsoluteInternalTargetsAndCycles] : XCTAssertEqual failed: ("[]") is not equal to ("["cycleB", "self"]")
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkChainsAbsoluteInternalTargetsAndCycles]' failed (0.090 seconds).
+Test Suite 'ExtractionTests' failed at 2026-09-10 06:12:04.023.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.090 (0.091) seconds
+Test Suite 'KaitoFinderTests.xctest' failed at 2026-09-10 06:12:04.023.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.090 (0.091) seconds
+Test Suite 'Selected tests' failed at 2026-09-10 06:12:04.023.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.090 (0.091) seconds
+PREFIX TEMP ROOT: /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-ExtractionTests-6B72347B-2EA2-485A-A8E2-A3D28314A179/out
+```
+
+修正後は同じ一時領域で既存 30 件と追加 5 件、**35 件すべて成功**。
+300 段の掃除テストは 2.454 秒。20,000 個の昇格処理だけの実測は約 0.267 秒
+（作成・結果検査・片付けを含むテスト全体は 3.660 秒）。
+
+要求された build/test コマンドをそのまま実行した結果は、今回は既定の
+clang/SwiftPM cache への書き込み拒否により package 解決で停止した。
+このため、初回検証と同じ作業領域内の cache 設定を使用した。
+
+指定 build の末尾 20 行:
+
+```text
+2026-09-10 06:10:07.918 xcodebuild[23766:168891]  IDELogStore: Unable to remove item at path /Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult: Error Domain=NSCocoaErrorDomain Code=513 "“Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult” couldn’t be removed because you don’t have permission to access it." UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult, NSURL=file:///Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult, NSUnderlyingError=0x7cc1705170 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+2026-09-10 06:10:07.919 xcodebuild[23766:168891]  IDELogStore: Unable to remove item at path /Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult: Error Domain=NSCocoaErrorDomain Code=513 "“Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult” couldn’t be removed because you don’t have permission to access it." UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult, NSURL=file:///Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult, NSUnderlyingError=0x7cc1705710 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+
+Package: kaitokit
+
+Package: unknown
+
+2026-09-10 06:10:08.012 xcodebuild[23766:168837] Writing error result bundle to /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/ResultBundle_2026-10-09_06-10-0008.xcresult
+xcodebuild: error: Could not resolve package dependencies:
+  <unknown>:0: error: error opening '/Users/nagash/.cache/clang/ModuleCache/Swift-7JL1KBZ3A6V3.swiftmodule' for output: /Users/nagash/.cache/clang/ModuleCache: Operation not permitted
+<unknown>:0: error: unable to load standard library for target 'arm64-apple-macos14.0'
+<unknown>:0: error: cannot open file '/Users/nagash/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/kaitokit.dia' for diagnostics emission (Operation not permitted)
+  <unknown>:0: error: error opening '/Users/nagash/.cache/clang/ModuleCache/Swift-7JL1KBZ3A6V3.swiftmodule' for output: /Users/nagash/.cache/clang/ModuleCache: Operation not permitted
+<unknown>:0: error: unable to load standard library for target 'arm64-apple-macos14.0'
+<unknown>:0: error: cannot open file '/Users/nagash/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/kaitokit.dia' for diagnostics emission (Operation not permitted)
+
+```
+
+指定 test の末尾 40 行:
+
+```text
+[-[SimDiskImageManager _onQueue_checkConnection:]:219] ERROR : simdiskimaged connection is currently unavailable because connection became invalid
+[-[SimServiceContext sendRequest:reply:error:]:1982] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/nagash/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-09-10 06:10:07.798 xcodebuild[23767:168842] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+[-[SimServiceContext sendRequest:reply:error:]:1982] ERROR : Unable to deliver request ({
+    request = "notification_subscription";
+    "set_path" = "/Users/nagash/Library/Developer/CoreSimulator/Devices";
+}) because we are not connected to CoreSimulatorService.
+2026-09-10 06:10:07.798 xcodebuild[23767:168842]  IDESimulatorAvailability: startObservingSimulatorUpdates() FAILED to register SimDeviceSet observer
+2026-09-10 06:10:07.798 xcodebuild[23767:168880] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
+2026-09-10 06:10:07.799 xcodebuild[23767:168880]  iOSSimulator: [SimServiceContext defaultDeviceSetWithError:] returned nil (Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedFailureReason=Failed to subscribe to notifications from CoreSimulatorService., NSLocalizedDescription=Failed to initialize simulator device set., NSUnderlyingError=0x7481708ab0 {Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}}}). Simulator device support disabled.
+Resolve Package Graph
+2026-09-10 06:10:07.913 xcodebuild[23767:168880]  IDELogStore: Unable to remove item at path /Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-53-29-+0900.xcresult: Error Domain=NSCocoaErrorDomain Code=513 "“Test-KaitoFinder-2026.09.10_05-53-29-+0900.xcresult” couldn’t be removed because you don’t have permission to access it." UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-53-29-+0900.xcresult, NSURL=file:///Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-53-29-+0900.xcresult, NSUnderlyingError=0x7481709b00 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+2026-09-10 06:10:07.914 xcodebuild[23767:168880]  IDELogStore: Unable to remove item at path /Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-52-52-+0900.xcresult: Error Domain=NSCocoaErrorDomain Code=513 "“Test-KaitoFinder-2026.09.10_05-52-52-+0900.xcresult” couldn’t be removed because you don’t have permission to access it." UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-52-52-+0900.xcresult, NSURL=file:///Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-52-52-+0900.xcresult, NSUnderlyingError=0x7481709200 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+2026-09-10 06:10:07.918 xcodebuild[23767:168880]  IDELogStore: Unable to remove item at path /Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult: Error Domain=NSCocoaErrorDomain Code=513 "“Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult” couldn’t be removed because you don’t have permission to access it." UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult, NSURL=file:///Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-56-24-+0900.xcresult, NSUnderlyingError=0x7481708d50 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+2026-09-10 06:10:07.919 xcodebuild[23767:168880]  IDELogStore: Unable to remove item at path /Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult: Error Domain=NSCocoaErrorDomain Code=513 "“Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult” couldn’t be removed because you don’t have permission to access it." UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult, NSURL=file:///Users/nagash/Library/Developer/Xcode/DerivedData/KaitoFinder-dlbnzamtbnwxqfcpbfhrykjstdpf/Logs/Test/Test-KaitoFinder-2026.09.10_05-55-03-+0900.xcresult, NSUnderlyingError=0x74817090b0 {Error Domain=NSPOSIXErrorDomain Code=1 "Operation not permitted"}}
+
+Package: kaitokit
+
+Package: unknown
+
+2026-09-10 06:10:08.012 xcodebuild[23767:168838] Writing error result bundle to /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/ResultBundle_2026-10-09_06-10-0008.xcresult
+xcodebuild: error: Could not resolve package dependencies:
+  <unknown>:0: error: error opening '/Users/nagash/.cache/clang/ModuleCache/Swift-7JL1KBZ3A6V3.swiftmodule' for output: /Users/nagash/.cache/clang/ModuleCache: Operation not permitted
+<unknown>:0: error: unable to load standard library for target 'arm64-apple-macos14.0'
+<unknown>:0: error: cannot open file '/Users/nagash/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/kaitokit.dia' for diagnostics emission (Operation not permitted)
+  <unknown>:0: error: error opening '/Users/nagash/.cache/clang/ModuleCache/Swift-7JL1KBZ3A6V3.swiftmodule' for output: /Users/nagash/.cache/clang/ModuleCache: Operation not permitted
+<unknown>:0: error: unable to load standard library for target 'arm64-apple-macos14.0'
+<unknown>:0: error: cannot open file '/Users/nagash/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/kaitokit.dia' for diagnostics emission (Operation not permitted)
+
+```
+
+作業領域の cache を使った clean build は終了コード 0、arm64 の dylib を生成した。
+Swift コンパイルの警告は 0 件。Xcode の AppIntents metadata の警告、Simulator の
+接続診断は引き続き出る。
+
+```sh
+CFFIXED_USER_HOME="$PWD/build/User" \
+XDG_CACHE_HOME="$PWD/build/Cache" \
+CLANG_MODULE_CACHE_PATH="$PWD/build/ModuleCache" \
+SWIFTPM_MODULECACHE_OVERRIDE="$PWD/build/ModuleCache" \
+xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath build/DerivedData \
+  -clonedSourcePackagesDirPath build/SourcePackages \
+  -IDEPackageSupportDisableManifestSandbox=YES \
+  'OTHER_SWIFT_FLAGS=$(inherited) -disable-sandbox' clean build
+```
+
+clean build 末尾 20 行:
+
+```text
+Validate /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Products/Debug/KaitoFinder.app (in target 'KaitoFinder' from project 'KaitoFinder')
+    cd /Users/nagash/Github/KaitoFinder
+    builtin-validationUtility /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Products/Debug/KaitoFinder.app -no-validate-extension -infoplist-subpath Contents/Info.plist
+
+Touch /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Products/Debug/KaitoFinder.app (in target 'KaitoFinder' from project 'KaitoFinder')
+    cd /Users/nagash/Github/KaitoFinder
+    /usr/bin/touch -c /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Products/Debug/KaitoFinder.app
+
+RegisterWithLaunchServices /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Products/Debug/KaitoFinder.app (in target 'KaitoFinder' from project 'KaitoFinder')
+    cd /Users/nagash/Github/KaitoFinder
+    builtin-lsregisterurl --record-path /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Intermediates.noindex/XCBuildData/registered-launchservices.txt -- /System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister -f -R -trusted /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Products/Debug/KaitoFinder.app
+
+PruneExplicitPrecompiledModules /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/nagash/Github/KaitoFinder/build/DerivedData/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/nagash/Github/KaitoFinder/build/DerivedData/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+** BUILD SUCCEEDED **
+
+```
+
+同じオプションで `test` を実行した。テストバンドルはビルドされるが、
+testmanagerd の接続が拒否されて終了コード 133 で停止する。末尾 40 行:
+
+```text
+OS Version:    26A428
+Application:   xcodebuild
+
+Backtrace:
+0   CoreFoundation                      0x00000001954dee90 __CFGenerateReport + 244
+1   CoreFoundation                      0x000000019542e850 _CFXNotificationPostXPC + 768
+2   CoreFoundation                      0x00000001953332d8 _CFXNotificationPost + 440
+3   Foundation                          0x0000000196add49c -[NSDistributedNotificationCenter postNotificationName:object:userInfo:options:] + 108
+4   IDEFoundation                       0x000000010db43548 -[IDETestProgressNotificationsObserver _considerPostingDistributedNotification] + 860
+5   IDEFoundation                       0x000000010db47aec -[IDETestRunSession worker:forTestTargetRunner:willFinishWithResult:] + 308
+6   XCTHarness                          0x000000010bbeadc0 -[XCTHTestTargetRunner testRunner:willFinishWithResult:] + 468
+7   XCTHarness                          0x000000010bbe645c -[XCTHTestRunner willFinishWithResult:sessionState:] + 1404
+8   XCTHarness                          0x000000010bbd9d38 __63-[XCTHTestOperationCoordinator _reportFinishToRunnerWithError:]_block_invoke_2 + 300
+9   XCTHarness                          0x000000010bbda5ec -[XCTHTestOperationCoordinator _considerDispatchingDelegateBlock] + 764
+10  XCTHarness                          0x000000010bbda828 -[XCTHTestOperationCoordinator _unconditionallyEnqueueDelegateBlock:consumingConsole:] + 196
+11  XCTHarness                          0x000000010bd240a8 -[XCTHTestOperationCoordinator _reportFinishToRunnerWithError:].cold.1 + 308
+12  XCTHarness                          0x000000010bbd9bd8 -[XCTHTestOperationCoordinator _reportFinishToRunnerWithError:] + 192
+13  XCTHarness                          0x000000010bbd9a14 __81-[XCTHTestOperationCoordinator _tearDownLoggingAndReportFinishToRunnerWithError:]_block_invoke_2 + 36
+14  libdispatch.dylib                   0x00000001950f0a34 _dispatch_call_block_and_release + 32
+15  libdispatch.dylib                   0x000000019510a5a0 _dispatch_client_callout + 16
+16  libdispatch.dylib                   0x0000000195128998 _dispatch_main_queue_drain.cold.6 + 832
+17  libdispatch.dylib                   0x00000001950ffb0c _dispatch_main_queue_drain + 176
+18  libdispatch.dylib                   0x00000001950ffa4c _dispatch_main_queue_callback_4CF + 44
+19  CoreFoundation                      0x00000001953af9cc __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__ + 16
+20  CoreFoundation                      0x000000019537165c __CFRunLoopRun + 1980
+21  CoreFoundation                      0x000000019544b82c _CFRunLoopRunSpecificWithOptions + 536
+22  CoreFoundation                      0x00000001953e94c4 CFRunLoopRun + 64
+23  Xcode3Core                          0x000000010265f778 -[Xcode3CommandLineBuildTool waitForBuildWithBuildLog:buildActionTimingSection:executionEnvironment:title:operationToEnqueue:error:] + 600
+24  Xcode3Core                          0x000000010266009c -[Xcode3CommandLineBuildTool doBuildForBuildAction:timingSection:colorize:colorizeFailure:error:] + 1152
+25  Xcode3Core                          0x0000000102660db4 -[Xcode3CommandLineBuildTool _buildWithTimingSection:] + 700
+26  Xcode3Core                          0x000000010266cc54 -[Xcode3CommandLineBuildTool run] + 4864
+27  libxcodebuildLoader.dylib           0x00000001024bd4bc XcodeBuildMain + 608
+28  xcodebuild                          0x00000001023af230 -[XcodebuildPreIDEHandler loadXcode3ProjectSupportAndRunXcode3CommandLineBuildToolWithArguments:] + 152
+29  xcodebuild                          0x00000001023ad51c -[XcodebuildPreIDEHandler runWithArguments:] + 364
+30  xcodebuild                          0x00000001023ad06c main + 476
+31  dyld                                0x0000000194edbe80 start + 6688
+2026-09-10 06:12:50.845 xcodebuild[24649:173431]  IDETestOperationsObserverDebug: Failure collecting logarchive: Error Domain=NSCocoaErrorDomain Code=4099 "The connection to service named com.apple.testmanagerd.control was invalidated: Connection init failed at lookup with error 159 - Sandbox restriction." UserInfo={NSDebugDescription=The connection to service named com.apple.testmanagerd.control was invalidated: Connection init failed at lookup with error 159 - Sandbox restriction.}
+2026-09-10 06:12:50.847 xcodebuild[24649:173429] [MT] IDETestOperationsObserverDebug: 0.013 elapsed -- Testing started completed.
+2026-09-10 06:12:50.847 xcodebuild[24649:173429] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-10 06:12:50.847 xcodebuild[24649:173429] [MT] IDETestOperationsObserverDebug: 0.013 sec, +0.013 sec -- end
+```
+
+生成されたテストバンドルを実アプリの dylib とともに直接実行した。
+`TMPDIR` は呼出環境の値をそのまま渡す。これにより、sandbox 内の confstr 失敗で
+`/tmp` に fallback せず、アプリが通常使う `/var/folders/.../T` を fixture が使う。
+mask のテストは別 shell で起動する runner を 022 に設定して実行する。
+
+```sh
+umask 022
+env -i PATH=/usr/bin:/bin TMPDIR="$TMPDIR" \
+  CFFIXED_USER_HOME="$PWD/build/User" \
+  DYLD_INSERT_LIBRARIES="$PWD/build/DerivedData/Build/Products/Debug/KaitoFinder.app/Contents/MacOS/KaitoFinder.debug.dylib" \
+  /Applications/Xcode.app/Contents/Developer/usr/bin/xctest \
+  "$PWD/build/DerivedData/Build/Products/Debug/KaitoFinder.app/Contents/PlugIns/KaitoFinderTests.xctest"
+```
+
+最終 XCTest の末尾 40 行:
+
+```text
+Test Case '-[KaitoFinderTests.ExtractionTests testPreexistingIntermediateAndLeafSymlinksNeverRedirectWrites]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testPreexistingIntermediateAndLeafSymlinksNeverRedirectWrites]' passed (0.078 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testQuarantinePropagatesToFilesDirectoriesAndSymlinks]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testQuarantinePropagatesToFilesDirectoriesAndSymlinks]' passed (0.081 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testRestoredFileAndDirectoryPermissionsRespectProcessUmask]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testRestoredFileAndDirectoryPermissionsRespectProcessUmask]' passed (0.078 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testSingleFileVirtualSubtreeAndMixedSelection]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testSingleFileVirtualSubtreeAndMixedSelection]' passed (0.423 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testSolidGroupStaysInArchiveOrderAndConcurrentRequestsUseIndependentReaders]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testSolidGroupStaysInArchiveOrderAndConcurrentRequestsUseIndependentReaders]' passed (0.083 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testSubtreeArchiveOrderHardlinksAndDeepestLastDirectoryAttributes]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testSubtreeArchiveOrderHardlinksAndDeepestLastDirectoryAttributes]' passed (0.140 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkChainsAbsoluteInternalTargetsAndCycles]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkChainsAbsoluteInternalTargetsAndCycles]' passed (0.084 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkDotDotCannotBeReinterpretedByLaterEntry]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkDotDotCannotBeReinterpretedByLaterEntry]' passed (0.074 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkTargetsInsideOutsideAndForwardReference]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testSymlinkTargetsInsideOutsideAndForwardReference]' passed (0.078 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testTaskCancellationAndPrecancelledProgress]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testTaskCancellationAndPrecancelledProgress]' passed (0.076 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testTemporaryDirectorySurvivesHelperLifetimeAndSweepDoesNotFollowLinks]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testTemporaryDirectorySurvivesHelperLifetimeAndSweepDoesNotFollowLinks]' passed (0.142 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testTemporaryRootSymlinksAllowRootTargetsAndRejectSelfAliases]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testTemporaryRootSymlinksAllowRootTargetsAndRejectSelfAliases]' passed (0.085 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testTemporarySweepRemovesThreeHundredLevelsWithBoundedDescriptors]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testTemporarySweepRemovesThreeHundredLevelsWithBoundedDescriptors]' passed (2.454 seconds).
+Test Case '-[KaitoFinderTests.ExtractionTests testTwentyThousandDirectoryPromotionsKeepUniqueResults]' started.
+Test Case '-[KaitoFinderTests.ExtractionTests testTwentyThousandDirectoryPromotionsKeepUniqueResults]' passed (3.660 seconds).
+Test Suite 'ExtractionTests' passed at 2026-09-10 06:13:21.552.
+	 Executed 27 tests, with 0 failures (0 unexpected) in 8.615 (8.617) seconds
+Test Suite 'KaitoFinderTests.xctest' passed at 2026-09-10 06:13:21.552.
+	 Executed 35 tests, with 0 failures (0 unexpected) in 8.914 (8.915) seconds
+Test Suite 'All tests' passed at 2026-09-10 06:13:21.552.
+	 Executed 35 tests, with 0 failures (0 unexpected) in 8.914 (8.916) seconds
+REFUSED [0] ../escape.txt: パスに .. 成分があります
+REFUSED [2] a/../../deep.txt: パスに .. 成分があります
+REFUSED [4] a\..\..\windows.txt: パスに .. 成分があります
+WRITTEN: ["abs.txt", "ok.txt"]; PARENT UNCHANGED
+TEMP ROOT: /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-ExtractionTests-213E87CD-A9D6-430D-8488-328F70A4617E/out; CANONICAL ROOT: /private/var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-ExtractionTests-213E87CD-A9D6-430D-8488-328F70A4617E/out
+DIRECTORY PROMOTIONS: 20000, elapsed: 0.267112417 seconds
+```
+
+> **Regression evidence and final validation.** An isolated export of 5458eaf was
+> built with unchanged engine code. Only the fixture root, a diagnostic print and
+> the local package path needed for the isolated build were adjusted. Passing the
+> original TMPDIR to the runner reproduced the cycle failure under the actual
+> /var/folders staging ancestor. The fixed implementation passes all 35 tests
+> under the same temporary directory. The 300-level cleanup test takes 2.454 s;
+> the 20,000-directory promotion loop takes 0.267 s (3.660 s including setup,
+> assertions and cleanup). Requested commands fail at default cache access.
+> Workspace-local clean build succeeds for arm64 with no Swift compiler warnings;
+> Xcode metadata and simulator diagnostics remain. xcodebuild test builds its
+> bundle but exits 133 because testmanagerd access is denied. Direct XCTest
+> execution against the app dylib passes all tests. Complete command tails and
+> the actual pre-fix failure are preserved above. GUI dispatch and its responsiveness
+> are not measured by this suite; the concurrent-reading opt-in, nonisolated read
+> implementation and off-main parser execution are verified.

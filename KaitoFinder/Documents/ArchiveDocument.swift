@@ -11,6 +11,11 @@ final class ArchiveDocument: NSDocument {
     nonisolated override class var preservesVersions: Bool { false }
     nonisolated override var isEntireFileLoaded: Bool { false }
 
+    nonisolated override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
+        // read は非隔離で sessionStorage だけを更新する。AppKit の並行読み込みを許可する。
+        true
+    }
+
     nonisolated override func writableTypes(for saveOperation: NSDocument.SaveOperationType) -> [String] {
         []
     }
