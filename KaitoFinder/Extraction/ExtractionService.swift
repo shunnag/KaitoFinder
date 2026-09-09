@@ -68,15 +68,69 @@ nonisolated enum ExtractionService {
         progress.completedUnitCount = 0
         progress.setUserInfoObject(selection.entries.count, forKey: .fileTotalCountKey)
         progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
-        let reader = try await session.extractionReader()
+        let snapshot = try await session.extractionSnapshot()
         // この同期呼出しの中で reader と全 stream の寿命が閉じる。
-        return try run(selection.entries, reader: reader, destination: destination,
-                       quarantine: session.quarantine, progress: progress, didProcess: didProcess)
+        return try run(selection.entries, reader: snapshot.reader, destination: destination,
+                       quarantine: snapshot.quarantine, progress: progress, didProcess: didProcess)
+    }
+
+    /// 世代の再解決と reader の取得は session 内で不可分に行う。
+    @concurrent static func extract(
+        _ payloads: [ArchiveEntryPayload], from session: ArchiveSession, to destination: URL,
+        progress: Progress, promisedItem: ArchiveEntryPayload? = nil,
+        didProcess: (@Sendable (Int) -> Void)? = nil
+    ) async throws -> ExtractionResult {
+        if progress.isCancelled || Task.isCancelled { throw CancellationError() }
+        let snapshot = try await session.resolveForExtraction(payloads)
+        progress.kind = .file
+        progress.totalUnitCount = Int64(snapshot.selection.entries.count)
+        progress.completedUnitCount = 0
+        progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
+        progress.setUserInfoObject(destination, forKey: .fileURLKey)
+        progress.setUserInfoObject(snapshot.selection.entries.count, forKey: .fileTotalCountKey)
+        progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
+        let root: URL
+        let mapping: OutputMapping
+        if let item = promisedItem {
+            guard destination.isFileURL else { throw ExtractionFailure.refused("出力先は file URL が必要です") }
+            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: snapshot.quarantine)
+            let leaf = [destination.lastPathComponent]
+            try parent.validate(leaf)
+            if item.isDirectory {
+                if progress.isCancelled || Task.isCancelled { throw CancellationError() }
+                try parent.directory(leaf, explicit: true)
+                root = destination
+                mapping = .subtree(try ExtractionPath.components(item.path))
+            } else {
+                root = destination.deletingLastPathComponent()
+                mapping = .file(leaf)
+            }
+        } else {
+            root = destination
+            mapping = .archive
+        }
+        return try run(snapshot.selection.entries, reader: snapshot.reader, destination: root,
+                       quarantine: snapshot.quarantine, progress: progress, mapping: mapping, didProcess: didProcess)
+    }
+
+    private enum OutputMapping {
+        case archive, subtree([String]), file([String])
+
+        func components(_ name: String) throws -> [String] {
+            let parts = try ExtractionPath.components(name)
+            switch self {
+            case .archive: return parts
+            case .file(let leaf): return leaf
+            case .subtree(let prefix):
+                guard parts.starts(with: prefix) else { throw ExtractionFailure.refused("部分木の外の項目です") }
+                return Array(parts.dropFirst(prefix.count))
+            }
+        }
     }
 
     private static func run(
         _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL,
-        quarantine: Data?, progress: Progress, didProcess: (@Sendable (Int) -> Void)?
+        quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive, didProcess: (@Sendable (Int) -> Void)?
     ) throws -> ExtractionResult {
         let output = try ExtractionDestination(url: destination, quarantine: quarantine)
         var result = ExtractionResult()
@@ -92,18 +146,21 @@ nonisolated enum ExtractionService {
                 guard reader.entries.indices.contains(entry.index), reader.entries[entry.index] == entry else {
                     throw ExtractionFailure.refused("選択がこの書庫の entry と一致しません")
                 }
-                let components = try ExtractionPath.components(entry.name)
+                let components = try mapping.components(entry.name)
                 let key = components.joined(separator: "/").precomposedStringWithCanonicalMapping
                 // 最初の名前を予約し、失敗しても後続の同名 entry へ差し替えない。
                 // Unicode 正規化で同じ名前も含む。大文字小文字の衝突は O_EXCL で防ぐ。
                 guard claimed.insert(key).inserted else {
                     throw ExtractionFailure.refused("重複する出力名です（書庫順で最初の entry を優先）")
                 }
-                try output.validate(components)
+                // promise の明示フォルダ entry は今回作成した root 自身を表す。
+                if components.isEmpty {
+                    guard entry.kind == .directory else { throw ExtractionFailure.refused("root がフォルダではありません") }
+                } else { try output.validate(components) }
                 switch entry.kind {
                 case .directory:
                     try drain(reader.stream(entry), checkCancellation: checkCancellation)
-                    try output.directory(components, explicit: true)
+                    if !components.isEmpty { try output.directory(components, explicit: true) }
                     directories.append((entry, components))
                 case .file:
                     try output.file(components, entry: entry, stream: reader.stream(entry),
@@ -139,7 +196,7 @@ nonisolated enum ExtractionService {
                         guard let index = entry.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
                               let target = materialized[index], index < entry.index,
                               let targetName = entry.formatSpecific["linkPath"],
-                              try ExtractionPath.components(targetName) == target else {
+                              try mapping.components(targetName) == target else {
                             throw ExtractionFailure.refused("同じ reader と root で先に展開した hard link target がありません")
                         }
                         try drain(reader.stream(entry), checkCancellation: checkCancellation)

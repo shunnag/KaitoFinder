@@ -52,12 +52,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         open.target = documentController
         fileMenu.addItem(withTitle: String(localized: "閉じる"),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenu.addItem(.separator())
+        fileMenu.addItem(withTitle: String(localized: "選択した項目を取り出す…"),
+                         action: #selector(ArchiveWindowController.extractSelected(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: String(localized: "すべて取り出す…"),
+                         action: #selector(ArchiveWindowController.extractAll(_:)), keyEquivalent: "")
+        let editMenu = NSMenu(title: String(localized: "編集"))
+        editMenu.addItem(withTitle: String(localized: "コピー"),
+                         action: #selector(ArchiveWindowController.copy(_:)), keyEquivalent: "c")
         let windowMenu = NSMenu(title: String(localized: "ウインドウ"))
         windowMenu.addItem(withTitle: String(localized: "しまう"),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: String(localized: "拡大／縮小"),
                            action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
-        for submenu in [appMenu, fileMenu, windowMenu] {
+        for submenu in [appMenu, fileMenu, editMenu, windowMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu
             menu.addItem(item)

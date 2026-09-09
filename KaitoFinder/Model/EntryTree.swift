@@ -4,6 +4,7 @@ import KaitoKit
 /// 表示用の名前とは別に、展開時に必要となる元のエントリを保持する。
 final class EntryNode: NSObject {
     let name: String
+    private(set) var path: String = ""
     let isDirectory: Bool
     private(set) var entry: ArchiveEntry?
     private(set) var children: [EntryNode] = []
@@ -45,6 +46,7 @@ final class EntryNode: NSObject {
             } else {
                 // 同名ファイルや、ファイルとフォルダの衝突も消さずに表示する。
                 let node = EntryNode(name: leaf, isDirectory: false, entry: entry)
+                node.path = parent.path.isEmpty ? leaf : parent.path + "/" + leaf
                 parent.children.append(node)
                 nodes.append(node)
             }
@@ -60,6 +62,7 @@ final class EntryNode: NSObject {
     private func directory(named name: String, nodes: inout [EntryNode]) -> EntryNode {
         if let existing = directories[name] { return existing }
         let node = EntryNode(name: name, isDirectory: true)
+        node.path = path.isEmpty ? name : path + "/" + name
         directories[name] = node
         children.append(node)
         nodes.append(node)

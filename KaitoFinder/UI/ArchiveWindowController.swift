@@ -1,7 +1,12 @@
 import AppKit
 import UniformTypeIdentifiers
 
-final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate {
+final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuItemValidation {
+    private var archiveSession: ArchiveSession?
+    private var generation: UInt64 = 0
+    private let promiseOwner = UUID()
+    private var extractionTask: Task<Void, Never>?
+    private var extractionProgress: Progress?
     private let outlineView = NSOutlineView()
     private var root = EntryNode.tree(from: [])
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
@@ -60,16 +65,133 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.autosaveTableColumns = true
         outlineView.dataSource = self
         outlineView.delegate = self
+        outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        outlineView.setDraggingSourceOperationMask(.copy, forLocal: true)
         scrollView.documentView = outlineView
         window.contentView = scrollView
     }
 
     required init?(coder: NSCoder) { nil }
 
-    func display(_ root: EntryNode) {
+    func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0) {
+        archiveSession = session
+        self.generation = generation
         self.root = root
         sortedChildren.removeAll()
         outlineView.reloadData()
+    }
+
+    private var selectedNodes: [EntryNode] {
+        outlineView.selectedRowIndexes.compactMap { outlineView.item(atRow: $0) as? EntryNode }
+    }
+
+    private func payloads(for nodes: [EntryNode], session: ArchiveSession) -> [ArchiveEntryPayload] {
+        // 選択された親フォルダが子も運ぶので、子の URL を重ねない。
+        let selected = Set(nodes.map(ObjectIdentifier.init))
+        return nodes.filter { node in
+            var parent = outlineView.parent(forItem: node) as? EntryNode
+            while let ancestor = parent {
+                if selected.contains(ObjectIdentifier(ancestor)) { return false }
+                parent = outlineView.parent(forItem: ancestor) as? EntryNode
+            }
+            return true
+        }.map { ArchiveEntryPayload(node: $0, archiveURL: session.sourceURL, generation: generation) }
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
+        guard let node = item as? EntryNode, let session = archiveSession else { return nil }
+        do {
+            let promise = try FilePromiseRegistry.shared.register(
+                payload: ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation), session: session, owner: promiseOwner)
+            return promise.provider
+        } catch {
+            NSLog("ドラッグ項目を作成できません: %@", String(describing: error))
+            return nil
+        }
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,
+                     willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
+        FilePromiseRegistry.shared.beganPending(sessionID: session.draggingSequenceNumber, owner: promiseOwner)
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,
+                     endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        FilePromiseRegistry.shared.ended(sessionID: session.draggingSequenceNumber)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(copy(_:)), #selector(extractSelected(_:)):
+            return archiveSession != nil && !selectedNodes.isEmpty && extractionTask == nil
+        case #selector(extractAll(_:)):
+            return archiveSession != nil && !root.children.isEmpty && extractionTask == nil
+        default: return true
+        }
+    }
+
+    @objc func copy(_ sender: Any?) {
+        guard let session = archiveSession, extractionTask == nil, !selectedNodes.isEmpty else { return }
+        let nodes = selectedNodes
+        let items = payloads(for: nodes, session: session)
+        let selection = ExtractionSelection(nodes: nodes)
+        startExtraction(items, session: session, destination: nil,
+                        showProgress: ArchiveCopyOut.requiresProgress(selection), entryCount: selection.entries.count)
+    }
+
+    @objc func extractSelected(_ sender: Any?) { chooseDestination(for: selectedNodes) }
+    @objc func extractAll(_ sender: Any?) { chooseDestination(for: root.children) }
+
+    private func chooseDestination(for nodes: [EntryNode]) {
+        guard let session = archiveSession, let window, extractionTask == nil, !nodes.isEmpty else { return }
+        let items = payloads(for: nodes, session: session)
+        let entryCount = ExtractionSelection(nodes: nodes).entries.count
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = String(localized: "取り出す")
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let destination = panel.url else { return }
+            self?.startExtraction(items, session: session, destination: destination, showProgress: true, entryCount: entryCount)
+        }
+    }
+
+    private func startExtraction(_ items: [ArchiveEntryPayload], session: ArchiveSession,
+                                 destination: URL?, showProgress: Bool, entryCount: Int) {
+        guard let window, extractionTask == nil else { return }
+        let progress = Progress(totalUnitCount: Int64(entryCount))
+        extractionProgress = progress
+        let sheet = showProgress ? ExtractionProgressSheet(progress: progress) : nil
+        sheet?.begin(on: window)
+        // シートの表示後に worker を起動する。小さい copy も UI actor で stream を読まない。
+        extractionTask = Task { [weak self] in
+            do {
+                if let destination {
+                    let result = try await ExtractionService.extract(items, from: session, to: destination, progress: progress)
+                    try ArchiveCopyOut.check(result)
+                } else {
+                    _ = try await ArchiveCopyOut.copy(items, from: session, to: .general, progress: progress)
+                }
+                sheet?.finish()
+            } catch {
+                sheet?.finish()
+                if !(error is CancellationError), !Task.isCancelled {
+                    let alert = NSAlert()
+                    alert.messageText = String(localized: "項目を取り出せませんでした")
+                    alert.informativeText = String(describing: error)
+                    alert.beginSheetModal(for: window, completionHandler: nil)
+                }
+            }
+            self?.extractionTask = nil
+            self?.extractionProgress = nil
+        }
+    }
+
+    func cancelExtraction() {
+        extractionProgress?.cancel()
+        extractionTask?.cancel()
     }
 
     private func children(of item: Any?) -> [EntryNode] {
