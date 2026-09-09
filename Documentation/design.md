@@ -43,9 +43,26 @@ KaitoFinder は「書庫を一覧できる圧縮ソフト」ではなく、**名
 **writer をここへ足さない**。これで「他の KaitoKit 利用ソフトへの影響ゼロ」が
 文言ではなく構造として成立する。
 
-KaitoFinder 側は cooViewer と同じ方式で消費する。すなわち sibling checkout の
-`Scripts/build-framework.sh` が組み立てた universal framework を `Frameworks/` へ
-ditto し、手書きの `.xcodeproj` が embed する。`Frameworks/` は gitignore。
+### 2.1 KaitoFinder はどうやって両方を掴むか
+
+cooViewer は `Scripts/build-framework.sh` が作る universal framework を
+`Frameworks/` へ ditto して embed する。**KaitoFinder はこれを踏襲しない。**
+
+理由は二つ。第一に、その script が組み立てる `KaitoKitDynamic` には
+(意図どおり)`KaitoKitWrite` が入らないので、framework 経路には writer が
+存在しない。第二に、`KaitoKitWriteDynamic` という二つ目の dynamic product を
+足す素直な解決策は壊れる。SwiftPM の `.dynamic` product は依存 target を
+**dylib の中へ静的に畳み込む**ため、`KaitoKitWrite.framework` が `KaitoKit` の
+二つ目の複製を抱え、`KaitoKit.framework` と link / load 時に衝突する。
+
+そこで KaitoFinder は `.xcodeproj` から **sibling checkout `../KaitoKit` を
+SwiftPM の local package として参照**し、`KaitoKit` と `KaitoKitWrite` を
+静的に link する。`../KaitoKit` は `build-kaitokit-framework.sh` が既に前提に
+している場所なので、開発時の配置は変わらない。
+
+cooViewer 側の framework 経路は、その script のコメントどおり「書庫エンジンを
+差し替えて検証する」ために存在する。KaitoFinder にその要件は無いので、
+複雑さを引き継ぐ理由も無い。cooViewer の framework 構成は一切変えない。
 
 > **Layering.** Three layers: the untouched read-only `KaitoKit`, a new additive
 > `KaitoKitWrite` target in the same repository, and the KaitoFinder app. Making
@@ -89,24 +106,38 @@ non-sandbox でも実利があり、将来 sandbox を検討する際の前提�
 `ZipReader` は `localHeaderOffset` / `dataOffset` / `compressedSize` / `method` /
 `flags` を private に持っているので、これを読み出す追加 API を用意する。
 
+形式に依存しない形にする。ZIP の `method` や `flags` を struct の field に
+持たせると tar / LHA で意味を失うので、形式固有の値は `formatSpecific` と同じ
+文字列辞書へ逃がす。
+
 ```swift
-public struct RawEntryPayload: Sendable {
-    public let localHeaderOffset: UInt64   // local record の先頭
-    public let payloadOffset: UInt64       // 圧縮データの先頭
-    public let payloadSize: UInt64
-    public let methodCode: UInt16
-    public let generalPurposeFlags: UInt16
-    public let hasDataDescriptor: Bool
+public struct RawEntryRecord: Sendable {
+    /// そのまま運ぶべき範囲。ZIP なら [LFH][name][extra][payload] に
+    /// bit 3 が立っていれば data descriptor まで含む。
+    public let recordRange: Range<UInt64>
+    /// 検証用。圧縮データ本体だけの範囲。
+    public let payloadRange: Range<UInt64>
+    /// 形式固有の値(ZIP なら method、flags など)。
+    public let formatSpecific: [String: String]
 }
-public func rawPayload(of entry: ArchiveEntry) throws -> RawEntryPayload?
+public func rawRecord(of entry: ArchiveEntry) throws -> RawEntryRecord?
 ```
 
-対応しない形式では `nil` を返す。ZIP・tar・LHA が対象で、7z の solid folder は
-`nil`。**local record 全体をバイト列としてそのまま運ぶ**ことが重要で、local と
+**終端の算出は KaitoKit にやらせる**のが要点。ZIP の data descriptor は
+signature の有無と ZIP64 かどうかで 0 / 12 / 16 / 20 / 24 byte と変わり、
+`ZipReader` が今持っている `dataEnd` は payload までしか見ていない。
+呼ぶ側にこの算術をやらせると、writer と reader で解釈がずれる。
+
+**local record 全体をバイト列としてそのまま運ぶ**ことが重要で、local と
 central の extra field 長は正当に異なる(ditto は 16 / 12、Info-ZIP の 0x5455 は
 9 / 5)。central から local header を再構成してはならない。
 
-これは reader の**追加**であり、既存の解析経路と出力は変わらない。
+対応しない形式では `nil` を返す。ZIP・tar・LHA が対象で、7z の solid folder は
+`nil`。これは reader の**追加**であり、既存の解析経路と出力は変わらない。
+
+updater 側には併せて二つの門番を置く。**SFX 付き ZIP は編集しない**
+(prefix があると central directory の offset 基準がずれる)。**EOCD の後ろに
+trailing data がある ZIP も編集しない**。どちらも読み取りは従来どおり行う。
 
 > **KaitoKit changes — additive only, three of them.** (i) `reopen()` gains a
 > `sending` return type; measured on Swift 6.4, without it an actor-wrapped
@@ -397,9 +428,12 @@ KaitoKit が既に対応しており、これは残す。
 - `EntryStream` は非 Sendable。isolation 境界を跨がせない。read loop は
   一つの domain に閉じる。
 - UI へ渡すのは Sendable な snapshot だけ(`ArchiveEntry` は既に Sendable)。
-- Approachable Concurrency は**プロジェクト作成時に明示的に決める**。
-  Swift 6.4 の既定は OFF で、`nonisolated async` は暗黙に main actor を離れる。
-  後から有効化すると意味が反転する。
+- Approachable Concurrency は**有効にする**。アプリ target に
+  `SWIFT_APPROACHABLE_CONCURRENCY = YES` と main actor 既定 isolation を設定し、
+  重い展開・圧縮だけを `@concurrent` にする。設定は module 単位なので
+  KaitoKit package 側は現状のままでよい。Swift 6.4 の既定は OFF で、
+  そのままだと `nonisolated async` が暗黙に main actor を離れる。後から
+  有効化すると意味が反転するため、最初に決めて動かさない。
 - 進捗は `Foundation.Progress`。`ProgressManager` は macOS 27 なので使えない。
 
 ## 9. 安全性
@@ -421,7 +455,7 @@ KaitoKit が既に対応しており、これは残す。
 
 | | 内容 | 出来上がるもの |
 |---|---|---|
-| **M0** | repo、`.xcodeproj`、KaitoKit framework 連携、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える |
+| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える |
 | **M1** | drag out(file promise)、copy out、Quick Look、進捗と取り消し、path traversal 対策、quarantine 伝播 | **15 形式すべてで取り出せる**。ここまで read-only |
 | **M2** | `KaitoKitWrite` の ZIP writer、append、drag in / paste in | 書庫へ入れられる |
 | **M3** | 削除・改名・新規フォルダ、atomic replace、undo | 書庫内編集 |
