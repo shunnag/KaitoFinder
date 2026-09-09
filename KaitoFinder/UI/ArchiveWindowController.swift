@@ -112,19 +112,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     required init?(coder: NSCoder) { nil }
 
-    func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0) {
+    func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
+                 materializationController: ArchiveMaterializationController? = nil) {
         closePreview()
-        materialization?.close()
+        if materialization !== materializationController { materialization?.close() }
         archiveSession = session
         self.generation = generation
         self.root = root
         sortedChildren.removeAll()
         outlineView.reloadData()
         if let session {
-            let worker = EntryMaterializer(session: session)
-            let controller = ArchiveMaterializationController { payload, progress in
-                try await worker.materialize(payload, progress: progress)
-            }
+            let controller = materializationController ?? ArchiveMaterializationController(session: session)
             controller.started = { [weak self] item, progress in
                 guard let self, item.requiresProgress, let window = self.window else { return }
                 let sheet = ExtractionProgressSheet(progress: progress)
@@ -271,7 +269,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let session = archiveSession else { return [] }
         return selectedNodes.map { node in
             let payload = ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation)
-            if let cached = materialization?.items.first(where: { $0.payload == payload }) { return cached }
+            if let cached = materialization?.cachedItem(for: payload) { return cached }
             return ArchivePreviewItem(payload: payload,
                 capability: EntryReadCapability(entry: node.entry, isDirectory: node.isDirectory, format: session.format),
                 requiresProgress: ArchiveCopyOut.requiresProgress(ExtractionSelection(entries: node.entry.map { [$0] } ?? [])))
@@ -363,7 +361,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard readableSelection() != nil, let panel = QLPreviewPanel.shared() else { return }
         panel.makeKeyAndOrderFront(sender)
         panel.updateController()
-        if previewPanel === panel { updatePreviewSelection(); startPreviewMonitoring(panel) }
+        if previewPanel === panel { updatePreviewSelection(reportingFailures: true); startPreviewMonitoring(panel) }
     }
 
     nonisolated override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
@@ -409,7 +407,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard previewPanel === panel else { return }
         previewMonitor?.cancel()
         previewMonitor = nil
-        if previewActive { materialization?.close() }
+        if previewActive { materialization?.setSelection([]) }
         previewActive = false
         panel.dataSource = nil
         panel.delegate = nil
@@ -424,10 +422,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if let panel = previewPanel { panel.orderOut(nil) }
     }
 
-    private func updatePreviewSelection() {
+    private func updatePreviewSelection(reportingFailures: Bool = false) {
         guard let panel = previewPanel else { return }
         previewActive = true
-        materialization?.setSelection(previewItems())
+        materialization?.updatePreviewSelection(previewItems(), reportingFailures: reportingFailures)
         panel.reloadData()
         if materialization?.items.isEmpty == false { panel.currentPreviewItemIndex = 0 }
         synchronizePreview(panel)

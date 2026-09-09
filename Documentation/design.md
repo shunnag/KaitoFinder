@@ -283,6 +283,11 @@ Quick Look は `QuickLookUI.QLPreviewPanel` を window controller の responder 
 `QLPreviewItem` は書庫内パスをタイトルにし、未展開時の URL は nil とする。
 選択全体を data source に公開しても、実体化するのは `currentPreviewItemIndex` の一項目
 だけ。solid 群の先読みを避け、移動・選択変更・終了で古い要求を取り消す。
+成功したコピーは generation / index / path を含む payload をキーに文書内でキャッシュし、
+選択やパネルを閉じる操作をまたいで再利用する。文書の終了・世代変更時には要求を停止して
+終了を待ち、文書の一時コピーを background で削除する。コピー用 pasteboard の寿命とは別に扱う。
+非対応の行へ受動的に選択を移した場合、パネルは空の状態になり alert を出さない。
+Space / メニューの明示的な実行には理由を表示する。可否判定は翻訳文字列から分離した enum を使う。
 Open / Open With も同じ遅延実体化処理を使い、実名と拡張子を保持する文書別一時領域へ
 既存の安全な展開層を通して書く。M1 は公開前にコピーを読み取り専用にし、書庫には
 保存されないことを UI に常時表示する。32 MiB 以上またはサイズ不明なら既存の進捗と
@@ -303,7 +308,13 @@ Cancel を使う。詳細と自動検証・手動確認の境界は
 > Space is handled by NSOutlineView.keyDown. A custom preview item reports its
 > archive path as title and nil URL until ready. The data source exposes the full
 > selection but materializes only currentPreviewItemIndex, cancelling old work on
-> navigation, selection changes and closure. Open and Open With share this lazy
+> navigation, selection changes and closure. Successful copies are cached by the
+> document using the generation/index/path payload, surviving selection and panel
+> changes. Document closure or generation replacement drains work and deletes the
+> document's copies in the background, independently of pasteboard lifetime. Passive
+> navigation onto unsupported rows leaves an empty panel without alerts; explicit
+> actions still report the reason. Capability decisions use stable enum values,
+> separately from translated messages. Open and Open With share this lazy
 > materialization through the existing safe extraction layer, preserving real
 > filenames and extensions in per-document temporary storage. M1 copies become
 > read-only before publication, with a persistent notice that changes are not saved
@@ -351,7 +362,12 @@ copy & paste の設計は確定した。
 promise は使えないので、⌘C で temp へ**展開してから**実 file URL を pasteboard へ
 置く。遅延を装わない。サイズが閾値を超えるときは進捗シートを出し、
 取り消せるようにする。展開先はアプリ専用の temp サブディレクトリで、
-起動時に掃く(pasteboard はアプリより長生きしうる)。
+起動時に background task で掃く(pasteboard はアプリより長生きしうる)。UI の起動は待たせない。
+一時領域名にプロセス固有の UUID prefix を付け、今回の起動後に作った領域は掃除から除外する。
+
+> Launch cleanup runs in a detached background task without delaying the UI. A
+> per-process UUID prefix excludes newly created temporary directories from the
+> sweep, preventing cleanup from racing new copy or preview requests.
 
 ### 6.4 drop in / paste in
 

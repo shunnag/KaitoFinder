@@ -7,6 +7,29 @@ final class ArchiveDocument: NSDocument {
     var session: ArchiveSession? { sessionStorage.withLock { $0 } }
     var generation: UInt64 { session?.generation ?? 0 }
     private var loadingTask: Task<Void, Never>?
+    private var materialization: ArchiveMaterializationController?
+    private(set) var materializationCleanup: Task<Void, Never>?
+
+    func materializationController(
+        temporaryDirectory: ExtractionTemporaryDirectory = ExtractionTemporaryDirectory()
+    ) -> ArchiveMaterializationController? {
+        guard let session else { return nil }
+        if let materialization { return materialization }
+        let controller = ArchiveMaterializationController(session: session, temporaryDirectory: temporaryDirectory)
+        materialization = controller
+        return controller
+    }
+
+    private func disposeMaterialization() {
+        guard let materialization else { return }
+        let previous = materializationCleanup
+        let current = materialization.close()
+        materializationCleanup = Task {
+            await previous?.value
+            await current.value
+        }
+        self.materialization = nil
+    }
 
     nonisolated override class var autosavesInPlace: Bool { false }
     nonisolated override class var preservesVersions: Bool { false }
@@ -33,21 +56,25 @@ final class ArchiveDocument: NSDocument {
         guard let session else { return }
         loadingTask = Task { [weak self, weak controller] in
             let snapshot = await session.snapshot()
-            guard !Task.isCancelled, self != nil else { return }
-            controller?.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
+            guard !Task.isCancelled, let self else { return }
+            controller?.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
+                                materializationController: self.materializationController())
         }
     }
 
     func reloadAfterMutation() async throws {
         guard let session else { return }
+        disposeMaterialization()
         try await session.reloadAfterMutation()
         let snapshot = await session.snapshot()
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
-            controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
+            controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
+                               materializationController: materializationController())
         }
     }
 
     override func close() {
+        disposeMaterialization()
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
             controller.cancelExtraction()
         }

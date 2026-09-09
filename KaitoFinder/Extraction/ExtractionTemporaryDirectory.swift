@@ -5,6 +5,8 @@ import Foundation
 /// itemReplacementDirectory は使用しない。root の注入はテスト用。
 nonisolated struct ExtractionTemporaryDirectory {
     let root: URL
+    // 起動時の掃除と、新しい drag/copy/preview の作成を競合させない。
+    private static let processPrefix = UUID().uuidString + "-"
 
     init(root: URL = FileManager.default.temporaryDirectory
         .appendingPathComponent("com.shunnag.KaitoFinder.Extraction", isDirectory: true)) {
@@ -14,7 +16,7 @@ nonisolated struct ExtractionTemporaryDirectory {
     func create() throws -> URL {
         let directory = try openRoot()
         defer { close(directory) }
-        let name = UUID().uuidString
+        let name = Self.processPrefix + UUID().uuidString
         guard mkdirat(directory, name, 0o700) == 0 else { throw ExtractionFailure.system(errno) }
         return root.appendingPathComponent(name, isDirectory: true)
     }
@@ -23,6 +25,18 @@ nonisolated struct ExtractionTemporaryDirectory {
         let directory = try openRoot()
         defer { close(directory) }
         try removeChildren(directory)
+    }
+
+    /// UI の起動は待たない。今回のプロセスの領域は列挙開始の前後を問わず残す。
+    @discardableResult func startLaunchSweep(willSweep: (@Sendable () -> Void)? = nil) -> Task<Void, Never> {
+        Task.detached(priority: .utility) {
+            willSweep?()
+            do {
+                let directory = try openRoot()
+                defer { close(directory) }
+                try removeChildren(directory, preservingPrefix: Self.processPrefix)
+            } catch { NSLog("一時展開領域の掃除に失敗しました: %@", String(describing: error)) }
+        }
     }
 
     private func openRoot() throws -> Int32 {
@@ -38,7 +52,7 @@ nonisolated struct ExtractionTemporaryDirectory {
         return directory
     }
 
-    private func removeChildren(_ directory: Int32) throws {
+    private func removeChildren(_ directory: Int32, preservingPrefix: String? = nil) throws {
         // fd を深さ分保持せず、root 相対の成分と訪問状態だけを積む。
         // 各処理の fd は次のディレクトリへ進む前に必ず閉じる。
         var pending: [(components: [String], remove: Bool)] = [([], false)]
@@ -67,6 +81,7 @@ nonisolated struct ExtractionTemporaryDirectory {
                     $0.withMemoryRebound(to: CChar.self, capacity: Int(item.pointee.d_namlen) + 1) { String(cString: $0) }
                 }
                 if name == "." || name == ".." { continue }
+                if step.components.isEmpty, let preservingPrefix, name.hasPrefix(preservingPrefix) { continue }
                 var info = stat()
                 guard fstatat(current, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
                     throw ExtractionFailure.system(errno)

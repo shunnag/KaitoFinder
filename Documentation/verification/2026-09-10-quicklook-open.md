@@ -1,5 +1,18 @@
 # M1c Quick Look / Open の検証（2026-09-10）
 
+## 追補: 敵対的レビュー後の修正
+
+以下の初回記録は履歴として残す。選択をまたぐキャッシュ、文書終了時のコピー削除、
+起動時掃除の非同期化、受動的選択での alert 抑制、翻訳に依存しない可否判定へ更新した。
+公開済みプレビュー / Open のコピーを文書終了後も残すという初回の寿命契約は廃止した。
+現在の契約と回帰テストは [修正検証記録](2026-09-10-quicklook-fixes.md) を参照。
+
+> **Review-fix addendum.** The original record below is retained as history. The
+> fixes add a selection-independent document cache and document-close cleanup,
+> asynchronous launch sweeping, quiet passive selection and stable capability
+> discriminators. The original promise to keep published preview/Open copies
+> after document closure is superseded. See the linked fix verification record.
+
 ## 対象と結果
 
 M1b の安全な展開経路に、単一項目の遅延実体化、Quick Look、Open / Open With を接続した。

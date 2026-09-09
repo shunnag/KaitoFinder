@@ -4,29 +4,50 @@ import KaitoKit
 /// 一覧のメタデータだけで判定する。可否の照会では stream を開かない。
 /// 圧縮データ内で初めて分かる制限・破損は展開時の失敗報告に委ねる。
 nonisolated struct EntryReadCapability: Sendable {
-    let reason: String?
-    var canPreview: Bool { reason == nil }
-    var canOpen: Bool { reason == nil }
+    enum Refusal: Error, Equatable, Sendable {
+        case directory, encrypted, incomplete, linkOrSpecial, missingEntry
+        case unsupportedMethod(String)
+        case invalidPath
 
-    init(entry: ArchiveEntry?, isDirectory: Bool, format: ArchiveFormat) {
+        // 表示だけを翻訳し、判定とテストには enum の値を使う。
+        func message(bundle: Bundle = .main) -> String {
+            switch self {
+            case .directory: String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません", bundle: bundle)
+            case .encrypted: String(localized: "暗号化された項目にはパスワードが必要です", bundle: bundle)
+            case .incomplete: String(localized: "不完全な項目は内容を検証できないため開けません", bundle: bundle)
+            case .linkOrSpecial: String(localized: "リンクまたは特殊な項目は単独で開けません", bundle: bundle)
+            case .missingEntry: String(localized: "選択した項目が見つかりません", bundle: bundle)
+            case .unsupportedMethod(let method): String(localized: "未対応の圧縮方式です: \(method)", bundle: bundle)
+            case .invalidPath: String(localized: "項目のパスが安全ではないため開けません", bundle: bundle)
+            }
+        }
+    }
+
+    let refusal: Refusal?
+    let reason: String?
+    var canPreview: Bool { refusal == nil }
+    var canOpen: Bool { refusal == nil }
+
+    init(entry: ArchiveEntry?, isDirectory: Bool, format: ArchiveFormat, bundle: Bundle = .main) {
         if isDirectory || entry?.kind == .directory {
-            reason = String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません")
+            refusal = .directory
         } else if let entry {
             if entry.isEncrypted {
-                reason = String(localized: "暗号化された項目にはパスワードが必要です")
+                refusal = .encrypted
             } else if entry.isIncomplete {
-                reason = String(localized: "不完全な項目は内容を検証できないため開けません")
+                refusal = .incomplete
             } else if entry.kind != .file {
-                reason = String(localized: "リンクまたは特殊な項目は単独で開けません")
+                refusal = .linkOrSpecial
             } else if !Self.supportsMethod(entry, format: format) {
-                reason = String(localized: "未対応の圧縮方式です: \(entry.methodDescription)")
+                refusal = .unsupportedMethod(entry.methodDescription)
             } else {
-                do { _ = try ExtractionPath.components(entry.name); reason = nil }
-                catch { reason = String(describing: error) }
+                do { _ = try ExtractionPath.components(entry.name); refusal = nil }
+                catch { refusal = .invalidPath }
             }
         } else {
-            reason = String(localized: "選択した項目が見つかりません")
+            refusal = .missingEntry
         }
+        reason = refusal?.message(bundle: bundle)
     }
 
     private static func supportsMethod(_ entry: ArchiveEntry, format: ArchiveFormat) -> Bool {

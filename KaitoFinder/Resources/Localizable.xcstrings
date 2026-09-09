@@ -714,6 +714,23 @@
           }
         }
       }
+    },
+    "項目のパスが安全ではないため開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "項目のパスが安全ではないため開けません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The item's path is unsafe and cannot be opened."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
