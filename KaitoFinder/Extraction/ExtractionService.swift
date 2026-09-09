@@ -78,10 +78,18 @@ nonisolated enum ExtractionService {
     @concurrent static func extract(
         _ payloads: [ArchiveEntryPayload], from session: ArchiveSession, to destination: URL,
         progress: Progress, promisedItem: ArchiveEntryPayload? = nil,
+        readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil,
         didProcess: (@Sendable (Int) -> Void)? = nil
     ) async throws -> ExtractionResult {
         if progress.isCancelled || Task.isCancelled { throw CancellationError() }
         let snapshot = try await session.resolveForExtraction(payloads)
+        if readOnly {
+            for entry in snapshot.selection.entries {
+                let capability = EntryReadCapability(entry: entry, isDirectory: entry.kind == .directory,
+                                                     format: snapshot.reader.format)
+                if let reason = capability.reason { throw ExtractionFailure.refused(reason) }
+            }
+        }
         progress.kind = .file
         progress.totalUnitCount = Int64(snapshot.selection.entries.count)
         progress.completedUnitCount = 0
@@ -110,7 +118,8 @@ nonisolated enum ExtractionService {
             mapping = .archive
         }
         return try run(snapshot.selection.entries, reader: snapshot.reader, destination: root,
-                       quarantine: snapshot.quarantine, progress: progress, mapping: mapping, didProcess: didProcess)
+                       quarantine: snapshot.quarantine, progress: progress, mapping: mapping,
+                       readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
     }
 
     private enum OutputMapping {
@@ -130,9 +139,10 @@ nonisolated enum ExtractionService {
 
     private static func run(
         _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL,
-        quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive, didProcess: (@Sendable (Int) -> Void)?
+        quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive,
+        readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?
     ) throws -> ExtractionResult {
-        let output = try ExtractionDestination(url: destination, quarantine: quarantine)
+        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, didWrite: didWrite)
         var result = ExtractionResult()
         var claimed = Set<String>()
         var directories: [(ArchiveEntry, [String])] = []

@@ -2,7 +2,7 @@ import Foundation
 import KaitoKit
 
 /// index は同一世代内の位置だけを表す。仮想フォルダには index がない。
-nonisolated struct ArchiveEntryPayload: Sendable {
+nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
     let archiveURL: URL
     let generation: UInt64
     let entryIndex: Int?

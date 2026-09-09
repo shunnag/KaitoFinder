@@ -493,6 +493,227 @@
           }
         }
       }
+    },
+    "フォルダはプレビューまたは外部アプリケーションで開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォルダはプレビューまたは外部アプリケーションで開けません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folders cannot be previewed or opened in another application."
+          }
+        }
+      }
+    },
+    "暗号化された項目にはパスワードが必要です": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暗号化された項目にはパスワードが必要です"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This encrypted item requires a password."
+          }
+        }
+      }
+    },
+    "不完全な項目は内容を検証できないため開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不完全な項目は内容を検証できないため開けません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This incomplete item cannot be opened because its contents cannot be verified."
+          }
+        }
+      }
+    },
+    "リンクまたは特殊な項目は単独で開けません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リンクまたは特殊な項目は単独で開けません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links and special items cannot be opened individually."
+          }
+        }
+      }
+    },
+    "未対応の圧縮方式です: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未対応の圧縮方式です: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported compression method: %@"
+          }
+        }
+      }
+    },
+    "選択した項目が見つかりません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択した項目が見つかりません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected item could not be found."
+          }
+        }
+      }
+    },
+    "このアプリケーションで開く": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアプリケーションで開く"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open With"
+          }
+        }
+      }
+    },
+    "開く（読み取り専用のコピー）": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開く（読み取り専用のコピー）"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open (Read-Only Copy)"
+          }
+        }
+      }
+    },
+    "クイックルック": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クイックルック"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Look"
+          }
+        }
+      }
+    },
+    "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previews and items opened in other apps are read-only temporary copies. Changes are not saved to the archive."
+          }
+        }
+      }
+    },
+    "この項目を開くアプリケーションが見つからないか、起動できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この項目を開くアプリケーションが見つからないか、起動できませんでした"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An application to open this item could not be found or launched."
+          }
+        }
+      }
+    },
+    "アプリケーションを調べています…": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリケーションを調べています…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finding Applications…"
+          }
+        }
+      }
+    },
+    "対応するアプリケーションが見つかりません": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "対応するアプリケーションが見つかりません"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Applications Found"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

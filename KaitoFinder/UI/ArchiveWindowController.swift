@@ -1,13 +1,21 @@
 import AppKit
 import UniformTypeIdentifiers
+import QuickLookUI
 
-final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate, NSMenuItemValidation {
+final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
+    NSMenuItemValidation, NSMenuDelegate, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
     private let promiseOwner = UUID()
     private var extractionTask: Task<Void, Never>?
     private var extractionProgress: Progress?
-    private let outlineView = NSOutlineView()
+    private let outlineView = ArchiveOutlineView()
+    private var materialization: ArchiveMaterializationController?
+    private weak var previewPanel: QLPreviewPanel?
+    private var previewMonitor: Task<Void, Never>?
+    private var previewActive = false
+    private var materializationSheet: ExtractionProgressSheet?
+    private let openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く"))
     private var root = EntryNode.tree(from: [])
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
     private var icons: [UTType: NSImage] = [:]
@@ -65,20 +73,73 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.autosaveTableColumns = true
         outlineView.dataSource = self
         outlineView.delegate = self
+        outlineView.target = self
+        outlineView.doubleAction = #selector(doubleClickEntry(_:))
+        outlineView.previewSelection = { [weak self] in self?.togglePreviewPanel(nil) }
+        let menu = NSMenu()
+        menu.addItem(withTitle: String(localized: "開く（読み取り専用のコピー）"),
+                     action: #selector(openEntry(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: String(localized: "クイックルック"),
+                     action: #selector(togglePreviewPanel(_:)), keyEquivalent: "")
+        let openWith = menu.addItem(withTitle: openWithMenu.title, action: #selector(openWithEntry(_:)), keyEquivalent: "")
+        openWith.submenu = openWithMenu
+        for item in menu.items { item.target = self }
+        openWithMenu.delegate = self
+        outlineView.menu = menu
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: true)
         scrollView.documentView = outlineView
-        window.contentView = scrollView
+        let notice = NSTextField(wrappingLabelWithString: String(localized:
+            "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"))
+        notice.textColor = .secondaryLabelColor
+        notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let content = NSView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        notice.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(scrollView)
+        content.addSubview(notice)
+        NSLayoutConstraint.activate([
+            scrollView.topAnchor.constraint(equalTo: content.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: notice.topAnchor, constant: -6),
+            notice.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+            notice.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            notice.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6)
+        ])
+        window.contentView = content
     }
 
     required init?(coder: NSCoder) { nil }
 
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0) {
+        closePreview()
+        materialization?.close()
         archiveSession = session
         self.generation = generation
         self.root = root
         sortedChildren.removeAll()
         outlineView.reloadData()
+        if let session {
+            let worker = EntryMaterializer(session: session)
+            let controller = ArchiveMaterializationController { payload, progress in
+                try await worker.materialize(payload, progress: progress)
+            }
+            controller.started = { [weak self] item, progress in
+                guard let self, item.requiresProgress, let window = self.window else { return }
+                let sheet = ExtractionProgressSheet(progress: progress)
+                // 進捗シートが key window になっても、QL の responder chain を文書へ戻す。
+                sheet.nextResponder = self
+                self.materializationSheet = sheet
+                sheet.begin(on: window)
+            }
+            controller.finished = { [weak self] in
+                self?.materializationSheet?.finish()
+                self?.materializationSheet = nil
+            }
+            controller.failed = { [weak self] reason in self?.reportFailure(reason) }
+            materialization = controller
+        } else { materialization = nil }
     }
 
     private var selectedNodes: [EntryNode] {
@@ -122,6 +183,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(openEntry(_:)), #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)):
+            let items = previewItems()
+            let reason = items.first(where: { !$0.capability.canOpen })?.capability.reason
+            menuItem.toolTip = reason
+            return !items.isEmpty && reason == nil && extractionTask == nil
         case #selector(copy(_:)), #selector(extractSelected(_:)):
             return archiveSession != nil && !selectedNodes.isEmpty && extractionTask == nil
         case #selector(extractAll(_:)):
@@ -178,10 +244,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             } catch {
                 sheet?.finish()
                 if !(error is CancellationError), !Task.isCancelled {
-                    let alert = NSAlert()
-                    alert.messageText = String(localized: "項目を取り出せませんでした")
-                    alert.informativeText = String(describing: error)
-                    alert.beginSheetModal(for: window, completionHandler: nil)
+                    self?.reportFailure(String(describing: error))
                 }
             }
             self?.extractionTask = nil
@@ -190,8 +253,222 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func cancelExtraction() {
+        closePreview()
+        materialization?.close()
         extractionProgress?.cancel()
         extractionTask?.cancel()
+    }
+
+    private func reportFailure(_ reason: String) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "項目を取り出せませんでした")
+        alert.informativeText = reason
+        alert.beginSheetModal(for: window, completionHandler: nil)
+    }
+
+    private func previewItems() -> [ArchivePreviewItem] {
+        guard let session = archiveSession else { return [] }
+        return selectedNodes.map { node in
+            let payload = ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation)
+            if let cached = materialization?.items.first(where: { $0.payload == payload }) { return cached }
+            return ArchivePreviewItem(payload: payload,
+                capability: EntryReadCapability(entry: node.entry, isDirectory: node.isDirectory, format: session.format),
+                requiresProgress: ArchiveCopyOut.requiresProgress(ExtractionSelection(entries: node.entry.map { [$0] } ?? [])))
+        }
+    }
+
+    private func readableSelection() -> [ArchivePreviewItem]? {
+        let items = previewItems()
+        guard !items.isEmpty, extractionTask == nil else { return nil }
+        if let item = items.first(where: { !$0.capability.canOpen }), let reason = item.capability.reason {
+            reportFailure("\(item.payload.path): \(reason)")
+            return nil
+        }
+        return items
+    }
+
+    @objc func doubleClickEntry(_ sender: Any?) {
+        guard outlineView.clickedRow >= 0,
+              let node = outlineView.item(atRow: outlineView.clickedRow) as? EntryNode else { return }
+        if node.isDirectory {
+            if outlineView.isItemExpanded(node) { outlineView.collapseItem(node) }
+            else { outlineView.expandItem(node) }
+        } else {
+            outlineView.selectRowIndexes(IndexSet(integer: outlineView.clickedRow), byExtendingSelection: false)
+            openEntry(sender)
+        }
+    }
+
+    @objc func openEntry(_ sender: Any?) { openSelection(application: nil) }
+
+    @objc func openWithEntry(_ sender: Any?) {
+        guard let application = (sender as? NSMenuItem)?.representedObject as? URL else { return }
+        openSelection(application: application)
+    }
+
+    private func openSelection(application: URL?) {
+        guard let items = readableSelection(), let materialization else { return }
+        closePreview()
+        materialization.setSelection(items)
+        openNext(index: 0, application: application)
+    }
+
+    private func openNext(index: Int, application: URL?) {
+        guard let materialization, materialization.item(at: index) != nil else { return }
+        materialization.display(index: index) { [weak self] item in
+            guard let self, let url = item.previewItemURL else { return }
+            if let application {
+                NSWorkspace.shared.open([url], withApplicationAt: application, configuration: .init()) { [weak self] _, error in
+                    if let error {
+                        let reason = String(describing: error)
+                        Task { @MainActor [weak self] in self?.reportFailure(reason) }
+                    }
+                }
+            } else if !NSWorkspace.shared.open(url) {
+                self.reportFailure(String(localized: "この項目を開くアプリケーションが見つからないか、起動できませんでした"))
+            }
+            self.openNext(index: index + 1, application: application)
+        }
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === openWithMenu else { return }
+        menu.removeAllItems()
+        guard let items = readableSelection(), let item = items.first, let materialization else { return }
+        // URL による handler 照会には実体が必要。サブメニューを要求した時だけ一項目を作る。
+        let loading = menu.addItem(withTitle: String(localized: "アプリケーションを調べています…"), action: nil, keyEquivalent: "")
+        loading.isEnabled = false
+        closePreview()
+        materialization.setSelection([item])
+        materialization.display(index: 0) { [weak self, weak menu] item in
+            guard let self, let menu, let url = item.previewItemURL else { return }
+            menu.removeAllItems()
+            let applications = NSWorkspace.shared.urlsForApplications(toOpen: url)
+                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+            for application in applications {
+                let action = menu.addItem(withTitle: FileManager.default.displayName(atPath: application.path),
+                    action: #selector(self.openWithEntry(_:)), keyEquivalent: "")
+                action.target = self
+                action.representedObject = application
+            }
+            if applications.isEmpty {
+                menu.addItem(withTitle: String(localized: "対応するアプリケーションが見つかりません"), action: nil, keyEquivalent: "")
+            }
+        }
+    }
+
+    @objc func togglePreviewPanel(_ sender: Any?) {
+        if let panel = previewPanel, panel.isVisible { closePreview(); return }
+        guard readableSelection() != nil, let panel = QLPreviewPanel.shared() else { return }
+        panel.makeKeyAndOrderFront(sender)
+        panel.updateController()
+        if previewPanel === panel { updatePreviewSelection(); startPreviewMonitoring(panel) }
+    }
+
+    nonisolated override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        // SDK の NSObject カテゴリには隔離注釈がない。AppKit の responder 呼出しは main thread。
+        MainActor.assumeIsolated { archiveSession != nil && materialization != nil }
+    }
+
+    nonisolated override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated { takePreviewControl(panel) }
+    }
+
+    private func takePreviewControl(_ panel: QLPreviewPanel) {
+        previewPanel = panel
+        panel.dataSource = self
+        panel.delegate = self
+        updatePreviewSelection()
+        startPreviewMonitoring(panel)
+    }
+
+    private func startPreviewMonitoring(_ panel: QLPreviewPanel) {
+        previewMonitor?.cancel()
+        // QLPreviewPanel に index 変更の delegate はない。先読み要求の index は採用せず、
+        // 公開プロパティを監視する。orderOut による終了も拾い、KVO 通知の有無に依存しない。
+        previewMonitor = Task { [weak self, weak panel] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled, let self, let panel, self.previewPanel === panel else { return }
+                if panel.isVisible { self.synchronizePreview(panel) }
+                else {
+                    self.previewActive = false
+                    self.materialization?.cancel()
+                    return
+                }
+            }
+        }
+    }
+
+    nonisolated override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        MainActor.assumeIsolated { releasePreviewControl(panel) }
+    }
+
+    private func releasePreviewControl(_ panel: QLPreviewPanel) {
+        guard previewPanel === panel else { return }
+        previewMonitor?.cancel()
+        previewMonitor = nil
+        if previewActive { materialization?.close() }
+        previewActive = false
+        panel.dataSource = nil
+        panel.delegate = nil
+        previewPanel = nil
+    }
+
+    private func closePreview() {
+        previewActive = false
+        previewMonitor?.cancel()
+        previewMonitor = nil
+        materialization?.cancel()
+        if let panel = previewPanel { panel.orderOut(nil) }
+    }
+
+    private func updatePreviewSelection() {
+        guard let panel = previewPanel else { return }
+        previewActive = true
+        materialization?.setSelection(previewItems())
+        panel.reloadData()
+        if materialization?.items.isEmpty == false { panel.currentPreviewItemIndex = 0 }
+        synchronizePreview(panel)
+    }
+
+    func outlineViewSelectionDidChange(_ notification: Notification) {
+        materialization?.cancel()
+        if previewPanel?.isVisible == true { updatePreviewSelection() }
+    }
+
+    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { materialization?.items.count ?? 0 }
+
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+        // QL は選択全体を先読みできる。この照会の index で抽出してはいけない。
+        Task { @MainActor [weak self, weak panel] in
+            guard let self, let panel, self.previewPanel === panel else { return }
+            self.synchronizePreview(panel)
+        }
+        return materialization?.item(at: index)
+    }
+
+    private func synchronizePreview(_ panel: QLPreviewPanel) {
+        guard previewActive, previewPanel === panel, panel.isVisible, panel.currentController as AnyObject? === self else { return }
+        let index = panel.currentPreviewItemIndex
+        guard materialization?.currentIndex != index else { return }
+        materialization?.display(index: index) { [weak self, weak panel] item in
+            guard let self, let panel, self.previewActive, self.previewPanel === panel, panel.isVisible,
+                  panel.currentController as AnyObject? === self,
+                  panel.currentPreviewItemIndex == index,
+                  self.materialization?.item(at: index) === item else { return }
+            QLPreviewPanel.shared().refreshCurrentPreviewItem()
+        }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        if let panel = notification.object as? QLPreviewPanel, previewPanel === panel { materialization?.close() }
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+        if event.type == .keyDown, event.charactersIgnoringModifiers == " " { closePreview(); return true }
+        return false
     }
 
     private func children(of item: Any?) -> [EntryNode] {

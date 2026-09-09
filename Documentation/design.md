@@ -278,6 +278,17 @@ memory へ載せ、KaitoKit の遅延読みを潰す)。`isEntireFileLoaded` は
 日本語 UI の語彙は Finder 自身の `ja.lproj/*.strings` に合わせる(項目、など)。
 文字列は `.xcstrings`。
 
+Quick Look は `QuickLookUI.QLPreviewPanel` を window controller の responder chain から
+制御する。Space は `NSOutlineView` の `keyDown(with:)` で受ける。独自の
+`QLPreviewItem` は書庫内パスをタイトルにし、未展開時の URL は nil とする。
+選択全体を data source に公開しても、実体化するのは `currentPreviewItemIndex` の一項目
+だけ。solid 群の先読みを避け、移動・選択変更・終了で古い要求を取り消す。
+Open / Open With も同じ遅延実体化処理を使い、実名と拡張子を保持する文書別一時領域へ
+既存の安全な展開層を通して書く。M1 は公開前にコピーを読み取り専用にし、書庫には
+保存されないことを UI に常時表示する。32 MiB 以上またはサイズ不明なら既存の進捗と
+Cancel を使う。詳細と自動検証・手動確認の境界は
+`Documentation/verification/2026-09-10-quicklook-open.md` を参照。
+
 > **UI.** AppKit is the primary framework, mirroring what Finder itself does — it
 > links both AppKit and SwiftUI, and neither column view nor rubber-band
 > selection exists in SwiftUI at any availability level. SwiftUI is used through
@@ -287,6 +298,18 @@ memory へ載せ、KaitoKit の遅延読みを潰す)。`isEntireFileLoaded` は
 > through `NSFileWrapper` and defeats KaitoKit's lazy reader; mutation happens
 > out of band through atomic replacement, followed by `revertToContentsOfURL:`.
 > Japanese vocabulary follows Finder's own `.strings`.
+>
+> Quick Look uses QLPreviewPanel through the window controller's responder chain;
+> Space is handled by NSOutlineView.keyDown. A custom preview item reports its
+> archive path as title and nil URL until ready. The data source exposes the full
+> selection but materializes only currentPreviewItemIndex, cancelling old work on
+> navigation, selection changes and closure. Open and Open With share this lazy
+> materialization through the existing safe extraction layer, preserving real
+> filenames and extensions in per-document temporary storage. M1 copies become
+> read-only before publication, with a persistent notice that changes are not saved
+> to the archive. The existing progress sheet and Cancel apply at 32 MiB or unknown
+> size. The M1c verification record distinguishes automated logic checks from
+> remaining manual integration checks.
 
 ## 6. 取り出しと取り込み
 

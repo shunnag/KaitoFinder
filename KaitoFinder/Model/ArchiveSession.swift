@@ -9,12 +9,14 @@ actor ArchiveSession {
     nonisolated private let generationStorage = Mutex<UInt64>(0)
     nonisolated var generation: UInt64 { generationStorage.withLock { $0 } }
     nonisolated let sourceURL: URL
+    nonisolated let format: ArchiveFormat
     private(set) var quarantine: Data?
 
     init(url: URL) throws {
         sourceURL = url
         quarantine = try ExtractionQuarantine.read(from: url)
         reader = try ArchiveReader.open(url: url)
+        format = reader.format
     }
 
     func extractionReader() throws -> sending ArchiveReader {

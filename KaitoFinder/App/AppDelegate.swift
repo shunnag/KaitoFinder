@@ -48,8 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let fileMenu = NSMenu(title: String(localized: "ファイル"))
         let open = fileMenu.addItem(withTitle: String(localized: "開く…"),
-                                   action: #selector(NSDocumentController.openDocument(_:)), keyEquivalent: "o")
+                                   action: #selector(NSDocumentController.openDocument(_:)), keyEquivalent: "O")
         open.target = documentController
+        fileMenu.addItem(withTitle: String(localized: "開く（読み取り専用のコピー）"),
+                         action: #selector(ArchiveWindowController.openEntry(_:)), keyEquivalent: "o")
+        fileMenu.addItem(withTitle: String(localized: "クイックルック"),
+                         action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "閉じる"),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenu.addItem(.separator())

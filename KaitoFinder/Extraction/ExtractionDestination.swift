@@ -9,12 +9,17 @@ nonisolated final class ExtractionDestination {
     private let descriptor: Int32
     private let quarantine: Data?
     private let permissionMask: mode_t
+    private let readOnly: Bool
+    private let didWrite: (@Sendable (Int) -> Void)?
     private(set) var createdDirectories: [URL] = []
     private var createdDirectoryPaths = Set<String>()
     private var identities: [String: (dev_t, ino_t)] = [:]
     private static let directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
 
-    init(url: URL, quarantine: Data?) throws {
+    init(url: URL, quarantine: Data?, readOnly: Bool = false,
+         didWrite: (@Sendable (Int) -> Void)? = nil) throws {
+        self.readOnly = readOnly
+        self.didWrite = didWrite
         guard url.isFileURL else { throw ExtractionFailure.refused("出力先は file URL が必要です") }
         guard let resolvedRoot = ExtractionPath.resolvedPath(url.path) else {
             throw ExtractionFailure.refused("出力先の実パスを解決できません")
@@ -116,8 +121,12 @@ nonisolated final class ExtractionDestination {
                 guard count > 0 else { throw ExtractionFailure.system(count == 0 ? EIO : errno) }
                 offset += count
             }
+            didWrite?(bytes.count)
         }
         try attributes(entry, descriptor: file)
+        // プレビューと外部オープンは所有者の読み取りだけを許す。公開前、同じ fd で適用する。
+        if readOnly, fchmod(file, 0o400) != 0 { throw ExtractionFailure.system(errno) }
+        try checkCancellation()
         var info = stat()
         guard fstat(file, &info) == 0 else { throw ExtractionFailure.system(errno) }
         identities[components.joined(separator: "/")] = (info.st_dev, info.st_ino)
