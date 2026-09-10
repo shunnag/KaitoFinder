@@ -3,6 +3,27 @@ import AppKit
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var documentController: NSDocumentController!
+    private let passwordVault: ArchivePasswordVault
+    private(set) var forgetPasswordsTask: Task<Void, Never>?
+
+    override convenience init() { self.init(passwordVault: .shared) }
+
+    init(passwordVault: ArchivePasswordVault) {
+        self.passwordVault = passwordVault
+        super.init()
+    }
+
+    @objc func forgetArchivePasswords(_ sender: Any?) {
+        guard forgetPasswordsTask == nil else { return }
+        forgetPasswordsTask = Task {
+            defer { forgetPasswordsTask = nil }
+            if !(await passwordVault.forgetAll()) {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "記憶したパスワードを削除できませんでした")
+                alert.runModal()
+            }
+        }
+    }
 
     static func main() {
         // umask の取得中に他の worker がファイルを作らないよう、AppKit 起動前に確定する。
@@ -37,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func makeMenu() -> NSMenu {
+    func makeMenu() -> NSMenu {
         let menu = NSMenu()
         let appMenu = NSMenu(title: "KaitoFinder")
         appMenu.addItem(withTitle: String(localized: "KaitoFinderについて"),
@@ -72,6 +93,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                          action: #selector(ArchiveWindowController.deleteEntries(_:)), keyEquivalent: "\u{7f}")
         editMenu.addItem(withTitle: String(localized: "名称変更"),
                          action: #selector(ArchiveWindowController.renameEntry(_:)), keyEquivalent: "")
+        editMenu.addItem(.separator())
+        let forget = editMenu.addItem(withTitle: String(localized: "記憶したパスワードをすべて削除"),
+                                      action: #selector(forgetArchivePasswords(_:)), keyEquivalent: "")
+        // 文書がないときや保管庫が読めないときも、アプリ全体の削除を利用できる。
+        forget.target = self
         let windowMenu = NSMenu(title: String(localized: "ウインドウ"))
         windowMenu.addItem(withTitle: String(localized: "しまう"),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

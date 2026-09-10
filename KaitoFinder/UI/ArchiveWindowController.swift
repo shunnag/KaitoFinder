@@ -2,21 +2,36 @@ import AppKit
 import UniformTypeIdentifiers
 import QuickLookUI
 
+nonisolated struct ArchivePasswordResponse: Sendable {
+    let password: String
+    let remember: Bool
+}
+
 final class ArchivePasswordPrompt {
     let alert = NSAlert()
     let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
     let challenge: ArchivePasswordChallenge
-    var waiters: [UUID: CheckedContinuation<String, any Error>] = [:]
+    let rememberCheckbox: NSButton
+    var waiters: [UUID: CheckedContinuation<ArchivePasswordResponse, any Error>] = [:]
 
     init(challenge: ArchivePasswordChallenge, bundle: Bundle = .main) {
         self.challenge = challenge
+        rememberCheckbox = NSButton(checkboxWithTitle: String(localized: "このパスワードを記憶", bundle: bundle),
+                                    target: nil, action: nil)
+        // 記憶は毎回明示的に選ぶ。前の入力や別の書庫の選択を引き継がない。
+        rememberCheckbox.state = .off
         alert.messageText = String(localized: "書庫のロックを解除", bundle: bundle)
         alert.informativeText = challenge.message(bundle: bundle)
         alert.addButton(withTitle: String(localized: "ロックを解除", bundle: bundle))
         alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
         alert.buttons.last?.keyEquivalent = "\u{1b}"
         field.placeholderString = String(localized: "パスワード", bundle: bundle)
-        alert.accessoryView = field
+        let accessory = NSStackView(views: [field, rememberCheckbox])
+        accessory.orientation = .vertical
+        accessory.alignment = .leading
+        accessory.spacing = 8
+        field.widthAnchor.constraint(equalToConstant: 300).isActive = true
+        alert.accessoryView = accessory
     }
 }
 
@@ -183,10 +198,18 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 self.unlockButton.isEnabled = true
             }
             var challenge = ArchivePasswordChallenge.required
+            do {
+                if try await document.unlockUsingRememberedPassword() { return }
+            } catch {
+                if !(error is CancellationError), !Task.isCancelled { self.reportFailure(String(describing: error)) }
+                return
+            }
             while !Task.isCancelled {
                 do {
-                    let password = try await self.requestPassword(challenge)
-                    try await document.unlock(password: password)
+                    let generation = await document.passwordVault.generation()
+                    let response = try await self.requestPasswordResponse(challenge)
+                    try await document.unlock(password: response.password, remember: response.remember,
+                                              vaultGeneration: generation)
                     return
                 } catch {
                     if error is CancellationError || Task.isCancelled { return }
@@ -200,6 +223,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     // 同期 PasswordProvider には UI を渡さない。worker が await する間だけ sheet を持ち、
     // 複数の promise は同じ入力を待つ。取消しは要求ごとに continuation を回収する。
     func requestPassword(_ challenge: ArchivePasswordChallenge) async throws -> String {
+        try await requestPasswordResponse(challenge).password
+    }
+
+    private func requestPasswordResponse(_ challenge: ArchivePasswordChallenge) async throws -> ArchivePasswordResponse {
         try Task.checkCancellation()
         let id = UUID()
         return try await withTaskCancellationHandler {
@@ -245,12 +272,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let waiters = Array(prompt.waiters.values)
         prompt.waiters.removeAll()
         if let password {
+            let response = ArchivePasswordResponse(password: password, remember: prompt.rememberCheckbox.state == .on)
             if let window {
                 for sheet in [materializationSheet, extractionSheet].compactMap({ $0 }) where !sheet.progress.isCancelled {
                     sheet.begin(on: window)
                 }
             }
-            for waiter in waiters { waiter.resume(returning: password) }
+            for waiter in waiters { waiter.resume(returning: response) }
         } else {
             for waiter in waiters { waiter.resume(throwing: CancellationError()) }
         }
@@ -284,7 +312,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if let session {
             session.setPasswordPrompt { [weak self, weak session] challenge in
                 guard let self, let session, self.archiveSession === session else { throw CancellationError() }
-                return try await self.requestPassword(challenge)
+                guard let document = self.document as? ArchiveDocument else {
+                    return try await self.requestPassword(challenge)
+                }
+                return try await document.password(for: session, challenge: challenge) {
+                    try await self.requestPasswordResponse(challenge)
+                }
             }
             let controller = materializationController ?? ArchiveMaterializationController(session: session)
             controller.started = { [weak self, weak controller] item, progress in

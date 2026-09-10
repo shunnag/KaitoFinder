@@ -21,6 +21,8 @@ import Synchronization
     private var materialization: ArchiveMaterializationController?
     private(set) var materializationCleanup: Task<Void, Never>?
     let archiveUndoStack: ArchiveUndoStack
+    let passwordVault: ArchivePasswordVault
+    private var rememberedPayloadPassword: String?
     private var mutationTask: Task<Void, Never>?
     private var mutationProgress: Progress?
     private var cancelMutation: (() -> Void)?
@@ -39,8 +41,13 @@ import Synchronization
 
     override convenience init() { self.init(undoStack: ArchiveUndoStack()) }
 
-    init(undoStack: ArchiveUndoStack) {
+    convenience init(passwordVault: ArchivePasswordVault) {
+        self.init(undoStack: ArchiveUndoStack(), passwordVault: passwordVault)
+    }
+
+    init(undoStack: ArchiveUndoStack, passwordVault: ArchivePasswordVault = .shared) {
         archiveUndoStack = undoStack
+        self.passwordVault = passwordVault
         super.init()
         hasUndoManager = true
         let manager = ArchiveUndoManager()
@@ -105,7 +112,21 @@ import Synchronization
         if !installed, case .open(let session) = contents { Task { await session.close() } }
     }
 
-    func unlock(password: String) async throws {
+    func unlockUsingRememberedPassword() async throws -> Bool {
+        guard let url = lockedURL else { return false }
+        let key = ArchivePasswordVault.Key.file(url)
+        guard let password = await passwordVault.password(for: key) else { return false }
+        do {
+            try await unlock(password: password)
+            return true
+        } catch {
+            guard ArchivePasswordChallenge(error) != nil else { throw error }
+            await passwordVault.remove(for: key, matching: password)
+            return false
+        }
+    }
+
+    func unlock(password: String, remember: Bool = false, vaultGeneration: UInt64? = nil) async throws {
         guard !closed, let url = lockedURL else { throw CancellationError() }
         let opened = try await Self.openLockedArchive(url, password: password)
         guard !closed, !Task.isCancelled, lockedURL == url else {
@@ -113,7 +134,65 @@ import Synchronization
             throw CancellationError()
         }
         contentsStorage.withLock { $0 = .open(opened) }
+        if remember {
+            await passwordVault.save(password, for: .file(url), generation: vaultGeneration)
+        }
         await displayAfterMutation()
+    }
+
+    func password(for session: ArchiveSession, challenge: ArchivePasswordChallenge,
+                  request: () async throws -> ArchivePasswordResponse) async throws -> String {
+        try checkPasswordRequest(session, generation: session.generation)
+        let expectedGeneration = session.generation
+        let key = ArchivePasswordVault.Key.file(session.sourceURL)
+        if challenge == .incorrect, let previous = rememberedPayloadPassword {
+            await passwordVault.remove(for: key, matching: previous)
+            rememberedPayloadPassword = nil
+        }
+        if challenge == .required, let stored = await passwordVault.password(for: key) {
+            try checkPasswordRequest(session, generation: expectedGeneration)
+            rememberedPayloadPassword = stored
+            return stored
+        }
+        let vaultGeneration = await passwordVault.generation()
+        let response = try await request()
+        try checkPasswordRequest(session, generation: expectedGeneration)
+        if response.remember {
+            let snapshot = await session.snapshot()
+            let verified = try await Self.verifyRememberedPassword(response.password, url: session.sourceURL,
+                                                                   entries: snapshot.entries)
+            // session の prompt には採用通知がない。別 reader で CRC / HMAC まで確かめ、
+            // 検証できない候補は保存せず、元の読み出し側に可否の判断を返す。
+            _ = try await session.extractionReader()
+            try checkPasswordRequest(session, generation: expectedGeneration)
+            if verified, await passwordVault.save(response.password, for: key, generation: vaultGeneration) {
+                try checkPasswordRequest(session, generation: expectedGeneration)
+                rememberedPayloadPassword = response.password
+            }
+        }
+        return response.password
+    }
+
+    private func checkPasswordRequest(_ session: ArchiveSession, generation: UInt64) throws {
+        try Task.checkCancellation()
+        guard !closed, self.session === session else { throw CancellationError() }
+        guard session.generation == generation else {
+            throw ExtractionFailure.refused(String(localized: "書庫が変更されています。開き直してください"))
+        }
+    }
+
+    @concurrent private static func verifyRememberedPassword(_ password: String, url: URL,
+                                                             entries: [ArchiveEntry]) async throws -> Bool {
+        do {
+            try Task.checkCancellation()
+            let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
+            guard reader.entries == entries, entries.contains(where: \.isEncrypted) else { return false }
+            for entry in entries where entry.isEncrypted {
+                try ExtractionService.consume(reader.stream(entry), checkCancellation: { try Task.checkCancellation() }) { _ in }
+            }
+            return true
+        } catch is CancellationError { throw CancellationError() }
+        catch { return false }
     }
 
     @concurrent private static func openLockedArchive(_ url: URL, password: String) async throws -> ArchiveSession {
@@ -309,6 +388,7 @@ import Synchronization
 
     override func close() {
         closed = true
+        rememberedPayloadPassword = nil
         disposeMaterialization()
         disposeUndoStack()
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {

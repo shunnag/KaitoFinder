@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import KaitoKit
 import Synchronization
 import XCTest
@@ -75,7 +76,9 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
     }
 
     @MainActor private func interface(_ fixture: Fixture) async throws -> (ArchiveDocument, ArchiveWindowController) {
-        let document = ArchiveDocument()
+        let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),
+                                         directory: fixture.directory.url.appendingPathComponent("vault"))
+        let document = ArchiveDocument(passwordVault: vault)
         try document.read(from: fixture.archive, ofType: "archive")
         document.makeWindowControllers()
         let controller = try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
