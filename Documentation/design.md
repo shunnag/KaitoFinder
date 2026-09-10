@@ -60,18 +60,20 @@ GyoshukuKit を知らない。SwiftPM の package 依存として
 
 ### 2.2 checkout の配置と参照
 
-現状の配置は次のとおり。KaitoFinder だけ `~/Github/` の下にある。
+関係する checkout は `~/Github/` へ揃えてある(2026-09-10 に移動)。
 
 ```
-~/KaitoKit          既存
-~/GyoshukuKit       新規(KaitoKit と並べる)
-~/cooViewer         既存。KaitoKit.framework を埋め込む
-~/Github/KaitoFinder 本 repo
+~/Github/KaitoKit     解凍。読み取り
+~/Github/GyoshukuKit  凝縮。書き込み
+~/Github/cooViewer    KaitoKit.framework を埋め込む別アプリ
+~/Github/KaitoFinder  本 repo
 ```
 
-`~/Github/KaitoFinder` から見た相対パスは `../../KaitoKit` と
-`../../GyoshukuKit` で正しく解決する(実測)。`.xcodeproj` はこの二つを
-**SwiftPM の local package として参照**し、静的に link する。
+すべて兄弟なので、`.xcodeproj` からは `../KaitoKit` と `../GyoshukuKit` で
+解決する。この二つを **SwiftPM の local package として参照**し、静的に link
+する。GyoshukuKit の `.package(path: "../KaitoKit")` と cooViewer の
+`Scripts/build-kaitokit-framework.sh` の `$REPOSITORY_DIR/../KaitoKit` も
+同じ並びで成立する。
 
 cooViewer は `Scripts/build-framework.sh` が作る universal framework を
 `Frameworks/` へ ditto して embed する。**KaitoFinder はこれを踏襲しない。**
@@ -102,10 +104,11 @@ cooViewer 側の framework 経路は、その script のコメントどおり「
 > second ZIP parser would be both dangerous and wasteful. KaitoKit never learns
 > about GyoshukuKit.
 >
-> On checkout layout: KaitoKit and GyoshukuKit sit at `~/`, KaitoFinder under
-> `~/Github/`, so `../../KaitoKit` and `../../GyoshukuKit` resolve correctly
-> (verified) and the `.xcodeproj` references both as local SwiftPM packages,
-> linked statically. KaitoFinder deliberately does not copy cooViewer's embedded
+> On checkout layout: every related repository sits side by side under
+> `~/Github/` (consolidated 2026-09-10), so `../KaitoKit` and `../GyoshukuKit`
+> resolve from the `.xcodeproj`, which references both as local SwiftPM packages,
+> linked statically. The same sibling arrangement is what makes GyoshukuKit's
+> `.package(path: "../KaitoKit")` and cooViewer's framework build script work. KaitoFinder deliberately does not copy cooViewer's embedded
 > universal-framework route: that framework carries no writer, and adding a second
 > dynamic product would fold a duplicate copy of `KaitoKit` into it and collide at
 > link time. cooViewer's own configuration is left completely untouched.
@@ -537,7 +540,7 @@ KaitoKit が既に対応しており、これは残す。
 
 | | 内容 | 出来上がるもの | 状態 |
 |---|---|---|---|
-| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える | **完了** `163fafd` |
+| **M0** | repo、`.xcodeproj`(buildable folder 構成)、`../KaitoKit` への SwiftPM 依存、`NSDocument`、`NSOutlineView` 一覧、仮想フォルダ合成 | 書庫を開いて中身が見える | **完了** `163fafd` |
 | **M1a** | 安全な展開エンジン(path traversal、quarantine 伝播、取り消し、fd 相対書き込み) | 展開の土台 | **完了** `5458eaf` / `4456df4` |
 | **M1b** | drag out(file promise)、copy out(明示展開)、世代付き識別、進捗と取り消し | Finder へ取り出せる | **完了** `1871791` |
 | **M1c** | Quick Look、Space、Open / Open With、遅延実体化 | 中身を見られる | **完了** `0902444` |

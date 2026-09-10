@@ -20,16 +20,30 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 
 ## 状態
 
-M0 を実装。書庫を読み取り専用で開き、仮想フォルダを含む階層を一覧表示する。
-drag & drop、copy & paste、Quick Look、書き込みは未実装。
+M0〜M2 を実装。
+
+- 書庫を Finder のような一覧で開く。書庫が directory entry を持たなくても
+  階層を合成して表示する
+- **取り出し**: file promise による drag out、明示展開による copy out、
+  Quick Look、「開く」「このアプリケーションで開く」。**読める 15 形式すべて**
+- **取り込み**: ZIP への drag in / paste in。書けない書庫は理由を示して拒否する
+- 未実装: 書庫内の削除・改名、tar / 7z / LHA の書き込み
 
 - [設計書](Documentation/design.md)
 - [検証記録](Documentation/verification/)
 
 ## 開発
 
-`~/KaitoKit` の checkout を `../../KaitoKit` の local SwiftPM package として
-静的リンクする。M0 は GyoshukuKit を参照しない。Xcode 26 以降、Swift 6、arm64 専用。
+関係する checkout は `~/Github/` に並べる。
+
+```
+~/Github/KaitoKit     解凍。読み取り
+~/Github/GyoshukuKit  凝縮。書き込み
+~/Github/KaitoFinder  本 repo
+```
+
+`.xcodeproj` はこの二つを `../KaitoKit` と `../GyoshukuKit` の local SwiftPM
+package として静的リンクする。Xcode 26 以降、Swift 6、arm64 専用。
 
 ```sh
 xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'platform=macOS,arch=arm64' build
@@ -37,10 +51,11 @@ xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'plat
 ```
 
 アプリの「ファイル > 開く…」、または実行ファイルへの書庫パス引数で開く。
-テストでは `zip -D`、`zip -r`、`tar --no-recursion` の書庫を `build/Fixtures/` に
-生成し、KaitoKit 経由で一覧と再帰サイズを検証する。
+テストは書庫を実際に生成し、参照実装(`unzip`、`7zz`、`ditto`、`bsdtar`)と
+KaitoKit の往復で検証する。
 
-- [M0 検証結果と環境制限](Documentation/verification/2026-09-10-m0.md)
+各段階の実測と、この環境で自動検証できなかった範囲は
+[検証記録](Documentation/verification/)に残している。
 
 > **KaitoFinder** is an archive browser for macOS 26 and later. It opens the
 > inside of an archive with Finder's own look, and moves files and folders to and
@@ -59,8 +74,17 @@ xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'plat
 > compress and compressed tar; write support is planned in the order ZIP, tar, 7z,
 > LHA/LZH. MIT licensed.
 >
-> M0 implements read-only archive browsing, including synthesized folders.
-> Drag and drop, copy and paste, Quick Look, and writing are not implemented.
-> Development currently requires only `~/KaitoKit`, linked as a local SwiftPM
-> library. See the [design document](Documentation/design.md) and
-> [M0 verification](Documentation/verification/2026-09-10-m0.md).
+> Milestones M0 through M2 are implemented: browsing an archive with a
+> Finder-shaped list, synthesizing the folder hierarchy even for archives that
+> record no directory entries; taking items **out** by file-promise drag, by
+> explicit copy, and through Quick Look and Open With, for all fifteen readable
+> formats; and putting items **in** to a ZIP by drag or paste, with unwritable
+> archives refused up front with a stated reason. Deleting and renaming inside an
+> archive, and writing tar, 7z or LHA, are not implemented yet.
+>
+> Development expects the KaitoKit and GyoshukuKit checkouts to sit beside this
+> one under `~/Github/`, linked as local SwiftPM packages via `../KaitoKit` and
+> `../GyoshukuKit`. Tests build real archives and verify them against reference
+> implementations (`unzip`, `7zz`, `ditto`, `bsdtar`) and a KaitoKit round trip.
+> See the [design document](Documentation/design.md) and the
+> [verification records](Documentation/verification/).
