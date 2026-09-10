@@ -614,8 +614,8 @@ UI 層でこれに伴って決めておくこと:
 | **M1a** | 安全な展開エンジン(path traversal、quarantine 伝播、取り消し、fd 相対書き込み) | 展開の土台 | **完了** `5458eaf` / `4456df4` |
 | **M1b** | drag out(file promise)、copy out(明示展開)、世代付き識別、進捗と取り消し | Finder へ取り出せる | **完了** `1871791` |
 | **M1c** | Quick Look、Space、Open / Open With、遅延実体化 | 中身を見られる | **完了** `0902444` |
-| **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | 進行中 |
-| **M3** | 削除・改名・新規フォルダ、atomic replace、undo | 書庫内編集 |
+| **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | **完了** |
+| **M3** | 削除・改名・新規フォルダ、atomic replace、undo | 書庫内編集 | 進行中 — GyoshukuKit の `remove` / `rename` `7fb2585`、取り消し基盤 `def0666`。残りは削除・改名の UI |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ |
 | **M5** | tar writer、7z writer、LHA writer、形式変換 | 書ける形式が増える |
 
