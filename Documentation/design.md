@@ -668,7 +668,7 @@ UI 層でこれに伴って決めておくこと:
 | **M1b** | drag out(file promise)、copy out(明示展開)、世代付き識別、進捗と取り消し | Finder へ取り出せる | **完了** `1871791` |
 | **M1c** | Quick Look、Space、Open / Open With、遅延実体化 | 中身を見られる | **完了** `0902444` |
 | **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | **完了** |
-| **M3** | 削除・改名・新規フォルダ、atomic replace、undo | 書庫内編集 | 進行中 — GyoshukuKit の `remove` / `rename` `7fb2585`、取り消し基盤 `def0666`。残りは削除・改名の UI |
+| **M3** | 削除・改名・atomic replace、undo | 書庫内編集 | **完了** — GyoshukuKit `7fb2585` / `141469f`、取り消し基盤 `def0666`、モデル層 `fdb8b03`、UI `fac4b91`。新規フォルダ作成は M4 へ送った |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ |
 | **M5** | tar writer、7z writer、LHA writer、形式変換 | 書ける形式が増える |
 
