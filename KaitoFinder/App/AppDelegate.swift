@@ -61,13 +61,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: String(localized: "すべて取り出す…"),
                          action: #selector(ArchiveWindowController.extractAll(_:)), keyEquivalent: "")
         let editMenu = NSMenu(title: String(localized: "編集"))
-        editMenu.addItem(withTitle: "取り消す", action: #selector(ArchiveDocument.undo(_:)), keyEquivalent: "z")
-        editMenu.addItem(withTitle: "やり直す", action: #selector(ArchiveDocument.redo(_:)), keyEquivalent: "Z")
+        editMenu.addItem(withTitle: String(localized: "取り消す"), action: #selector(ArchiveDocument.undo(_:)), keyEquivalent: "z")
+        editMenu.addItem(withTitle: String(localized: "やり直す"), action: #selector(ArchiveDocument.redo(_:)), keyEquivalent: "Z")
         editMenu.addItem(.separator())
         editMenu.addItem(withTitle: String(localized: "コピー"),
                          action: #selector(ArchiveWindowController.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: String(localized: "ペースト"),
                          action: #selector(ArchiveWindowController.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: String(localized: "削除"),
+                         action: #selector(ArchiveWindowController.deleteEntries(_:)), keyEquivalent: "\u{7f}")
+        editMenu.addItem(withTitle: String(localized: "名称変更"),
+                         action: #selector(ArchiveWindowController.renameEntry(_:)), keyEquivalent: "")
         let windowMenu = NSMenu(title: String(localized: "ウインドウ"))
         windowMenu.addItem(withTitle: String(localized: "しまう"),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

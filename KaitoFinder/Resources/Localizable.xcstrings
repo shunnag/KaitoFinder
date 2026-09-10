@@ -631,7 +631,21 @@
       }
     },
     "追加" : {
-
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加"
+          }
+        }
+      }
     },
     "選択した項目が見つかりません" : {
       "extractionState" : "manual",
@@ -816,6 +830,363 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "項目を追加できませんでした"
+          }
+        }
+      }
+    },
+    "この削除は取り消せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This deletion cannot be undone."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この削除は取り消せません。"
+          }
+        }
+      }
+    },
+    "この名前は使えません。空の名前、予約文字、長すぎる名前を避けてください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This name cannot be used. Avoid empty names, reserved characters, and names that are too long."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この名前は使えません。空の名前、予約文字、長すぎる名前を避けてください。"
+          }
+        }
+      }
+    },
+    "この書庫は変更できません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive cannot be modified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この書庫は変更できません"
+          }
+        }
+      }
+    },
+    "やり直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やり直す"
+          }
+        }
+      }
+    },
+    "やり直す — %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo — %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やり直す — %@"
+          }
+        }
+      }
+    },
+    "別の操作が完了するまでお待ちください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wait for the current operation to finish."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の操作が完了するまでお待ちください"
+          }
+        }
+      }
+    },
+    "削除" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        }
+      }
+    },
+    "削除・名称変更" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete and Rename"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除・名称変更"
+          }
+        }
+      }
+    },
+    "取り消す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り消す"
+          }
+        }
+      }
+    },
+    "取り消す — %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo — %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り消す — %@"
+          }
+        }
+      }
+    },
+    "同じ名前の項目が既にあります。別の名前を入力してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An item with this name already exists. Enter a different name."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ名前の項目が既にあります。別の名前を入力してください。"
+          }
+        }
+      }
+    },
+    "同じ項目への変更が重複しています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are conflicting changes to the same item."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ項目への変更が重複しています"
+          }
+        }
+      }
+    },
+    "名称を変更しています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renaming Items"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称を変更しています"
+          }
+        }
+      }
+    },
+    "名称変更" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名称変更"
+          }
+        }
+      }
+    },
+    "書庫が閉じられています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive is closed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書庫が閉じられています"
+          }
+        }
+      }
+    },
+    "選択した項目が変更されています。書庫を開き直してください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected items have changed. Reopen the archive."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目が変更されています。書庫を開き直してください"
+          }
+        }
+      }
+    },
+    "選択した項目と書庫内の項目が一致しません。書庫を開き直してください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selection does not match the archive contents. Reopen the archive."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目と書庫内の項目が一致しません。書庫を開き直してください"
+          }
+        }
+      }
+    },
+    "選択した項目を削除しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete the selected items?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目を削除しますか？"
+          }
+        }
+      }
+    },
+    "項目を削除しています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleting Items"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を削除しています"
+          }
+        }
+      }
+    },
+    "項目を変更しましたが、書庫を読み直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The items were changed, but the archive could not be reloaded."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を変更しましたが、書庫を読み直せませんでした"
+          }
+        }
+      }
+    },
+    "項目を変更できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The items could not be changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を変更できませんでした"
           }
         }
       }

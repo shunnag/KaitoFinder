@@ -7,10 +7,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
     private let promiseOwner = UUID()
-    private var extractionTask: Task<Void, Never>?
+    private(set) var extractionTask: Task<Void, Never>?
     private var extractionProgress: Progress?
+    private(set) var deletionConfirmation: NSAlert?
+    private(set) var editProgressSheet: ExtractionProgressSheet?
     private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
-    private let outlineView = ArchiveOutlineView()
+    private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
+    let outlineView = ArchiveOutlineView()
     private var materialization: ArchiveMaterializationController?
     private weak var previewPanel: QLPreviewPanel?
     private var previewMonitor: Task<Void, Never>?
@@ -19,6 +22,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く"))
     private var root = EntryNode.tree(from: [])
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
+    private var restoringSort = false
     private var icons: [UTType: NSImage] = [:]
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -77,6 +81,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.target = self
         outlineView.doubleAction = #selector(doubleClickEntry(_:))
         outlineView.previewSelection = { [weak self] in self?.togglePreviewPanel(nil) }
+        outlineView.deleteSelection = { [weak self] in self?.deleteEntries(nil) }
+        outlineView.renameSelection = { [weak self] in self?.renameEntry(nil) }
+        outlineView.renameValidationChanged = { [weak self] reason in
+            self?.renameValidationNotice.stringValue = reason ?? ""
+            self?.renameValidationNotice.isHidden = reason == nil
+        }
         let menu = NSMenu()
         menu.addItem(withTitle: String(localized: "開く（読み取り専用のコピー）"),
                      action: #selector(openEntry(_:)), keyEquivalent: "")
@@ -84,6 +94,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                      action: #selector(togglePreviewPanel(_:)), keyEquivalent: "")
         let openWith = menu.addItem(withTitle: openWithMenu.title, action: #selector(openWithEntry(_:)), keyEquivalent: "")
         openWith.submenu = openWithMenu
+        menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "削除"), action: #selector(deleteEntries(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: String(localized: "名称変更"), action: #selector(renameEntry(_:)), keyEquivalent: "")
         for item in menu.items { item.target = self }
         openWithMenu.delegate = self
         outlineView.menu = menu
@@ -96,11 +109,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"))
         notice.textColor = .secondaryLabelColor
         notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        let footer = NSStackView(views: [capabilityNotice, notice])
+        let footer = NSStackView(views: [renameValidationNotice, capabilityNotice, notice])
         footer.orientation = .vertical
         footer.alignment = .leading
         capabilityNotice.textColor = .secondaryLabelColor
         capabilityNotice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        renameValidationNotice.textColor = .systemRed
+        renameValidationNotice.isHidden = true
         let content = NSView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         footer.translatesAutoresizingMaskIntoConstraints = false
@@ -123,6 +138,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil) {
         let state = captureViewState()
+        outlineView.cancelRenaming()
         closePreview()
         if materialization !== materializationController { materialization?.close() }
         archiveSession = session
@@ -151,7 +167,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         } else { materialization = nil }
     }
 
-    private var selectedNodes: [EntryNode] {
+    var selectedNodes: [EntryNode] {
         outlineView.selectedRowIndexes.compactMap { outlineView.item(atRow: $0) as? EntryNode }
     }
 
@@ -192,6 +208,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(deleteEntries(_:)), #selector(renameEntry(_:)):
+            menuItem.toolTip = editRefusal
+            let count = selectedNodes.count
+            return archiveSession != nil && document is ArchiveDocument && editRefusal == nil
+                && !outlineView.isRenaming && count > 0
+                && (menuItem.action != #selector(renameEntry(_:)) || count == 1)
         case #selector(paste(_:)):
             menuItem.toolTip = archiveSession?.capabilities.readOnlyReason
             return archiveSession?.capabilities.canAppend == true && extractionTask == nil
@@ -207,6 +229,181 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return archiveSession != nil && !root.children.isEmpty && extractionTask == nil
         default: return true
         }
+    }
+
+    private var operationInFlight: Bool {
+        extractionTask != nil || deletionConfirmation != nil
+            || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
+    }
+
+    private var editRefusal: String? {
+        // モデルと同じ ZIP updater の門番を使う。canDelete / canRename は未使用の予約値。
+        if let session = archiveSession, !session.capabilities.canAppend {
+            return session.capabilities.readOnlyReason ?? String(localized: "この書庫は変更できません")
+        }
+        return operationInFlight ? String(localized: "別の操作が完了するまでお待ちください") : nil
+    }
+
+    private func canPerformEdit(_ action: Selector) -> Bool {
+        validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: ""))
+    }
+
+    @objc func deleteEntries(_ sender: Any?) {
+        guard canPerformEdit(#selector(deleteEntries(_:))), let document = document as? ArchiveDocument,
+              let window else { return }
+        let nodes = selectedNodes
+        let state = viewStateAfterRemoving(nodes)
+        if document.canUndoNextMutation {
+            startEdit(nodes, name: nil, state: state)
+            return
+        }
+        let expectedGeneration = generation
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "選択した項目を削除しますか？")
+        alert.informativeText = String(localized: "この削除は取り消せません。")
+        alert.addButton(withTitle: String(localized: "削除"))
+        alert.addButton(withTitle: String(localized: "キャンセル"))
+        deletionConfirmation = alert
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, self.deletionConfirmation === alert else { return }
+            self.deletionConfirmation = nil
+            guard response == .alertFirstButtonReturn, self.generation == expectedGeneration,
+                  self.archiveSession?.generation == expectedGeneration else { return }
+            self.startEdit(nodes, name: nil, state: state)
+        }
+    }
+
+    @objc func renameEntry(_ sender: Any?) {
+        guard canPerformEdit(#selector(renameEntry(_:))), let node = selectedNodes.first else { return }
+        closePreview()
+        let expectedGeneration = generation
+        // 純粋なプラン構築で、仮想フォルダとの衝突や子孫のパス長も commit 前に検査する。
+        let entries = ExtractionSelection(nodes: [root]).entries
+        let selection = ArchiveEditSelection(node)
+        outlineView.beginRenaming(node, validate: { [weak self] name in
+            guard let self else { return String(localized: "書庫が閉じられています") }
+            if let reason = self.editRefusal { return reason }
+            guard self.generation == expectedGeneration, self.archiveSession?.generation == expectedGeneration else {
+                return String(localized: "選択した項目が変更されています。書庫を開き直してください")
+            }
+            do {
+                _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: selection, name: name)], existing: entries)
+                return nil
+            } catch { return self.editFailureReason(error) }
+        }, commit: { [weak self] name in
+            guard let self, self.generation == expectedGeneration,
+                  self.archiveSession?.generation == expectedGeneration else { return }
+            if node.name.utf8.elementsEqual(name.utf8) { return }
+            self.startEdit([node], name: name, state: self.viewStateAfterRenaming(node, to: name))
+        })
+    }
+
+    private func startEdit(_ nodes: [EntryNode], name: String?, state: ArchiveViewState) {
+        guard let window, let document = document as? ArchiveDocument,
+              archiveSession?.capabilities.canAppend == true, !operationInFlight else { return }
+        closePreview()
+        materialization?.cancel()
+        let progress = Progress(totalUnitCount: 0)
+        extractionProgress = progress
+        let sheet = ExtractionProgressSheet(progress: progress, title: name == nil
+            ? String(localized: "項目を削除しています") : String(localized: "名称を変更しています"))
+        editProgressSheet = sheet
+        sheet.begin(on: window)
+        extractionTask = Task { [weak self] in
+            defer {
+                sheet.finish()
+                self?.editProgressSheet = nil
+                self?.extractionProgress = nil
+                self?.extractionTask = nil
+            }
+            do {
+                let result: ArchiveEditResult
+                if let name, let node = nodes.first {
+                    result = try await document.rename(node, to: name, progress: progress)
+                } else {
+                    result = try await document.remove(nodes, progress: progress)
+                }
+                if result.published { self?.restoreViewState(state) }
+                if let reason = result.reloadFailure {
+                    sheet.finish()
+                    self?.reportEditFailure(reason, published: true)
+                }
+            } catch {
+                sheet.finish()
+                if !(error is CancellationError), !Task.isCancelled, let self {
+                    self.reportEditFailure(self.editFailureReason(error))
+                }
+            }
+        }
+    }
+
+    private func editFailureReason(_ error: any Error) -> String {
+        switch error as? ArchiveEditError {
+        case .collision:
+            String(localized: "同じ名前の項目が既にあります。別の名前を入力してください。")
+        case .invalidName:
+            String(localized: "この名前は使えません。空の名前、予約文字、長すぎる名前を避けてください。")
+        case .staleSelection:
+            String(localized: "選択した項目が変更されています。書庫を開き直してください")
+        case .indexMismatch:
+            String(localized: "選択した項目と書庫内の項目が一致しません。書庫を開き直してください")
+        case .conflictingSelection:
+            String(localized: "同じ項目への変更が重複しています")
+        case nil: error.localizedDescription
+        }
+    }
+
+    private func reportEditFailure(_ reason: String, published: Bool = false) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = published ? String(localized: "項目を変更しましたが、書庫を読み直せませんでした")
+            : String(localized: "項目を変更できませんでした")
+        alert.informativeText = reason
+        alert.beginSheetModal(for: window, completionHandler: nil)
+    }
+
+    private func viewStateAfterRemoving(_ nodes: [EntryNode]) -> ArchiveViewState {
+        var state = captureViewState()
+        let removed = Set(ExtractionSelection(nodes: nodes).entries.map(\.index))
+        func survives(_ node: EntryNode) -> Bool {
+            ExtractionSelection(nodes: [node]).entries.contains { !removed.contains($0.index) }
+        }
+        state.selectedPaths = []
+        var anchor = nodes.first
+        while let node = anchor {
+            let parent = outlineView.parent(forItem: node) as? EntryNode
+            let siblings = children(of: parent)
+            if let index = siblings.firstIndex(where: { $0 === node }) {
+                let candidates = Array(siblings.dropFirst(index + 1)) + siblings.prefix(index).reversed()
+                if let next = candidates.first(where: survives) {
+                    state.selectedPaths = [next.path]
+                    break
+                }
+            }
+            if let parent, survives(parent) {
+                state.selectedPaths = [parent.path]
+                break
+            }
+            // 最後の子を消した仮想フォルダも消えるため、存在する祖先まで辿る。
+            anchor = parent
+        }
+        return state
+    }
+
+    private func viewStateAfterRenaming(_ node: EntryNode, to name: String) -> ArchiveViewState {
+        var state = captureViewState()
+        let parent = node.path.split(separator: "/").dropLast().joined(separator: "/")
+        let path = (parent.isEmpty ? name : parent + "/" + name).precomposedStringWithCanonicalMapping
+        func renamed(_ old: String) -> String {
+            if old == node.path { return path }
+            if old.hasPrefix(node.path + "/") { return path + old.dropFirst(node.path.count) }
+            return old
+        }
+        state.selectedPaths = [path]
+        state.expandedPaths = Set(state.expandedPaths.map(renamed))
+        state.topPath = state.topPath.map(renamed)
+        return state
     }
 
     private func captureViewState() -> ArchiveViewState {
@@ -379,6 +576,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func cancelExtraction() {
+        outlineView.cancelRenaming()
+        if let alert = deletionConfirmation {
+            deletionConfirmation = nil
+            window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn)
+        }
         closePreview()
         materialization?.close()
         extractionProgress?.cancel()
@@ -676,8 +878,18 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func outlineView(_ outlineView: NSOutlineView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        guard !restoringSort else { return }
+        // 列ヘッダへのクリックでも確定を試し、不正な入力のまま cell を作り直さない。
+        if !self.outlineView.commitRenaming() {
+            restoringSort = true
+            outlineView.sortDescriptors = oldDescriptors
+            restoringSort = false
+            return
+        }
+        let state = captureViewState()
         sortedChildren.removeAll()
         outlineView.reloadData()
+        restoreViewState(state)
     }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {

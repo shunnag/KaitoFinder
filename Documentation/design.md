@@ -325,6 +325,59 @@ Cancel を使う。詳細と自動検証・手動確認の境界は
 > size. The M1c verification record distinguishes automated logic checks from
 > remaining manual integration checks.
 
+### 5.1 書庫内の編集(削除・改名)の UI
+
+M3 で載せる操作。判断の根拠は §7.6(取り消し)と
+`Documentation/verification/2026-09-10-index-identity.md`。
+
+**確認ダイアログは取り消せないときだけ出す。** Finder が削除で確認を出さないのは
+undo があるからで、確認の有無は「危険だから」ではなく「戻せるか」で決まる。
+`canUndoNextMutation` が真なら即削除する。偽になるのは clone slot を作れない
+とき — 非 APFS ボリューム(exFAT の USB、SMB 共有)で `clonefile` が ENOTSUP を
+返す場合 — で、そのときだけ「取り消せません」と明示して確認する。
+選択行ごとにモーダルを出すことはしない。
+
+**検証は UI で先に行う。** 衝突する名前を打った利用者には、フィールドを編集状態の
+まま検証メッセージを見せる。commit してからエラーシートを出すのは設計ではなく
+フォールバックであり、`ArchiveEditError` が型入力から出てきたらこの層の漏れである。
+
+ただし「編集状態のまま」の実現方法は AppKit の制約で決まる。表のインライン編集は
+`editColumn(_:row:with:select:)` で始める(`makeFirstResponder` を直接使うと、
+key でないウィンドウで field editor の生成が同期的に確定せず、自分で始めた
+セッションを自分で取り消す競合になる)。その代償として `NSTableView` が編集
+セッションを所有するため、`control(_:textShouldEndEditing:)` が false を返しても
+編集の終了は止められない。したがって Return は `doCommandBy` の中で検証して
+first responder を手放さない形にし、focus 喪失は拒否せず、終了直後に同じ行へ
+再入して入力と理由を残す。実測は
+`Documentation/verification/2026-09-10-inline-rename.md`。
+
+**カスケードは呼出側が明示する。** GyoshukuKit は削除も改名も子孫へ波及させない。
+仮想フォルダ(`EntryNode.isVirtual`、子の接頭辞としてのみ存在するフォルダ)の削除は
+子孫の複数 entry 削除であり、実在するディレクトリ entry の削除は自身と子孫を
+まとめて消す。でないと孤児が残る。ディレクトリの改名は全子孫の接頭辞を書き換える。
+
+**index は信用しない。** `remove(entriesAt:)` は updater 自身の open 時 index を
+取るが、呼出側が持つのは `ArchiveSession` の別の open から来た index である。
+`ArchiveUpdater.entryNames` と突き合わせ、一つでも違えば操作全体を拒否する。
+照合では正規化しない(Swift の `String ==` は正準等価を折り畳む)。
+
+**削除後の選択**は次の兄弟へ、最後の子を消したなら親へ移す。改名後は
+改名した項目を選択したままにする。undo / redo では tree が作り直され世代が
+上がるので、消えた node を掴んだままにしない。
+
+> **Editing inside an archive.** Confirmation is gated on reversibility, not on
+> danger: Finder does not ask before deleting because undo exists, so this app
+> asks only when `canUndoNextMutation` is false — that is, on a volume where
+> `clonefile` returns ENOTSUP and no slot can be taken. Typed names are validated
+> before the library is called, with the field left editing on rejection, because
+> a commit-then-refuse is a leak in this layer rather than the intended path.
+> Cascading is explicit: GyoshukuKit deliberately does not propagate to
+> descendants, so deleting a directory — real or virtual — collects its subtree
+> here, and renaming one rewrites every descendant's prefix. Indices are never
+> trusted across two independent opens of the same file; they are checked against
+> `ArchiveUpdater.entryNames`, without normalisation, since Swift's `==` folds
+> canonically equivalent names and would hide the very divergence being checked.
+
 ## 6. 取り出しと取り込み
 
 ### 6.1 実測で決まったこと

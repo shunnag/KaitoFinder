@@ -80,6 +80,32 @@ suppress=true   after undo:     isDocumentEdited=false  updateChangeCount calls=
 `updateChangeCount(_:)` を no-op に上書きすると dirty は立たず、
 `canUndo` / `canRedo` / メニュー項目名はそのまま生きる。抑制は必要かつ十分。
 
+## 5. 非 APFS ボリュームでは実際に ENOTSUP が返る(実ボリュームで確認)
+
+「clone できない書庫は undo を持てない」という分岐が机上の仮定でないことを、
+実際に FAT ボリュームを作って確かめた。`hdiutil create -fs MS-DOS` で 20 MB の
+ボリュームを作り、マウントして書庫を置き、KaitoFinder と同じ手順を踏む。
+
+```
+非 APFS 上の書庫:      /Volumes/KFTEST/Archive.zip
+itemReplacementDir:   /Volumes/KFTEST/.TemporaryItems/folders.501/TemporaryItems/NSIRD_enotsup_LJVCez
+同一ボリュームか:      true
+clonefile:            rc=-1 errno=45 (Operation not supported)
+ENOTSUP=45 EXDEV=18 → 判定対象に該当: true
+```
+
+分かったことが二つある。
+
+- `.itemReplacementDirectory` は**ボリュームごとに追随する**。APFS の書庫なら
+  `/var/folders/…/TemporaryItems/` を返すが、FAT の書庫では
+  `/Volumes/KFTEST/.TemporaryItems/…` を返し、常に同一ボリュームになる。
+  したがって `EXDEV` はこの経路では起きにくく、実際に返るのは `ENOTSUP` である。
+- `clonefile` は errno 45 = `ENOTSUP` を返す。コードが分岐している値そのもので、
+  `canUndoNextMutation` は実際に偽になり、確認ダイアログの経路は到達可能である。
+
+つまり §7.6 の「非 APFS では undo slot を持てないので、commit の前に
+取り消せない旨を確認する」は、実在する経路に対する設計であって保険ではない。
+
 ## 再現
 
 測定に使った 3 本のプローブは `swiftc -O` で直接ビルドして走らせた。

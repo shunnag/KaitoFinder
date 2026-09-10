@@ -183,11 +183,16 @@ final class ArchiveUndoManager: UndoManager {
     override func undo() { if canUndo { super.undo() } }
     override func redo() { if canRedo { super.redo() } }
 
+    override func setActionName(_ actionName: String) {
+        // 文書が保存する操作名はカタログのキー。redo の再登録にも同じ翻訳を使う。
+        super.setActionName(String(localized: String.LocalizationValue(actionName)))
+    }
+
     override func undoMenuTitle(forUndoActionName actionName: String) -> String {
-        actionName.isEmpty ? "取り消す" : "取り消す — \(actionName)"
+        actionName.isEmpty ? String(localized: "取り消す") : String(localized: "取り消す — \(actionName)")
     }
 
     override func redoMenuTitle(forUndoActionName actionName: String) -> String {
-        actionName.isEmpty ? "やり直す" : "やり直す — \(actionName)"
+        actionName.isEmpty ? String(localized: "やり直す") : String(localized: "やり直す — \(actionName)")
     }
 }
