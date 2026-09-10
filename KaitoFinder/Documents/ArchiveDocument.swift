@@ -10,8 +10,9 @@ final class ArchiveDocument: NSDocument {
     private var materialization: ArchiveMaterializationController?
     private(set) var materializationCleanup: Task<Void, Never>?
     let archiveUndoStack: ArchiveUndoStack
-    private var appendTask: Task<ArchiveImportResult, any Error>?
-    private var appendProgress: Progress?
+    private var mutationTask: Task<Void, Never>?
+    private var mutationProgress: Progress?
+    private var cancelMutation: (() -> Void)?
     private(set) var undoTask: Task<Void, Never>?
     private(set) var undoCleanup: Task<Void, Never>?
     private(set) var undoFailure: (any Error)?
@@ -21,7 +22,8 @@ final class ArchiveDocument: NSDocument {
 
     private final class UndoAction {
         let id: UUID
-        init(id: UUID) { self.id = id }
+        let name: String
+        init(id: UUID, name: String) { self.id = id; self.name = name }
     }
 
     override convenience init() { self.init(undoStack: ArchiveUndoStack()) }
@@ -96,32 +98,66 @@ final class ArchiveDocument: NSDocument {
 
     func append(urls: [URL], to folder: String, progress: Progress,
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
+        try await mutate(progress: progress, actionName: "追加", willPublish: willPublish,
+                         published: { !$0.addedPaths.isEmpty }) { session, publish in
+            try await session.append(urls: urls, to: folder, progress: progress, willPublish: publish)
+        }
+    }
+
+    func remove(_ nodes: [EntryNode], progress: Progress,
+                willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
+        try await edit(removing: nodes.map(ArchiveEditSelection.init), progress: progress, willPublish: willPublish)
+    }
+
+    func rename(_ node: EntryNode, to name: String, progress: Progress,
+                willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
+        try await edit(renaming: [ArchiveEditRename(selection: ArchiveEditSelection(node), name: name)],
+                       progress: progress, willPublish: willPublish)
+    }
+
+    func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [], progress: Progress,
+              willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
+        let name = renaming.isEmpty ? "削除" : (removing.isEmpty ? "名称変更" : "削除・名称変更")
+        return try await mutate(progress: progress, actionName: name, willPublish: willPublish,
+                                published: { $0.published }) { session, publish in
+            try await session.edit(removing: removing, renaming: renaming, progress: progress, willPublish: publish)
+        }
+    }
+
+    // 操作の種類によらず、公開の成否・取消し・close 待機を同じ規則で扱う。
+    private func mutate<Result: Sendable>(
+        progress: Progress, actionName: String, willPublish: (@Sendable () throws -> Void)?,
+        published: @escaping @Sendable (Result) -> Bool,
+        operation: @escaping @Sendable (ArchiveSession, @escaping @Sendable () throws -> Void) async throws -> Result
+    ) async throws -> Result {
         guard !closed, let session else { throw ExtractionFailure.refused("書庫が閉じられています") }
-        guard appendTask == nil, undoTask == nil else { throw ExtractionFailure.refused("書庫を変更しています") }
+        guard mutationTask == nil, undoTask == nil else { throw ExtractionFailure.refused("書庫を変更しています") }
         let previousGeneration = session.generation
         let stack = archiveUndoStack
         let pending = Mutex<ArchiveUndoStack.Slot?>(nil)
         let task = Task {
             do {
-                let result = try await session.append(urls: urls, to: folder, progress: progress, willPublish: {
+                let result = try await operation(session, {
                     // updater が書き換えるのは作業コピー。退避するのは公開直前の原本だけ。
                     let slot = try stack.capture(session.sourceURL)
                     pending.withLock { $0 = slot }
                     try willPublish?()
                 })
-                await stack.finishMutation(pending.withLock { $0 }, published: !result.addedPaths.isEmpty)
+                await stack.finishMutation(pending.withLock { $0 }, published: published(result))
                 return result
             } catch {
                 await stack.finishMutation(pending.withLock { $0 }, published: false)
                 throw error
             }
         }
-        appendTask = task
-        appendProgress = progress
+        mutationTask = Task { _ = await task.result }
+        mutationProgress = progress
+        cancelMutation = { task.cancel() }
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         defer {
-            appendTask = nil
-            appendProgress = nil
+            mutationTask = nil
+            mutationProgress = nil
+            cancelMutation = nil
             (undoManager as? ArchiveUndoManager)?.isSuspended = closed
         }
         do {
@@ -131,7 +167,7 @@ final class ArchiveDocument: NSDocument {
                 progress.cancel()
                 task.cancel()
             }
-            if !closed, !result.addedPaths.isEmpty { synchronizeUndoActions(registerNew: true) }
+            if !closed, published(result) { synchronizeUndoActions(registering: actionName) }
             if session.generation != previousGeneration { await displayAfterMutation() }
             return result
         } catch {
@@ -140,16 +176,16 @@ final class ArchiveDocument: NSDocument {
         }
     }
 
-    private func synchronizeUndoActions(registerNew: Bool = false) {
+    private func synchronizeUndoActions(registering name: String? = nil) {
         let slots = archiveUndoStack.slots
         let retained = Set(slots.map(\.id))
         for (id, action) in undoActions where !retained.contains(id) {
             undoManager?.removeAllActions(withTarget: action)
             undoActions.removeValue(forKey: id)
         }
-        if registerNew {
+        if let name {
             for slot in slots where undoActions[slot.id] == nil {
-                let action = UndoAction(id: slot.id)
+                let action = UndoAction(id: slot.id, name: name)
                 undoActions[slot.id] = action
                 registerUndo(action)
             }
@@ -161,7 +197,7 @@ final class ArchiveDocument: NSDocument {
         let grouping = !undoManager.isUndoing && !undoManager.isRedoing
         if grouping { undoManager.beginUndoGrouping() }
         undoManager.registerUndo(withTarget: action) { [weak self] action in self?.restore(action) }
-        undoManager.setActionName("追加")
+        undoManager.setActionName(action.name)
         if grouping { undoManager.endUndoGrouping() }
     }
 
@@ -248,17 +284,17 @@ final class ArchiveDocument: NSDocument {
         undoManager?.removeAllActions()
         undoActions.removeAll()
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
-        appendProgress?.cancel()
-        appendTask?.cancel()
+        mutationProgress?.cancel()
+        cancelMutation?()
         undoTask?.cancel()
-        let append = appendTask
+        let mutation = mutationTask
         let undo = undoTask
         let previous = undoCleanup
         let stack = archiveUndoStack
         undoCleanup = Task {
             // 公開・置換の後始末を待ち、動作中のスロットを削除しない。
             await previous?.value
-            _ = await append?.result
+            await mutation?.value
             await undo?.value
             await stack.dispose()
         }

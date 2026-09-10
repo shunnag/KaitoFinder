@@ -55,6 +55,37 @@ actor ArchiveSession {
         return result
     }
 
+    func remove(_ selections: [ArchiveEditSelection], progress: Progress,
+                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
+        try edit(removing: selections, progress: progress, willPublish: willPublish)
+    }
+
+    func rename(_ selection: ArchiveEditSelection, to name: String, progress: Progress,
+                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
+        try edit(renaming: [ArchiveEditRename(selection: selection, name: name)],
+                 progress: progress, willPublish: willPublish)
+    }
+
+    // 部分木の検証から公開後の再読込まで await を挟まず、一操作を一世代にまとめる。
+    func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [], progress: Progress,
+              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
+              willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
+        try requireCurrentReader()
+        // canAppend は現在の ZIP updater の共通門番。拒否理由も追加と揃える。
+        guard capabilities.canAppend else {
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
+        }
+        try ArchiveImportPlan.checkCancellation(progress)
+        let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, existing: reader.entries)
+        var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, progress: progress,
+                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish)
+        if result.published {
+            do { try reloadAfterMutation() }
+            catch { result.reloadFailure = String(describing: error) }
+        }
+        return result
+    }
+
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。
     // reopen() は旧 inode を保持するので、URL から開き直す。
     func reloadAfterMutation() throws {
