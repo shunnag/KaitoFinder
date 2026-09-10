@@ -92,7 +92,9 @@ struct EntryTreeFilter {
         var pending = [(root, false)]
         var visited: [EntryNode] = []
         while let (node, matchedAncestor) = pending.popLast() {
-            let matches = matchedAncestor || node.name.localizedStandardRange(of: query) != nil
+            // 日本語の書庫では半角カナや全角数字が混在するため、文字幅も明示的に同一視する。
+            let matches = matchedAncestor || node.name.range(of: query,
+                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) != nil
             if matches { visible.insert(ObjectIdentifier(node)) }
             visited.append(node)
             pending.append(contentsOf: node.children.map { ($0, matches && node.isDirectory) })

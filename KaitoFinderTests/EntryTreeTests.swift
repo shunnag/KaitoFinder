@@ -134,12 +134,22 @@ nonisolated final class EntryTreeTests: XCTestCase {
         XCTAssertTrue(EntryTreeFilter(root: root, query: "Résumé.PDF extra").children(of: root).isEmpty)
     }
 
-    @MainActor func testJapaneseFilterRecordsStandardSearchWidthAndKanaBehavior() {
-        let root = EntryNode.tree(from: [entry("カタカナ資料.txt"), entry("ｶﾀｶﾅ資料.txt"), entry("かたかな資料.txt")])
-        // 現行の localizedStandardRange は幅・かなを同一視しない。期待する仕様を推測で足さない。
-        for (query, expected) in [("タカナ", "カタカナ資料.txt"), ("ﾀｶﾅ", "ｶﾀｶﾅ資料.txt"), ("たかな", "かたかな資料.txt")] {
-            XCTAssertEqual(EntryTreeFilter(root: root, query: query).children(of: root).map(\.name), [expected])
+    @MainActor func testJapaneseFilterFoldsWidthCaseAndDiacriticsButKeepsHiraganaDistinct() {
+        let root = EntryNode.tree(from: [entry("カタカナ資料.txt"), entry("ｶﾀｶﾅ資料.txt"), entry("かたかな資料.txt"),
+                                         entry("ﾃｽﾄ1.bin"), entry("テスト１.bin"), entry("Photo.JPG"),
+                                         entry("café.txt"), entry("cafe.txt")])
+        let katakana: Set<String> = ["カタカナ資料.txt", "ｶﾀｶﾅ資料.txt"]
+        for query in ["ｶﾀｶﾅ", "カタカナ", "ﾀｶﾅ", "タカナ"] {
+            XCTAssertEqual(Set(EntryTreeFilter(root: root, query: query).children(of: root).map(\.name)), katakana, query)
         }
+        XCTAssertEqual(Set(EntryTreeFilter(root: root, query: "テスト1").children(of: root).map(\.name)),
+                       ["ﾃｽﾄ1.bin", "テスト１.bin"])
+        XCTAssertEqual(EntryTreeFilter(root: root, query: "photo").children(of: root).map(\.name), ["Photo.JPG"])
+        XCTAssertEqual(Set(EntryTreeFilter(root: root, query: "cafe").children(of: root).map(\.name)), ["café.txt", "cafe.txt"])
+        // 文字幅の違いだけを吸収し、ひらがなとカタカナは別の名前として検索する。
+        let hiraganaMatches = Set(EntryTreeFilter(root: root, query: "たかな").children(of: root).map(\.name))
+        XCTAssertEqual(hiraganaMatches, ["かたかな資料.txt"])
+        XCTAssertTrue(hiraganaMatches.isDisjoint(with: katakana))
         XCTAssertEqual(EntryTreeFilter(root: root, query: "資料").children(of: root).count, 3)
     }
 
