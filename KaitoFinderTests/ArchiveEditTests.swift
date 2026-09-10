@@ -176,6 +176,54 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertEqual(try digest(fixture.archive), original)
     }
 
+    @MainActor func testArchiveReplacementBeforeEditRefusesStaleSessionDeleteAndRenameWithoutUndo() async throws {
+        // 同数で選択外の名前だけを変える場合と、zip が旧一覧まで一致する末尾追加を分ける。
+        for names in [["keep.txt", "replacement.txt"], ["keep.txt", "other.txt", "added.txt"]] {
+            for rename in [false, true] {
+                let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('keep.txt', b'keep')\n z.writestr('other.txt', b'other')")
+                let document = try document(fixture), session = try XCTUnwrap(document.session)
+                let existing = await session.entries(), selected = try await node("keep.txt", in: session)
+                let entry = try XCTUnwrap(selected.entry), original = try digest(fixture.archive)
+                XCTAssertEqual(existing.map(\.name), ["keep.txt", "other.txt"])
+
+                let replacement = fixture.root.appendingPathComponent("replacement.zip")
+                let writer = try ArchiveWriter.create(url: replacement)
+                for name in names { try writer.add(data: Data("replacement \(name)".utf8), as: name) }
+                try writer.finish()
+                let expected = try digest(replacement)
+                XCTAssertNotEqual(expected, original)
+                // 原本の inode を書き換えずに置換し、session の reader には旧一覧を保持させる。
+                guard Darwin.rename(replacement.path, fixture.archive.path) == 0 else { throw ExtractionFailure.system(errno) }
+                let cached = await session.entries(), current = try ArchiveReader.open(url: fixture.archive).entries
+                XCTAssertEqual(cached, existing)
+                XCTAssertEqual(current.map(\.name), names)
+                XCTAssertEqual(current[entry.index].index, entry.index)
+                XCTAssertTrue(current[entry.index].name.utf8.elementsEqual(entry.name.utf8))
+                XCTAssertEqual(current[entry.index].kind, entry.kind)
+                XCTAssertEqual(try digest(fixture.archive), expected)
+
+                let published = Mutex(0)
+                // document 経由で同じ session を使い、公開と undo 登録まで拒否されることを確かめる。
+                do {
+                    if rename {
+                        _ = try await document.rename(selected, to: "renamed.txt", progress: Progress(),
+                                                      willPublish: { published.withLock { $0 += 1 } })
+                    } else {
+                        _ = try await document.remove([selected], progress: Progress(),
+                                                      willPublish: { published.withLock { $0 += 1 } })
+                    }
+                    XCTFail("置換前の一覧で書庫を変更しました")
+                } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
+                XCTAssertEqual(try digest(fixture.archive), expected)
+                XCTAssertEqual(session.generation, 0)
+                XCTAssertEqual(published.withLock { $0 }, 0)
+                XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+                XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+                XCTAssertFalse(try XCTUnwrap(document.undoManager).canRedo)
+            }
+        }
+    }
+
     @MainActor func testDeletingFilePreservesEverySurvivingRecordAndPassesUnzip() async throws {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
         let before = try records(fixture.archive)
