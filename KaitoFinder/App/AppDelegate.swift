@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: String(localized: "すべて取り出す…"),
                          action: #selector(ArchiveWindowController.extractAll(_:)), keyEquivalent: "")
         let editMenu = NSMenu(title: String(localized: "編集"))
+        editMenu.addItem(withTitle: "取り消す", action: #selector(ArchiveDocument.undo(_:)), keyEquivalent: "z")
+        editMenu.addItem(withTitle: "やり直す", action: #selector(ArchiveDocument.redo(_:)), keyEquivalent: "Z")
+        editMenu.addItem(.separator())
         editMenu.addItem(withTitle: String(localized: "コピー"),
                          action: #selector(ArchiveWindowController.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: String(localized: "ペースト"),

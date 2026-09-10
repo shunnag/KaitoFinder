@@ -1,822 +1,825 @@
 {
-  "sourceLanguage": "ja",
-  "strings": {
-    "KaitoFinderについて": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KaitoFinderについて"
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "%lld / %lld 項目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld items"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "About KaitoFinder"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld / %lld 項目"
           }
         }
       }
     },
-    "KaitoFinderを終了": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KaitoFinderを終了"
+    "KaitoFinderについて" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About KaitoFinder"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quit KaitoFinder"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinderについて"
           }
         }
       }
     },
-    "ファイル": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイル"
+    "KaitoFinderを終了" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit KaitoFinder"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "File"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinderを終了"
           }
         }
       }
     },
-    "開く…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開く…"
+    "アプリケーションを調べています…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finding Applications…"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリケーションを調べています…"
           }
         }
       }
     },
-    "閉じる": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "閉じる"
+    "いいえ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いいえ"
           }
         }
       }
     },
-    "ウインドウ": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ウインドウ"
+    "ウインドウ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Window"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ウインドウ"
           }
         }
       }
     },
-    "しまう": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "しまう"
+    "キャンセル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Minimize"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
           }
         }
       }
     },
-    "拡大／縮小": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "拡大／縮小"
+    "クイックルック" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Look"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zoom"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックルック"
           }
         }
       }
     },
-    "名前": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "名前"
+    "このアプリケーションで開く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open With"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Name"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリケーションで開く"
           }
         }
       }
     },
-    "サイズ": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サイズ"
+    "この項目を開くアプリケーションが見つからないか、起動できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An application to open this item could not be found or launched."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Size"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この項目を開くアプリケーションが見つからないか、起動できませんでした"
           }
         }
       }
     },
-    "圧縮サイズ": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "圧縮サイズ"
+    "コピー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compressed Size"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピー"
           }
         }
       }
     },
-    "変更日": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "変更日"
+    "サイズ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Date Modified"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイズ"
           }
         }
       }
     },
-    "種類": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "種類"
+    "しまう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimize"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kind"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "しまう"
           }
         }
       }
     },
-    "圧縮方式": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "圧縮方式"
+    "すべて取り出す…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract All…"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Method"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべて取り出す…"
           }
         }
       }
     },
-    "暗号化": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暗号化"
+    "ハードリンク" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hard Link"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Encrypted"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ハードリンク"
           }
         }
       }
     },
-    "フォルダ": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "フォルダ"
+    "はい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yes"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Folder"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "はい"
           }
         }
       }
     },
-    "ハードリンク": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ハードリンク"
+    "ファイル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hard Link"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
           }
         }
       }
     },
-    "書類": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "書類"
+    "ファイルやフォルダをドラッグ、またはペーストして追加できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag or paste files and folders to add them"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Document"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルやフォルダをドラッグ、またはペーストして追加できます"
           }
         }
       }
     },
-    "はい": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "はい"
+    "フォルダ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folder"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yes"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ"
           }
         }
       }
     },
-    "いいえ": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "いいえ"
+    "フォルダはプレビューまたは外部アプリケーションで開けません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folders cannot be previewed or opened in another application."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダはプレビューまたは外部アプリケーションで開けません"
           }
         }
       }
     },
-    "選択した項目を取り出す…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選択した項目を取り出す…"
+    "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previews and items opened in other apps are read-only temporary copies. Changes are not saved to the archive."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Extract Selected…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"
           }
         }
       }
     },
-    "すべて取り出す…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "すべて取り出す…"
+    "ペースト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Extract All…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペースト"
           }
         }
       }
     },
-    "編集": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "編集"
+    "リンクまたは特殊な項目は単独で開けません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Links and special items cannot be opened individually."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクまたは特殊な項目は単独で開けません"
           }
         }
       }
     },
-    "コピー": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コピー"
+    "不完全な項目は内容を検証できないため開けません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This incomplete item cannot be opened because its contents cannot be verified."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copy"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不完全な項目は内容を検証できないため開けません"
           }
         }
       }
     },
-    "取り出す": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "取り出す"
+    "取り出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Extract"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取り出す"
           }
         }
       }
     },
-    "項目を取り出しています": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "項目を取り出しています"
+    "名前" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Extracting Items"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前"
           }
         }
       }
     },
-    "キャンセル": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "キャンセル"
+    "圧縮サイズ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compressed Size"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圧縮サイズ"
           }
         }
       }
     },
-    "項目を取り出せませんでした": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "項目を取り出せませんでした"
+    "圧縮方式" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Method"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could Not Extract Items"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圧縮方式"
           }
         }
       }
     },
-    "%lld / %lld 項目": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld / %lld 項目"
+    "変更日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date Modified"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld / %2$lld items"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更日"
           }
         }
       }
     },
-    "フォルダはプレビューまたは外部アプリケーションで開けません": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "フォルダはプレビューまたは外部アプリケーションで開けません"
+    "対応するアプリケーションが見つかりません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Applications Found"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Folders cannot be previewed or opened in another application."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応するアプリケーションが見つかりません"
           }
         }
       }
     },
-    "暗号化された項目にはパスワードが必要です": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暗号化された項目にはパスワードが必要です"
+    "拡大／縮小" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This encrypted item requires a password."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡大／縮小"
           }
         }
       }
     },
-    "不完全な項目は内容を検証できないため開けません": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不完全な項目は内容を検証できないため開けません"
+    "暗号化" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This incomplete item cannot be opened because its contents cannot be verified."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化"
           }
         }
       }
     },
-    "リンクまたは特殊な項目は単独で開けません": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リンクまたは特殊な項目は単独で開けません"
+    "暗号化された項目にはパスワードが必要です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This encrypted item requires a password."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Links and special items cannot be opened individually."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化された項目にはパスワードが必要です"
           }
         }
       }
     },
-    "未対応の圧縮方式です: %@": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未対応の圧縮方式です: %@"
+    "書類" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Document"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unsupported compression method: %@"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書類"
           }
         }
       }
     },
-    "選択した項目が見つかりません": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選択した項目が見つかりません"
+    "未対応の圧縮方式です: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported compression method: %@"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The selected item could not be found."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未対応の圧縮方式です: %@"
           }
         }
       }
     },
-    "このアプリケーションで開く": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このアプリケーションで開く"
+    "種類" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kind"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open With"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "種類"
           }
         }
       }
     },
-    "開く（読み取り専用のコピー）": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開く（読み取り専用のコピー）"
+    "編集" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open (Read-Only Copy)"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集"
           }
         }
       }
     },
-    "クイックルック": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クイックルック"
+    "追加" : {
+
+    },
+    "選択した項目が見つかりません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected item could not be found."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quick Look"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目が見つかりません"
           }
         }
       }
     },
-    "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"
+    "選択した項目を取り出す…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extract Selected…"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Previews and items opened in other apps are read-only temporary copies. Changes are not saved to the archive."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目を取り出す…"
           }
         }
       }
     },
-    "この項目を開くアプリケーションが見つからないか、起動できませんでした": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この項目を開くアプリケーションが見つからないか、起動できませんでした"
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An application to open this item could not be found or launched."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
           }
         }
       }
     },
-    "アプリケーションを調べています…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アプリケーションを調べています…"
+    "開く…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open…"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finding Applications…"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開く…"
           }
         }
       }
     },
-    "対応するアプリケーションが見つかりません": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "対応するアプリケーションが見つかりません"
+    "開く（読み取り専用のコピー）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open (Read-Only Copy)"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Applications Found"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開く（読み取り専用のコピー）"
           }
         }
       }
     },
-    "項目のパスが安全ではないため開けません": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "項目のパスが安全ではないため開けません"
+    "項目のパスが安全ではないため開けません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The item's path is unsafe and cannot be opened."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The item's path is unsafe and cannot be opened."
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目のパスが安全ではないため開けません"
           }
         }
       }
     },
-    "ペースト": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ペースト"
+    "項目を取り出しています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extracting Items"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paste"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を取り出しています"
           }
         }
       }
     },
-    "項目を追加しています": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "項目を追加しています"
+    "項目を取り出せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Extract Items"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adding Items"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を取り出せませんでした"
           }
         }
       }
     },
-    "項目を追加できませんでした": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "項目を追加できませんでした"
+    "項目を追加しています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding Items"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could Not Add Items"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を追加しています"
           }
         }
       }
     },
-    "ファイルやフォルダをドラッグ、またはペーストして追加できます": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ファイルやフォルダをドラッグ、またはペーストして追加できます"
+    "項目を追加しましたが、書庫を読み直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items Were Added, but the Archive Could Not Be Reloaded"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Drag or paste files and folders to add them"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を追加しましたが、書庫を読み直せませんでした"
           }
         }
       }
     },
-    "項目を追加しましたが、書庫を読み直せませんでした": {
-      "extractionState": "manual",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "項目を追加しましたが、書庫を読み直せませんでした"
+    "項目を追加できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Add Items"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Items Were Added, but the Archive Could Not Be Reloaded"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目を追加できませんでした"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

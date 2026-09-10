@@ -71,6 +71,14 @@ actor ArchiveSession {
         invalidated = false
     }
 
+    // append と同じ actor で置換と fresh open を連続させ、旧 inode の reader を渡さない。
+    func restoreUndoSlot(_ id: UUID, from stack: ArchiveUndoStack) throws {
+        let restorationFailure = try stack.swap(id, archive: sourceURL)
+        do { try reloadAfterMutation() }
+        catch { throw restorationFailure ?? error }
+        if let restorationFailure { throw restorationFailure }
+    }
+
     func snapshot() -> (entries: [ArchiveEntry], generation: UInt64) {
         (invalidated ? [] : reader.entries, generation)
     }
