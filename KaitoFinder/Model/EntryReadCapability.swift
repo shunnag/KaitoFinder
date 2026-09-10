@@ -5,7 +5,7 @@ import KaitoKit
 /// 圧縮データ内で初めて分かる制限・破損は展開時の失敗報告に委ねる。
 nonisolated struct EntryReadCapability: Sendable {
     enum Refusal: Error, Equatable, Sendable {
-        case directory, encrypted, incomplete, linkOrSpecial, missingEntry
+        case directory, incomplete, linkOrSpecial, missingEntry
         case unsupportedMethod(String)
         case invalidPath
 
@@ -13,7 +13,6 @@ nonisolated struct EntryReadCapability: Sendable {
         func message(bundle: Bundle = .main) -> String {
             switch self {
             case .directory: String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません", bundle: bundle)
-            case .encrypted: String(localized: "暗号化された項目にはパスワードが必要です", bundle: bundle)
             case .incomplete: String(localized: "不完全な項目は内容を検証できないため開けません", bundle: bundle)
             case .linkOrSpecial: String(localized: "リンクまたは特殊な項目は単独で開けません", bundle: bundle)
             case .missingEntry: String(localized: "選択した項目が見つかりません", bundle: bundle)
@@ -25,6 +24,7 @@ nonisolated struct EntryReadCapability: Sendable {
 
     let refusal: Refusal?
     let reason: String?
+    let needsUnlocking: Bool
     var canPreview: Bool { refusal == nil }
     var canOpen: Bool { refusal == nil }
 
@@ -32,9 +32,7 @@ nonisolated struct EntryReadCapability: Sendable {
         if isDirectory || entry?.kind == .directory {
             refusal = .directory
         } else if let entry {
-            if entry.isEncrypted {
-                refusal = .encrypted
-            } else if entry.isIncomplete {
+            if entry.isIncomplete {
                 refusal = .incomplete
             } else if entry.kind != .file {
                 refusal = .linkOrSpecial
@@ -48,6 +46,8 @@ nonisolated struct EntryReadCapability: Sendable {
             refusal = .missingEntry
         }
         reason = refusal?.message(bundle: bundle)
+        // 暗号化は操作時に解除できる。破損や未対応方式の拒否とは分ける。
+        needsUnlocking = refusal == nil && entry?.isEncrypted == true
     }
 
     private static func supportsMethod(_ entry: ArchiveEntry, format: ArchiveFormat) -> Bool {

@@ -9,7 +9,8 @@ import XCTest
 
 nonisolated final class ArchiveEditTests: XCTestCase {
     private final class Fixture {
-        let root: URL
+        let directory: ArchiveTestDirectory
+        var root: URL { directory.url }
         let archive: URL
 
         init(script: String = #"""
@@ -20,28 +21,36 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                                ('virtual/deeper/b.txt', b'virtual b'), ('folderish/keep.txt', b'outside')]:
                 z.writestr(name, data)
         """#) throws {
-            root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-EditTests-" + UUID().uuidString)
-            archive = root.appendingPathComponent("archive.zip")
-            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-            try Self.run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct, zlib\np=sys.argv[1]\n" + script, archive.path])
+            directory = try ArchiveTestDirectory()
+            archive = directory.url.appendingPathComponent("archive.zip")
+            try directory.run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct, zlib\np=sys.argv[1]\n" + script, archive.path])
         }
-
-        deinit { try? FileManager.default.removeItem(at: root) }
 
         @discardableResult static func run(_ tool: String, _ arguments: [String], allowed: [Int32] = [0]) throws -> String {
-            let process = Process(), output = Pipe()
-            process.executableURL = URL(fileURLWithPath: tool)
-            process.arguments = arguments
-            process.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C"]) { _, new in new }
-            process.standardOutput = output
-            process.standardError = output
-            try process.run()
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            let text = String(decoding: data, as: UTF8.self)
-            XCTAssertTrue(allowed.contains(process.terminationStatus), text)
-            return text
+            try ArchiveTestDirectory().run(tool, arguments, allowed: allowed)
         }
+    }
+
+    @MainActor func testFixtureDamageAndToolScratchFilesAreIsolated() async throws {
+        let damaged = try Fixture(), independent = try Fixture()
+        XCTAssertNotEqual(damaged.root, independent.root)
+        let before = try Data(contentsOf: independent.archive)
+        let carried = try records(independent.archive)
+        let scratch = "import os, pathlib; pathlib.Path('scratch').write_text(os.environ['TMPDIR'])"
+        try damaged.directory.run("/usr/bin/python3", ["-c", scratch])
+        XCTAssertEqual(try String(contentsOf: damaged.root.appendingPathComponent("scratch"), encoding: .utf8),
+                       damaged.root.appendingPathComponent("tmp").path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: independent.root.appendingPathComponent("scratch").path))
+        try Data("broken fixture".utf8).write(to: damaged.archive)
+        XCTAssertThrowsError(try ArchiveReader.open(url: damaged.archive))
+        XCTAssertEqual(try Data(contentsOf: independent.archive), before)
+        let session = try ArchiveSession(url: independent.archive)
+        let selection = ArchiveEditSelection(try await node("remove.txt", in: session))
+        let result = try await session.remove([selection], progress: Progress())
+        XCTAssertTrue(result.published)
+        XCTAssertNil(result.reloadFailure)
+        XCTAssertFalse(try ArchiveReader.open(url: independent.archive).entries.contains { $0.name == "remove.txt" })
+        try assertCarried(carried, to: independent.archive, removed: ["remove.txt"])
     }
 
     private struct Record {

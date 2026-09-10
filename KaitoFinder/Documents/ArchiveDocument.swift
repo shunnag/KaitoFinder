@@ -1,10 +1,21 @@
 import AppKit
+import KaitoKit
 import Synchronization
 
-final class ArchiveDocument: NSDocument {
+@MainActor final class ArchiveDocument: NSDocument {
     // NSDocument の読み込みは非隔離なので、actor 参照の受け渡しだけをロックする。
-    nonisolated private let sessionStorage = Mutex<ArchiveSession?>(nil)
-    var session: ArchiveSession? { sessionStorage.withLock { $0 } }
+    nonisolated private enum Contents: Sendable {
+        case empty, locked(URL), open(ArchiveSession), closed
+    }
+    nonisolated private let contentsStorage = Mutex<Contents>(.empty)
+    var session: ArchiveSession? {
+        contentsStorage.withLock { if case .open(let session) = $0 { session } else { nil } }
+    }
+    var lockedURL: URL? {
+        contentsStorage.withLock { if case .locked(let url) = $0 { url } else { nil } }
+    }
+    var isPasswordLocked: Bool { lockedURL != nil }
+    private(set) var sessionCleanup: Task<Void, Never>?
     var generation: UInt64 { session?.generation ?? 0 }
     private var loadingTask: Task<Void, Never>?
     private var materialization: ArchiveMaterializationController?
@@ -70,7 +81,7 @@ final class ArchiveDocument: NSDocument {
     nonisolated override var isEntireFileLoaded: Bool { false }
 
     nonisolated override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
-        // read は非隔離で sessionStorage だけを更新する。AppKit の並行読み込みを許可する。
+        // read は非隔離で contentsStorage だけを更新する。AppKit の並行読み込みを許可する。
         true
     }
 
@@ -80,14 +91,43 @@ final class ArchiveDocument: NSDocument {
 
     nonisolated override func read(from url: URL, ofType typeName: String) throws {
         // super は NSFileWrapper 経由で全体を読み込むため呼ばない。
-        let session = try ArchiveSession(url: url)
-        sessionStorage.withLock { $0 = session }
+        let contents: Contents
+        do { contents = .open(try ArchiveSession(url: url)) }
+        catch KaitoError.passwordRequired {
+            // AppKit の並行 read では UI を出せない。URL だけを渡し、window 側で解除する。
+            contents = .locked(url)
+        }
+        let installed = contentsStorage.withLock { state in
+            if case .closed = state { return false }
+            state = contents
+            return true
+        }
+        if !installed, case .open(let session) = contents { Task { await session.close() } }
+    }
+
+    func unlock(password: String) async throws {
+        guard !closed, let url = lockedURL else { throw CancellationError() }
+        let opened = try await Self.openLockedArchive(url, password: password)
+        guard !closed, !Task.isCancelled, lockedURL == url else {
+            await opened.close()
+            throw CancellationError()
+        }
+        contentsStorage.withLock { $0 = .open(opened) }
+        await displayAfterMutation()
+    }
+
+    @concurrent private static func openLockedArchive(_ url: URL, password: String) async throws -> ArchiveSession {
+        try Task.checkCancellation()
+        return try ArchiveSession(url: url, password: password)
     }
 
     override func makeWindowControllers() {
         let controller = ArchiveWindowController()
         addWindowController(controller)
-        guard let session else { return }
+        guard let session else {
+            if isPasswordLocked { controller.displayLocked() }
+            return
+        }
         loadingTask = Task { [weak self, weak controller] in
             let snapshot = await session.snapshot()
             guard !Task.isCancelled, let self else { return }
@@ -276,7 +316,17 @@ final class ArchiveDocument: NSDocument {
         }
         loadingTask?.cancel()
         loadingTask = nil
-        sessionStorage.withLock { $0 = nil }
+        let session = contentsStorage.withLock { state -> ArchiveSession? in
+            let session: ArchiveSession?
+            if case .open(let opened) = state { session = opened } else { session = nil }
+            state = .closed
+            return session
+        }
+        let previous = sessionCleanup
+        sessionCleanup = Task {
+            await previous?.value
+            await session?.close()
+        }
         super.close()
     }
 

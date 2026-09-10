@@ -2,6 +2,24 @@ import AppKit
 import UniformTypeIdentifiers
 import QuickLookUI
 
+final class ArchivePasswordPrompt {
+    let alert = NSAlert()
+    let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+    let challenge: ArchivePasswordChallenge
+    var waiters: [UUID: CheckedContinuation<String, any Error>] = [:]
+
+    init(challenge: ArchivePasswordChallenge, bundle: Bundle = .main) {
+        self.challenge = challenge
+        alert.messageText = String(localized: "書庫のロックを解除", bundle: bundle)
+        alert.informativeText = challenge.message(bundle: bundle)
+        alert.addButton(withTitle: String(localized: "ロックを解除", bundle: bundle))
+        alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
+        alert.buttons.last?.keyEquivalent = "\u{1b}"
+        field.placeholderString = String(localized: "パスワード", bundle: bundle)
+        alert.accessoryView = field
+    }
+}
+
 final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
     NSMenuItemValidation, NSMenuDelegate, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     private var archiveSession: ArchiveSession?
@@ -9,6 +27,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let promiseOwner = UUID()
     private(set) var extractionTask: Task<Void, Never>?
     private var extractionProgress: Progress?
+    private var extractionCancellation: Task<Void, Never>?
+    private(set) var extractionSheet: ExtractionProgressSheet?
+    private(set) var passwordPrompt: ArchivePasswordPrompt?
+    private(set) var unlockTask: Task<Void, Never>?
+    private let unlockButton = NSButton(title: String(localized: "ロックを解除"), target: nil, action: nil)
     private(set) var deletionConfirmation: NSAlert?
     private(set) var editProgressSheet: ExtractionProgressSheet?
     private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
@@ -19,6 +42,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var previewMonitor: Task<Void, Never>?
     private var previewActive = false
     private var materializationSheet: ExtractionProgressSheet?
+    private var materializationCancellation: Task<Void, Never>?
     private let openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く"))
     private var root = EntryNode.tree(from: [])
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
@@ -109,7 +133,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"))
         notice.textColor = .secondaryLabelColor
         notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        let footer = NSStackView(views: [renameValidationNotice, capabilityNotice, notice])
+        unlockButton.target = self
+        unlockButton.action = #selector(unlockArchive(_:))
+        unlockButton.isHidden = true
+        let footer = NSStackView(views: [unlockButton, renameValidationNotice, capabilityNotice, notice])
         footer.orientation = .vertical
         footer.alignment = .leading
         capabilityNotice.textColor = .secondaryLabelColor
@@ -135,6 +162,111 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     required init?(coder: NSCoder) { nil }
 
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        if (document as? ArchiveDocument)?.isPasswordLocked == true { unlockArchive(sender) }
+    }
+
+    func displayLocked() {
+        display(EntryNode.tree(from: []))
+        capabilityNotice.stringValue = String(localized: "この書庫はロックされています。パスワードを入力すると一覧を表示できます")
+        unlockButton.isHidden = false
+    }
+
+    @objc func unlockArchive(_ sender: Any?) {
+        guard let document = document as? ArchiveDocument, document.isPasswordLocked, unlockTask == nil else { return }
+        unlockButton.isEnabled = false
+        unlockTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                self.unlockTask = nil
+                self.unlockButton.isEnabled = true
+            }
+            var challenge = ArchivePasswordChallenge.required
+            while !Task.isCancelled {
+                do {
+                    let password = try await self.requestPassword(challenge)
+                    try await document.unlock(password: password)
+                    return
+                } catch {
+                    if error is CancellationError || Task.isCancelled { return }
+                    if let next = ArchivePasswordChallenge(error) { challenge = next }
+                    else { self.reportFailure(String(describing: error)); return }
+                }
+            }
+        }
+    }
+
+    // 同期 PasswordProvider には UI を渡さない。worker が await する間だけ sheet を持ち、
+    // 複数の promise は同じ入力を待つ。取消しは要求ごとに continuation を回収する。
+    func requestPassword(_ challenge: ArchivePasswordChallenge) async throws -> String {
+        try Task.checkCancellation()
+        let id = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled, let window else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                if let prompt = passwordPrompt {
+                    prompt.waiters[id] = continuation
+                    return
+                }
+                let prompt = ArchivePasswordPrompt(challenge: challenge)
+                passwordPrompt = prompt
+                prompt.waiters[id] = continuation
+                // 親 window に進捗と入力の二枚を積まない。入力後は同じ進捗を再開する。
+                materializationSheet?.finish()
+                extractionSheet?.finish()
+                prompt.alert.window.nextResponder = self
+                prompt.alert.beginSheetModal(for: window) { [weak self, weak prompt] response in
+                    guard let self, let prompt, self.passwordPrompt === prompt else { return }
+                    self.finishPasswordPrompt(prompt, password: response == .alertFirstButtonReturn ? prompt.field.stringValue : nil)
+                }
+                prompt.alert.window.makeFirstResponder(prompt.field)
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancelPasswordRequest(id) }
+        }
+    }
+
+    private func cancelPasswordRequest(_ id: UUID) {
+        guard let prompt = passwordPrompt else { return }
+        prompt.waiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
+        if prompt.waiters.isEmpty { finishPasswordPrompt(prompt, password: nil) }
+    }
+
+    private func finishPasswordPrompt(_ prompt: ArchivePasswordPrompt, password: String?) {
+        guard passwordPrompt === prompt else { return }
+        passwordPrompt = nil
+        prompt.field.stringValue = ""
+        if let parent = prompt.alert.window.sheetParent { parent.endSheet(prompt.alert.window) }
+        prompt.alert.window.orderOut(nil)
+        let waiters = Array(prompt.waiters.values)
+        prompt.waiters.removeAll()
+        if let password {
+            if let window {
+                for sheet in [materializationSheet, extractionSheet].compactMap({ $0 }) where !sheet.progress.isCancelled {
+                    sheet.begin(on: window)
+                }
+            }
+            for waiter in waiters { waiter.resume(returning: password) }
+        } else {
+            for waiter in waiters { waiter.resume(throwing: CancellationError()) }
+        }
+    }
+
+    private func watchCancellation(_ progress: Progress, cancel: @escaping () -> Void) -> Task<Void, Never> {
+        Task {
+            // 既存の進捗 UI は Progress を取り消す。入力待ちと検証の Task にも取消しを届ける。
+            while !Task.isCancelled {
+                if progress.isCancelled { cancel(); return }
+                do { try await Task.sleep(for: .milliseconds(50)) }
+                catch { return }
+            }
+        }
+    }
+
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil) {
         let state = captureViewState()
@@ -142,6 +274,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         closePreview()
         if materialization !== materializationController { materialization?.close() }
         archiveSession = session
+        unlockButton.isHidden = true
         self.generation = generation
         self.root = root
         sortedChildren.removeAll()
@@ -149,9 +282,15 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         restoreViewState(state)
         capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
         if let session {
+            session.setPasswordPrompt { [weak self, weak session] challenge in
+                guard let self, let session, self.archiveSession === session else { throw CancellationError() }
+                return try await self.requestPassword(challenge)
+            }
             let controller = materializationController ?? ArchiveMaterializationController(session: session)
-            controller.started = { [weak self] item, progress in
-                guard let self, item.requiresProgress, let window = self.window else { return }
+            controller.started = { [weak self, weak controller] item, progress in
+                guard let self else { return }
+                self.materializationCancellation = self.watchCancellation(progress) { [weak controller] in controller?.cancel() }
+                guard item.requiresProgress, let window = self.window else { return }
                 let sheet = ExtractionProgressSheet(progress: progress)
                 // 進捗シートが key window になっても、QL の responder chain を文書へ戻す。
                 sheet.nextResponder = self
@@ -159,6 +298,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 sheet.begin(on: window)
             }
             controller.finished = { [weak self] in
+                self?.materializationCancellation?.cancel()
+                self?.materializationCancellation = nil
                 self?.materializationSheet?.finish()
                 self?.materializationSheet = nil
             }
@@ -232,7 +373,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private var operationInFlight: Bool {
-        extractionTask != nil || deletionConfirmation != nil
+        extractionTask != nil || deletionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
     }
 
@@ -547,12 +688,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
-    private func startExtraction(_ items: [ArchiveEntryPayload], session: ArchiveSession,
+    func startExtraction(_ items: [ArchiveEntryPayload], session: ArchiveSession,
                                  destination: URL?, showProgress: Bool, entryCount: Int) {
         guard let window, extractionTask == nil else { return }
         let progress = Progress(totalUnitCount: Int64(entryCount))
         extractionProgress = progress
         let sheet = showProgress ? ExtractionProgressSheet(progress: progress) : nil
+        extractionSheet = sheet
         sheet?.begin(on: window)
         // シートの表示後に worker を起動する。小さい copy も UI actor で stream を読まない。
         extractionTask = Task { [weak self] in
@@ -572,11 +714,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             self?.extractionTask = nil
             self?.extractionProgress = nil
+            self?.extractionSheet = nil
+            self?.extractionCancellation?.cancel()
+            self?.extractionCancellation = nil
         }
+        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
     }
 
     func cancelExtraction() {
         outlineView.cancelRenaming()
+        unlockTask?.cancel()
+        if let prompt = passwordPrompt { finishPasswordPrompt(prompt, password: nil) }
         if let alert = deletionConfirmation {
             deletionConfirmation = nil
             window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn)
@@ -585,6 +733,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         materialization?.close()
         extractionProgress?.cancel()
         extractionTask?.cancel()
+        extractionSheet?.finish()
     }
 
     private func reportFailure(_ reason: String) {
@@ -688,7 +837,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     @objc func togglePreviewPanel(_ sender: Any?) {
         if let panel = previewPanel, panel.isVisible { closePreview(); return }
-        guard readableSelection() != nil, let panel = QLPreviewPanel.shared() else { return }
+        guard let items = readableSelection() else { return }
+        if let first = items.first, first.capability.needsUnlocking, first.previewItemURL == nil, let materialization {
+            // 解除を取り消した時に空の QL パネルを残さない。準備完了後に responder を渡す。
+            materialization.setSelection(items)
+            materialization.display(index: 0) { [weak self] _ in self?.showPreviewPanel(nil) }
+        } else { showPreviewPanel(sender) }
+    }
+
+    private func showPreviewPanel(_ sender: Any?) {
+        guard let panel = QLPreviewPanel.shared() else { return }
         panel.makeKeyAndOrderFront(sender)
         panel.updateController()
         if previewPanel === panel { updatePreviewSelection(reportingFailures: true); startPreviewMonitoring(panel) }
