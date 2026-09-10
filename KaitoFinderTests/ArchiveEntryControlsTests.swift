@@ -3,6 +3,7 @@ import CryptoKit
 import Darwin
 import KaitoKit
 import Synchronization
+import UniformTypeIdentifiers
 import XCTest
 @testable import KaitoFinder
 
@@ -512,6 +513,231 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
         for key in ["削除", "名称変更", "追加", "削除・名称変更"] {
             XCTAssertNotNil(strings[key])
+        }
+    }
+
+    @MainActor func testNewFolderUsesFirstSelectionAndBeginsInlineRename() async throws {
+        let initial = ["folder/", "folder/deep/a.txt", "other/b.txt", "root.txt"]
+        let cases: [([String], String)] = [([], ""), (["root.txt"], ""), (["folder"], "folder"),
+            (["folder/deep/a.txt"], "folder/deep"), (["folder/deep"], "folder/deep"),
+            (["folder/deep/a.txt", "other/b.txt"], "folder/deep"), (["folder", "other/b.txt"], "folder")]
+        for (selection, parent) in cases {
+            let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
+            try select(selection, in: controller)
+            controller.newFolder(nil)
+            await controller.extractionTask?.value
+            let leaf = String(localized: "名称未設定フォルダ")
+            let path = parent.isEmpty ? leaf : parent + "/" + leaf
+            XCTAssertEqual(try names(fixture), Set(initial + [path + "/"]), "\(selection)")
+            XCTAssertEqual(controller.selectedNodes.map(\.path), [path])
+            XCTAssertTrue(try XCTUnwrap(controller.selectedNodes.first).isDirectory)
+            let field = try XCTUnwrap(controller.outlineView.renameField)
+            XCTAssertEqual(field.stringValue, leaf)
+            XCTAssertNotNil(field.currentEditor())
+            XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
+            controller.outlineView.cancelRenaming()
+        }
+    }
+
+    @MainActor func testNewFolderUsesHiddenCollisionsAndRevealsResultForRename() async throws {
+        let leaf = String(localized: "名称未設定フォルダ")
+        let fixture = try Fixture(["parent/match.txt", "parent/" + leaf + "/", "parent/" + leaf + " 2/hidden.txt"])
+        let (_, controller) = try await interface(fixture)
+        controller.setFilterQuery("match")
+        XCTAssertEqual(paths(controller), ["parent", "parent/match.txt"])
+        try select(["parent/match.txt"], in: controller)
+        controller.newFolder(nil)
+        await controller.extractionTask?.value
+        XCTAssertTrue(try names(fixture).contains("parent/" + leaf + " 3/"))
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["parent/" + leaf + " 3"])
+        XCTAssertTrue(controller.outlineView.isRenaming)
+        XCTAssertEqual(controller.filterQuery, "")
+        XCTAssertEqual(controller.searchField.stringValue, "")
+    }
+
+    @MainActor func testNewFolderMenusUseShiftCommandNAndExposeReadOnlyReason() async throws {
+        let (_, controller) = try await interface(Fixture())
+        let menu = AppDelegate().makeMenu()
+        let fileMenu = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })
+        let action = #selector(ArchiveWindowController.newFolder(_:))
+        let item = try XCTUnwrap(fileMenu.items.first { $0.action == action })
+        XCTAssertEqual(item.title, String(localized: "新規フォルダ"))
+        XCTAssertEqual(item.keyEquivalent, "n")
+        XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .shift])
+        XCTAssertTrue(controller.validateMenuItem(item))
+        let context = try XCTUnwrap(controller.outlineView.menu?.items.first { $0.action == action })
+        XCTAssertEqual(context.title, String(localized: "新規フォルダ"))
+        XCTAssertTrue(context.target === controller)
+        XCTAssertTrue(controller.validateMenuItem(context))
+        let fixture = try Fixture(tar: true), before = try digest(fixture)
+        let (document, readOnly) = try await interface(fixture)
+        readOnly.setFilterQuery("a")
+        XCTAssertFalse(readOnly.validateMenuItem(item))
+        XCTAssertEqual(item.toolTip, document.session?.capabilities.readOnlyReason)
+        XCTAssertFalse(try XCTUnwrap(item.toolTip).isEmpty)
+        readOnly.newFolder(nil)
+        XCTAssertNil(readOnly.extractionTask)
+        XCTAssertEqual(try digest(fixture), before)
+    }
+
+    @MainActor func testFilterClearRestoresExpansionAndMultipleSelectionAfterQueryChangesAndReload() async throws {
+        let fixture = try Fixture(["a/top.txt", "a/deep/leaf.txt", "b/leaf.txt", "c/keep.txt"])
+        let (document, controller) = try await interface(fixture), view = controller.outlineView
+        view.collapseItem(try node("a/deep", in: controller))
+        view.collapseItem(try node("b", in: controller))
+        try select(["a/top.txt", "c/keep.txt"], in: controller)
+        let previous = paths(controller)
+        controller.searchField.stringValue = "leaf"
+        controller.filterEntries(controller.searchField)
+        XCTAssertEqual(paths(controller), ["a", "a/deep", "a/deep/leaf.txt", "b", "b/leaf.txt"])
+        XCTAssertTrue(view.isItemExpanded(try node("a/deep", in: controller)))
+        controller.setFilterQuery("b")
+        try select(["b/leaf.txt"], in: controller)
+        view.sortDescriptors = [NSSortDescriptor(key: "name", ascending: false)]
+        try await document.reloadAfterMutation()
+        XCTAssertEqual(controller.filterQuery, "b")
+        controller.searchField.stringValue = ""
+        controller.filterEntries(controller.searchField)
+        XCTAssertEqual(paths(controller), previous)
+        XCTAssertEqual(Set(controller.selectedNodes.map(\.path)), ["a/top.txt", "c/keep.txt"])
+        XCTAssertTrue(view.isItemExpanded(try node("a", in: controller)))
+        XCTAssertTrue(view.isItemExpanded(try node("c", in: controller)))
+        XCTAssertFalse(view.isItemExpanded(try node("a/deep", in: controller)))
+        XCTAssertFalse(view.isItemExpanded(try node("b", in: controller)))
+    }
+
+    @MainActor func testFilteredDeleteRemovesEntireRealAndVirtualSubtreesWithUndoRedo() async throws {
+        for explicit in [false, true] {
+            let initial = ["folder/show.txt", "folder/hidden.txt", "folder/deep/hidden.bin", "outside/show.txt"]
+                + (explicit ? ["folder/", "folder/deep/"] : [])
+            let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
+            let before = try digest(fixture)
+            controller.setFilterQuery("show")
+            // 検索語を親の名前に含めない。隠れた子孫がある状態でなければ cascade の検証にならない。
+            XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
+            XCTAssertFalse(paths(controller).contains("folder/hidden.txt"))
+            XCTAssertFalse(paths(controller).contains("folder/deep/hidden.bin"))
+            try select(["folder"], in: controller)
+            XCTAssertEqual(ArchiveEditSelection(try XCTUnwrap(controller.selectedNodes.first)).entries.count, explicit ? 5 : 3)
+            controller.deleteEntries(nil)
+            await controller.extractionTask?.value
+            XCTAssertEqual(try names(fixture), ["outside/show.txt"])
+            XCTAssertEqual(controller.filterQuery, "show")
+            XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
+            let after = try digest(fixture)
+            document.undo(nil)
+            await document.undoTask?.value
+            XCTAssertNil(document.undoFailure)
+            XCTAssertEqual(try digest(fixture), before)
+            XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
+            document.redo(nil)
+            await document.undoTask?.value
+            XCTAssertNil(document.undoFailure)
+            XCTAssertEqual(try digest(fixture), after)
+            XCTAssertEqual(paths(controller), ["outside", "outside/show.txt"])
+        }
+    }
+
+    @MainActor func testFilteredInlineRenameRewritesHiddenDescendantsOfRealAndVirtualFolders() async throws {
+        for explicit in [false, true] {
+            let initial = ["folder/show.txt", "folder/hidden.txt", "folder/deep/hidden.bin", "outside/show.txt"]
+                + (explicit ? ["folder/", "folder/deep/"] : [])
+            let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
+            let before = try digest(fixture)
+            controller.setFilterQuery("show")
+            XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
+            try select(["folder"], in: controller)
+            let (field, editor) = try editor(controller, text: "renamed")
+            commit(controller, field: field, editor: editor)
+            await controller.extractionTask?.value
+            let expected = initial.map { $0.hasPrefix("folder/") ? "renamed/" + $0.dropFirst("folder/".count) : $0 }
+            XCTAssertEqual(try names(fixture), Set(expected))
+            XCTAssertEqual(paths(controller), ["renamed", "renamed/show.txt", "outside", "outside/show.txt"])
+            XCTAssertEqual(controller.selectedNodes.map(\.path), ["renamed"])
+            XCTAssertEqual(controller.filterQuery, "show")
+            document.undo(nil)
+            await document.undoTask?.value
+            XCTAssertNil(document.undoFailure)
+            XCTAssertEqual(try digest(fixture), before)
+            XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
+        }
+    }
+
+    @MainActor func testFilterChangePreservesInvalidInlineRenameUntilCorrected() async throws {
+        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        controller.setFilterQuery(".txt")
+        try select(["b.txt"], in: controller)
+        let (field, editor) = try editor(controller, text: "a.txt")
+        controller.searchField.stringValue = "c"
+        controller.filterEntries(controller.searchField)
+        XCTAssertEqual(controller.filterQuery, ".txt")
+        XCTAssertEqual(controller.searchField.stringValue, ".txt")
+        XCTAssertTrue(controller.outlineView.isRenaming)
+        XCTAssertEqual(editor.string, "a.txt")
+        XCTAssertNotNil(field.toolTip)
+        XCTAssertNil(controller.extractionTask)
+        editor.string = "corrected.txt"
+        commit(controller, field: field, editor: editor)
+        await controller.extractionTask?.value
+        XCTAssertTrue(try names(fixture).contains("corrected.txt"))
+    }
+
+    @MainActor func testFilteredFolderCopyPreparationAndDragPromiseIncludeHiddenEntries() async throws {
+        let fixture = try Fixture(["folder/show.txt", "folder/deep/hidden.bin", "outside.txt"])
+        let (document, controller) = try await interface(fixture), session = try XCTUnwrap(document.session)
+        controller.setFilterQuery("show")
+        try select(["folder"], in: controller)
+        XCTAssertEqual(paths(controller), ["folder", "folder/show.txt"])
+        let folder = try XCTUnwrap(controller.selectedNodes.first)
+        let payload = ArchiveEntryPayload(node: folder, archiveURL: fixture.archive, generation: session.generation)
+        let prepared = try await ArchiveCopyOut.prepare([payload], from: session, progress: Progress(),
+            temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.directory.appendingPathComponent("copy")))
+        let copy = try XCTUnwrap(prepared.urls.first)
+        XCTAssertEqual(try Data(contentsOf: copy.appendingPathComponent("show.txt")), Data("folder/show.txt".utf8))
+        XCTAssertEqual(try Data(contentsOf: copy.appendingPathComponent("deep/hidden.bin")), Data("folder/deep/hidden.bin".utf8))
+        // 型サービスが遮断されても、promise の書き込み自体は選択した完全な部分木で検証する。
+        let provider = NSFilePromiseProvider(), delegate = ArchiveFilePromise(payload: payload, session: session)
+        let output = fixture.directory.appendingPathComponent("promised-folder")
+        let completion = Mutex((calls: 0, failure: Optional<String>.none))
+        delegate.filePromiseProvider(provider, writePromiseTo: output) { @Sendable error in
+            completion.withLock { $0.calls += 1; $0.failure = error.map(String.init(describing:)) }
+        }
+        try await waitUntil { completion.withLock { $0.calls > 0 } }
+        XCTAssertEqual(completion.withLock { $0.calls }, 1)
+        XCTAssertNil(completion.withLock { $0.failure })
+        XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("deep/hidden.bin")), Data("folder/deep/hidden.bin".utf8))
+    }
+
+    @MainActor func testFilteredDragSourceBuildsPromiseWithFullSubtreePayload() async throws {
+        guard UTType.folder.conforms(to: .directory) else {
+            throw XCTSkip("この実行環境では LaunchServices が public.folder を解決できません")
+        }
+        let fixture = try Fixture(["folder/show.txt", "folder/hidden.txt", "outside.txt"])
+        let (document, controller) = try await interface(fixture), session = try XCTUnwrap(document.session)
+        controller.setFilterQuery("show")
+        let folder = try node("folder", in: controller)
+        XCTAssertEqual(paths(controller), ["folder", "folder/show.txt"])
+        let provider = try XCTUnwrap(controller.outlineView(controller.outlineView, pasteboardWriterForItem: folder) as? NSFilePromiseProvider)
+        let delegate = try XCTUnwrap(provider.delegate as? ArchiveFilePromise)
+        let entries = await session.entries()
+        XCTAssertEqual(provider.fileType, UTType.folder.identifier)
+        XCTAssertEqual(try delegate.payload.resolve(in: entries, generation: session.generation).map(\.name),
+                       ["folder/show.txt", "folder/hidden.txt"])
+    }
+
+    @MainActor func testNewFolderAndFilterStringsHaveExactJapaneseAndEnglishLocalizations() throws {
+        let bundle = Bundle(for: ArchiveDocument.self)
+        for (language, values) in [
+            ("ja", ["新規フォルダ", "名称未設定フォルダ", "名前で絞り込む", "フォルダを作成しています"]),
+            ("en", ["New Folder", "untitled folder", "Filter by Name", "Creating Folder"])
+        ] {
+            let localized = try XCTUnwrap(Bundle(url: XCTUnwrap(bundle.url(forResource: language, withExtension: "lproj"))))
+            XCTAssertEqual(String(localized: "新規フォルダ", bundle: localized), values[0])
+            XCTAssertEqual(String(localized: "名称未設定フォルダ", bundle: localized), values[1])
+            XCTAssertEqual(String(localized: "名前で絞り込む", bundle: localized), values[2])
+            XCTAssertEqual(String(localized: "フォルダを作成しています", bundle: localized), values[3])
+            let base = values[1], number = 2
+            XCTAssertEqual(String(localized: "\(base) \(number)", bundle: localized), base + " 2")
         }
     }
 }

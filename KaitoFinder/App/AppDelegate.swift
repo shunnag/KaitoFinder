@@ -77,6 +77,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fileMenu.addItem(withTitle: String(localized: "閉じる"),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenu.addItem(.separator())
+        let newFolder = fileMenu.addItem(withTitle: String(localized: "新規フォルダ"),
+                                         action: #selector(ArchiveWindowController.newFolder(_:)), keyEquivalent: "n")
+        newFolder.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: String(localized: "選択した項目を取り出す…"),
                          action: #selector(ArchiveWindowController.extractSelected(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "すべて取り出す…"),

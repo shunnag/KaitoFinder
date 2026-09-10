@@ -186,6 +186,10 @@ nonisolated struct ArchiveEditPlan: Sendable {
                 throw ArchiveEditError.indexMismatch(entry.index)
             }
         }
+        try Self.verifyNames(names, existing: existing)
+    }
+
+    fileprivate static func verifyNames(_ names: [String], existing: [ArchiveEntry]) throws {
         // 選択外に子や同名の兄弟が増えていても、古い一覧による検証を使い回さない。
         guard names.count == existing.count,
               zip(names, existing).allSatisfy({ $0.utf8.elementsEqual($1.name.utf8) }) else {
@@ -193,16 +197,16 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
     }
 
-    private static func key(_ path: String) -> String {
+    fileprivate static func key(_ path: String) -> String {
         (path.hasSuffix("/") ? String(path.dropLast()) : path).precomposedStringWithCanonicalMapping
     }
 
-    private static func leafName(_ name: String) throws -> String {
+    fileprivate static func leafName(_ name: String) throws -> String {
         guard !name.contains("/") else { throw ArchiveEditError.invalidName(name) }
         return try normalizedPath(name, directory: false)
     }
 
-    private static func normalizedPath(_ path: String, directory: Bool) throws -> String {
+    fileprivate static func normalizedPath(_ path: String, directory: Bool) throws -> String {
         var name = path.precomposedStringWithCanonicalMapping
         if directory && !name.hasSuffix("/") { name += "/" }
         let body = directory ? String(name.dropLast()) : name
@@ -212,6 +216,42 @@ nonisolated struct ArchiveEditPlan: Sendable {
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
               name.utf8.count <= Int(UInt16.max) else { throw ArchiveEditError.invalidName(path) }
         return name
+    }
+}
+
+nonisolated struct ArchiveNewFolderPlan: Sendable {
+    let path: String
+    let existing: [ArchiveEntry]
+
+    static func build(in folder: String, baseName: String, existing: [ArchiveEntry]) throws -> Self {
+        let base = try ArchiveEditPlan.leafName(baseName)
+        let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false)
+        var occupied: Set<String> = [], directories: Set<String> = [], files: Set<String> = []
+        for entry in existing {
+            let parts = ArchiveEditPlan.key(entry.name).split(separator: "/", omittingEmptySubsequences: false)
+            for count in 1...parts.count {
+                let path = parts.prefix(count).joined(separator: "/")
+                occupied.insert(path)
+                if count < parts.count || entry.kind == .directory { directories.insert(path) }
+                else { files.insert(path) }
+            }
+        }
+        if !parent.isEmpty {
+            guard directories.contains(parent) else { throw ArchiveEditError.staleSelection }
+            let parts = parent.split(separator: "/")
+            for count in 1...parts.count {
+                let path = parts.prefix(count).joined(separator: "/")
+                guard !files.contains(path) else { throw ArchiveEditError.collision(path) }
+            }
+        }
+        var name = base, number = 2
+        while true {
+            let path = try ArchiveEditPlan.normalizedPath(parent.isEmpty ? name : parent + "/" + name, directory: true)
+            if !occupied.contains(ArchiveEditPlan.key(path)) { return Self(path: path, existing: existing) }
+            // 仮想フォルダや表示から隠れた兄弟も予約済み。Finder と同じ空白付き連番で避ける。
+            name = String(localized: "\(base) \(number)")
+            number += 1
+        }
     }
 }
 
@@ -246,6 +286,20 @@ nonisolated enum ArchiveEditTransaction {
 
 /// session の actor 内だけで実行する。書庫の原本へ書くのは最後の rename 一回だけ。
 nonisolated enum ArchiveImportTransaction {
+    static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, progress: Progress,
+                             willOpenUpdater: (@Sendable () throws -> Void)? = nil,
+                             willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
+        progress.totalUnitCount = 2
+        progress.completedUnitCount = 0
+        try publish(archive: archive, progress: progress, willOpenUpdater: willOpenUpdater, willPublish: willPublish) { updater in
+            try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
+            try ArchiveImportPlan.checkCancellation(progress)
+            try updater.addDirectory(plan.path)
+            progress.completedUnitCount += 1
+        }
+        return ArchiveImportResult(addedPaths: [plan.path], failures: [])
+    }
+
     // phase hook は同じ worker 上で呼び、取消し・障害の境界を XCTest で再現する。
     static func run(plan: ArchiveImportPlan, archive: URL, progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,

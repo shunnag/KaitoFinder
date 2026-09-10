@@ -80,3 +80,35 @@ final class EntryNode: NSObject {
         return total
     }
 }
+
+/// 表示する子だけを選ぶ。元の node と children は削除・改名・取り出しで共有する。
+struct EntryTreeFilter {
+    private let query: String
+    private var visible: Set<ObjectIdentifier> = []
+
+    init(root: EntryNode, query: String) {
+        self.query = query
+        guard !query.isEmpty else { return }
+        var pending = [(root, false)]
+        var visited: [EntryNode] = []
+        while let (node, matchedAncestor) = pending.popLast() {
+            let matches = matchedAncestor || node.name.localizedStandardRange(of: query) != nil
+            if matches { visible.insert(ObjectIdentifier(node)) }
+            visited.append(node)
+            pending.append(contentsOf: node.children.map { ($0, matches && node.isDirectory) })
+        }
+        // 子から祖先へ辿り、名前に一致しない親も開けるように残す。
+        for node in visited.reversed() where node.children.contains(where: contains) {
+            visible.insert(ObjectIdentifier(node))
+        }
+    }
+
+    func contains(_ node: EntryNode) -> Bool {
+        query.isEmpty || visible.contains(ObjectIdentifier(node))
+    }
+
+    func children(of node: EntryNode) -> [EntryNode] {
+        // 部分木を複製して縮めると、編集時に隠れた子孫が脱落する。完全な node の参照を返す。
+        node.children.filter(contains)
+    }
+}

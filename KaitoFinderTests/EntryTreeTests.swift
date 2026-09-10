@@ -99,6 +99,61 @@ nonisolated final class EntryTreeTests: XCTestCase {
         XCTAssertEqual(root.size, 0)
     }
 
+    @MainActor func testFilterKeepsMatchingLeavesAndAncestorsUsingFullNodes() throws {
+        let entries = [entry("parent/branch/needle.txt", index: 0), entry("parent/branch/hidden.txt", index: 1),
+                       entry("parent/hidden/deeper.bin", index: 2), entry("outside.txt", index: 3)]
+        let root = EntryNode.tree(from: entries), filter = EntryTreeFilter(root: root, query: "needle")
+        let parent = try child("parent", in: root), branch = try child("branch", in: parent)
+        XCTAssertEqual(filter.children(of: root), [parent])
+        XCTAssertEqual(filter.children(of: parent), [branch])
+        XCTAssertEqual(filter.children(of: branch).map(\.name), ["needle.txt"])
+        XCTAssertTrue(try XCTUnwrap(filter.children(of: parent).first) === branch)
+        XCTAssertEqual(branch.children.count, 2)
+        XCTAssertEqual(ExtractionSelection(nodes: [parent]).entries.map(\.index), [0, 1, 2])
+        XCTAssertEqual(ArchiveEditSelection(parent).entries.map(\.index), [0, 1, 2])
+        XCTAssertEqual(parent.size, 6)
+        XCTAssertTrue(EntryTreeFilter(root: root, query: "parent/branch").children(of: root).isEmpty)
+    }
+
+    @MainActor func testMatchingFolderKeepsItsWholeSubtreeAndEmptyFoldersCanMatch() throws {
+        let root = EntryNode.tree(from: [entry("photos/one.txt"), entry("photos/deep/two.txt"),
+                                         entry("empty/", kind: .directory), entry("other.txt")])
+        let photos = try child("photos", in: root), filter = EntryTreeFilter(root: root, query: "hoto")
+        XCTAssertEqual(filter.children(of: root), [photos])
+        XCTAssertEqual(filter.children(of: photos), photos.children)
+        let deep = try child("deep", in: photos)
+        XCTAssertEqual(filter.children(of: deep), deep.children)
+        XCTAssertEqual(EntryTreeFilter(root: root, query: "mpt").children(of: root).map(\.name), ["empty"])
+    }
+
+    @MainActor func testFilterIsCaseAndDiacriticInsensitiveSubstringSearch() {
+        let root = EntryNode.tree(from: [entry("Résumé.PDF"), entry("cafe\u{301}.txt"), entry("unrelated")])
+        for (query, expected) in [("SUME.p", "Résumé.PDF"), ("AFÉ.T", "cafe\u{301}.txt")] {
+            XCTAssertEqual(EntryTreeFilter(root: root, query: query).children(of: root).map(\.name), [expected])
+        }
+        XCTAssertTrue(EntryTreeFilter(root: root, query: "Résumé.PDF extra").children(of: root).isEmpty)
+    }
+
+    @MainActor func testJapaneseFilterRecordsStandardSearchWidthAndKanaBehavior() {
+        let root = EntryNode.tree(from: [entry("カタカナ資料.txt"), entry("ｶﾀｶﾅ資料.txt"), entry("かたかな資料.txt")])
+        // 現行の localizedStandardRange は幅・かなを同一視しない。期待する仕様を推測で足さない。
+        for (query, expected) in [("タカナ", "カタカナ資料.txt"), ("ﾀｶﾅ", "ｶﾀｶﾅ資料.txt"), ("たかな", "かたかな資料.txt")] {
+            XCTAssertEqual(EntryTreeFilter(root: root, query: query).children(of: root).map(\.name), [expected])
+        }
+        XCTAssertEqual(EntryTreeFilter(root: root, query: "資料").children(of: root).count, 3)
+    }
+
+    @MainActor func testEmptyFilterReturnsOriginalChildrenIncludingDuplicateRecords() throws {
+        let root = EntryNode.tree(from: [entry("same/", index: 0, kind: .directory), entry("same/", index: 1, kind: .directory),
+                                         entry("same/a", index: 2), entry("same/a", index: 3)])
+        let filter = EntryTreeFilter(root: root, query: ""), same = try child("same", in: root)
+        XCTAssertEqual(filter.children(of: root), root.children)
+        XCTAssertEqual(filter.children(of: same), same.children)
+        XCTAssertEqual(same.representedEntries.map(\.index), [0, 1])
+        XCTAssertEqual(ArchiveEditSelection(same).entries.map(\.index), [0, 1, 2, 3])
+        XCTAssertTrue(EntryTreeFilter(root: root, query: "missing").children(of: root).isEmpty)
+    }
+
     @MainActor
     func testZIPAndTarFixturesThroughArchiveSession() async throws {
         // テスト用書庫もリポジトリ内に作り、外部の checkout は変更しない。

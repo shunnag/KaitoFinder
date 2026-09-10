@@ -163,6 +163,23 @@ actor ArchiveSession {
         try edit(removing: selections, progress: progress, willPublish: willPublish)
     }
 
+    func createFolder(in folder: String, baseName: String = String(localized: "名称未設定フォルダ"), progress: Progress,
+                      willOpenUpdater: (@Sendable () throws -> Void)? = nil,
+                      willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
+        let reader = try requireCurrentReader()
+        guard capabilities.canAppend else {
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "この書庫は変更できません"))
+        }
+        try ArchiveImportPlan.checkCancellation(progress)
+        // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
+        let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries)
+        var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, progress: progress,
+                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish)
+        do { try reloadAfterMutation() }
+        catch { result.reloadFailure = Self.reloadFailureMessage }
+        return result
+    }
+
     func rename(_ selection: ArchiveEditSelection, to name: String, progress: Progress,
                 willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
         try edit(renaming: [ArchiveEditRename(selection: selection, name: name)],

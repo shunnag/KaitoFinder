@@ -138,6 +138,47 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         await assertPassword(session, equals: password)
     }
 
+    @MainActor func testFilteredCopyPreparationPromptsAndReturnsExactEncryptedBytes() async throws {
+        let fixture = try Fixture(.pkware, publicEntry: true), (document, controller) = try await interface(fixture)
+        let session = try XCTUnwrap(document.session)
+        controller.setFilterQuery("cret")
+        XCTAssertEqual(controller.outlineView.numberOfRows, 1)
+        try selectSecret(controller)
+        let payloads = controller.selectedNodes.map {
+            ArchiveEntryPayload(node: $0, archiveURL: fixture.archive, generation: session.generation)
+        }
+        let temporary = ExtractionTemporaryDirectory(root: fixture.directory.url.appendingPathComponent("filtered-copy"))
+        let task = Task { try await ArchiveCopyOut.prepare(payloads, from: session, progress: Progress(), temporaryDirectory: temporary) }
+        try await waitUntil { controller.passwordPrompt != nil }
+        XCTAssertEqual(controller.passwordPrompt?.challenge, .required)
+        _ = try respond(controller, password: fixture.password)
+        let prepared = try await task.value
+        XCTAssertEqual(prepared.paths, ["secret.bin"])
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(prepared.urls.first)), fixture.original)
+        XCTAssertEqual(controller.filterQuery, "cret")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["secret.bin"])
+        XCTAssertNil(controller.passwordPrompt)
+    }
+
+    @MainActor func testFilteredQuickLookStillRequestsPasswordAndCancelsCleanly() async throws {
+        let fixture = try Fixture(.pkware, publicEntry: true), (document, controller) = try await interface(fixture)
+        controller.setFilterQuery("cret")
+        XCTAssertEqual(controller.outlineView.numberOfRows, 1)
+        try selectSecret(controller)
+        controller.togglePreviewPanel(nil)
+        try await waitUntil { controller.passwordPrompt != nil }
+        let materialization = try XCTUnwrap(document.materializationController())
+        let task = try XCTUnwrap(materialization.task)
+        _ = try respond(controller, password: nil)
+        await task.value
+        XCTAssertNil(materialization.item(at: 0)?.previewItemURL)
+        XCTAssertNil(materialization.task)
+        XCTAssertNil(controller.passwordPrompt)
+        XCTAssertNil(controller.window?.attachedSheet)
+        XCTAssertEqual(controller.filterQuery, "cret")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["secret.bin"])
+    }
+
     @MainActor private func wrongThenCorrect(_ format: Format) async throws {
         let fixture = try Fixture(format), session = try ArchiveSession(url: fixture.archive)
         let password = fixture.password

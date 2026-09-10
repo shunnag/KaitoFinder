@@ -52,6 +52,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
     let outlineView = ArchiveOutlineView()
+    let searchField = NSSearchField()
+    private(set) var filterQuery = ""
+    private var entryFilter: EntryTreeFilter?
+    private var unfilteredViewState: ArchiveViewState?
     private var materialization: ArchiveMaterializationController?
     private weak var previewPanel: QLPreviewPanel?
     private var previewMonitor: Task<Void, Never>?
@@ -134,6 +138,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let openWith = menu.addItem(withTitle: openWithMenu.title, action: #selector(openWithEntry(_:)), keyEquivalent: "")
         openWith.submenu = openWithMenu
         menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "新規フォルダ"), action: #selector(newFolder(_:)), keyEquivalent: "")
         menu.addItem(withTitle: String(localized: "削除"), action: #selector(deleteEntries(_:)), keyEquivalent: "")
         menu.addItem(withTitle: String(localized: "名称変更"), action: #selector(renameEntry(_:)), keyEquivalent: "")
         for item in menu.items { item.target = self }
@@ -159,12 +164,23 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         renameValidationNotice.textColor = .systemRed
         renameValidationNotice.isHidden = true
         let content = NSView()
+        searchField.placeholderString = String(localized: "名前で絞り込む")
+        searchField.setAccessibilityLabel(String(localized: "名前で絞り込む"))
+        searchField.target = self
+        searchField.action = #selector(filterEntries(_:))
+        searchField.sendsSearchStringImmediately = true
+        searchField.sendsWholeSearchString = false
+        searchField.translatesAutoresizingMaskIntoConstraints = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         footer.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(scrollView)
         content.addSubview(footer)
+        content.addSubview(searchField)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: content.topAnchor),
+            searchField.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+            searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            searchField.widthAnchor.constraint(equalToConstant: 260),
+            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
             scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
@@ -305,9 +321,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         unlockButton.isHidden = true
         self.generation = generation
         self.root = root
-        sortedChildren.removeAll()
-        outlineView.reloadData()
-        restoreViewState(state)
+        reloadFilteredEntries(restoring: state)
         capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
         if let session {
             session.setPasswordPrompt { [weak self, weak session] challenge in
@@ -343,6 +357,32 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     var selectedNodes: [EntryNode] {
         outlineView.selectedRowIndexes.compactMap { outlineView.item(atRow: $0) as? EntryNode }
+    }
+
+    @objc func filterEntries(_ sender: NSSearchField) { setFilterQuery(sender.stringValue) }
+
+    func setFilterQuery(_ query: String) {
+        guard query != filterQuery else { return }
+        // 未確定の不正な名前を reload で捨てない。ソートと同じ確定規則を使う。
+        guard outlineView.commitRenaming() else { searchField.stringValue = filterQuery; return }
+        let state = captureViewState()
+        if filterQuery.isEmpty { unfilteredViewState = state }
+        filterQuery = query
+        searchField.stringValue = query
+        let restored = query.isEmpty ? (unfilteredViewState ?? state) : state
+        if query.isEmpty { unfilteredViewState = nil }
+        closePreview()
+        reloadFilteredEntries(restoring: restored)
+    }
+
+    private func reloadFilteredEntries(restoring state: ArchiveViewState) {
+        entryFilter = EntryTreeFilter(root: root, query: filterQuery)
+        sortedChildren.removeAll()
+        outlineView.reloadData()
+        // 同じ node を使う reload は展開状態を保持するため、検索中の自動展開も明示的に戻す。
+        outlineView.collapseItem(nil, collapseChildren: true)
+        if !filterQuery.isEmpty { outlineView.expandItem(nil, expandChildren: true) }
+        restoreViewState(state)
     }
 
     private func payloads(for nodes: [EntryNode], session: ArchiveSession) -> [ArchiveEntryPayload] {
@@ -382,6 +422,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(newFolder(_:)):
+            menuItem.toolTip = editRefusal
+            return archiveSession != nil && document is ArchiveDocument && editRefusal == nil && !outlineView.isRenaming
         case #selector(deleteEntries(_:)), #selector(renameEntry(_:)):
             menuItem.toolTip = editRefusal
             let count = selectedNodes.count
@@ -420,6 +463,57 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func canPerformEdit(_ action: Selector) -> Bool {
         validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: ""))
+    }
+
+    @objc func newFolder(_ sender: Any?) {
+        guard canPerformEdit(#selector(newFolder(_:))), let document = document as? ArchiveDocument,
+              let window else { return }
+        // 現在のフォルダはまだないため、先頭の選択から作成先を求める。ナビゲーション導入時に見直す。
+        let folder = ArchiveDropTarget.folder(for: selectedNodes.first.map(ArchiveDropTarget.Row.init))
+        closePreview()
+        materialization?.cancel()
+        let progress = Progress(totalUnitCount: 0)
+        extractionProgress = progress
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "フォルダを作成しています"))
+        editProgressSheet = sheet
+        sheet.begin(on: window)
+        extractionTask = Task { [weak self] in
+            var createdPath: String?
+            defer {
+                sheet.finish()
+                self?.editProgressSheet = nil
+                self?.extractionProgress = nil
+                self?.extractionTask = nil
+                if !Task.isCancelled, let createdPath { self?.renameCreatedFolder(at: createdPath) }
+            }
+            do {
+                let result = try await document.createFolder(in: folder, progress: progress)
+                if let reason = result.reloadFailure {
+                    sheet.finish()
+                    self?.reportEditFailure(reason, published: true)
+                } else { createdPath = result.addedPaths.first.map { String($0.dropLast()) } }
+            } catch {
+                sheet.finish()
+                if !(error is CancellationError), !Task.isCancelled, let self {
+                    self.reportEditFailure(self.editFailureReason(error))
+                }
+            }
+        }
+    }
+
+    private func renameCreatedFolder(at path: String) {
+        let target = ArchiveViewState(selectedPaths: [path], expandedPaths: [], topPath: nil).resolve(in: root).selected.first
+        guard let target else { return }
+        // 新しい名前が検索に一致しなくても、作成した場所で直ちに改名できるようにする。
+        if entryFilter?.contains(target) == false { setFilterQuery("") }
+        var state = captureViewState()
+        state.selectedPaths = [path]
+        let parents = path.split(separator: "/").dropLast()
+        for count in 1..<(parents.count + 1) {
+            state.expandedPaths.insert(parents.prefix(count).joined(separator: "/"))
+        }
+        restoreViewState(state)
+        renameEntry(nil)
     }
 
     @objc func deleteEntries(_ sender: Any?) {
@@ -594,7 +688,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func restoreViewState(_ state: ArchiveViewState) {
         let resolved = state.resolve(in: root)
-        for node in resolved.expanded { outlineView.expandItem(node) }
+        for node in resolved.expanded where entryFilter?.contains(node) != false { outlineView.expandItem(node) }
         outlineView.selectRowIndexes(IndexSet(resolved.selected.map { outlineView.row(forItem: $0) }.filter { $0 >= 0 }), byExtendingSelection: false)
         if let top = resolved.top {
             let row = outlineView.row(forItem: top)
@@ -994,7 +1088,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let node = (item as? EntryNode) ?? root
         let id = ObjectIdentifier(node)
         if let cached = sortedChildren[id] { return cached }
-        let children = node.children.sorted { lhs, rhs in
+        let children = (entryFilter?.children(of: node) ?? node.children).sorted { lhs, rhs in
             for descriptor in outlineView.sortDescriptors {
                 let result = compare(lhs, rhs, key: descriptor.key ?? "name")
                 if result != .orderedSame {

@@ -228,6 +228,14 @@ import Synchronization
         try await edit(removing: nodes.map(ArchiveEditSelection.init), progress: progress, willPublish: willPublish)
     }
 
+    func createFolder(in folder: String, baseName: String = String(localized: "名称未設定フォルダ"), progress: Progress,
+                      willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
+        try await mutate(progress: progress, actionName: "新規フォルダ", willPublish: willPublish,
+                         published: { !$0.addedPaths.isEmpty }) { session, publish in
+            try await session.createFolder(in: folder, baseName: baseName, progress: progress, willPublish: publish)
+        }
+    }
+
     func rename(_ node: EntryNode, to name: String, progress: Progress,
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
         try await edit(renaming: [ArchiveEditRename(selection: ArchiveEditSelection(node), name: name)],
