@@ -378,6 +378,57 @@ first responder を手放さない形にし、focus 喪失は拒否せず、終�
 > `ArchiveUpdater.entryNames`, without normalisation, since Swift's `==` folds
 > canonically equivalent names and would hide the very divergence being checked.
 
+### 5.2 暗号化書庫とパスワード
+
+実測は `Documentation/verification/2026-09-10-encrypted-archives.md`。
+
+**入力を求める瞬間は二つある。** ZIP(従来型 PKWARE / WinZip AES)と本体だけを
+暗号化した 7z は、一覧はでき、初回読み取りで `passwordRequired` になる。
+7z の `-mhe=on` と RAR のヘッダ暗号化は **open 自体が失敗する**。しかもその
+open は `ArchiveDocument.read(from:ofType:)` の中で、`nonisolated` かつ AppKit の
+並行読み込み経路なので UI を出せない。そこで `.locked(URL)` 状態で開き、
+コントローラ側で入力を得てから `unlock(password:)` で本開きする。
+
+**`PasswordProvider` は使わない。** KaitoKit の同期 `Sendable` コールバックで、
+復号中の任意スレッドから呼ばれる。ここで入力を求めると背景スレッドをメインの
+モーダルで塞ぐことになり、取り消せず、「キャンセル」と「拒否」も区別できない。
+`ReaderOptions.password` だけを使い、再試行は操作の境界に置く。UI はメイン、
+復号は背景、塞ぐ橋を作らない。
+
+**正しさの判定は照合値では足りない。** ZipCrypto の照合値は 1 byte で、実測では
+誤ったパスワード 4000 個のうち 15 個(≒1/267、理論値 1/256)が `stream()` を
+開けてしまう。`stream()` が開けたことをもって「正しい」と判定すると、
+**約 0.4% の確率で誤ったパスワードを受け入れる**。CRC / HMAC まで読んで確定する。
+
+**パスワードは session が持ち、`reloadAfterMutation` にも渡す。** 書き換えは毎回
+inode を差し替えて開き直すので、渡さないと「追加した後に暗号化項目を展開
+できない」が静かに壊れる。`reopen()` は options と password を自前で引き継ぐ。
+`close()` で nil にする。
+
+**保管は選択式、既定はオフ。** Archive Utility は保存せず、それが macOS らしい
+既定である。設計は cooViewer の `PasswordVault` から借りた — Keychain には
+マスターキー 1 本だけ置き(per-item 保存は ad-hoc 署名の Debug でビルド毎×
+書庫毎に許可ダイアログが出る)、本体は AES-GCM で封緘する。封緘できなければ
+書かず、読めない庫は上書きしない。キーは JSON 配列で持つ(区切り文字はパスに
+合法に現れるので連結は非単射)。
+
+ただし **inode ではなくパスで引く**。cooViewer は書庫を書き換えないので inode で
+引けるが、KaitoFinder は commit のたびに inode が変わるため、踏襲すると最初の
+編集で保存済みパスワードが孤児になる。
+
+> **Encryption.** There are two moments a password can be needed, not one: ZIP and
+> payload-encrypted 7z list fine and fail at first read, while 7z `-mhe=on` fails at
+> *open* — inside a `nonisolated` document read that cannot present UI, hence the
+> locked state. `PasswordProvider` is deliberately unused: it is a synchronous
+> callback invoked on the decoding thread, so prompting from it would block a
+> background thread on a main-thread modal. Correctness is decided by CRC/HMAC, not
+> by the check byte: measured, 15 of 4000 wrong passwords open the stream, so a
+> check-byte verdict would accept a wrong password roughly 0.4% of the time.
+> Persistence is opt-in and off by default, and follows cooViewer's vault design —
+> one Keychain master key, an AES-GCM file, never write plaintext, never overwrite a
+> vault that cannot be read — except that entries are keyed by path rather than
+> inode, because every commit here replaces the inode.
+
 ## 6. 取り出しと取り込み
 
 ### 6.1 実測で決まったこと
