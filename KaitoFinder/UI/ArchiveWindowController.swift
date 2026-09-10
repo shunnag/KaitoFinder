@@ -9,6 +9,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let promiseOwner = UUID()
     private var extractionTask: Task<Void, Never>?
     private var extractionProgress: Progress?
+    private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let outlineView = ArchiveOutlineView()
     private var materialization: ArchiveMaterializationController?
     private weak var previewPanel: QLPreviewPanel?
@@ -88,24 +89,31 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.menu = menu
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: true)
+        outlineView.registerForDraggedTypes(
+            NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) } + [.fileURL])
         scrollView.documentView = outlineView
         let notice = NSTextField(wrappingLabelWithString: String(localized:
             "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"))
         notice.textColor = .secondaryLabelColor
         notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let footer = NSStackView(views: [capabilityNotice, notice])
+        footer.orientation = .vertical
+        footer.alignment = .leading
+        capabilityNotice.textColor = .secondaryLabelColor
+        capabilityNotice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         let content = NSView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        notice.translatesAutoresizingMaskIntoConstraints = false
+        footer.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(scrollView)
-        content.addSubview(notice)
+        content.addSubview(footer)
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: content.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: notice.topAnchor, constant: -6),
-            notice.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
-            notice.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-            notice.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6)
+            scrollView.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
+            footer.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+            footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            footer.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6)
         ])
         window.contentView = content
     }
@@ -114,6 +122,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil) {
+        let state = captureViewState()
         closePreview()
         if materialization !== materializationController { materialization?.close() }
         archiveSession = session
@@ -121,6 +130,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         self.root = root
         sortedChildren.removeAll()
         outlineView.reloadData()
+        restoreViewState(state)
+        capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
         if let session {
             let controller = materializationController ?? ArchiveMaterializationController(session: session)
             controller.started = { [weak self] item, progress in
@@ -181,6 +192,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(paste(_:)):
+            menuItem.toolTip = archiveSession?.capabilities.readOnlyReason
+            return archiveSession?.capabilities.canAppend == true && extractionTask == nil
+                && ArchiveIncomingPasteboard.canPaste(AppKitArchivePasteboard(pasteboard: .general))
         case #selector(openEntry(_:)), #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)):
             let items = previewItems()
             let reason = items.first(where: { !$0.capability.canOpen })?.capability.reason
@@ -192,6 +207,119 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return archiveSession != nil && !root.children.isEmpty && extractionTask == nil
         default: return true
         }
+    }
+
+    private func captureViewState() -> ArchiveViewState {
+        let visible = outlineView.rows(in: outlineView.visibleRect)
+        let top = visible.location < outlineView.numberOfRows ? outlineView.item(atRow: visible.location) as? EntryNode : nil
+        var expanded = Set<String>()
+        var pending = root.children
+        while let node = pending.popLast() {
+            if node.isDirectory, outlineView.isItemExpanded(node) { expanded.insert(node.path) }
+            pending.append(contentsOf: node.children)
+        }
+        return ArchiveViewState(selectedPaths: Set(selectedNodes.map(\.path)), expandedPaths: expanded, topPath: top?.path)
+    }
+
+    private func restoreViewState(_ state: ArchiveViewState) {
+        let resolved = state.resolve(in: root)
+        for node in resolved.expanded { outlineView.expandItem(node) }
+        outlineView.selectRowIndexes(IndexSet(resolved.selected.map { outlineView.row(forItem: $0) }.filter { $0 >= 0 }), byExtendingSelection: false)
+        if let top = resolved.top {
+            let row = outlineView.row(forItem: top)
+            if row >= 0 { outlineView.scroll(NSPoint(x: 0, y: outlineView.rect(ofRow: row).minY)) }
+        }
+    }
+
+    // 現在は書庫 root を表示する outline。選択と表示フォルダは混同しない。
+    private var displayedFolder: String { root.path }
+
+    @objc func paste(_ sender: Any?) {
+        guard let session = archiveSession, extractionTask == nil else { return }
+        guard session.capabilities.canAppend else {
+            reportImportFailure(session.capabilities.readOnlyReason ?? "この書庫は変更できません")
+            return
+        }
+        startImport(urls: ArchiveIncomingPasteboard.readPaste(AppKitArchivePasteboard(pasteboard: .general)), incoming: nil, folder: displayedFolder)
+    }
+
+    private func dropFolder(_ item: Any?) -> String {
+        ArchiveDropTarget.folder(for: (item as? EntryNode).map(ArchiveDropTarget.Row.init))
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo,
+                     proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+        guard let session = archiveSession,
+              ArchiveDropTarget.accepts(capabilities: session.capabilities,
+                offersCopy: info.draggingSourceOperationMask.contains(.copy),
+                hasFiles: ArchiveIncomingPasteboard.representation(AppKitArchivePasteboard(pasteboard: info.draggingPasteboard)) != .none,
+                busy: extractionTask != nil) else { return [] }
+        let row = outlineView.row(at: outlineView.convert(info.draggingLocation, from: nil))
+        let hovered = row >= 0 ? outlineView.item(atRow: row) as? EntryNode : nil
+        let folder = ArchiveDropTarget.node(for: hovered, in: root)
+        outlineView.setDropItem(folder, dropChildIndex: NSOutlineViewDropOnItemIndex)
+        return .copy
+    }
+
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo,
+                     item: Any?, childIndex index: Int) -> Bool {
+        guard let session = archiveSession, session.capabilities.canAppend,
+              info.draggingSourceOperationMask.contains(.copy), extractionTask == nil else { return false }
+        let pasteboard = info.draggingPasteboard
+        do {
+            switch ArchiveIncomingPasteboard.readDrop(AppKitArchivePasteboard(pasteboard: pasteboard)) {
+            case .promises(let receivers):
+                guard !receivers.isEmpty else { return false }
+                let incoming = try ArchiveIncomingFiles(receivers: receivers)
+                startImport(urls: [], incoming: incoming, folder: dropFolder(item))
+            case .fileURLs(let urls):
+                guard !urls.isEmpty else { return false }
+                startImport(urls: urls, incoming: nil, folder: dropFolder(item))
+            case .none: return false
+            }
+            return true
+        } catch { reportImportFailure(String(describing: error)); return false }
+    }
+
+    private func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String) {
+        guard let window, let document = document as? ArchiveDocument, extractionTask == nil,
+              incoming != nil || !urls.isEmpty else { return }
+        closePreview()
+        materialization?.cancel()
+        let progress = Progress(totalUnitCount: 0)
+        extractionProgress = progress
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "項目を追加しています"))
+        sheet.begin(on: window)
+        extractionTask = Task { [weak self] in
+            do {
+                let sources: [URL]
+                if let incoming { sources = try await incoming.receive(progress: progress) }
+                else { sources = urls }
+                let result = try await document.append(urls: sources, to: folder, progress: progress)
+                // 非同期の圧縮が完了するまで、受信ファイルを保持する。
+                withExtendedLifetime(incoming) {}
+                sheet.finish()
+                if let reason = result.reloadFailure {
+                    self?.reportImportFailure(reason, added: true)
+                } else if !result.failures.isEmpty {
+                    self?.reportImportFailure(result.failures.map { "\($0.name): \($0.reason)" }.joined(separator: "\n"))
+                }
+            } catch {
+                sheet.finish()
+                if !(error is CancellationError) { self?.reportImportFailure(String(describing: error)) }
+            }
+            self?.extractionTask = nil
+            self?.extractionProgress = nil
+        }
+    }
+
+    private func reportImportFailure(_ reason: String, added: Bool = false) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = added ? String(localized: "項目を追加しましたが、書庫を読み直せませんでした")
+            : String(localized: "項目を追加できませんでした")
+        alert.informativeText = reason
+        alert.beginSheetModal(for: window, completionHandler: nil)
     }
 
     @objc func copy(_ sender: Any?) {

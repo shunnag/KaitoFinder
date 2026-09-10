@@ -6,11 +6,11 @@ final class ExtractionProgressSheet: NSWindowController {
     private let status = NSTextField(labelWithString: "")
     private var updateTask: Task<Void, Never>?
 
-    init(progress: Progress) {
+    init(progress: Progress, title: String = String(localized: "項目を取り出しています")) {
         self.progress = progress
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 150),
                             styleMask: [.titled], backing: .buffered, defer: false)
-        panel.title = String(localized: "項目を取り出しています")
+        panel.title = title
         super.init(window: panel)
         indicator.isIndeterminate = false
         indicator.minValue = 0

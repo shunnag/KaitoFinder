@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let editMenu = NSMenu(title: String(localized: "編集"))
         editMenu.addItem(withTitle: String(localized: "コピー"),
                          action: #selector(ArchiveWindowController.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: String(localized: "ペースト"),
+                         action: #selector(ArchiveWindowController.paste(_:)), keyEquivalent: "v")
         let windowMenu = NSMenu(title: String(localized: "ウインドウ"))
         windowMenu.addItem(withTitle: String(localized: "しまう"),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

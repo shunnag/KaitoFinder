@@ -731,6 +731,91 @@
           }
         }
       }
+    },
+    "ペースト": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ペースト"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste"
+          }
+        }
+      }
+    },
+    "項目を追加しています": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "項目を追加しています"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adding Items"
+          }
+        }
+      }
+    },
+    "項目を追加できませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "項目を追加できませんでした"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Add Items"
+          }
+        }
+      }
+    },
+    "ファイルやフォルダをドラッグ、またはペーストして追加できます": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルやフォルダをドラッグ、またはペーストして追加できます"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag or paste files and folders to add them"
+          }
+        }
+      }
+    },
+    "項目を追加しましたが、書庫を読み直せませんでした": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "項目を追加しましたが、書庫を読み直せませんでした"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Items Were Added, but the Archive Could Not Be Reloaded"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

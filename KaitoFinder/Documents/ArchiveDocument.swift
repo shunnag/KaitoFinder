@@ -62,10 +62,29 @@ final class ArchiveDocument: NSDocument {
         }
     }
 
+    func append(urls: [URL], to folder: String, progress: Progress) async throws -> ArchiveImportResult {
+        guard let session else { throw ExtractionFailure.refused("書庫が閉じられています") }
+        let previousGeneration = session.generation
+        do {
+            let result = try await session.append(urls: urls, to: folder, progress: progress)
+            if session.generation != previousGeneration { await displayAfterMutation() }
+            return result
+        } catch {
+            if session.generation != previousGeneration { await displayAfterMutation() }
+            throw error
+        }
+    }
+
     func reloadAfterMutation() async throws {
         guard let session else { return }
         disposeMaterialization()
         try await session.reloadAfterMutation()
+        await displayAfterMutation()
+    }
+
+    private func displayAfterMutation() async {
+        guard let session else { return }
+        disposeMaterialization()
         let snapshot = await session.snapshot()
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
             controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
