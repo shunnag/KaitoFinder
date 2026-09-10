@@ -560,8 +560,13 @@ level を選べない。既定は Info-ZIP と同じ **level 6**、設定で変�
 
 - **tar**:bsdtar に合わせた restricted pax。ustar で表せない値のときだけ
   typeflag `x` を出す。数値あふれは pax record を真とし、ustar 側は base-256。
-  macOS metadata(`._` AppleDouble、`SCHILY.xattr`)は**既定で書かない** ——
-  Apple の bsdtar は既定で書き、それが Mac 製書庫が Windows で嫌われる主因。
+  macOS metadata(`SCHILY.xattr` pax record、および経路によっては `._`
+  AppleDouble member)は**既定で書かない** —— Apple の bsdtar は既定で書き、
+  それが Mac 製書庫が Windows で嫌われる主因。実測(2026-09-10): xattr を
+  二つ付けた 5 byte のファイル一つを `bsdtar -cf` で固めると 4608 byte、
+  `--no-mac-metadata --no-xattrs` を付けると 2560 byte になり、
+  `SCHILY.xattr` が 2 箇所現れる。なおこの経路で出るのは pax record の方で、
+  `._` member は現れない。
   uid/gid は既定 0、uname/gname は空。
 - **gzip / bzip2 / xz**:gzip は zlib windowBits 15+16 と `deflateSetHeader`。
   bzip2 は既存の `CBzip2` systemLibrary をそのまま使う。xz は当面
