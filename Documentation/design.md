@@ -503,6 +503,76 @@ KaitoKit が既に対応しており、これは残す。
 > creation is dropped outright: an appended-data Mach-O cannot be validly signed,
 > so a created SFX would not run on the recipient's Mac.
 
+### 7.6 取り消し(undo)モデル — 決定(2026-09-10)
+
+M3(書庫内の削除・改名)には取り消しが要る。Finder にはファイル操作の undo があり、
+Finder を名乗る以上期待される。一方 `NSDocument` の編集機構は止めてあるので Cmd-Z が無い。
+実測(`Documentation/verification/2026-09-10-undo-model.md`)の上で以下に決めた。
+
+**単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
+編集前のファイルが自然な undo 単位になる。当初案の `NSFileVersion` は
+ファイル全体を複製するため 4 GiB 級の書庫で破綻し、entry model 上の undo stack は
+削除された byte を持たないので rename にしか使えない。どちらも採らない。
+
+**退避は `clonefile(2)`、置き場所は同一ボリュームの temp。**
+`replaceItemAt` の直前に、原本を `.itemReplacementDirectory` 配下の undo slot へ
+clone する。実測で 1 GiB が **0.2 ms・空き容量の減少 0 MiB**。実コストは編集で
+分岐した extent だけ。`backupItemName` + `.withoutDeletingBackupItem` は
+コピー無しで同じ効果を出せるように見えるが、**退避物が原本と同じディレクトリに
+生える**ことを実測で確認したので採らない(ユーザーの書庫の隣に `~` ファイルが
+見え、クラッシュすれば残置される)。temp に置けば残骸は OS が回収する。
+
+**undo は同じ commit 経路の逆再生。** `replaceItemAt(原本, withItemAt: slot)` の後、
+`ArchiveSession.reloadAfterMutation()` を通す。世代が上がり、reader が URL から
+開き直され、capabilities と quarantine が読み直される — 通常の commit と同一の経路で、
+既に検証済みの mode 復元と quarantine 復元をそのまま再利用する。redo は対称に、
+undo の直前に現状態を clone してから戻す。
+
+**stack は有界、document 単位、セッション限り。** 件数(10)と退避総 byte の両方で
+上限を持ち、古いものから捨てる。document を閉じたら全部消す(Quick Look の
+後始末と同じ `@concurrent` 経路)。Finder の undo もアプリ終了を跨がない。
+
+**dirty 状態は抑制する。** `NSUndoManager` に登録すると `NSDocument` が
+`updateChangeCount` を呼び、実測で `isDocumentEdited` が true になる。本アプリは
+`writableTypes` が空 — commit は即ディスクに落ちるので「未保存」という状態が
+存在しない — なので、dirty になると閉じる際に**満たせない「保存しますか？」**が出る。
+`updateChangeCount(_:)` を no-op に上書きする。実測で dirty は立たず、
+`canUndo` / `canRedo` / メニュー項目名(「取り消す — 削除」)は生きたままになる。
+
+**clone できない書庫は undo を持てない。** 非 APFS ボリューム(exFAT の USB、SMB 共有)
+では `clonefile` が ENOTSUP を返す。その場合は undo slot を作らず、
+**commit の前に**「この操作は取り消せません」と明示して確認を取る。
+黙って全体コピーに落として 4 GiB を焼くことはしない。
+
+UI 層でこれに伴って決めておくこと:
+
+1. **undo / redo でも世代を上げ、Quick Look の cache を捨てる。** commit 後と同じ罠で、
+   `reloadAfterMutation()` を通す限り自動的に満たされるが、テストで固定する。
+2. **ディレクトリの削除は子孫を巻き込む。** 仮想フォルダの削除は複数 entry の削除であり、
+   実在するディレクトリ entry の削除も子孫を道連れにしないと孤児が残る。
+3. **改名の検証は UI 側でも先に行う。** GyoshukuKit が弾くもの(衝突、`..`、絶対パス、NUL)は
+   ライブラリを呼ぶ前に UI で弾き、「commit してから拒否された」ではなく
+   検証メッセージを見せる。
+
+> **Undo.** The unit of undo is the archive file itself, because every commit
+> replaces the inode anyway. Both originally-surveyed options were dropped:
+> `NSFileVersion` copies the whole file into `.DocumentRevisions-V100`, which is a
+> disk bomb for the >4 GiB archives we already know exist, and an in-memory entry
+> stack cannot undo a deletion because it does not hold the deleted bytes. Instead
+> the pre-edit archive is `clonefile`d into a same-volume temp slot immediately
+> before `replaceItemAt` — measured at 0.2 ms and **zero** disk for 1 GiB, since
+> APFS shares the unchanged extents. `backupItemName` was rejected on measurement:
+> it puts the retained file **next to the user's archive**, where it is visible in
+> Finder and survives a crash. Undo replays the same commit path in reverse and
+> goes through `reloadAfterMutation()`, so it reuses the already-verified mode and
+> quarantine restoration. The stack is bounded by count and bytes, per document,
+> and dies with it. Registering with `NSUndoManager` gives real Cmd-Z and Edit-menu
+> titles, but it also makes `NSDocument` mark itself edited — measured — which
+> would raise an unsatisfiable save prompt on a document whose `writableTypes` is
+> empty, so `updateChangeCount` is overridden to a no-op. On a non-APFS volume
+> there is no slot, and the user is told the operation is irreversible *before* it
+> commits rather than being charged a 4 GiB copy silently.
+
 ## 8. 並行性
 
 `ArchiveReader` は thread-safe ではない。
@@ -576,9 +646,12 @@ KaitoKit の作法を引き継ぐ。
 2. **`LSFileQuarantineEnabled` は無条件に付けるのか、伝播するのか。** 付けすぎれば
    自分の書庫にまで印が付いて邪魔、付けなければ迂回路になる。宣言した版と
    しない版を作り、Safari 由来の書庫とローカル生成の書庫の両方で `xattr -p` する。
-3. **undo をどう持つか。** `NSDocument` の編集機構を止めているので Cmd-Z が無い。
-   `NSFileVersion.addOfItem` による世代 snapshot か、entry model 上の undo stack か。
-   Finder にはファイル操作の undo があり、Finder を名乗る以上期待される。
+3. ~~**undo をどう持つか。**~~ **解決(2026-09-10)。** 当初案の 2 つはどちらも採らなかった。
+   `NSFileVersion` はファイル全体を複製するので 4 GiB 級で破綻し、entry model 上の
+   undo stack は削除された byte を持たない。書庫ファイルそのものを `clonefile` で
+   退避する方式に決めた — 1 GiB が 0.2 ms・ディスク 0。`backupItemName` は退避物が
+   ユーザーのフォルダに生えるため実測の上で棄却。設計は §7.6、測定は
+   `Documentation/verification/2026-09-10-undo-model.md`。
 4. ~~**`reopen()` の並列展開は本当に速いか。**~~ **解決(2026-09-10)。** 実測した。
    独立 entry は 8 worker で 6.76x 伸び、`pread` は直列化しない。ただし solid 群を
    分断すると直列より遅く(0.95x)、`solidGroup` で束ねるだけの実装は独立 entry が
@@ -586,15 +659,18 @@ KaitoKit の作法を引き継ぐ。
    `Documentation/verification/2026-09-10-parallel-extraction.md`。
    現状の `ExtractionService` は一要求一 reader の直列で、この伸びしろは未取得。
 
-> **Open questions.** Four things are deliberately left to be settled with the
-> real app rather than guessed at now: whether Finder actually fulfills a
-> directory promise (the API permits it, but synthetic keystrokes are blocked in
-> this environment, so it is confirmed by hand at M1);> what `LSFileQuarantineEnabled` actually does, since over-applying it is hostile
-> and under-applying it makes the app a Gatekeeper bypass; how undo is modelled
-> given that NSDocument's own editing machinery is switched off. The fourth —
-> whether parallel extraction through `reopen()` scales — was **settled by
-> measurement on 2026-09-10**: independent entries reach 6.76x at eight workers
-> because `pread` does not serialize, while splitting a solid group is *slower*
-> than serial, and bucketing purely by `solidGroup` collapses a ZIP to one bucket
-> because independent entries all share `-1`. The engine is still one serial
-> reader per request, so that speedup remains unclaimed.
+> **Open questions.** Two of the original four remain, both needing the real app
+> rather than a guess: whether Finder actually fulfills a directory promise (the
+> API permits it, but synthetic keystrokes are blocked in this environment, so it
+> is confirmed by hand at M1), and what `LSFileQuarantineEnabled` actually does,
+> since over-applying it is hostile and under-applying it makes the app a
+> Gatekeeper bypass. The other two were **settled by measurement on 2026-09-10**.
+> Parallel extraction through `reopen()` does scale — independent entries reach
+> 6.76x at eight workers because `pread` does not serialize — but splitting a
+> solid group is *slower* than serial, and bucketing purely by `solidGroup`
+> collapses a ZIP to one bucket because independent entries all share `-1`; the
+> engine is still one serial reader per request, so that speedup remains
+> unclaimed. Undo (§7.6) discarded both surveyed designs in favour of cloning the
+> archive file itself into a same-volume temp slot: 0.2 ms and zero disk for
+> 1 GiB, versus an `NSFileVersion` store that would copy every 4 GiB archive per
+> edit and an in-memory entry stack that cannot restore deleted bytes.
