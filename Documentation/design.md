@@ -755,7 +755,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | **完了** |
 | **M3** | 削除・改名・atomic replace、undo | 書庫内編集 | **完了** — GyoshukuKit `7fb2585` / `141469f`、取り消し基盤 `def0666`、モデル層 `fdb8b03`、UI `fac4b91`。新規フォルダ作成は M4 へ送った |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ | **完了(表示形式の切替は見送り、§10.1)** — 暗号化書庫 `576ef4d`、パスワードの記憶 `71decb2`、新規フォルダと絞り込み `53e534b`、ツールバー検索・パスバー・タブ・サムネイル `db72975`(検証 `2026-09-15-display.md`、描画は `manual-verification.md` §5) |
-| **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | 進行中 — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。`ArchiveRewriter` `0c1ee85`(§7.7、検証 `2026-09-14-archive-rewriter.md`)。KaitoFinder の再圧縮モード編集 `846ceed`(検証 `2026-09-14-rewrite-mode.md`)。形式変換は M6 `1491bce` で実装。**完了** |
+| **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | **完了** — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。`ArchiveRewriter` `0c1ee85`(§7.7、検証 `2026-09-14-archive-rewriter.md`)。KaitoFinder の再圧縮モード編集 `846ceed`(検証 `2026-09-14-rewrite-mode.md`)。形式変換は M6 `1491bce` で実装。**完了** |
 | **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | **完了** `1491bce`(検証 `2026-09-15-archive-creation.md`)。保存パネル・サービス・変換ダイアログの実挙動は `manual-verification.md` §4-5 / §6 |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
@@ -798,8 +798,8 @@ KaitoKit の作法を引き継ぐ。
 
 1. **Finder は directory promise を実際に満たすか。** API は `public.folder` を
    許すことをヘッダで確認済みだが、Finder の実挙動は未確認。自動化には
-   Accessibility 権限が要り、この環境では keystroke 送信が拒否された。**M1 で
-   実アプリを使って手で確認する。** 満たさない場合は、部分木を一つの promise で
+   Accessibility 権限が要り、この環境では keystroke 送信が拒否された。**実機で手で
+   確認する — 手順は `Documentation/manual-verification.md` §1。** 満たさない場合は、部分木を一つの promise で
    なく、展開済み temp を渡す経路へ落とす(hard link の扱いが劣化する)。
 2. ~~**`LSFileQuarantineEnabled` は無条件に付けるのか、伝播するのか。**~~ **解決(2026-09-14、設計判断)。**
    **宣言しない。** `Info.plist` に鍵を置かず、伝播は自前で行う:取り出したファイルには

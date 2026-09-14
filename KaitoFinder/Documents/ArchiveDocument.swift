@@ -88,8 +88,11 @@ import Synchronization
     nonisolated override var isEntireFileLoaded: Bool { false }
 
     nonisolated override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
-        // read は非隔離で contentsStorage だけを更新する。AppKit の並行読み込みを許可する。
-        true
+        // Measured launch crash: concurrent reads make AppKit call the @MainActor
+        // initializer on its "NSDocumentController Opening" background queue, trapping
+        // with EXC_BREAKPOINT/SIGTRAP. read(from:ofType:) can stay nonisolated, but
+        // the document itself must be created on the main actor.
+        false
     }
 
     nonisolated override func writableTypes(for saveOperation: NSDocument.SaveOperationType) -> [String] {
