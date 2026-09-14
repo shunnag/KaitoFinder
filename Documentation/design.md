@@ -682,6 +682,33 @@ UI 層でこれに伴って決めておくこと:
 > there is no slot, and the user is told the operation is irreversible *before* it
 > commits rather than being charged a 4 GiB copy silently.
 
+### 7.7 全面書き直しによる更新 — 決定(2026-09-14)
+
+ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のまま運び、
+中央ディレクトリを作り直す)を持つ。tar / 7z / LHA にも同じ在位更新を書くのは、
+形式ごとに「生 record の範囲」を KaitoKit から引き出す改造が要り、solid 7z では
+そもそも成立しない。代わりに **全面書き直し**を一つ書く:
+
+- `GyoshukuKit.ArchiveRewriter` — KaitoKit が読める**どの形式**の書庫でも
+  開き、削除・改名・追加を予約し、`commit()` で生き残る entry を全部
+  `ArchiveWriter` へ流して、書ける形式(`.zip/.tar/.tarGzip/.sevenZip/.lha`)の
+  新しい書庫を作る。`output` を与えれば原本を触らず別ファイルへ書く(= **形式変換**)。
+  与えなければ原本を atomic に置き換える(= **更新**)。
+- `ArchiveUpdater` と同じ面(`ArchiveEditing`)を持たせ、KaitoFinder の公開境界
+  `publish` は形式で実装を選ぶだけにする。取り消しは同じ `willPublish` で
+  clonefile の slot を取るので、そのまま効く。
+- **代償を隠さない**:触っていない entry も再符号化される(`-lh7-` は `-lh5-` に、
+  solid 7z は non-solid に、暗号化された entry は**平文に**なる)。所要時間は
+  変更量でなく書庫の大きさに比例する。KaitoFinder は capability に
+  `.rewrite` を持たせ、通知欄に「編集すると書庫全体を再圧縮します」と出し、
+  暗号化 entry を含む書庫の変換では「新しい書庫は暗号化されません」を確認に含める。
+- 生き残る entry は index 昇順に一つの reader から読む。KaitoKit は solid 群の
+  decoder を連続した `stream()` 呼び出しの間で保持する(7z は folder ごとの
+  coordinator、RAR は `solidState`)ので、この順なら solid 群を一度しか復号しない。
+- `.tgz` は KaitoKit が `format == .tar` と報告し、外側の gzip を区別しない
+  (実測 2026-09-14)。KaitoFinder が先頭 magic を嗅ぎ、`1f 8b` なら `.tarGzip`、
+  なしなら `.tar`、bzip2 / xz なら読み取り専用(変換で逃がす)にする。
+
 ## 8. 並行性
 
 `ArchiveReader` は thread-safe ではない。
@@ -726,7 +753,8 @@ UI 層でこれに伴って決めておくこと:
 | **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | **完了** |
 | **M3** | 削除・改名・atomic replace、undo | 書庫内編集 | **完了** — GyoshukuKit `7fb2585` / `141469f`、取り消し基盤 `def0666`、モデル層 `fdb8b03`、UI `fac4b91`。新規フォルダ作成は M4 へ送った |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ | 進行中 — 暗号化書庫 `576ef4d`、パスワードの記憶 `71decb2`、新規フォルダと絞り込み `53e534b`。残りは表示形式(アイコン / カラム / ギャラリー)、パスバー、タブ、サムネイル |
-| **M5** | tar writer、7z writer、LHA writer、形式変換 | 書ける形式が増える |
+| **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | 進行中 — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。残りは `ArchiveRewriter`(tar / tar.gz / 7z / LHA の更新を全面書き直しで行う。§7.7)と、それを使った形式変換(§7.4) |
+| **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | 未着手 |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。
@@ -734,6 +762,25 @@ promise 周りの実地確認を済ませてから書き込みへ進む。
 M1 は三つに割った。安全側の中核(M1a)を先に単体で固め、UI を被せる前に
 敵対的レビューへかけたためで、実際に 21 件の候補から 5 件の実在する欠陥が出た
 (`Documentation/verification/2026-09-10-extraction-safety.md`)。
+
+### 10.1 完成の定義(2026-09-14)
+
+「KaitoFinder の完成」を次の三つで判定する。どれか一つでも欠けていれば未完成。
+
+1. §10 の各行が **完了** か、理由付きの **見送り** になっている。
+2. §12 の各項が **解決** か、ユーザーが実機で行う確認手順が
+   `Documentation/manual-verification.md` に書かれている(この環境では画面収録も
+   Accessibility も使えないので、描画とドラッグの実挙動は自動化できない)。
+3. 自動テストが三つのリポジトリで全件通っている。
+
+**見送り(ユーザーが覆せる)**:
+
+| 項目 | 理由 |
+|---|---|
+| 書き込み時の暗号化(ZIP AES / 7z AES) | GyoshukuKit の writer は暗号化を持たない。読める書庫を作れないのは片手落ちだが、形式を揃えることを優先した |
+| bzip2 / xz で包んだ tar の作成・更新 | writer が gzip 包装しか持たない。`.tar.bz2` / `.tar.xz` は読み取り専用のまま、変換で逃がす |
+| アイコン / カラム / ギャラリー表示 | Finder らしさの中核はリスト表示で満たしている。描画をこの環境で確認できないため、パスバー・タブ・サムネイルまでを実装し、表示形式の切替は後回し |
+| 動画・音声のサムネイル | 画像のみ。動画は `QLThumbnailGenerator` が entry の実体化を要求し、遅延実体化の設計と衝突する |
 
 ## 11. 検証方針
 
@@ -752,9 +799,13 @@ KaitoKit の作法を引き継ぐ。
    Accessibility 権限が要り、この環境では keystroke 送信が拒否された。**M1 で
    実アプリを使って手で確認する。** 満たさない場合は、部分木を一つの promise で
    なく、展開済み temp を渡す経路へ落とす(hard link の扱いが劣化する)。
-2. **`LSFileQuarantineEnabled` は無条件に付けるのか、伝播するのか。** 付けすぎれば
-   自分の書庫にまで印が付いて邪魔、付けなければ迂回路になる。宣言した版と
-   しない版を作り、Safari 由来の書庫とローカル生成の書庫の両方で `xattr -p` する。
+2. ~~**`LSFileQuarantineEnabled` は無条件に付けるのか、伝播するのか。**~~ **解決(2026-09-14、設計判断)。**
+   **宣言しない。** `Info.plist` に鍵を置かず、伝播は自前で行う:取り出したファイルには
+   書庫の `com.apple.quarantine` を `ExtractionQuarantine` がそのまま写し(M1a)、
+   作った書庫には作成元のどれかに付いていた印を写す(M6)。無条件に付けると
+   自分で作った書庫にまで印が付き、付けなければ「印付きの app をフォルダごと
+   固めて、また取り出す」で印が消える迂回路になる。この二つの伝播で両方を塞ぐ。
+   実機での確認は `Documentation/manual-verification.md` に置く。
 3. ~~**undo をどう持つか。**~~ **解決(2026-09-10)。** 当初案の 2 つはどちらも採らなかった。
    `NSFileVersion` はファイル全体を複製するので 4 GiB 級で破綻し、entry model 上の
    undo stack は削除された byte を持たない。書庫ファイルそのものを `clonefile` で
@@ -768,12 +819,15 @@ KaitoKit の作法を引き継ぐ。
    `Documentation/verification/2026-09-10-parallel-extraction.md`。
    現状の `ExtractionService` は一要求一 reader の直列で、この伸びしろは未取得。
 
-> **Open questions.** Two of the original four remain, both needing the real app
+> **Open questions.** One of the original four remains, and it needs the real app
 > rather than a guess: whether Finder actually fulfills a directory promise (the
 > API permits it, but synthetic keystrokes are blocked in this environment, so it
-> is confirmed by hand at M1), and what `LSFileQuarantineEnabled` actually does,
-> since over-applying it is hostile and under-applying it makes the app a
-> Gatekeeper bypass. The other two were **settled by measurement on 2026-09-10**.
+> is confirmed by hand — see `Documentation/manual-verification.md`). Quarantine
+> was **settled as a design decision on 2026-09-14**: `LSFileQuarantineEnabled` is
+> not declared; instead the app propagates the mark itself — archive → extracted
+> files (M1a) and quarantined sources → the archive it creates (M6) — which closes
+> both the over-marking and the "compress-then-extract" bypass. The other two were
+> **settled by measurement on 2026-09-10**.
 > Parallel extraction through `reopen()` does scale — independent entries reach
 > 6.76x at eight workers because `pread` does not serialize — but splitting a
 > solid group is *slower* than serial, and bucketing purely by `solidGroup`
