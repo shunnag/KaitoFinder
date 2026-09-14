@@ -88,10 +88,9 @@ import Synchronization
     nonisolated override var isEntireFileLoaded: Bool { false }
 
     nonisolated override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
-        // Measured launch crash: concurrent reads make AppKit call the @MainActor
-        // initializer on its "NSDocumentController Opening" background queue, trapping
-        // with EXC_BREAKPOINT/SIGTRAP. read(from:ofType:) can stay nonisolated, but
-        // the document itself must be created on the main actor.
+        // 実測(2026-09-15): 並行読み込みを許すと AppKit が @MainActor の initializer を
+        // "NSDocumentController Opening" queue で呼び、EXC_BREAKPOINT で落ちる。
+        // read(from:ofType:) は非隔離のままでよいが、文書の生成は main actor で行う。
         false
     }
 

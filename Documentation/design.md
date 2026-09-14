@@ -755,7 +755,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M2** | `GyoshukuKit` を起こす + ZIP writer、append、drag in / paste in | 書庫へ入れられる | **完了** |
 | **M3** | 削除・改名・atomic replace、undo | 書庫内編集 | **完了** — GyoshukuKit `7fb2585` / `141469f`、取り消し基盤 `def0666`、モデル層 `fdb8b03`、UI `fac4b91`。新規フォルダ作成は M4 へ送った |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ | **完了(表示形式の切替は見送り、§10.1)** — 暗号化書庫 `576ef4d`、パスワードの記憶 `71decb2`、新規フォルダと絞り込み `53e534b`、ツールバー検索・パスバー・タブ・サムネイル `db72975`(検証 `2026-09-15-display.md`、描画は `manual-verification.md` §5) |
-| **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | **完了** — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。`ArchiveRewriter` `0c1ee85`(§7.7、検証 `2026-09-14-archive-rewriter.md`)。KaitoFinder の再圧縮モード編集 `846ceed`(検証 `2026-09-14-rewrite-mode.md`)。形式変換は M6 `1491bce` で実装。**完了** |
+| **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | **完了** — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。`ArchiveRewriter` `0c1ee85`(§7.7、検証 `2026-09-14-archive-rewriter.md`)。KaitoFinder の再圧縮モード編集 `846ceed`(検証 `2026-09-14-rewrite-mode.md`)。形式変換は M6 `1491bce` で実装 |
 | **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | **完了** `1491bce`(検証 `2026-09-15-archive-creation.md`)。保存パネル・サービス・変換ダイアログの実挙動は `manual-verification.md` §4-5 / §6 |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
@@ -793,6 +793,34 @@ KaitoKit の作法を引き継ぐ。
   GNU tar で読む。**書いたものを KaitoKit 自身で読み直す**往復も必ず行う。
 - clean-room の byte 表からテスト入力を組み立てる(`ArArchiveBuilder` と同じ形)。
 - 実測はすべて `Documentation/verification/YYYY-MM-DD-*.md` に残す。
+
+## 11.5 配布(sandbox なし・notarize 済み)— 2026-09-15
+
+ユーザーの決定は「sandbox なし、notarize して配布」。現状と手順:
+
+- **project の設定(確認済み)**: `ENABLE_APP_SANDBOX = NO`、Release は
+  `ENABLE_HARDENED_RUNTIME = YES`、`CODE_SIGN_IDENTITY = "-"`(ad-hoc)、
+  `MACOSX_DEPLOYMENT_TARGET = 26.0`。entitlements ファイルは無い(sandbox も
+  例外的な権限も要らない)。Release ビルドは通り、ad-hoc 署名 + hardened runtime で
+  起動・文書オープン・終了まで確認した(`2026-09-15-launch-smoke.md`)。
+- **この環境に無いもの**: Developer ID 証明書と App Store Connect の API 鍵。
+  従って署名・notarize はユーザーの Mac で行う。
+- **手順**(Xcode の GUI なら Product › Archive › Distribute App › Developer ID で同等):
+  1. `xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -configuration Release
+     archive -archivePath build/KaitoFinder.xcarchive CODE_SIGN_IDENTITY="Developer ID Application: <名前> (<TEAM>)" DEVELOPMENT_TEAM=<TEAM>`
+  2. `xcodebuild -exportArchive -archivePath build/KaitoFinder.xcarchive -exportPath build/export
+     -exportOptionsPlist <method=developer-id, teamID の plist>`
+  3. `ditto -c -k --keepParent build/export/KaitoFinder.app build/KaitoFinder.zip`
+  4. `xcrun notarytool submit build/KaitoFinder.zip --keychain-profile <profile> --wait`
+     (`notarytool store-credentials` で API 鍵か Apple ID を一度登録しておく)
+  5. `xcrun stapler staple build/export/KaitoFinder.app` → `spctl -a -vv` で `accepted` を確認
+- **Finder のサービス**: `NSServices` は LaunchServices が app の登録時に拾う。
+  `/Applications` に置いて一度起動すれば「KaitoFinderで圧縮」が Finder の
+  サービス(クイックアクション)に出る。出ない時は
+  `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/KaitoFinder.app`。
+- **KaitoKit / GyoshukuKit の参照**: 現在は `../KaitoKit` へのパス依存(§2.2)。
+  配布用の archive はこの checkout 配置のままで作れる。tag 参照へ切り替えるなら
+  release ブランチで `Package.swift` の `.package(path:)` を差し替える。
 
 ## 12. 未解決事項(実装中に実地で潰す)
 
