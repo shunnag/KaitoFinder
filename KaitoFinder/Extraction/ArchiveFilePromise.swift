@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
     nonisolated private let finished: @Sendable () -> Void
     nonisolated private let state = Mutex(false)
     nonisolated var isWriting: Bool { state.withLock { $0 } }
-    private let queue: OperationQueue = {
+    nonisolated private let queue: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "com.shunnag.KaitoFinder.FilePromise"
         queue.qualityOfService = .userInitiated
@@ -49,11 +49,13 @@ import UniformTypeIdentifiers
         return NSFilePromiseProvider(fileType: type.identifier, delegate: self)
     }
 
-    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
+    // 同一プロセスで受信すると、受信側の OperationQueue からこの二つの delegate メソッドが
+    // 呼ばれることを実測。main actor に隔離すると @objc thunk の動的隔離検査で trap する。
+    nonisolated func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
         (try? ExtractionPath.components(payload.path).last) ?? "item"
     }
 
-    func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue { queue }
+    nonisolated func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue { queue }
 
     nonisolated func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider,
         writePromiseTo url: URL, completionHandler: @escaping (Error?) -> Void) {

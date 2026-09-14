@@ -78,6 +78,31 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         return failure.withLock { $0 }
     }
 
+    @MainActor func testPromiseDelegateMethodsAreCallableThroughObjCProtocolOffMainThread() async throws {
+        let fixture = try Fixture()
+        let session = try ArchiveSession(url: fixture.archive)
+        let delegate = ArchiveFilePromise(payload: fixture.payload("folder/a.txt", session: session, index: 0), session: session)
+        // 修正前もコンパイルできるよう main actor 上で型消去し、同一プロセスでの受信と同じ
+        // 非 Sendable の ObjC 参照のスレッド越えを、この回帰テストで明示的に再現する。
+        nonisolated(unsafe) let protocolDelegate: any NSFilePromiseProviderDelegate = delegate
+        nonisolated(unsafe) let provider = NSFilePromiseProvider(fileType: "public.data", delegate: delegate)
+
+        try await Task.detached {
+            XCTAssertFalse(Thread.isMainThread)
+            // SDK の protocol 要件は @MainActor のため、Swift 経由では背景スレッドから呼べない。
+            // NSObject.perform で AppKit と同じ @objc thunk を通し、実装の動的隔離検査を再現する。
+            let delegate = protocolDelegate as! NSObject
+            let name = delegate.perform(
+                #selector(NSFilePromiseProviderDelegate.filePromiseProvider(_:fileNameForType:)),
+                with: provider, with: "public.data")?.takeUnretainedValue() as? String
+            let queue = try XCTUnwrap(delegate.perform(
+                #selector(NSFilePromiseProviderDelegate.operationQueue(for:)),
+                with: provider)?.takeUnretainedValue() as? OperationQueue)
+            XCTAssertEqual(name, "a.txt")
+            XCTAssertFalse(queue === OperationQueue.main)
+        }.value
+    }
+
     @MainActor func testPromiseSingleFileCompletesExactlyOnceOnSuccess() async throws {
         let fixture = try Fixture()
         let session = try ArchiveSession(url: fixture.archive)
