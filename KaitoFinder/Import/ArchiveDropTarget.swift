@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// 行の解釈と可否は AppKit のドラッグセッションなしで検証できる。
 nonisolated enum ArchiveDropTarget {
@@ -8,6 +8,23 @@ nonisolated enum ArchiveDropTarget {
         @MainActor init(_ node: EntryNode) { path = node.path; isDirectory = node.isDirectory }
         init(path: String, isDirectory: Bool) { self.path = path; self.isDirectory = isDirectory }
     }
+    enum LocalOperation: Equatable { case move, copy, none }
+
+    static func localOperation(dragged: [Row], target folder: String, mask: NSDragOperation,
+                               capabilities: ArchiveCapabilities, busy: Bool) -> LocalOperation {
+        guard capabilities.canAppend, !busy, !dragged.isEmpty else { return .none }
+        // AppKit が Option に応じて source mask を絞り込む。copy の判定を先に行う。
+        if mask == .copy { return .copy }
+        guard mask.contains(.move) else { return .none }
+        if dragged.allSatisfy({ $0.path.split(separator: "/").dropLast().joined(separator: "/") == folder }) {
+            return .none
+        }
+        if dragged.contains(where: { $0.isDirectory && (folder == $0.path || folder.hasPrefix($0.path + "/")) }) {
+            return .none
+        }
+        return .move
+    }
+
     static func folder(for row: Row?) -> String {
         guard let row else { return "" }
         return row.isDirectory ? row.path : row.path.split(separator: "/").dropLast().joined(separator: "/")

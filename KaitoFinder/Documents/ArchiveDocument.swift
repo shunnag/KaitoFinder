@@ -244,12 +244,20 @@ import Synchronization
                        progress: progress, willPublish: willPublish)
     }
 
-    func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [], progress: Progress,
+    func move(_ nodes: [EntryNode], to folder: String, progress: Progress,
               willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
-        let name = renaming.isEmpty ? "削除" : (removing.isEmpty ? "名称変更" : "削除・名称変更")
+        try await edit(moving: nodes.map { ArchiveEditMove(selection: ArchiveEditSelection($0), folder: folder) },
+                       progress: progress, willPublish: willPublish)
+    }
+
+    func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [],
+              moving: [ArchiveEditMove] = [], progress: Progress,
+              willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
+        let name = !moving.isEmpty && removing.isEmpty && renaming.isEmpty ? "移動"
+            : (renaming.isEmpty ? "削除" : (removing.isEmpty ? "名称変更" : "削除・名称変更"))
         return try await mutate(progress: progress, actionName: name, willPublish: willPublish,
                                 published: { $0.published }) { session, publish in
-            try await session.edit(removing: removing, renaming: renaming, progress: progress, willPublish: publish)
+            try await session.edit(removing: removing, renaming: renaming, moving: moving, progress: progress, willPublish: publish)
         }
     }
 

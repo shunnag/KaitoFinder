@@ -740,4 +740,263 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertEqual(String(localized: "\(base) \(number)", bundle: localized), base + " 2")
         }
     }
+
+    nonisolated private final class MoveDraggingSession: NSDraggingSession {
+        private let sequence = Int.random(in: Int.min..<0)
+        override var draggingSequenceNumber: Int { sequence }
+    }
+
+    @MainActor private final class MoveDraggingInfo: NSObject, NSDraggingInfo {
+        var draggingDestinationWindow: NSWindow?
+        var draggingSourceOperationMask: NSDragOperation = [.move, .copy]
+        var draggingLocation: NSPoint = .zero
+        var draggedImageLocation: NSPoint { .zero }
+        nonisolated var draggedImage: NSImage? { nil }
+        let pasteboard = NSPasteboard(name: .init("KaitoFinder-Move-" + UUID().uuidString))
+        var pasteboardReads = 0
+        var draggingPasteboard: NSPasteboard { pasteboardReads += 1; return pasteboard }
+        var draggingSource: Any?
+        var draggingSequenceNumber = 0
+        var draggingFormation: NSDraggingFormation = .none
+        var animatesToDestination = false
+        var numberOfValidItemsForDrop = 0
+        var springLoadingHighlight: NSSpringLoadingHighlight { .none }
+        func slideDraggedImage(to screenPoint: NSPoint) {}
+        nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
+        func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions, for view: NSView?,
+                                    classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any],
+                                    using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
+        func resetSpringLoading() {}
+    }
+
+    @MainActor private final class MoveDropOutline: NSOutlineView {
+        var hovered: EntryNode?
+        private(set) var proposedFolder: EntryNode?
+        private(set) var proposedIndex: Int?
+        override func row(at point: NSPoint) -> Int { hovered == nil ? -1 : 0 }
+        override func item(atRow row: Int) -> Any? { hovered }
+        override func setDropItem(_ item: Any?, dropChildIndex index: Int) {
+            proposedFolder = item as? EntryNode
+            proposedIndex = index
+        }
+    }
+
+    @MainActor private func moveDrag(_ nodes: [EntryNode], in controller: ArchiveWindowController)
+        -> (MoveDraggingSession, MoveDraggingInfo) {
+        let session = MoveDraggingSession(), info = MoveDraggingInfo()
+        info.draggingSource = controller.outlineView
+        info.draggingDestinationWindow = controller.window
+        info.draggingSequenceNumber = session.draggingSequenceNumber
+        controller.outlineView(controller.outlineView, draggingSession: session, willBeginAt: .zero, forItems: nodes)
+        addTeardownBlock { @MainActor in
+            controller.outlineView(controller.outlineView, draggingSession: session, endedAt: .zero, operation: [])
+            info.pasteboard.releaseGlobally()
+        }
+        return (session, info)
+    }
+
+    @MainActor func testLocalDragValidationReturnsMoveAndHighlightsHoveredFilesParent() async throws {
+        let fixture = try Fixture(["a/x.txt", "b/deep/target.txt"]), (_, controller) = try await interface(fixture)
+        let dragged = try node("a/x.txt", in: controller), folder = try node("b/deep", in: controller)
+        let (session, info) = moveDrag([dragged], in: controller), view = MoveDropOutline()
+        view.hovered = try node("b/deep/target.txt", in: controller)
+        info.draggingSource = view
+        XCTAssertEqual(controller.outlineView.draggingSession(session, sourceOperationMaskFor: .withinApplication), [.move, .copy])
+        XCTAssertEqual(controller.outlineView.draggingSession(session, sourceOperationMaskFor: .outsideApplication), .copy)
+        XCTAssertTrue(controller.draggedNodes.first === dragged)
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: view.hovered, proposedChildIndex: 0), .move)
+        XCTAssertTrue(view.proposedFolder === folder)
+        XCTAssertEqual(view.proposedIndex, NSOutlineViewDropOnItemIndex)
+        view.hovered = folder
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), .move)
+        XCTAssertTrue(view.proposedFolder === folder)
+        view.hovered = nil
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), .move)
+        XCTAssertNil(view.proposedFolder)
+        controller.outlineView(controller.outlineView, draggingSession: session, endedAt: .zero, operation: .move)
+        XCTAssertTrue(controller.draggedNodes.isEmpty)
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), [])
+    }
+
+    @MainActor func testOptionAndCrossArchiveDragValidationRemainCopy() async throws {
+        let fixture = try Fixture(["a/x.txt", "b/target.txt"]), (_, controller) = try await interface(fixture)
+        let otherFixture = try Fixture(), (_, other) = try await interface(otherFixture)
+        let (_, info) = moveDrag([try node("a/x.txt", in: controller)], in: controller)
+        // 実際の型照会を通し、copy だけは引き続き pasteboard を必要とする。
+        guard info.pasteboard.writeObjects([fixture.archive as NSURL]) else {
+            throw XCTSkip("この実行環境では名前付き pasteboard サービスへ書き込めません")
+        }
+        let view = MoveDropOutline(), folder = try node("b", in: controller)
+        view.hovered = try node("b/target.txt", in: controller)
+        info.draggingSource = view
+        info.draggingSourceOperationMask = .copy
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), .copy)
+        XCTAssertTrue(view.proposedFolder === folder)
+        info.draggingSource = other.outlineView
+        info.draggingSourceOperationMask = [.move, .copy]
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), .copy)
+        XCTAssertTrue(view.proposedFolder === folder)
+        info.draggingSource = nil
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), .copy)
+    }
+
+    @MainActor func testLocalDragValidationAndAcceptanceRefuseSameParentOwnSubtreeAndReadOnlyArchive() async throws {
+        let fixture = try Fixture(["a/x.txt", "a/deep/y.txt", "b/"]), (_, controller) = try await interface(fixture)
+        let before = try digest(fixture), view = MoveDropOutline()
+        for (source, target) in [("a/x.txt", "a"), ("a", "a"), ("a", "a/deep")] {
+            let (_, info) = moveDrag([try node(source, in: controller)], in: controller)
+            view.hovered = try node(target, in: controller)
+            info.draggingSource = view
+            XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), [])
+            XCTAssertNil(view.proposedIndex)
+            XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: view.hovered, childIndex: NSOutlineViewDropOnItemIndex))
+            XCTAssertNil(controller.extractionTask)
+        }
+        XCTAssertEqual(try digest(fixture), before)
+        let readOnly = try Fixture(["a/x.txt"], tar: true), (_, readOnlyController) = try await interface(readOnly)
+        let (_, info) = moveDrag([try node("a/x.txt", in: readOnlyController)], in: readOnlyController)
+        let readOnlyBefore = try digest(readOnly)
+        info.draggingSource = view
+        view.hovered = nil
+        for mask: NSDragOperation in [[.move, .copy], .copy] {
+            info.draggingSourceOperationMask = mask
+            XCTAssertEqual(readOnlyController.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), [])
+            XCTAssertFalse(readOnlyController.outlineView(view, acceptDrop: info, item: nil, childIndex: NSOutlineViewDropOnItemIndex))
+            XCTAssertNil(readOnlyController.conversionConfirmation)
+            XCTAssertNil(readOnlyController.extractionTask)
+        }
+        XCTAssertEqual(try digest(readOnly), readOnlyBefore)
+    }
+
+    @MainActor func testAcceptLocalMoveMovesMultipleEntriesExpandsDestinationAndSelectsNewPaths() async throws {
+        let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/deep/keep.txt"])
+        let (document, controller) = try await interface(fixture), before = try digest(fixture)
+        let nodes = try [node("a/x.txt", in: controller), node("a/y.txt", in: controller)]
+        let target = try node("b/deep/keep.txt", in: controller)
+        try select(["a/x.txt", "a/y.txt"], in: controller)
+        let (session, info) = moveDrag(nodes, in: controller)
+        controller.outlineView.collapseItem(try node("b", in: controller), collapseChildren: true)
+        // move は pasteboard を一度も読まない。drag 終了で配列を消しても Task は選択を保持する。
+        XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        XCTAssertEqual(info.pasteboardReads, 0)
+        XCTAssertEqual(controller.editProgressSheet?.window?.title, String(localized: "項目を移動しています"))
+        let task = try XCTUnwrap(controller.extractionTask)
+        controller.outlineView(controller.outlineView, draggingSession: session, endedAt: .zero, operation: .move)
+        XCTAssertTrue(controller.draggedNodes.isEmpty)
+        await task.value
+        XCTAssertEqual(try names(fixture), ["b/deep/x.txt", "b/deep/y.txt", "b/deep/keep.txt"])
+        XCTAssertEqual(Set(controller.selectedNodes.map(\.path)), ["b/deep/x.txt", "b/deep/y.txt"])
+        XCTAssertTrue(controller.outlineView.isItemExpanded(try node("b", in: controller)))
+        XCTAssertTrue(controller.outlineView.isItemExpanded(try node("b/deep", in: controller)))
+        XCTAssertNil(controller.editProgressSheet)
+        XCTAssertEqual(document.generation, 1)
+        XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
+        XCTAssertTrue(try XCTUnwrap(document.undoManager).undoMenuItemTitle.contains(String(localized: "移動")))
+        document.undo(nil)
+        await document.undoTask?.value
+        XCTAssertNil(document.undoFailure)
+        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+    }
+
+    @MainActor func testAcceptLocalDirectoryMoveKeepsExpandedDescendantsAndSelectsMovedFolder() async throws {
+        let fixture = try Fixture(["a/", "a/deep/", "a/deep/x.txt", "a/y.txt", "b/"])
+        let (_, controller) = try await interface(fixture)
+        let source = try node("a", in: controller), target = try node("b", in: controller)
+        let (_, info) = moveDrag([source], in: controller)
+        XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        await controller.extractionTask?.value
+        XCTAssertEqual(try names(fixture), ["b/", "b/a/", "b/a/deep/", "b/a/deep/x.txt", "b/a/y.txt"])
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["b/a"])
+        XCTAssertTrue(controller.outlineView.isItemExpanded(try node("b/a", in: controller)))
+        XCTAssertTrue(controller.outlineView.isItemExpanded(try node("b/a/deep", in: controller)))
+        XCTAssertTrue(paths(controller).contains("b/a/deep/x.txt"))
+    }
+
+    @MainActor func testAcceptLocalMoveRevealsSelectionWhenOldParentWasTheOnlyFilterMatch() async throws {
+        let fixture = try Fixture(["old/x.txt", "b/old-reference.txt"]), (_, controller) = try await interface(fixture)
+        controller.setFilterQuery("old")
+        let source = try node("old/x.txt", in: controller), target = try node("b", in: controller)
+        let (_, info) = moveDrag([source], in: controller)
+        XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        await controller.extractionTask?.value
+        XCTAssertEqual(controller.filterQuery, "")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["b/x.txt"])
+        XCTAssertEqual(try names(fixture), ["b/x.txt", "b/old-reference.txt"])
+    }
+
+    @MainActor func testAcceptLocalMoveCollisionReportsReasonWithoutChangingArchiveOrUndo() async throws {
+        let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
+        let (document, controller) = try await interface(fixture), before = try digest(fixture)
+        try select(["a/x.txt", "a/y.txt"], in: controller)
+        let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
+        XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        await controller.extractionTask?.value
+        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(document.generation, 0)
+        XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+        XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+        XCTAssertEqual(Set(controller.selectedNodes.map(\.path)), ["a/x.txt", "a/y.txt"])
+        let sheet = try XCTUnwrap(controller.window?.attachedSheet)
+        defer { controller.window?.endSheet(sheet); sheet.orderOut(nil) }
+        func labels(_ view: NSView) -> [String] {
+            (view as? NSTextField).map { [$0.stringValue] } ?? view.subviews.flatMap(labels)
+        }
+        let text = labels(try XCTUnwrap(sheet.contentView))
+        XCTAssertTrue(text.contains(String(localized: "項目を変更できませんでした")), text.description)
+        XCTAssertTrue(text.contains(String(localized: "同じ名前の項目が既にあります。別の名前を入力してください。")), text.description)
+    }
+
+    @MainActor func testPendingMoveDisablesEditsAndDropsAndCancellationPreservesBytes() async throws {
+        let fixture = try Fixture(["a/x.txt", "b/"]), gate = Gate()
+        let stack = ArchiveUndoStack { source, destination in
+            let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
+            gate.wait()
+            return result
+        }
+        let (document, controller) = try await interface(fixture, stack: stack), before = try digest(fixture)
+        try select(["a/x.txt"], in: controller)
+        let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
+        XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        let task = try XCTUnwrap(controller.extractionTask)
+        defer { gate.release.signal() }
+        try await waitUntil { gate.entered.withLock { $0 } }
+        for action in [#selector(ArchiveWindowController.newFolder(_:)), #selector(ArchiveWindowController.deleteEntries(_:)),
+                       #selector(ArchiveWindowController.renameEntry(_:))] {
+            let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
+            XCTAssertFalse(controller.validateMenuItem(item))
+            XCTAssertFalse(try XCTUnwrap(item.toolTip).isEmpty)
+        }
+        let view = MoveDropOutline()
+        view.hovered = target
+        info.draggingSource = view
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: 0), [])
+        XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        let other = try node("a", in: controller)
+        do { _ = try await document.move([other], to: "b", progress: Progress()); XCTFail("処理中の移動を受理しました") }
+        catch { XCTAssertTrue(error is ExtractionFailure) }
+        try XCTUnwrap(controller.editProgressSheet).cancelExtraction(nil)
+        gate.release.signal()
+        await task.value
+        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(document.generation, 0)
+        XCTAssertTrue(stack.slots.isEmpty)
+        XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+    }
+
+    @MainActor func testMoveStringsHaveExactJapaneseAndEnglishLocalizations() throws {
+        let bundle = Bundle(for: ArchiveDocument.self)
+        let translations = [
+            ("移動", "Move"), ("項目を移動しています", "Moving Items"),
+            ("同じ場所です", "The items are already in this folder."),
+            ("フォルダを自分自身の中へは移動できません", "A folder cannot be moved into itself or one of its subfolders."),
+            ("移動先のフォルダが見つかりません", "The destination folder could not be found.")
+        ]
+        for language in ["ja", "en"] {
+            let localized = try XCTUnwrap(Bundle(url: XCTUnwrap(bundle.url(forResource: language, withExtension: "lproj"))))
+            for (key, english) in translations {
+                XCTAssertEqual(String(localized: String.LocalizationValue(key), bundle: localized), language == "ja" ? key : english)
+            }
+        }
+    }
 }

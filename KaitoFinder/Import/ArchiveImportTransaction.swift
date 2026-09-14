@@ -12,6 +12,9 @@ nonisolated struct ArchiveImportResult: Sendable {
 nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError {
     case invalidName(String)
     case collision(String)
+    case sameLocation(String)
+    case destinationInsideSource(String)
+    case missingFolder(String)
     case indexMismatch(Int)
     case staleSelection
     case conflictingSelection
@@ -20,6 +23,9 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError {
         switch self {
         case .invalidName(let name): "この名前には変更できません: \(name)"
         case .collision(let name): "同じ名前の項目が既にあります: \(name)"
+        case .sameLocation(let path): "同じ場所です: \(path)"
+        case .destinationInsideSource(let path): "フォルダを自分自身の中へは移動できません: \(path)"
+        case .missingFolder(let folder): "移動先のフォルダが見つかりません: \(folder)"
         case .indexMismatch: "選択した項目と書庫内の項目が一致しません。書庫を開き直してください"
         case .staleSelection: "選択した項目が変更されています。書庫を開き直してください"
         case .conflictingSelection: "同じ項目への変更が重複しています"
@@ -43,6 +49,11 @@ nonisolated struct ArchiveEditSelection: Sendable {
 nonisolated struct ArchiveEditRename: Sendable {
     let selection: ArchiveEditSelection
     let name: String
+}
+
+nonisolated struct ArchiveEditMove: Sendable {
+    let selection: ArchiveEditSelection
+    let folder: String
 }
 
 nonisolated struct ArchiveEditResult: Sendable {
@@ -79,19 +90,44 @@ nonisolated struct ArchiveEditPlan: Sendable {
     let existing: [ArchiveEntry]
 
     static func build(removing selections: [ArchiveEditSelection], renaming: [ArchiveEditRename],
-                      existing: [ArchiveEntry]) throws -> Self {
+                      moving: [ArchiveEditMove] = [], existing: [ArchiveEntry]) throws -> Self {
+        // 実体のない親フォルダも移動先になる。ファイルを親として扱うことはない。
+        var folders: Set<String> = [], files: Set<String> = []
+        if !moving.isEmpty {
+            for entry in existing {
+                let path = key(entry.name)
+                let parts = path.split(separator: "/")
+                if entry.kind == .directory { folders.insert(path) }
+                else { files.insert(path) }
+                for count in 1..<max(1, parts.count) {
+                    folders.insert(parts.prefix(count).joined(separator: "/"))
+                }
+            }
+        }
+        let moves = try moving.map { move in
+            let source = key(move.selection.path), folder = key(move.folder)
+            let parent = source.split(separator: "/").dropLast().joined(separator: "/")
+            guard parent != folder else { throw ArchiveEditError.sameLocation(move.selection.path) }
+            if move.selection.isDirectory, folder == source || folder.hasPrefix(source + "/") {
+                throw ArchiveEditError.destinationInsideSource(move.selection.path)
+            }
+            if !folder.isEmpty {
+                let parts = folder.split(separator: "/")
+                guard folders.contains(folder), !(1...max(1, parts.count)).contains(where: {
+                    files.contains(parts.prefix($0).joined(separator: "/"))
+                }) else { throw ArchiveEditError.missingFolder(move.folder) }
+            }
+            let leaf = source.split(separator: "/").last.map(String.init) ?? ""
+            return (selection: move.selection, destination: folder.isEmpty ? leaf : folder + "/" + leaf)
+        }
         var removed: [Int: Entry] = [:]
         for selection in selections {
             try validate(selection, existing: existing)
             for entry in selection.entries { removed[entry.index] = Entry(entry) }
         }
         var renamed: Set<Int> = [], destinations: Set<String> = [], changes: [Rename] = []
-        for change in renaming {
-            let selection = change.selection
-            try validate(selection, existing: existing)
-            let leaf = try leafName(change.name)
-            let parent = selection.path.split(separator: "/").dropLast().joined(separator: "/")
-            let destination = parent.isEmpty ? leaf : parent + "/" + leaf
+        // 改名と移動は同じ部分木変換。衝突・index 照合・正準等価の扱いを分岐させない。
+        func rename(_ selection: ArchiveEditSelection, to destination: String) throws {
             let indices = Set(selection.entries.map(\.index))
             guard indices.isDisjoint(with: removed.keys), indices.isDisjoint(with: renamed) else {
                 throw ArchiveEditError.conflictingSelection
@@ -124,6 +160,17 @@ nonisolated struct ArchiveEditPlan: Sendable {
                     changes.append(Rename(entry: Entry(entry), path: normalized))
                 }
             }
+        }
+        for change in renaming {
+            let selection = change.selection
+            try validate(selection, existing: existing)
+            let leaf = try leafName(change.name)
+            let parent = selection.path.split(separator: "/").dropLast().joined(separator: "/")
+            try rename(selection, to: parent.isEmpty ? leaf : parent + "/" + leaf)
+        }
+        for move in moves {
+            try validate(move.selection, existing: existing)
+            try rename(move.selection, to: move.destination)
         }
         let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing)
         try plan.validate(entries: existing)

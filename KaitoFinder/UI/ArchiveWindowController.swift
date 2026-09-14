@@ -51,6 +51,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
     private let promiseOwner = UUID()
+    private(set) var draggedNodes: [EntryNode] = []
     private(set) var extractionTask: Task<Void, Never>?
     private var extractionProgress: Progress?
     private var extractionCancellation: Task<Void, Never>?
@@ -165,7 +166,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         openWithMenu.delegate = self
         outlineView.menu = menu
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
-        outlineView.setDraggingSourceOperationMask(.copy, forLocal: true)
+        outlineView.setDraggingSourceOperationMask([.move, .copy], forLocal: true)
         outlineView.registerForDraggedTypes(
             NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) } + [.fileURL])
         scrollView.documentView = outlineView
@@ -528,11 +529,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,
                      willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
+        draggedNodes = draggedItems as? [EntryNode] ?? []
         FilePromiseRegistry.shared.beganPending(sessionID: session.draggingSequenceNumber, owner: promiseOwner)
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,
                      endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        draggedNodes = []
         FilePromiseRegistry.shared.ended(sessionID: session.draggingSequenceNumber)
     }
 
@@ -722,6 +725,47 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
+    private func startMove(nodes: [EntryNode], to folder: String) -> Bool {
+        guard let window, let document = document as? ArchiveDocument, !nodes.isEmpty,
+              archiveSession?.capabilities.canAppend == true, !operationInFlight else { return false }
+        let state = viewStateAfterMoving(nodes, to: folder)
+        closePreview()
+        materialization?.cancel()
+        let progress = Progress(totalUnitCount: 0)
+        extractionProgress = progress
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "項目を移動しています"))
+        editProgressSheet = sheet
+        sheet.begin(on: window)
+        extractionTask = Task { [weak self] in
+            defer {
+                sheet.finish()
+                self?.editProgressSheet = nil
+                self?.extractionProgress = nil
+                self?.extractionTask = nil
+            }
+            do {
+                let result = try await document.move(nodes, to: folder, progress: progress)
+                if result.published, let self {
+                    // 親の名前だけが検索に一致していた場合も、移動した項目を選択できるようにする。
+                    if state.resolve(in: self.root).selected.contains(where: { self.entryFilter?.contains($0) == false }) {
+                        self.setFilterQuery("")
+                    }
+                    self.restoreViewState(state)
+                }
+                if let reason = result.reloadFailure {
+                    sheet.finish()
+                    self?.reportEditFailure(reason, published: true)
+                }
+            } catch {
+                sheet.finish()
+                if !(error is CancellationError), !Task.isCancelled, let self {
+                    self.reportEditFailure(self.editFailureReason(error))
+                }
+            }
+        }
+        return true
+    }
+
     private func editFailureReason(_ error: any Error) -> String {
         switch error as? ArchiveEditError {
         case .collision:
@@ -734,6 +778,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             String(localized: "選択した項目と書庫内の項目が一致しません。書庫を開き直してください")
         case .conflictingSelection:
             String(localized: "同じ項目への変更が重複しています")
+        case .sameLocation:
+            String(localized: "同じ場所です")
+        case .destinationInsideSource:
+            String(localized: "フォルダを自分自身の中へは移動できません")
+        case .missingFolder:
+            String(localized: "移動先のフォルダが見つかりません")
         case nil: error.localizedDescription
         }
     }
@@ -790,6 +840,29 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return state
     }
 
+    private func viewStateAfterMoving(_ nodes: [EntryNode], to folder: String) -> ArchiveViewState {
+        var state = captureViewState()
+        let moves = nodes.map { node in
+            (source: node.path, destination: (folder.isEmpty ? node.name : folder + "/" + node.name)
+                .precomposedStringWithCanonicalMapping)
+        }
+        func moved(_ old: String) -> String {
+            for move in moves {
+                if old == move.source { return move.destination }
+                if old.hasPrefix(move.source + "/") { return move.destination + old.dropFirst(move.source.count) }
+            }
+            return old
+        }
+        state.selectedPaths = Set(moves.map(\.destination))
+        state.expandedPaths = Set(state.expandedPaths.map(moved))
+        state.topPath = state.topPath.map(moved)
+        let parts = folder.split(separator: "/")
+        for count in 1..<(parts.count + 1) {
+            state.expandedPaths.insert(parts.prefix(count).joined(separator: "/"))
+        }
+        return state
+    }
+
     private func captureViewState() -> ArchiveViewState {
         let visible = outlineView.rows(in: outlineView.visibleRect)
         let top = visible.location < outlineView.numberOfRows ? outlineView.item(atRow: visible.location) as? EntryNode : nil
@@ -826,24 +899,49 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         ArchiveDropTarget.folder(for: (item as? EntryNode).map(ArchiveDropTarget.Row.init))
     }
 
+    // AppKit に返す操作とハイライト先を一緒に決める。別ウインドウは従来の promise copy。
+    private func dropDecision(isLocal: Bool, draggedNodes: [EntryNode], hovered: EntryNode?, mask: NSDragOperation,
+                              hasFiles: Bool) -> (operation: NSDragOperation, folder: EntryNode?) {
+        guard let session = archiveSession else { return ([], nil) }
+        if isLocal {
+            switch ArchiveDropTarget.localOperation(dragged: draggedNodes.map(ArchiveDropTarget.Row.init),
+                target: ArchiveDropTarget.folder(for: hovered.map(ArchiveDropTarget.Row.init)), mask: mask,
+                capabilities: session.capabilities, busy: operationInFlight) {
+            case .move: return (.move, ArchiveDropTarget.node(for: hovered, in: root))
+            case .copy: break
+            case .none: return ([], nil)
+            }
+        }
+        guard ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: mask.contains(.copy),
+                                        hasFiles: hasFiles, busy: operationInFlight) else { return ([], nil) }
+        return (.copy, session.capabilities.canAppend ? ArchiveDropTarget.node(for: hovered, in: root) : nil)
+    }
+
     func outlineView(_ outlineView: NSOutlineView, validateDrop info: any NSDraggingInfo,
                      proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        guard let session = archiveSession,
-              ArchiveDropTarget.accepts(capabilities: session.capabilities,
-                offersCopy: info.draggingSourceOperationMask.contains(.copy),
-                hasFiles: ArchiveIncomingPasteboard.representation(AppKitArchivePasteboard(pasteboard: info.draggingPasteboard)) != .none,
-                busy: operationInFlight) else { return [] }
         let row = outlineView.row(at: outlineView.convert(info.draggingLocation, from: nil))
         let hovered = row >= 0 ? outlineView.item(atRow: row) as? EntryNode : nil
-        let folder = session.capabilities.canAppend ? ArchiveDropTarget.node(for: hovered, in: root) : nil
-        outlineView.setDropItem(folder, dropChildIndex: NSOutlineViewDropOnItemIndex)
-        return .copy
+        let decision = dropDecision(isLocal: (info.draggingSource as AnyObject?) === outlineView,
+            draggedNodes: draggedNodes, hovered: hovered, mask: info.draggingSourceOperationMask,
+            hasFiles: ArchiveIncomingPasteboard.representation(AppKitArchivePasteboard(pasteboard: info.draggingPasteboard)) != .none)
+        guard !decision.operation.isEmpty else { return [] }
+        outlineView.setDropItem(decision.folder, dropChildIndex: NSOutlineViewDropOnItemIndex)
+        return decision.operation
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo,
                      item: Any?, childIndex index: Int) -> Bool {
-        guard archiveSession != nil,
-              info.draggingSourceOperationMask.contains(.copy), !operationInFlight else { return false }
+        guard let session = archiveSession, !operationInFlight else { return false }
+        if (info.draggingSource as AnyObject?) === outlineView {
+            let folder = dropFolder(item)
+            switch ArchiveDropTarget.localOperation(dragged: draggedNodes.map(ArchiveDropTarget.Row.init),
+                target: folder, mask: info.draggingSourceOperationMask, capabilities: session.capabilities, busy: operationInFlight) {
+            case .move: return startMove(nodes: draggedNodes, to: folder)
+            case .copy: break
+            case .none: return false
+            }
+        }
+        guard info.draggingSourceOperationMask.contains(.copy) else { return false }
         let pasteboard = info.draggingPasteboard
         do {
             switch ArchiveIncomingPasteboard.readDrop(AppKitArchivePasteboard(pasteboard: pasteboard)) {

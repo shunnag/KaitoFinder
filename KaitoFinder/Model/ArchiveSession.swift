@@ -195,7 +195,8 @@ actor ArchiveSession {
     }
 
     // 部分木の検証から公開後の再読込まで await を挟まず、一操作を一世代にまとめる。
-    func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [], progress: Progress,
+    func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [],
+              moving: [ArchiveEditMove] = [], progress: Progress,
               willOpenUpdater: (@Sendable () throws -> Void)? = nil,
               willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
         let reader = try requireCurrentReader()
@@ -204,7 +205,7 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
         }
         try ArchiveImportPlan.checkCancellation(progress)
-        let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, existing: reader.entries)
+        let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving, existing: reader.entries)
         var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
                                                    willOpenUpdater: willOpenUpdater, willPublish: willPublish)
         if result.published {

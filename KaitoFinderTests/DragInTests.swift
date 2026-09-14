@@ -214,6 +214,44 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(session.generation, 0)
     }
 
+    func testLocalDropOperationCoversMasksParentsSubtreesCapabilitiesAndBusyState() {
+        typealias Row = ArchiveDropTarget.Row
+        let writable = ArchiveCapabilities(mode: .inPlace), readOnly = ArchiveCapabilities(refusal: .format("RAR"))
+        let x = Row(path: "a/x.txt", isDirectory: false), y = Row(path: "a/y.txt", isDirectory: false)
+        let other = Row(path: "b/z.txt", isDirectory: false), directory = Row(path: "a", isDirectory: true)
+        let cases: [(String, [Row], String, NSDragOperation, ArchiveCapabilities, Bool, ArchiveDropTarget.LocalOperation)] = [
+            ("両方を許可する通常ドラッグ", [x], "b", [.move, .copy], writable, false, .move),
+            ("移動だけ", [x], "b", .move, writable, false, .move),
+            ("Option", [x], "b", .copy, writable, false, .copy),
+            ("Option は同じ親でも copy 判定", [x, y], "a", .copy, writable, false, .copy),
+            ("Option は部分木でも copy 経路", [directory], "a/deep", .copy, writable, false, .copy),
+            ("全項目が同じ親", [x, y], "a", [.move, .copy], writable, false, .none),
+            ("一項目だけ異なる親", [x, other], "a", [.move, .copy], writable, false, .move),
+            ("自分自身", [directory], "a", [.move, .copy], writable, false, .none),
+            ("自分の子孫", [other, directory], "a/deep", [.move, .copy], writable, false, .none),
+            ("似た接頭辞は子孫でない", [directory], "another", [.move, .copy], writable, false, .move),
+            ("ファイルは部分木判定しない", [Row(path: "a", isDirectory: false)], "a/deep", .move, writable, false, .move),
+            ("root から root", [Row(path: "root.txt", isDirectory: false)], "", .move, writable, false, .none),
+            ("root へ移動", [x], "", .move, writable, false, .move),
+            ("正準等価の親", [Row(path: "café/x", isDirectory: false)], "cafe\u{301}", .move, writable, false, .none),
+            ("正準等価の子孫", [Row(path: "café", isDirectory: true)], "cafe\u{301}/deep", .move, writable, false, .none),
+            ("読み取り専用の移動", [x], "b", [.move, .copy], readOnly, false, .none),
+            ("読み取り専用のコピー", [x], "b", .copy, readOnly, false, .none),
+            ("移動の処理中", [x], "b", [.move, .copy], writable, true, .none),
+            ("コピーの処理中", [x], "b", .copy, writable, true, .none),
+            ("空の選択", [], "b", [.move, .copy], writable, false, .none),
+            ("空のコピー選択", [], "b", .copy, writable, false, .none),
+            ("許可なし", [x], "b", [], writable, false, .none),
+            ("リンクだけ", [x], "b", .link, writable, false, .none),
+            ("copy だけではない mask", [x], "b", [.copy, .link], writable, false, .none),
+            ("全面書き直し形式", [x], "b", [.move, .copy], .init(mode: .rewrite(.tar)), false, .move)
+        ]
+        for (label, dragged, folder, mask, capabilities, busy, expected) in cases {
+            XCTAssertEqual(ArchiveDropTarget.localOperation(dragged: dragged, target: folder, mask: mask,
+                capabilities: capabilities, busy: busy), expected, label)
+        }
+    }
+
     func testDropRequiresCopyFilesAndIdleArchive() {
         let writable = ArchiveCapabilities(mode: .inPlace)
         XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: true, hasFiles: true, busy: false))

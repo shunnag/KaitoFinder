@@ -367,6 +367,13 @@ first responder を手放さない形にし、focus 喪失は拒否せず、終�
 改名した項目を選択したままにする。undo / redo では tree が作り直され世代が
 上がるので、消えた node を掴んだままにしない。
 
+**同じウインドウ内のドラッグは移動**とし、⌥ を押したときはコピーにする。
+別の書庫ウインドウへのドラッグは従来どおり file promise によるコピー。
+同じ親フォルダ、自分自身や自分の子孫への移動は受け付けず、移動先の名前が
+一つでも衝突したら理由を示してドロップ全体を拒否する。複数項目とフォルダの
+全子孫は一括で公開し、「移動」一回で取り消せる。成功後は移動先を展開して
+移動した項目を選択する。モデルの検証はエラーを返し、確認 UI は持たない。
+
 > **Editing inside an archive.** Confirmation is gated on reversibility, not on
 > danger: Finder does not ask before deleting because undo exists, so this app
 > asks only when `canUndoNextMutation` is false — that is, on a volume where
