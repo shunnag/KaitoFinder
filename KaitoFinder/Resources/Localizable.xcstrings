@@ -1,6 +1,57 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "編集すると書庫全体を再圧縮します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editing will recompress the entire archive."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集すると書庫全体を再圧縮します"
+          }
+        }
+      }
+    },
+    "暗号化された書庫は、編集すると暗号化が外れるため変更できません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted archives cannot be modified because editing would remove their encryption."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化された書庫は、編集すると暗号化が外れるため変更できません"
+          }
+        }
+      }
+    },
+    "この書庫には、書き直せない項目があります。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive contains entries that cannot be rewritten. %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この書庫には、書き直せない項目があります。%@"
+          }
+        }
+      }
+    },
     "新規フォルダ" : {
       "extractionState" : "manual",
       "localizations" : {

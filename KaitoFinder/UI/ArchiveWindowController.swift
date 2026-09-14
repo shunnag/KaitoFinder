@@ -323,6 +323,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         self.root = root
         reloadFilteredEntries(restoring: state)
         capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
+        if session?.capabilities.canAppend == true, let notice = session?.capabilities.rewriteNotice {
+            capabilityNotice.stringValue += "。" + notice
+        }
         if let session {
             session.setPasswordPrompt { [weak self, weak session] challenge in
                 guard let self, let session, self.archiveSession === session else { throw CancellationError() }

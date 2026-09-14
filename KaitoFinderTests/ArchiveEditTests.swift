@@ -13,7 +13,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         var root: URL { directory.url }
         let archive: URL
 
-        init(script: String = #"""
+        init(filename: String = "archive.zip", script: String = #"""
         with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z:
             for name, data in [('keep.txt', b'keep\x00bytes'), ('remove.txt', b'remove me'),
                                ('folder/', b''), ('folder/a.txt', b'alpha'), ('folder/deep/', b''),
@@ -22,7 +22,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 z.writestr(name, data)
         """#) throws {
             directory = try ArchiveTestDirectory()
-            archive = directory.url.appendingPathComponent("archive.zip")
+            archive = directory.url.appendingPathComponent(filename)
             try directory.run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct, zlib\np=sys.argv[1]\n" + script, archive.path])
         }
 
@@ -157,7 +157,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         for plan in [ArchiveEditPlan(removals: [wrong], renames: [], existing: entries),
                      ArchiveEditPlan(removals: [], renames: [.init(entry: wrong, path: "renamed.txt")], existing: entries)] {
             let progress = Progress()
-            XCTAssertThrowsError(try ArchiveEditTransaction.run(plan: plan, archive: fixture.archive, progress: progress,
+            XCTAssertThrowsError(try ArchiveEditTransaction.run(plan: plan, archive: fixture.archive, mode: .inPlace, progress: progress,
                 willOpenUpdater: { opened.withLock { $0 += 1 } }, willPublish: { published.withLock { $0 += 1 } })) {
                 XCTAssertEqual($0 as? ArchiveEditError, .indexMismatch(entry.index))
             }
@@ -179,7 +179,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertFalse(entry.name.utf8.elementsEqual(expected.utf8))
         let plan = ArchiveEditPlan(removals: [.init(index: entry.index, expectedName: expected, isDirectory: false)],
                                    renames: [], existing: entries)
-        XCTAssertThrowsError(try ArchiveEditTransaction.run(plan: plan, archive: fixture.archive, progress: Progress())) {
+        XCTAssertThrowsError(try ArchiveEditTransaction.run(plan: plan, archive: fixture.archive, mode: .inPlace, progress: Progress())) {
             XCTAssertEqual($0 as? ArchiveEditError, .indexMismatch(entry.index))
         }
         XCTAssertEqual(try digest(fixture.archive), original)
@@ -536,9 +536,11 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     }
 
     @MainActor func testReadOnlyCapabilitiesRefuseDeleteRenameAndMixedEditsBeforeOpeningUpdater() async throws {
-        for script in ["with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))",
-                       "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')"] {
-            let fixture = try Fixture(script: script), session = try ArchiveSession(url: fixture.archive)
+        for (filename, script) in [
+            ("archive.tar.bz2", "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))"),
+            ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')")
+        ] {
+            let fixture = try Fixture(filename: filename, script: script), session = try ArchiveSession(url: fixture.archive)
             let original = try digest(fixture.archive), opened = Mutex(0)
             XCTAssertFalse(session.capabilities.canAppend)
             XCTAssertNotNil(session.capabilities.refusal)
@@ -762,13 +764,13 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     }
 
     @MainActor func testNewFolderReadOnlyRefusalPrecedesUpdaterAndExposesReason() async throws {
-        let cases: [(String, Bool)] = [
-            ("with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))", false),
-            ("with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')", false),
-            ("with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')", true)
+        let cases: [(String, String, Bool)] = [
+            ("archive.tar.bz2", "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))", false),
+            ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')", false),
+            ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')", true)
         ]
-        for (script, readOnlyMode) in cases {
-            let fixture = try Fixture(script: script)
+        for (filename, script, readOnlyMode) in cases {
+            let fixture = try Fixture(filename: filename, script: script)
             if readOnlyMode { XCTAssertEqual(chmod(fixture.archive.path, 0o444), 0) }
             let session = try ArchiveSession(url: fixture.archive)
             let before = try digest(fixture.archive), opened = Mutex(0)

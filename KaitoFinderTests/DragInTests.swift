@@ -9,10 +9,10 @@ nonisolated final class DragInTests: XCTestCase {
     private final class Fixture {
         let root: URL
         let archive: URL
-        init(script: String = "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old.txt', 'original')\n z.writestr('sub/deep/old.txt', 'nested')") throws {
+        init(filename: String = "archive.zip", script: String = "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old.txt', 'original')\n z.writestr('sub/deep/old.txt', 'nested')") throws {
             root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-DragIn-" + UUID().uuidString)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            archive = root.appendingPathComponent("archive.zip")
+            archive = root.appendingPathComponent(filename)
             try run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct\np=sys.argv[1]\n" + script, archive.path])
         }
         deinit { try? FileManager.default.removeItem(at: root) }
@@ -118,17 +118,17 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 
-    func testNonZIPCapabilityRefusesDropAndAppendWithFormatReason() async throws {
-        let fixture = try Fixture(script: "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))")
+    func testUnsupportedTarWrapperRefusesDropAndAppendWithFormatReason() async throws {
+        let fixture = try Fixture(filename: "archive.tar.bz2", script: "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))")
         let session = try ArchiveSession(url: fixture.archive)
-        XCTAssertEqual(session.capabilities.refusal, .format("TAR"))
-        XCTAssertEqual(session.capabilities.readOnlyReason, "TAR 書庫は変更できません")
+        XCTAssertEqual(session.capabilities.refusal, .format("tar.bz2"))
+        XCTAssertEqual(session.capabilities.readOnlyReason, "tar.bz2 書庫は変更できません")
         XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: true, hasFiles: true, busy: false))
         let before = try Data(contentsOf: fixture.archive)
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: Progress())
-            XCTFail("非 ZIP が変更できました")
-        } catch { XCTAssertTrue(String(describing: error).contains("TAR")) }
+            XCTFail("未対応の tar 包装が変更できました")
+        } catch { XCTAssertTrue(String(describing: error).contains("tar.bz2")) }
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 
@@ -215,7 +215,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testDropRequiresCopyAndIdleWritableArchive() {
-        let writable = ArchiveCapabilities(refusal: nil)
+        let writable = ArchiveCapabilities(mode: .inPlace)
         XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: true, hasFiles: true, busy: false))
         XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: false, hasFiles: true, busy: false))
         XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: true, hasFiles: false, busy: false))

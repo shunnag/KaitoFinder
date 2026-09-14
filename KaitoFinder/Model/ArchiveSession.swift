@@ -148,7 +148,7 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
         }
         let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries, progress: progress)
-        var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, progress: progress,
+        var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
                                                      didProcess: didProcess, willPublish: willPublish)
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
@@ -173,7 +173,7 @@ actor ArchiveSession {
         try ArchiveImportPlan.checkCancellation(progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries)
-        var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, progress: progress,
+        var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
                                                                willOpenUpdater: willOpenUpdater, willPublish: willPublish)
         do { try reloadAfterMutation() }
         catch { result.reloadFailure = Self.reloadFailureMessage }
@@ -191,13 +191,13 @@ actor ArchiveSession {
               willOpenUpdater: (@Sendable () throws -> Void)? = nil,
               willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
         let reader = try requireCurrentReader()
-        // canAppend は現在の ZIP updater の共通門番。拒否理由も追加と揃える。
+        // canAppend は編集の共通門番。拒否理由も追加と揃える。
         guard capabilities.canAppend else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
         }
         try ArchiveImportPlan.checkCancellation(progress)
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, existing: reader.entries)
-        var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, progress: progress,
+        var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
                                                    willOpenUpdater: willOpenUpdater, willPublish: willPublish)
         if result.published {
             do { try reloadAfterMutation() }
