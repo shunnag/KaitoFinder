@@ -5,6 +5,8 @@ final class ArchiveMaterializationController {
     typealias Materialize = @Sendable (ArchiveEntryPayload, Progress) async throws -> URL
     private let materialize: Materialize
     private let dispose: @Sendable () async -> Void
+    private(set) var entryMaterializer: EntryMaterializer?
+    private var backgroundCancellations: [() -> Task<Void, Never>?] = []
     private var cache: [ArchiveEntryPayload: ArchivePreviewItem] = [:]
     private var cleanupTask: Task<Void, Never>?
     private var closed = false
@@ -30,6 +32,13 @@ final class ArchiveMaterializationController {
         self.init(dispose: { await worker.close() }) { payload, progress in
             try await worker.materialize(payload, progress: progress)
         }
+        entryMaterializer = worker
+    }
+
+    /// 同じ一時領域を借りるバックグラウンド処理も、文書を閉じる前に停止・回収する。
+    func cancelBackgroundWorkOnClose(_ cancel: @escaping () -> Task<Void, Never>?) {
+        if closed { _ = cancel() }
+        else { backgroundCancellations.append(cancel) }
     }
 
     func cachedItem(for payload: ArchiveEntryPayload) -> ArchivePreviewItem? { cache[payload] }
@@ -124,10 +133,13 @@ final class ArchiveMaterializationController {
         cache.removeAll()
         let draining = drainingTask
         drainingTask = nil
+        let background = backgroundCancellations.compactMap { $0() }
+        backgroundCancellations.removeAll()
         let dispose = dispose
         let cleanup = Task {
             // 取消しを無視して遅れて返る結果の破棄まで待ち、動いている writer と削除を競合させない。
             await draining?.value
+            for task in background { await task.value }
             for url in urls { await EntryMaterializer.discard(url) }
             await dispose()
         }

@@ -2,6 +2,17 @@ import AppKit
 import UniformTypeIdentifiers
 import QuickLookUI
 
+// NSPathControlItem は representedObject を持たず、SDK はサブクラス化も認めていない。
+// URL を書庫内パスに偽装せず、表示中の node 自体を項目に結び付ける。
+@MainActor extension NSPathControlItem {
+    private static var representedObjectKey: UInt8 = 0
+
+    var representedObject: Any? {
+        get { objc_getAssociatedObject(self, &Self.representedObjectKey) }
+        set { objc_setAssociatedObject(self, &Self.representedObjectKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
+    }
+}
+
 nonisolated struct ArchivePasswordResponse: Sendable {
     let password: String
     let remember: Bool
@@ -36,7 +47,7 @@ final class ArchivePasswordPrompt {
 }
 
 final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
-    NSMenuItemValidation, NSMenuDelegate, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
     private let promiseOwner = UUID()
@@ -54,7 +65,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
     let outlineView = ArchiveOutlineView()
-    let searchField = NSSearchField()
+    private let searchItem = NSSearchToolbarItem(itemIdentifier: NSToolbarItem.Identifier("search"))
+    var searchField: NSSearchField { searchItem.searchField }
+    let pathControl = NSPathControl()
+    private(set) var thumbnailProvider: ArchiveThumbnailProvider?
     private(set) var filterQuery = ""
     private var entryFilter: EntryTreeFilter?
     private var unfilteredViewState: ArchiveViewState?
@@ -66,6 +80,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var materializationCancellation: Task<Void, Never>?
     private let openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く"))
     private var root = EntryNode.tree(from: [])
+    private var parents: [ObjectIdentifier: EntryNode] = [:]
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
     private var restoringSort = false
     private var icons: [UTType: NSImage] = [:]
@@ -90,6 +105,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         window.minSize = NSSize(width: 600, height: 300)
         window.center()
         window.setFrameAutosaveName("ArchiveWindow")
+        window.delegate = self
+        window.tabbingIdentifier = "KaitoFinder.archive"
+        window.tabbingMode = .automatic
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -166,26 +184,37 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         renameValidationNotice.textColor = .systemRed
         renameValidationNotice.isHidden = true
         let content = NSView()
+        searchItem.label = String(localized: "名前で絞り込む")
         searchField.placeholderString = String(localized: "名前で絞り込む")
         searchField.setAccessibilityLabel(String(localized: "名前で絞り込む"))
         searchField.target = self
         searchField.action = #selector(filterEntries(_:))
         searchField.sendsSearchStringImmediately = true
         searchField.sendsWholeSearchString = false
-        searchField.translatesAutoresizingMaskIntoConstraints = false
+        let toolbar = NSToolbar(identifier: "ArchiveToolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        pathControl.pathStyle = .standard
+        pathControl.isEditable = false
+        pathControl.target = self
+        pathControl.action = #selector(selectClickedPathItem(_:))
+        pathControl.translatesAutoresizingMaskIntoConstraints = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         footer.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(scrollView)
         content.addSubview(footer)
-        content.addSubview(searchField)
+        content.addSubview(pathControl)
         NSLayoutConstraint.activate([
-            searchField.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
-            searchField.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-            searchField.widthAnchor.constraint(equalToConstant: 260),
-            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
+            scrollView.topAnchor.constraint(equalTo: content.topAnchor),
             scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
+            scrollView.bottomAnchor.constraint(equalTo: pathControl.topAnchor),
+            pathControl.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            pathControl.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            pathControl.heightAnchor.constraint(equalToConstant: 22),
+            pathControl.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
             footer.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
             footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
             footer.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6)
@@ -195,6 +224,19 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     required init?(coder: NSCoder) { nil }
 
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, searchItem.itemIdentifier]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        toolbarDefaultItemIdentifiers(toolbar)
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+                 willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        itemIdentifier == searchItem.itemIdentifier ? searchItem : nil
+    }
+
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
         if (document as? ArchiveDocument)?.isPasswordLocked == true { unlockArchive(sender) }
@@ -202,6 +244,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func displayLocked() {
         display(EntryNode.tree(from: []))
+        pathControl.pathItems = []
         capabilityNotice.stringValue = String(localized: "この書庫はロックされています。パスワードを入力すると一覧を表示できます")
         unlockButton.isHidden = false
     }
@@ -316,19 +359,30 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil) {
         let state = captureViewState()
+        thumbnailProvider?.cancelAll()
+        thumbnailProvider = nil
         outlineView.cancelRenaming()
         closePreview()
-        if materialization !== materializationController { materialization?.close() }
+        let nextMaterialization = session.map { session in
+            materializationController ?? (document as? ArchiveDocument)?.materializationController()
+                ?? ArchiveMaterializationController(session: session)
+        }
+        if materialization !== nextMaterialization { materialization?.close() }
         archiveSession = session
         unlockButton.isHidden = true
         self.generation = generation
         self.root = root
-        reloadFilteredEntries(restoring: state)
+        parents.removeAll()
+        var pending = [root]
+        while let parent = pending.popLast() {
+            for child in parent.children { parents[ObjectIdentifier(child)] = parent }
+            pending.append(contentsOf: parent.children)
+        }
         capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
         if session?.capabilities.canAppend == true, let notice = session?.capabilities.rewriteNotice {
             capabilityNotice.stringValue += "。" + notice
         }
-        if let session {
+        if let session, let controller = nextMaterialization {
             session.setPasswordPrompt { [weak self, weak session] challenge in
                 guard let self, let session, self.archiveSession === session else { throw CancellationError() }
                 guard let document = self.document as? ArchiveDocument else {
@@ -338,7 +392,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                     try await self.requestPasswordResponse(challenge)
                 }
             }
-            let controller = materializationController ?? ArchiveMaterializationController(session: session)
             controller.started = { [weak self, weak controller] item, progress in
                 guard let self else { return }
                 self.materializationCancellation = self.watchCancellation(progress) { [weak controller] in controller?.cancel() }
@@ -357,11 +410,73 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             controller.failed = { [weak self] reason in self?.reportFailure(reason) }
             materialization = controller
+            if let worker = controller.entryMaterializer {
+                let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: generation)
+                provider.didProduce = { [weak self, weak provider] node in
+                    guard let self, let provider, self.thumbnailProvider === provider else { return }
+                    let row = self.outlineView.row(forItem: node)
+                    let column = self.outlineView.column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
+                    guard row >= 0, column >= 0 else { return }
+                    self.outlineView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: column))
+                }
+                controller.cancelBackgroundWorkOnClose { [weak provider] in provider?.cancelAll() }
+                thumbnailProvider = provider
+            }
         } else { materialization = nil }
+        reloadFilteredEntries(restoring: state)
+        updatePathControl()
     }
 
     var selectedNodes: [EntryNode] {
         outlineView.selectedRowIndexes.compactMap { outlineView.item(atRow: $0) as? EntryNode }
+    }
+
+    private func pathNodes(to node: EntryNode) -> [EntryNode] {
+        var components: [EntryNode] = []
+        var current = node
+        while current !== root {
+            guard let parent = parents[ObjectIdentifier(current)] else { return [] }
+            components.append(current)
+            current = parent
+        }
+        return components.reversed()
+    }
+
+    private func updatePathControl() {
+        let archive = NSPathControlItem()
+        if let url = (document as? ArchiveDocument)?.fileURL ?? archiveSession?.sourceURL {
+            archive.title = url.lastPathComponent
+            archive.image = NSWorkspace.shared.icon(forFile: url.path)
+        } else {
+            archive.title = String(localized: "アーカイブ")
+            archive.image = NSWorkspace.shared.icon(for: .archive)
+        }
+        let components = selectedNodes.first.map(pathNodes(to:)) ?? []
+        pathControl.pathItems = [archive] + components.map { node in
+            let item = NSPathControlItem()
+            item.title = node.name
+            item.representedObject = node
+            item.image = icon(for: node)
+            return item
+        }
+    }
+
+    @objc private func selectClickedPathItem(_ sender: NSPathControl) {
+        if let item = sender.clickedPathItem { selectPathItem(item) }
+    }
+
+    func selectPathItem(_ item: NSPathControlItem) {
+        guard let node = item.representedObject as? EntryNode else {
+            outlineView.deselectAll(nil)
+            return
+        }
+        let components = pathNodes(to: node)
+        guard !components.isEmpty else { return }
+        for ancestor in components.dropLast() { outlineView.expandItem(ancestor) }
+        let row = outlineView.row(forItem: node)
+        guard row >= 0 else { return }
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        outlineView.scrollRowToVisible(row)
     }
 
     @objc func filterEntries(_ sender: NSSearchField) { setFilterQuery(sender.stringValue) }
@@ -699,6 +814,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             let row = outlineView.row(forItem: top)
             if row >= 0 { outlineView.scroll(NSPoint(x: 0, y: outlineView.rect(ofRow: row).minY)) }
         }
+        // 行番号の集合が同じでも、ソート後は先頭の選択項目が変わり得る。
+        updatePathControl()
     }
 
     // 現在は書庫 root を表示する outline。選択と表示フォルダは混同しない。
@@ -911,6 +1028,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func cancelExtraction() {
+        thumbnailProvider?.cancelAll()
         outlineView.cancelRenaming()
         unlockTask?.cancel()
         if let prompt = passwordPrompt { finishPasswordPrompt(prompt, password: nil) }
@@ -1115,6 +1233,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
+        updatePathControl()
         materialization?.cancel()
         if previewPanel?.isVisible == true { updatePreviewSelection() }
     }
@@ -1144,6 +1263,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func windowWillClose(_ notification: Notification) {
+        if let closingWindow = notification.object as? NSWindow, closingWindow === window { cancelExtraction() }
         if let panel = notification.object as? QLPreviewPanel, previewPanel === panel { materialization?.close() }
     }
 
@@ -1193,6 +1313,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if node.isDirectory { return .folder }
         if node.entry?.kind == .symlink { return .symbolicLink }
         return UTType(filenameExtension: (node.name as NSString).pathExtension) ?? .data
+    }
+
+    private func icon(for node: EntryNode) -> NSImage {
+        let type = type(for: node)
+        if let image = icons[type] { return image }
+        let image = NSWorkspace.shared.icon(for: type)
+        icons[type] = image
+        return image
     }
 
     private func formattedSize(_ size: UInt64?) -> String {
@@ -1284,9 +1412,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
         cell.textField?.stringValue = text(for: node, key: key)
         if key == "name" {
-            let type = type(for: node)
-            if icons[type] == nil { icons[type] = NSWorkspace.shared.icon(for: type) }
-            cell.imageView?.image = icons[type]
+            cell.imageView?.image = thumbnailProvider?.thumbnail(for: node) ?? icon(for: node)
         }
         return cell
     }
