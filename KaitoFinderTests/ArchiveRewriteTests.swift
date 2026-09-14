@@ -562,30 +562,48 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
                            in: fixture.archive, format: .tar)
     }
 
-    @MainActor private func labelTexts(in view: NSView) -> [String] {
-        (view as? NSTextField).map { [$0.stringValue] } ?? view.subviews.flatMap { labelTexts(in: $0) }
+    @MainActor private func labels(in view: NSView) -> [NSTextField] {
+        (view as? NSTextField).map { [$0] } ?? view.subviews.flatMap { labels(in: $0) }
     }
 
     @MainActor func testWindowRewriteNoticeContainsRecompressionAndZIPDoesNot() async throws {
-        let hint = String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
         let notice = String(localized: "編集すると書庫全体を再圧縮します")
+        let lockText = String(localized: "この書庫はロックされています。パスワードを入力すると一覧を表示できます")
+        let controller = ArchiveWindowController()
+        defer { controller.close() }
+        controller.displayLocked()
+        let capabilityNotice = try XCTUnwrap(labels(in: try XCTUnwrap(controller.window?.contentView))
+            .first { $0.stringValue == lockText })
         for format in Format.allCases {
-            let fixture = try Fixture(format), document = try document(fixture), controller = ArchiveWindowController()
-            document.addWindowController(controller)
-            let session = try XCTUnwrap(document.session), snapshot = await session.snapshot()
+            let fixture = try Fixture(format), session = try ArchiveSession(url: fixture.archive)
+            let snapshot = await session.snapshot()
             controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
-            let labels = labelTexts(in: try XCTUnwrap(controller.window?.contentView))
-            XCTAssertTrue(labels.contains(hint + "。" + notice))
-            XCTAssertTrue(labels.contains { $0.contains(notice) })
+            XCTAssertEqual(capabilityNotice.stringValue, notice, format.suffix)
+            XCTAssertFalse(capabilityNotice.isHidden, format.suffix)
+            await session.close()
         }
         let directory = try ArchiveTestDirectory(), archive = try zip(in: directory)
-        let session = try ArchiveSession(url: archive), controller = ArchiveWindowController(), snapshot = await session.snapshot()
+        let session = try ArchiveSession(url: archive), snapshot = await session.snapshot()
         controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
-        let labels = labelTexts(in: try XCTUnwrap(controller.window?.contentView))
-        XCTAssertTrue(labels.contains(hint))
-        XCTAssertFalse(labels.contains { $0.contains(notice) })
-        controller.close()
+        XCTAssertEqual(capabilityNotice.stringValue, "")
+        XCTAssertTrue(capabilityNotice.isHidden)
         await session.close()
+
+        let fixture = try Fixture(.tar)
+        let readOnlyArchive = fixture.directory.url.appendingPathComponent("archive.tar.bz2")
+        try fixture.directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", "-cjf", readOnlyArchive.path,
+                                                      "-C", fixture.directory.url.path, "original.txt"])
+        let readOnlySession = try ArchiveSession(url: readOnlyArchive), readOnlySnapshot = await readOnlySession.snapshot()
+        let readOnlyReason = try XCTUnwrap(readOnlySession.capabilities.readOnlyReason)
+        controller.display(EntryNode.tree(from: readOnlySnapshot.entries), session: readOnlySession,
+                           generation: readOnlySnapshot.generation)
+        XCTAssertEqual(capabilityNotice.stringValue, readOnlyReason)
+        XCTAssertFalse(capabilityNotice.isHidden)
+        await readOnlySession.close()
+
+        controller.displayLocked()
+        XCTAssertEqual(capabilityNotice.stringValue, lockText)
+        XCTAssertFalse(capabilityNotice.isHidden)
     }
 
     func testRewriteNoticeAndRefusalsHaveJapaneseCatalogEntries() throws {
@@ -593,6 +611,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+        XCTAssertNil(strings["ファイルやフォルダをドラッグ、またはペーストして追加できます"])
+        XCTAssertNil(strings["プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"])
         for key in ["編集すると書庫全体を再圧縮します", "暗号化された書庫は、編集すると暗号化が外れるため変更できません",
                     "この書庫には、書き直せない項目があります。%@"] {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], key)

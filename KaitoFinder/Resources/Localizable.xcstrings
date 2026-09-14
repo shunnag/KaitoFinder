@@ -817,23 +817,6 @@
         }
       }
     },
-    "ファイルやフォルダをドラッグ、またはペーストして追加できます" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drag or paste files and folders to add them"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファイルやフォルダをドラッグ、またはペーストして追加できます"
-          }
-        }
-      }
-    },
     "フォルダ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -864,23 +847,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "フォルダはプレビューまたは外部アプリケーションで開けません"
-          }
-        }
-      }
-    },
-    "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Previews and items opened in other apps are read-only temporary copies. Changes are not saved to the archive."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"
           }
         }
       }

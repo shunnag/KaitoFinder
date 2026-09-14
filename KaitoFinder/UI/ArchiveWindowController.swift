@@ -169,18 +169,15 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.registerForDraggedTypes(
             NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) } + [.fileURL])
         scrollView.documentView = outlineView
-        let notice = NSTextField(wrappingLabelWithString: String(localized:
-            "プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"))
-        notice.textColor = .secondaryLabelColor
-        notice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         unlockButton.target = self
         unlockButton.action = #selector(unlockArchive(_:))
         unlockButton.isHidden = true
-        let footer = NSStackView(views: [unlockButton, renameValidationNotice, capabilityNotice, notice])
+        let footer = NSStackView(views: [unlockButton, renameValidationNotice, capabilityNotice])
         footer.orientation = .vertical
         footer.alignment = .leading
         capabilityNotice.textColor = .secondaryLabelColor
         capabilityNotice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        capabilityNotice.isHidden = true
         renameValidationNotice.textColor = .systemRed
         renameValidationNotice.isHidden = true
         let content = NSView()
@@ -246,6 +243,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         display(EntryNode.tree(from: []))
         pathControl.pathItems = []
         capabilityNotice.stringValue = String(localized: "この書庫はロックされています。パスワードを入力すると一覧を表示できます")
+        capabilityNotice.isHidden = capabilityNotice.stringValue.isEmpty
         unlockButton.isHidden = false
     }
 
@@ -378,10 +376,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             for child in parent.children { parents[ObjectIdentifier(child)] = parent }
             pending.append(contentsOf: parent.children)
         }
-        capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? String(localized: "ファイルやフォルダをドラッグ、またはペーストして追加できます")
-        if session?.capabilities.canAppend == true, let notice = session?.capabilities.rewriteNotice {
-            capabilityNotice.stringValue += "。" + notice
-        }
+        capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? session?.capabilities.rewriteNotice ?? ""
+        capabilityNotice.isHidden = capabilityNotice.stringValue.isEmpty
         if let session, let controller = nextMaterialization {
             session.setPasswordPrompt { [weak self, weak session] challenge in
                 guard let self, let session, self.archiveSession === session else { throw CancellationError() }

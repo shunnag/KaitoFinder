@@ -1,12 +1,16 @@
 import Foundation
 import QuickLookUI
+import Synchronization
 
 /// URL の照会には副作用を持たせない。先読みの照会でも抽出は始まらない。
-final class ArchivePreviewItem: NSObject, QLPreviewItem {
+// 実測: アプリが前面にあると QuickLookUI は NSOperationQueue から項目を読む。
+// MainActor 隔離の @objc getter はそこでクラッシュするため、非隔離とロックで保護する。
+nonisolated final class ArchivePreviewItem: NSObject, QLPreviewItem, Sendable {
     let payload: ArchiveEntryPayload
     let capability: EntryReadCapability
     let requiresProgress: Bool
-    private(set) var previewItemURL: URL?
+    private let urlStorage = Mutex<URL?>(nil)
+    var previewItemURL: URL? { urlStorage.withLock { $0 } }
     var previewItemTitle: String? { payload.path }
 
     init(payload: ArchiveEntryPayload, capability: EntryReadCapability, requiresProgress: Bool) {
@@ -15,5 +19,5 @@ final class ArchivePreviewItem: NSObject, QLPreviewItem {
         self.requiresProgress = requiresProgress
     }
 
-    func publish(_ url: URL) { previewItemURL = url }
+    func publish(_ url: URL) { urlStorage.withLock { $0 = url } }
 }
