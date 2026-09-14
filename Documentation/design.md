@@ -232,8 +232,9 @@ drag の promise は drag が終わってから発火するので、index を握
 ### 4.3 capabilities
 
 書庫ごとに一つ `ArchiveCapabilities` を計算し、メニュー項目の有効・無効と
-drop target の受け入れを**すべて**ここから駆動する。書けない書庫に drop の
-ハイライトを出さない。使えない動詞は、どの形式制限が原因かを言う。
+drop 後の処理をここから駆動する。drop のハイライトは、在位編集または新規書庫への
+変換提案につながることを示す。書けない書庫も受け入れ、元の書庫を変えない
+変換を提案する。使えない編集動詞は、どの形式制限が原因かを言う。
 
 ```swift
 struct ArchiveCapabilities: Sendable {
@@ -250,8 +251,9 @@ struct ArchiveCapabilities: Sendable {
 > renumbers it, so drag payloads carry `(archive URL, generation, index, path)`
 > and re-resolve by path when the generation has moved on. One
 > `ArchiveCapabilities` value per archive drives every menu item's enablement and
-> every drop target, so a drop highlight never appears on an archive that cannot
-> be written.
+> the action after a drop. A drop highlight means the action leads to an edit or
+> an offer to create a new archive; read-only archives offer conversion while
+> leaving the original unchanged.
 
 ## 5. UI 構成
 
@@ -754,7 +756,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M3** | 削除・改名・atomic replace、undo | 書庫内編集 | **完了** — GyoshukuKit `7fb2585` / `141469f`、取り消し基盤 `def0666`、モデル層 `fdb8b03`、UI `fac4b91`。新規フォルダ作成は M4 へ送った |
 | **M4** | アイコン / カラム / ギャラリー表示、パスバー、タブ、絞り込み、サムネイル、暗号化書庫の鍵管理 | Finder らしさ | 進行中 — 暗号化書庫 `576ef4d`、パスワードの記憶 `71decb2`、新規フォルダと絞り込み `53e534b`。残りは表示形式(アイコン / カラム / ギャラリー)、パスバー、タブ、サムネイル |
 | **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | 進行中 — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。`ArchiveRewriter` `0c1ee85`(§7.7、検証 `2026-09-14-archive-rewriter.md`)。KaitoFinder の再圧縮モード編集 `846ceed`(検証 `2026-09-14-rewrite-mode.md`)。残りは形式変換(§7.4、M6 と一緒に) |
-| **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | 未着手 |
+| **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | 実装済み、sandbox 外での XCTest と実機確認待ち |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。

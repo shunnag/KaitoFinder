@@ -61,6 +61,14 @@ actor ArchiveSession {
         return (try requireCurrentReader().reopen(), quarantine)
     }
 
+    func preparedPassword() async throws -> String? {
+        let expectedGeneration = generation
+        let entries = try requireCurrentReader().entries
+        try await prepareEncryptedEntries(entries, generation: expectedGeneration)
+        try checkReadRequest(generation: expectedGeneration)
+        return password
+    }
+
     private func requireCurrentReader() throws -> ArchiveReader {
         guard !closed, let reader else { throw CancellationError() }
         guard !invalidated else { throw ExtractionFailure.refused("変更後の書庫を読み直せませんでした") }

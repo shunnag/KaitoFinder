@@ -37,6 +37,20 @@ final class ExtractionProgressSheet: NSWindowController {
         guard let window else { return }
         refresh()
         parent.beginSheet(window)
+        startUpdating()
+    }
+
+    func beginStandalone() {
+        guard let window else { return }
+        refresh()
+        window.level = .floating
+        window.center()
+        showWindow(nil)
+        startUpdating()
+    }
+
+    private func startUpdating() {
+        updateTask?.cancel()
         updateTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(100))
@@ -49,7 +63,10 @@ final class ExtractionProgressSheet: NSWindowController {
     func finish() {
         updateTask?.cancel()
         updateTask = nil
-        if let window { window.sheetParent?.endSheet(window) }
+        if let window {
+            window.sheetParent?.endSheet(window)
+            window.orderOut(nil)
+        }
     }
 
     private func refresh() {

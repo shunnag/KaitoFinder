@@ -26,6 +26,29 @@
 	<string>NSApplication</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>KaitoFinderで圧縮</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>compressFiles</string>
+			<key>NSPortName</key>
+			<string>KaitoFinder</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.item</string>
+			</array>
+			<key>NSRequiredContext</key>
+			<dict>
+				<key>NSApplicationIdentifier</key>
+				<string>com.apple.finder</string>
+			</dict>
+		</dict>
+	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -52,6 +75,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -323,6 +347,25 @@
 				<array>
 					<string>gz</string>
 					<string>gzip</string>
+					<string>tgz</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.gnu.gnu-zip-tar-archive</string>
+			<key>UTTypeDescription</key>
+			<string>tar.gz</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>tar.gz</string>
 					<string>tgz</string>
 				</array>
 			</dict>

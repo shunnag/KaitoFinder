@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
     private(set) var forgetPasswordsTask: Task<Void, Never>?
+    private(set) var archiveCreationTask: Task<Void, Never>?
+    private(set) var creationOpenPanel: NSOpenPanel?
 
     override convenience init() { self.init(passwordVault: .shared) }
 
@@ -40,10 +42,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         ExtractionTemporaryDirectory().startLaunchSweep()
         documentController = NSDocumentController.shared
+        NSApp.servicesProvider = self
         NSApp.mainMenu = makeMenu()
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
+
+    @objc func newArchive(_ sender: Any?) {
+        guard archiveCreationTask == nil, creationOpenPanel == nil else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = String(localized: "選択")
+        panel.message = String(localized: "書庫にする項目を選んでください")
+        creationOpenPanel = panel
+        panel.begin { [weak self] response in
+            guard let self else { return }
+            self.creationOpenPanel = nil
+            if response == .OK { self.startArchiveCreation(sources: panel.urls) }
+        }
+    }
+
+    static func filesToCompress(from pasteboard: NSPasteboard) -> [URL] {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return urls.filter(\.isFileURL)
+    }
+
+    @objc func compressFiles(_ pboard: NSPasteboard, userData: String,
+                             error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        let sources = Self.filesToCompress(from: pboard)
+        guard !sources.isEmpty else {
+            error.pointee = String(localized: "書庫にする項目を選んでください") as NSString
+            return
+        }
+        guard archiveCreationTask == nil, creationOpenPanel == nil else {
+            error.pointee = String(localized: "別の操作が完了するまでお待ちください") as NSString
+            return
+        }
+        NSApp.activate()
+        startArchiveCreation(sources: sources)
+    }
+
+    private func startArchiveCreation(sources: [URL]) {
+        guard !sources.isEmpty, archiveCreationTask == nil else { return }
+        archiveCreationTask = Task {
+            defer { archiveCreationTask = nil }
+            do { try await ArchiveCreationController().createAndOpen(sources: sources) }
+            catch {
+                if !(error is CancellationError) { ArchiveCreationController.presentFailure(error) }
+            }
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 実行ファイルへ直接渡したパスも、通常の文書オープン経路へ流す。
@@ -67,6 +117,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appMenu.addItem(withTitle: String(localized: "KaitoFinderを終了"),
                         action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let fileMenu = NSMenu(title: String(localized: "ファイル"))
+        let create = fileMenu.addItem(withTitle: String(localized: "新規書庫…"),
+                                     action: #selector(newArchive(_:)), keyEquivalent: "n")
+        create.target = self
         let open = fileMenu.addItem(withTitle: String(localized: "開く…"),
                                    action: #selector(NSDocumentController.openDocument(_:)), keyEquivalent: "O")
         open.target = documentController

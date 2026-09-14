@@ -48,6 +48,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private(set) var unlockTask: Task<Void, Never>?
     private let unlockButton = NSButton(title: String(localized: "ロックを解除"), target: nil, action: nil)
     private(set) var deletionConfirmation: NSAlert?
+    private(set) var conversionConfirmation: NSAlert?
+    private(set) var creationController: ArchiveCreationController?
     private(set) var editProgressSheet: ExtractionProgressSheet?
     private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
@@ -436,7 +438,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 && (menuItem.action != #selector(renameEntry(_:)) || count == 1)
         case #selector(paste(_:)):
             menuItem.toolTip = archiveSession?.capabilities.readOnlyReason
-            return archiveSession?.capabilities.canAppend == true && extractionTask == nil
+            return archiveSession != nil && !operationInFlight
                 && ArchiveIncomingPasteboard.canPaste(AppKitArchivePasteboard(pasteboard: .general))
         case #selector(openEntry(_:)), #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)):
             let items = previewItems()
@@ -452,7 +454,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private var operationInFlight: Bool {
-        extractionTask != nil || deletionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
+        extractionTask != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
     }
 
@@ -703,11 +705,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var displayedFolder: String { root.path }
 
     @objc func paste(_ sender: Any?) {
-        guard let session = archiveSession, extractionTask == nil else { return }
-        guard session.capabilities.canAppend else {
-            reportImportFailure(session.capabilities.readOnlyReason ?? "この書庫は変更できません")
-            return
-        }
+        guard archiveSession != nil, !operationInFlight else { return }
         startImport(urls: ArchiveIncomingPasteboard.readPaste(AppKitArchivePasteboard(pasteboard: .general)), incoming: nil, folder: displayedFolder)
     }
 
@@ -721,18 +719,18 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
               ArchiveDropTarget.accepts(capabilities: session.capabilities,
                 offersCopy: info.draggingSourceOperationMask.contains(.copy),
                 hasFiles: ArchiveIncomingPasteboard.representation(AppKitArchivePasteboard(pasteboard: info.draggingPasteboard)) != .none,
-                busy: extractionTask != nil) else { return [] }
+                busy: operationInFlight) else { return [] }
         let row = outlineView.row(at: outlineView.convert(info.draggingLocation, from: nil))
         let hovered = row >= 0 ? outlineView.item(atRow: row) as? EntryNode : nil
-        let folder = ArchiveDropTarget.node(for: hovered, in: root)
+        let folder = session.capabilities.canAppend ? ArchiveDropTarget.node(for: hovered, in: root) : nil
         outlineView.setDropItem(folder, dropChildIndex: NSOutlineViewDropOnItemIndex)
         return .copy
     }
 
     func outlineView(_ outlineView: NSOutlineView, acceptDrop info: any NSDraggingInfo,
                      item: Any?, childIndex index: Int) -> Bool {
-        guard let session = archiveSession, session.capabilities.canAppend,
-              info.draggingSourceOperationMask.contains(.copy), extractionTask == nil else { return false }
+        guard archiveSession != nil,
+              info.draggingSourceOperationMask.contains(.copy), !operationInFlight else { return false }
         let pasteboard = info.draggingPasteboard
         do {
             switch ArchiveIncomingPasteboard.readDrop(AppKitArchivePasteboard(pasteboard: pasteboard)) {
@@ -750,8 +748,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String) {
-        guard let window, let document = document as? ArchiveDocument, extractionTask == nil,
+        guard let window, let session = archiveSession, !operationInFlight,
               incoming != nil || !urls.isEmpty else { return }
+        if !session.capabilities.canAppend {
+            offerConversion(urls: urls, incoming: incoming, session: session)
+            return
+        }
+        guard let document = document as? ArchiveDocument else { return }
         closePreview()
         materialization?.cancel()
         let progress = Progress(totalUnitCount: 0)
@@ -779,6 +782,62 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             self?.extractionTask = nil
             self?.extractionProgress = nil
         }
+    }
+
+    private func offerConversion(urls: [URL], incoming: ArchiveIncomingFiles?, session: ArchiveSession) {
+        guard let window else { return }
+        closePreview()
+        materialization?.cancel()
+        let expectedGeneration = generation
+        let notice = ArchiveConversionNotice(formatName: ArchiveConversionNotice.formatName(for: session),
+                                             entries: ExtractionSelection(nodes: [root]).entries)
+        let alert = NSAlert()
+        alert.messageText = notice.messageText
+        alert.informativeText = notice.informativeText
+        alert.addButton(withTitle: String(localized: "新しい書庫を作成…"))
+        alert.addButton(withTitle: String(localized: "キャンセル"))
+        alert.buttons.last?.keyEquivalent = "\u{1b}"
+        conversionConfirmation = alert
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, self.conversionConfirmation === alert else { return }
+            self.conversionConfirmation = nil
+            guard response == .alertFirstButtonReturn, self.archiveSession === session,
+                  self.generation == expectedGeneration, session.generation == expectedGeneration else { return }
+            self.startConversion(urls: urls, incoming: incoming, session: session)
+        }
+    }
+
+    private func startConversion(urls: [URL], incoming: ArchiveIncomingFiles?, session: ArchiveSession) {
+        guard let window, !operationInFlight else { return }
+        let progress = Progress(totalUnitCount: 0)
+        extractionProgress = progress
+        let creator = ArchiveCreationController()
+        creationController = creator
+        extractionTask = Task { [weak self] in
+            defer {
+                // 保存先の入力中も、作成が完了するまで受信済みのファイルを消さない。
+                withExtendedLifetime(incoming) {}
+                self?.creationController = nil
+                self?.extractionTask = nil
+                self?.extractionProgress = nil
+                self?.extractionCancellation?.cancel()
+                self?.extractionCancellation = nil
+            }
+            do {
+                // パスワードの入力と全 entry の検証を、保存パネルや圧縮の前に済ませる。
+                let password = try await session.preparedPassword()
+                let snapshot = await session.snapshot()
+                try ArchiveImportPlan.checkCancellation(progress)
+                let sources: [URL]
+                if let incoming { sources = try await incoming.receive(progress: progress) }
+                else { sources = urls }
+                let existing = ArchiveCreationPlan.Existing(url: session.sourceURL, password: password, entries: snapshot.entries)
+                try await creator.createAndOpen(sources: sources, existing: existing, on: window, progress: progress)
+            } catch {
+                if !(error is CancellationError), !Task.isCancelled { ArchiveCreationController.presentFailure(error) }
+            }
+        }
+        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
     }
 
     private func reportImportFailure(_ reason: String, added: Bool = false) {
@@ -859,11 +918,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             deletionConfirmation = nil
             window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn)
         }
+        if let alert = conversionConfirmation {
+            conversionConfirmation = nil
+            window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn)
+        }
         closePreview()
         materialization?.close()
         extractionProgress?.cancel()
         extractionTask?.cancel()
         extractionSheet?.finish()
+        creationController?.savePanel?.panel.cancel(nil)
+        creationController?.progressSheet?.finish()
     }
 
     private func reportFailure(_ reason: String) {

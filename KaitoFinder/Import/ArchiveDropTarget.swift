@@ -22,8 +22,9 @@ nonisolated enum ArchiveDropTarget {
         }
         return current
     }
-    static func accepts(capabilities: ArchiveCapabilities, offersCopy: Bool, hasFiles: Bool, busy: Bool) -> Bool {
-        capabilities.canAppend && offersCopy && hasFiles && !busy
+    static func accepts(capabilities _: ArchiveCapabilities, offersCopy: Bool, hasFiles: Bool, busy: Bool) -> Bool {
+        // 読み取り専用でも新しい書庫への変換を提案する。ハイライトは操作の入口を示す。
+        offersCopy && hasFiles && !busy
     }
 }
 

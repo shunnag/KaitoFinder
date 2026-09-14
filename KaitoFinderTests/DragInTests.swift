@@ -118,12 +118,12 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 
-    func testUnsupportedTarWrapperRefusesDropAndAppendWithFormatReason() async throws {
+    func testUnsupportedTarWrapperAcceptsConversionDropButRefusesAppendWithFormatReason() async throws {
         let fixture = try Fixture(filename: "archive.tar.bz2", script: "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))")
         let session = try ArchiveSession(url: fixture.archive)
         XCTAssertEqual(session.capabilities.refusal, .format("tar.bz2"))
         XCTAssertEqual(session.capabilities.readOnlyReason, "tar.bz2 書庫は変更できません")
-        XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: true, hasFiles: true, busy: false))
+        XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: true, hasFiles: true, busy: false))
         let before = try Data(contentsOf: fixture.archive)
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: Progress())
@@ -138,7 +138,7 @@ nonisolated final class DragInTests: XCTestCase {
         let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: .zip)
         XCTAssertEqual(capability.refusal, .gatekeeper(gate, gate.reason))
         XCTAssertTrue(capability.readOnlyReason?.contains(gate.reason) == true)
-        XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: true, busy: false))
+        XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: true, busy: false))
         // KaitoKit の読み取りと、文書 open 時の検査も独立に通す。
         let session = try ArchiveSession(url: fixture.archive)
         XCTAssertEqual(session.capabilities.refusal, capability.refusal)
@@ -214,12 +214,27 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(session.generation, 0)
     }
 
-    func testDropRequiresCopyAndIdleWritableArchive() {
+    func testDropRequiresCopyFilesAndIdleArchive() {
         let writable = ArchiveCapabilities(mode: .inPlace)
         XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: true, hasFiles: true, busy: false))
         XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: false, hasFiles: true, busy: false))
         XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: true, hasFiles: false, busy: false))
         XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: writable, offersCopy: true, hasFiles: true, busy: true))
+    }
+
+    func testEveryReadOnlyRefusalOffersConversionForFileDrops() {
+        let refusals: [ArchiveCapabilities.Refusal] = [
+            .format("RAR"), .gatekeeper(.sfxPrefix, "SFX"), .encrypted,
+            .unrepresentable("symlink"), .unavailable("read-only volume")
+        ]
+        for refusal in refusals {
+            let capability = ArchiveCapabilities(refusal: refusal)
+            XCTAssertFalse(capability.canAppend)
+            XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: true, busy: false))
+            XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: false, hasFiles: true, busy: false))
+            XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: false, busy: false))
+            XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: true, busy: true))
+        }
     }
 
     func testPromiseRepresentationTakesPriorityOverFileURL() {
