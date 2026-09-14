@@ -600,18 +600,19 @@ nonisolated final class ExtractionTests: XCTestCase {
     }
 
     @MainActor
-    func testDocumentOptsIntoConcurrentReadingAndParsesOffMainThread() async throws {
+    func testDocumentReadsOnMainActorWhileSessionCanBeBuiltOffMain() async throws {
         let fixture = try Fixture("""
         with tarfile.open(p, 'w', format=tarfile.USTAR_FORMAT) as t:
             i = tarfile.TarInfo('background')
             i.size = 4
             t.addfile(i, io.BytesIO(b'data'))
         """, suffix: "tar")
-        XCTAssertTrue(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.tar-archive"))
-        XCTAssertTrue(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.zip-archive"))
+        // 並行読み込みを許すと AppKit が @MainActor の initializer をバックグラウンドの
+        // "NSDocumentController Opening" queue で呼んで trap する(実測、4135e04)。
+        // 文書は main actor で作る。parser 自体(ArchiveSession)は非 main でも動く。
+        XCTAssertFalse(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.tar-archive"))
+        XCTAssertFalse(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.zip-archive"))
         let archive = fixture.archive
-        // NSDocument の並行読み込み契約と、read が呼ぶ parser の非 main 実行を分けて検証する。
-        // NSDocument 自体を Swift Task へ転送せず、AppKit の隔離規約を維持する。
         let session = try await Task.detached {
             XCTAssertFalse(Thread.isMainThread)
             return try ArchiveSession(url: archive)
