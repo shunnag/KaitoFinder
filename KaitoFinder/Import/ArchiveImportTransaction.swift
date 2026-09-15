@@ -472,8 +472,8 @@ nonisolated enum ArchiveImportTransaction {
         guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
             throw ExtractionFailure.refused(String(localized: "アーカイブの原本を確認できません。"))
         }
+        // LaunchServicesのlastuseddate拡張属性やFinderタグは、内容を変えずにctimeを更新する。
         return [Int64(info.st_dev), Int64(bitPattern: info.st_ino), info.st_size, Int64(info.st_mode),
-                Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec),
-                Int64(info.st_ctimespec.tv_sec), Int64(info.st_ctimespec.tv_nsec)]
+                Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec)]
     }
 }

@@ -60,6 +60,11 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         XCTAssertTrue(panel.currentController as AnyObject? === controller)
         XCTAssertNotNil(controller.previewPanel(panel, previewItemAt: 0)?.previewItemURL)
         controller.togglePreviewPanel(nil)
+        let hideDeadline = Date().addingTimeInterval(2)
+        while panel.isVisible, Date() < hideDeadline {
+            runMainRunLoop(until: min(hideDeadline, Date().addingTimeInterval(0.01)))
+            try await Task.sleep(for: .milliseconds(10))
+        }
         XCTAssertFalse(panel.isVisible)
     }
 
@@ -76,6 +81,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     @MainActor @discardableResult private func assertOpensThroughDocumentController(
         _ url: URL, in directory: ArchiveTestDirectory, expectedTopLevelPaths: [String] = ["nested", "note.txt"]
     ) async throws -> ArchiveWindowController {
+        preserveArchiveWindowFrame()
         let (openedDocument, error) = await withCheckedContinuation {
             (continuation: CheckedContinuation<(NSDocument?, (any Error)?), Never>) in
             NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { document, _, error in
