@@ -35,10 +35,11 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
                 }
             }
         }
-        for (language, title) in [("ja", "KaitoFinderで圧縮"), ("en", "Compress with KaitoFinder")] {
+        for (language, title, extractTitle) in [("ja", "KaitoFinderで圧縮", "KaitoFinderで展開"),
+                                                ("en", "Compress with KaitoFinder", "Extract with KaitoFinder")] {
             let data = try Data(contentsOf: root.appendingPathComponent("KaitoFinder/Resources/\(language).lproj/ServicesMenu.strings"))
             let services = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String])
-            XCTAssertEqual(services, ["KaitoFinderで圧縮": title])
+            XCTAssertEqual(services, ["KaitoFinderで圧縮": title, "KaitoFinderで展開": extractTitle])
         }
     }
 

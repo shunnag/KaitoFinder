@@ -14,6 +14,11 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
                   path: node.entry?.name ?? node.path, isDirectory: node.isDirectory)
     }
 
+    // 画面の「すべて展開」と一括展開で、仮想フォルダを含む同じ選択を作る。
+    @MainActor static func payloads(for nodes: [EntryNode], archiveURL: URL, generation: UInt64) -> [ArchiveEntryPayload] {
+        nodes.map { ArchiveEntryPayload(node: $0, archiveURL: archiveURL, generation: generation) }
+    }
+
     init(archiveURL: URL, generation: UInt64, entryIndex: Int?, path: String, isDirectory: Bool) {
         self.archiveURL = archiveURL
         self.generation = generation

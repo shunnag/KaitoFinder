@@ -48,6 +48,43 @@
 				<string>com.apple.finder</string>
 			</dict>
 		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>KaitoFinderで展開</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>extractArchives</string>
+			<key>NSPortName</key>
+			<string>KaitoFinder</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>public.bzip2-archive</string>
+				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.lzma-archive</string>
+				<string>public.z-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
+				<string>com.rarlab.rar-archive</string>
+				<string>public.lha-archive</string>
+				<string>public.iso-image</string>
+				<string>public.cpio-archive</string>
+				<string>com.shunnag.KaitoFinder.ar-archive</string>
+				<string>com.apple.xar-archive</string>
+				<string>com.apple.installer-package-archive</string>
+				<string>com.microsoft.cab-archive</string>
+				<string>com.redhat.rpm-archive</string>
+			</array>
+			<key>NSRequiredContext</key>
+			<dict>
+				<key>NSApplicationIdentifier</key>
+				<string>com.apple.finder</string>
+			</dict>
+		</dict>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>

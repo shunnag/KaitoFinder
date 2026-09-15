@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
     private(set) var creationOpenPanel: NSOpenPanel?
+    private(set) var batchExtractionTask: Task<Void, Never>?
+    private(set) var batchExtractionOpenPanel: NSOpenPanel?
+    private(set) var batchExtractionController: ArchiveBatchExtractionController?
 
     override convenience init() { self.init(passwordVault: .shared) }
 
@@ -110,6 +113,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc func extractArchivesFromMenu(_ sender: Any?) {
+        guard batchExtractionTask == nil, batchExtractionOpenPanel == nil else { return }
+        let panel = ArchiveBatchExtractionController.makeArchivePanel()
+        batchExtractionOpenPanel = panel
+        panel.begin { [weak self] response in
+            guard let self else { return }
+            self.batchExtractionOpenPanel = nil
+            if response == .OK { self.startBatchExtraction(archives: panel.urls) }
+        }
+    }
+
+    static func archivesToExtract(from pasteboard: NSPasteboard) -> [URL] {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        return urls.filter { $0.isFileURL && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true }
+    }
+
+    @objc func extractArchives(_ pboard: NSPasteboard, userData: String,
+                              error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        guard batchExtractionTask == nil, batchExtractionOpenPanel == nil else {
+            error.pointee = String(localized: "別の操作が完了するまでお待ちください。") as NSString
+            return
+        }
+        let archives = Self.archivesToExtract(from: pboard)
+        guard !archives.isEmpty else {
+            error.pointee = String(localized: "展開するアーカイブを選んでください。") as NSString
+            return
+        }
+        NSApp.activate()
+        startBatchExtraction(archives: archives)
+    }
+
+    private func startBatchExtraction(archives: [URL]) {
+        guard !archives.isEmpty, batchExtractionTask == nil else { return }
+        batchExtractionTask = Task {
+            let controller = ArchiveBatchExtractionController(store: preferencesStore, passwordVault: passwordVault)
+            batchExtractionController = controller
+            defer { batchExtractionTask = nil; batchExtractionController = nil }
+            await controller.extract(archives: archives)
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 実行ファイルへ直接渡したパスも、通常の文書オープン経路へ流す。
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
@@ -152,6 +196,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let create = fileMenu.addItem(withTitle: String(localized: "新規アーカイブ…", bundle: bundle),
                                      action: #selector(newArchive(_:)), keyEquivalent: "n")
         create.target = self
+        let extract = fileMenu.addItem(withTitle: String(localized: "アーカイブを展開…", bundle: bundle),
+                                      action: #selector(extractArchivesFromMenu(_:)), keyEquivalent: "")
+        extract.target = self
         let open = fileMenu.addItem(withTitle: String(localized: "開く…", bundle: bundle),
                                    action: #selector(NSDocumentController.openDocument(_:)), keyEquivalent: "O")
         open.target = documentController

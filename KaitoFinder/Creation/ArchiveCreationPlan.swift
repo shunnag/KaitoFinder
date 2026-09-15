@@ -41,13 +41,17 @@ nonisolated struct ArchiveCreationPlan: Sendable {
     }
 
     static func conversionName(for archive: URL, format: GyoshukuKit.ArchiveFormat) -> String {
+        archiveStem(for: archive) + "." + filenameExtension(for: format)
+    }
+
+    static func archiveStem(for archive: URL) -> String {
         let name = archive.lastPathComponent
-        // 二重拡張子も一つの書庫拡張子として外す。写真などの通常の拡張子は defaultName が残す。
+        // 二重拡張子も一つのアーカイブ拡張子として外し、形式変換と一括展開で共有する。
         let wrappers = ["tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.lzma", "tar.Z"]
         let stem: String
         if let suffix = wrappers.first(where: { name.lowercased().hasSuffix("." + $0.lowercased()) }) {
             stem = String(name.dropLast(suffix.count + 1))
         } else { stem = archive.deletingPathExtension().lastPathComponent }
-        return stem + "." + filenameExtension(for: format)
+        return stem.isEmpty ? String(localized: "アーカイブ") : stem
     }
 }
