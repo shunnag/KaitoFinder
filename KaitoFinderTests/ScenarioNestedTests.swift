@@ -48,7 +48,7 @@ nonisolated final class ScenarioNestedTests: XCTestCase {
         await inner.sessionCleanup?.value
     }
 
-    func testTemporaryCopyNoticeHasAllTenTranslations() throws {
+    func testTemporaryCopyNoticeHasAllTwentySixTranslations() throws {
         let key = "一時的なコピーのため変更できません。"
         let translations = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key]).localizations
         XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))

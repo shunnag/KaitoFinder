@@ -689,7 +689,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         await assertPassword(session, equals: nil)
     }
 
-    @MainActor func testPasswordPromptAndNewMessagesHaveAllTenTranslations() throws {
+    @MainActor func testPasswordPromptAndNewMessagesHaveAllTwentySixTranslations() throws {
         let app = Bundle(for: ArchiveDocument.self)
         for language in LocalizationAcceptance.languages {
             let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))

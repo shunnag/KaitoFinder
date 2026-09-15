@@ -169,6 +169,22 @@
 				"zh-Hant",
 				"pt-BR",
 				fr,
+				th,
+				vi,
+				id,
+				ms,
+				hi,
+				ru,
+				nl,
+				pl,
+				tr,
+				sv,
+				da,
+				nb,
+				fi,
+				uk,
+				cs,
+				"pt-PT",
 			);
 			mainGroup = F00000000000000000000001;
 			minimizedProjectReferenceProxies = 1;

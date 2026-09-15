@@ -8,7 +8,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         String(String(repeating: "旅行の写真 Archive ", count: 6).prefix(66)) + ".zip"
     }
 
-    @MainActor private func forEachLanguage(_ languages: [String] = ["ja", "en"], _ body: (String, Bundle) throws -> Void) throws {
+    @MainActor private func forEachLanguage(_ languages: [String] = LocalizationAcceptance.languages, _ body: (String, Bundle) throws -> Void) throws {
         let app = Bundle(for: ArchiveDocument.self)
         for language in languages {
             let url = try XCTUnwrap(app.url(forResource: language, withExtension: "lproj"), language)
@@ -54,7 +54,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testLockedPlaceholderInJapaneseAndEnglish() throws {
+    @MainActor func testLockedPlaceholderInEveryLanguage() throws {
         let frameAutosave = ArchiveWindowFrameAutosave()
         defer { frameAutosave.restore() }
         try forEachLanguage { language, bundle in
@@ -75,7 +75,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertFalse(controller.lockedPlaceholder.isHidden)
             XCTAssertTrue(controller.statusBar.isHidden)
             XCTAssertFalse(controller.searchField.isEnabled)
-            XCTAssertEqual(controller.unlockButton.title, language == "ja" ? "ロックを解除…" : "Unlock…")
+            XCTAssertEqual(controller.unlockButton.title, String(localized: "ロックを解除…", bundle: bundle))
             XCTAssertEqual(controller.unlockButton.keyEquivalent, "\r")
             XCTAssertTrue(window.defaultButtonCell === controller.unlockButton.cell)
             for item in try XCTUnwrap(window.toolbar).items where item.itemIdentifier != .flexibleSpace {
@@ -203,7 +203,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                      isEncrypted: encrypted, solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:])
     }
 
-    @MainActor func testConversionAlertsInJapaneseAndEnglish() throws {
+    @MainActor func testConversionAlertsInEveryLanguage() throws {
         try forEachLanguage { language, bundle in
             for encrypted in [false, true] {
                 let alert = ArchiveConversionNotice.makeAlert(formatName: "7z", entries: [entry(encrypted: encrypted)], bundle: bundle)
@@ -212,13 +212,13 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testDeleteConfirmationInJapaneseAndEnglish() throws {
+    @MainActor func testDeleteConfirmationInEveryLanguage() throws {
         try forEachLanguage { language, bundle in
             try snapshot(ArchiveWindowController.makeDeletionConfirmation(bundle: bundle), name: "\(language)-delete-confirmation")
         }
     }
 
-    @MainActor func testImportFailureAlertsInJapaneseAndEnglish() throws {
+    @MainActor func testImportFailureAlertsInEveryLanguage() throws {
         try forEachLanguage { language, bundle in
             let reason = (1...3).map { index in
                 "\(index)-\(longArchiveName): " + String(localized: "このアーカイブは変更できません。", bundle: bundle)
@@ -230,7 +230,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testEditFailureAlertsInJapaneseAndEnglish() throws {
+    @MainActor func testEditFailureAlertsInEveryLanguage() throws {
         try forEachLanguage { language, bundle in
             let reason = String(localized: "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。", bundle: bundle)
             for published in [false, true] {
@@ -240,14 +240,14 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testExtractionFailureAlertsInJapaneseAndEnglish() throws {
+    @MainActor func testExtractionFailureAlertsInEveryLanguage() throws {
         try forEachLanguage { language, bundle in
             let reason = String(localized: "アーカイブが閉じられています。", bundle: bundle)
             try snapshot(ArchiveWindowController.makeFailureAlert(reason, bundle: bundle), name: "\(language)-extraction-failure")
         }
     }
 
-    @MainActor func testBatchExtractionFailureAlertInJapaneseAndEnglish() throws {
+    @MainActor func testBatchExtractionFailureAlertInEveryLanguage() throws {
         try forEachLanguage { language, bundle in
             let reason = String(localized: "このアーカイブは変更できません。", bundle: bundle)
             let failures = ["写真.zip", "documents.7z", longArchiveName].map {
@@ -311,7 +311,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testStatusBarWithLargeCountsInJapaneseAndEnglish() throws {
+    @MainActor func testStatusBarWithLargeCountsInEveryLanguage() throws {
         let frameAutosave = ArchiveWindowFrameAutosave()
         defer { frameAutosave.restore() }
         try forEachLanguage { language, bundle in

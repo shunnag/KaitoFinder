@@ -129,7 +129,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         }
     }
 
-    func testAllErrorTextKeysHaveTenTranslations() throws {
+    func testAllErrorTextKeysHaveTwentySixTranslations() throws {
         let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/UI/ArchiveErrorText.swift"),
                                 encoding: .utf8)
         let catalog = try LocalizationAcceptance.catalog()

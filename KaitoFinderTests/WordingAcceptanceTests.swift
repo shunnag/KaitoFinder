@@ -4,7 +4,14 @@ import CryptoKit
 @testable import KaitoFinder
 
 nonisolated enum LocalizationAcceptance {
-    static let languages = ["ja", "en", "de", "fr", "es", "it", "pt-BR", "zh-Hans", "zh-Hant", "ko"]
+    static let languages = ["ja", "en", "de", "fr", "es", "it", "pt-BR", "zh-Hans", "zh-Hant", "ko",
+                            "th", "vi", "id", "ms", "hi", "ru", "nl", "pl", "tr", "sv", "da", "nb", "fi", "uk", "cs", "pt-PT"]
+
+    static func sentenceEnding(_ language: String) -> String {
+        if language == "th" { return "" }
+        if language == "hi" { return "।" }
+        return ["ja", "zh-Hans", "zh-Hant"].contains(language) ? "。" : "."
+    }
     // AppKitがメニュータイトルで行う、改行しない空白の正規化だけを許容する。
     static func normalizedTitle(_ title: String) -> String {
         title.replacingOccurrences(of: "\u{00a0}", with: " ")
@@ -35,7 +42,7 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
-    func testPasswordWordingHasTenTranslationsAndRetiresEveryOldRefusalTranslation() throws {
+    func testPasswordWordingHasTwentySixTranslationsAndRetiresEveryOldRefusalTranslation() throws {
         let catalog = try LocalizationAcceptance.catalog()
         let keys = [
             "パスワードを設定…",
@@ -64,7 +71,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             let entry = try XCTUnwrap(catalog.strings[key], key)
             XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages), key)
         }
-        // 廃止した文言自体をソースへ残さず、10 言語すべての復活を検出する。
+        // 廃止した既存 10 言語の文言を、26 言語のカタログ全体で復活させない。
         let retiredDigests: Set<String> = [
             "aececabd9ae30032d4096b26744c35b27684ab7723f0b80410e1ceb4dff53da5",
             "65f720b2103c624b5af0443bc4e20a564da27aee9d45ed1d0840a97ded0ba930",
@@ -85,7 +92,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
         }
     }
 
-    func testEnglishDevelopmentFallbackKeepsAllTenLocalizations() {
+    func testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations() {
         XCTAssertEqual(Bundle.main.infoDictionary?["CFBundleDevelopmentRegion"] as? String, "en")
         XCTAssertTrue(Set(LocalizationAcceptance.languages).isSubset(of: Set(Bundle.main.localizations)))
     }
@@ -96,9 +103,10 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
         }
     }
 
-    func testCatalogHasTenNonemptyTranslationsWithMatchingOrderedFormatSpecifiers() throws {
+    func testCatalogHasTwentySixNonemptyTranslationsWithMatchingOrderedFormatSpecifiers() throws {
         let catalog = try LocalizationAcceptance.catalog()
         XCTAssertEqual(catalog.sourceLanguage, "ja")
+        XCTAssertEqual(LocalizationAcceptance.languages.count, 26)
         XCTAssertFalse(catalog.strings.isEmpty)
         let formats = try NSRegularExpression(pattern: #"%(?:\d+\$)?(?:lld|d|@)"#)
         func specifiers(_ text: String) -> [String] {
@@ -210,6 +218,240 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
         }
     }
 
+    // Archive Utility / Finder / AppKit の語彙。Archive の名詞・動詞は文脈に合わせる。
+    private func checkAddedLanguageStyle(_ language: String, opening: String, closing: String,
+                                        vocabulary: [String: String]) throws {
+        try checkNameQuotes(language, opening: opening, closing: closing)
+        let strings = try LocalizationAcceptance.catalog().strings
+        for (key, expected) in vocabulary {
+            XCTAssertEqual(strings[key]?.localizations[language]?.stringUnit.value, expected, "\(language): \(key)")
+        }
+        for (key, text) in try texts(language) {
+            XCTAssertFalse(text.contains("..."), "\(language): \(key)")
+            XCTAssertFalse(text.contains("。"), "\(language): \(key)")
+            if key.hasSuffix("…") {
+                XCTAssertTrue(text.hasSuffix("…"), "\(language): \(key)")
+                XCTAssertFalse(text.dropLast().last?.isWhitespace == true, "\(language): \(key)")
+            }
+            if strings[key]?.localizations["en"]?.stringUnit.value.hasSuffix(".") == true {
+                let ending = LocalizationAcceptance.sentenceEnding(language)
+                if ending.isEmpty {
+                    XCTAssertFalse([".", "।"].contains { text.hasSuffix($0) }, "\(language): \(key)")
+                } else {
+                    XCTAssertTrue(text.hasSuffix(ending), "\(language): \(key)")
+                    XCTAssertFalse(text.hasSuffix(ending + ending), "\(language): \(key)")
+                }
+            }
+        }
+    }
+
+    func testThaiStyle() throws {
+        try checkAddedLanguageStyle("th", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "ที่เก็บถาวร",
+            "展開": "ขยาย",
+            "圧縮": "การบีบอัด",
+            "隠しファイルを表示": "แสดงไฟล์ที่ซ่อนอยู่",
+            "別名で保存…": "บันทึกเป็น…",
+            "パスワード:": "รหัสผ่าน:",
+            "KaitoFinderで圧縮": "บีบอัดด้วย KaitoFinder"
+        ])
+    }
+
+    func testVietnameseStyle() throws {
+        try checkAddedLanguageStyle("vi", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "Tệp lưu trữ",
+            "展開": "Giải nén",
+            "圧縮": "Nén",
+            "隠しファイルを表示": "Hiển thị tệp ẩn",
+            "別名で保存…": "Lưu thành…",
+            "パスワード:": "Mật khẩu:",
+            "KaitoFinderで圧縮": "Nén bằng KaitoFinder"
+        ])
+    }
+
+    func testIndonesianStyle() throws {
+        try checkAddedLanguageStyle("id", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "Arsip",
+            "展開": "Perluas",
+            "圧縮": "Kompresi",
+            "隠しファイルを表示": "Tampilkan File Tersembunyi",
+            "別名で保存…": "Simpan Sebagai…",
+            "パスワード:": "Kata Sandi:",
+            "KaitoFinderで圧縮": "Kompresi dengan KaitoFinder"
+        ])
+    }
+
+    func testMalayStyle() throws {
+        try checkAddedLanguageStyle("ms", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "Arkib",
+            "展開": "Kembangkan",
+            "圧縮": "Pemampatan",
+            "隠しファイルを表示": "Tunjukkan Fail Tersembunyi",
+            "別名で保存…": "Simpan Sebagai…",
+            "パスワード:": "Kata Laluan:",
+            "KaitoFinderで圧縮": "Mampat dengan KaitoFinder"
+        ])
+    }
+
+    func testHindiStyle() throws {
+        try checkAddedLanguageStyle("hi", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "आर्काइव",
+            "展開": "विस्तारित करें",
+            "圧縮": "कंप्रेशन",
+            "隠しファイルを表示": "छिपी हुई फ़ाइलें दिखाएँ",
+            "別名で保存…": "ऐसे सहेजें…",
+            "パスワード:": "पासवर्ड :",
+            "KaitoFinderで圧縮": "KaitoFinder से कंप्रेस करें"
+        ])
+    }
+
+    func testRussianStyle() throws {
+        try checkAddedLanguageStyle("ru", opening: "«", closing: "»", vocabulary: [
+            "アーカイブ": "Архив",
+            "展開": "Разархивировать",
+            "圧縮": "Сжатие",
+            "隠しファイルを表示": "Показывать скрытые файлы",
+            "別名で保存…": "Сохранить как…",
+            "パスワード:": "Пароль:",
+            "KaitoFinderで圧縮": "Сжать с помощью KaitoFinder"
+        ])
+    }
+
+    func testDutchStyle() throws {
+        try checkAddedLanguageStyle("nl", opening: "'", closing: "'", vocabulary: [
+            "アーカイブ": "Archief",
+            "展開": "Pak uit",
+            "圧縮": "Compressie",
+            "隠しファイルを表示": "Toon verborgen bestanden",
+            "別名で保存…": "Bewaar als…",
+            "パスワード:": "Wachtwoord:",
+            "KaitoFinderで圧縮": "Comprimeer met KaitoFinder"
+        ])
+    }
+
+    func testPolishStyle() throws {
+        try checkAddedLanguageStyle("pl", opening: "„", closing: "”", vocabulary: [
+            "アーカイブ": "Archiwum",
+            "展開": "Rozpakuj",
+            "圧縮": "Kompresja",
+            "隠しファイルを表示": "Pokazuj ukryte pliki",
+            "別名で保存…": "Zachowaj jako…",
+            "パスワード:": "Hasło:",
+            "KaitoFinderで圧縮": "Kompresuj przy użyciu KaitoFinder"
+        ])
+    }
+
+    func testTurkishStyle() throws {
+        try checkAddedLanguageStyle("tr", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "Arşiv",
+            "展開": "Çıkar",
+            "圧縮": "Sıkıştırma",
+            "隠しファイルを表示": "Gizli Dosyaları Göster",
+            "別名で保存…": "Farklı Kaydet…",
+            "パスワード:": "Parola:",
+            "KaitoFinderで圧縮": "KaitoFinder ile Sıkıştır"
+        ])
+    }
+
+    func testSwedishStyle() throws {
+        try checkAddedLanguageStyle("sv", opening: "”", closing: "”", vocabulary: [
+            "アーカイブ": "Arkiv",
+            "展開": "Expandera",
+            "圧縮": "Komprimering",
+            "隠しファイルを表示": "Visa gömda filer",
+            "別名で保存…": "Spara som…",
+            "パスワード:": "Lösenord:",
+            "KaitoFinderで圧縮": "Komprimera med KaitoFinder"
+        ])
+    }
+
+    func testDanishStyle() throws {
+        try checkAddedLanguageStyle("da", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "Komprimeret arkiv",
+            "展開": "Dekomprimer",
+            "圧縮": "Komprimering",
+            "隠しファイルを表示": "Vis skjulte arkiver",
+            "別名で保存…": "Gem som…",
+            "パスワード:": "Adgangskode:",
+            "KaitoFinderで圧縮": "Komprimer med KaitoFinder"
+        ])
+    }
+
+    func testNorwegianBokmalStyle() throws {
+        try checkAddedLanguageStyle("nb", opening: "«", closing: "»", vocabulary: [
+            "アーカイブ": "Arkiv",
+            "展開": "Pakk ut",
+            "圧縮": "Komprimering",
+            "隠しファイルを表示": "Vis skjulte filer",
+            "別名で保存…": "Lagre som…",
+            "パスワード:": "Passord:",
+            "KaitoFinderで圧縮": "Komprimer med KaitoFinder"
+        ])
+    }
+
+    func testFinnishStyle() throws {
+        try checkAddedLanguageStyle("fi", opening: "”", closing: "”", vocabulary: [
+            "アーカイブ": "Arkisto",
+            "展開": "Pura",
+            "圧縮": "Pakkaus",
+            "隠しファイルを表示": "Näytä piilotetut tiedostot",
+            "別名で保存…": "Tallenna nimellä…",
+            "パスワード:": "Salasana:",
+            "KaitoFinderで圧縮": "Pakkaa KaitoFinderilla"
+        ])
+    }
+
+    func testUkrainianStyle() throws {
+        try checkAddedLanguageStyle("uk", opening: "«", closing: "»", vocabulary: [
+            "アーカイブ": "Архів",
+            "展開": "Розпакувати",
+            "圧縮": "Стиснення",
+            "隠しファイルを表示": "Показувати приховані файли",
+            "別名で保存…": "Зберегти як…",
+            "パスワード:": "Пароль:",
+            "KaitoFinderで圧縮": "Створити архів за допомогою KaitoFinder"
+        ])
+    }
+
+    func testCzechStyle() throws {
+        try checkAddedLanguageStyle("cs", opening: "„", closing: "“", vocabulary: [
+            "アーカイブ": "Archiv",
+            "展開": "Rozbalit",
+            "圧縮": "Komprese",
+            "隠しファイルを表示": "Zobrazovat skryté soubory",
+            "別名で保存…": "Uložit jako…",
+            "パスワード:": "Heslo:",
+            "KaitoFinderで圧縮": "Komprimovat pomocí KaitoFinderu"
+        ])
+    }
+
+    func testEuropeanPortugueseStyle() throws {
+        try checkAddedLanguageStyle("pt-PT", opening: "“", closing: "”", vocabulary: [
+            "アーカイブ": "Arquivo",
+            "展開": "Descomprimir",
+            "圧縮": "Compressão",
+            "隠しファイルを表示": "Mostrar ficheiros ocultos",
+            "別名で保存…": "Guardar como…",
+            "パスワード:": "Palavra‑passe:",
+            "KaitoFinderで圧縮": "Comprimir com KaitoFinder"
+        ])
+        for (key, text) in try texts("pt-PT") {
+            XCTAssertFalse(text.lowercased().contains("palavra-passe"), key)
+            XCTAssertFalse(text.lowercased().contains("palavras-passe"), key)
+        }
+    }
+
+    func testAlertNormalizationUsesEachLanguagesPunctuationExactlyOnce() throws {
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let expected = String(localized: "このアーカイブは変更できません。", bundle: bundle)
+            for suffix in ["", ".", "。", "।", "।।", "。.।", " \n"] {
+                XCTAssertEqual(ArchiveAlertText.informativeText(expected + suffix, bundle: bundle), expected, language)
+            }
+            XCTAssertEqual(ArchiveAlertText.informativeText(" 。.। ", bundle: bundle), "", language)
+        }
+    }
+
     private func checkVocabulary(_ language: String, archive: String, item: String, expand: String) throws {
         let strings = try LocalizationAcceptance.catalog().strings
         for (key, expected) in ["アーカイブ": archive, "項目": item, "展開": expand] {
@@ -221,7 +463,23 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
         let counts = ["ja": "%lld / %lld項目", "en": "%lld / %lld items", "de": "%lld / %lld Objekte",
                       "fr": "%lld / %lld éléments", "es": "%lld / %lld ítems", "it": "%lld / %lld elementi",
                       "pt-BR": "%lld / %lld itens", "zh-Hans": "%lld / %lld 项目", "zh-Hant": "%lld / %lld 項目",
-                      "ko": "%lld / %lld개 항목"]
+                      "ko": "%lld / %lld개 항목",
+                      "th": "%lld / %lld รายการ",
+                      "vi": "%lld / %lld mục",
+                      "id": "%lld / %lld item",
+                      "ms": "%lld / %lld item",
+                      "hi": "%lld / %lld आइटम",
+                      "ru": "%lld / %lld объектов",
+                      "nl": "%lld / %lld onderdelen",
+                      "pl": "%lld / %lld rzeczy",
+                      "tr": "%lld / %lld öğe",
+                      "sv": "%lld / %lld objekt",
+                      "da": "%lld / %lld emner",
+                      "nb": "%lld / %lld objekter",
+                      "fi": "%lld / %lld kohdetta",
+                      "uk": "%lld / %lld елем.",
+                      "cs": "%lld / %lld položek",
+                      "pt-PT": "%lld / %lld elementos"]
         let strings = try LocalizationAcceptance.catalog().strings
         for language in LocalizationAcceptance.languages {
             XCTAssertEqual(strings["%lld / %lld項目"]?.localizations[language]?.stringUnit.value, counts[language], language)
@@ -233,7 +491,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
         }
     }
 
-    func testServicesMenusHaveTenLocalizations() throws {
+    func testServicesMenusHaveTwentySixLocalizations() throws {
         let titles = [
             "ja": ["KaitoFinderで圧縮", "KaitoFinderで展開"],
             "en": ["Compress with KaitoFinder", "Expand with KaitoFinder"],
@@ -244,7 +502,23 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             "pt-BR": ["Comprimir com KaitoFinder", "Expandir com KaitoFinder"],
             "zh-Hans": ["使用KaitoFinder压缩", "使用KaitoFinder解压缩"],
             "zh-Hant": ["使用KaitoFinder壓縮", "使用KaitoFinder解壓縮"],
-            "ko": ["KaitoFinder로 압축", "KaitoFinder로 압축 해제"]
+            "ko": ["KaitoFinder로 압축", "KaitoFinder로 압축 해제"],
+            "th": ["บีบอัดด้วย KaitoFinder", "ขยายด้วย KaitoFinder"],
+            "vi": ["Nén bằng KaitoFinder", "Giải nén bằng KaitoFinder"],
+            "id": ["Kompresi dengan KaitoFinder", "Perluas dengan KaitoFinder"],
+            "ms": ["Mampat dengan KaitoFinder", "Kembangkan dengan KaitoFinder"],
+            "hi": ["KaitoFinder से कंप्रेस करें", "KaitoFinder से विस्तारित करें"],
+            "ru": ["Сжать с помощью KaitoFinder", "Разархивировать с помощью KaitoFinder"],
+            "nl": ["Comprimeer met KaitoFinder", "Pak uit met KaitoFinder"],
+            "pl": ["Kompresuj przy użyciu KaitoFinder", "Rozpakuj przy użyciu KaitoFinder"],
+            "tr": ["KaitoFinder ile Sıkıştır", "KaitoFinder ile Çıkar"],
+            "sv": ["Komprimera med KaitoFinder", "Expandera med KaitoFinder"],
+            "da": ["Komprimer med KaitoFinder", "Dekomprimer med KaitoFinder"],
+            "nb": ["Komprimer med KaitoFinder", "Pakk ut med KaitoFinder"],
+            "fi": ["Pakkaa KaitoFinderilla", "Pura KaitoFinderilla"],
+            "uk": ["Створити архів за допомогою KaitoFinder", "Розпакувати за допомогою KaitoFinder"],
+            "cs": ["Komprimovat pomocí KaitoFinderu", "Rozbalit pomocí KaitoFinderu"],
+            "pt-PT": ["Comprimir com KaitoFinder", "Descomprimir com KaitoFinder"]
         ]
         for language in LocalizationAcceptance.languages {
             let expected = try XCTUnwrap(titles[language])
@@ -254,7 +528,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
         }
     }
 
-    func testBuiltAppContainsAllTenLocalizationFoldersAndTranslatedResources() throws {
+    func testBuiltAppContainsAllTwentySixLocalizationFoldersAndTranslatedResources() throws {
         let app = Bundle(for: ArchiveDocument.self)
         let resources = try XCTUnwrap(app.resourceURL)
         for language in LocalizationAcceptance.languages {
@@ -291,7 +565,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
     @MainActor func testAlertPunctuationInEveryLanguage() throws {
         for language in LocalizationAcceptance.languages {
             let bundle = try LocalizationAcceptance.bundle(language)
-            let period = ["ja", "zh-Hans", "zh-Hant"].contains(language) ? "。" : "."
+            let period = LocalizationAcceptance.sentenceEnding(language)
             let reason = String(localized: "このアーカイブは変更できません。", bundle: bundle)
             var alerts = [
                 ArchiveWindowController.makeDeletionConfirmation(bundle: bundle),
@@ -310,8 +584,13 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             for alert in alerts {
                 XCTAssertFalse(alert.messageText.hasSuffix("."), "\(language): \(alert.messageText)")
                 XCTAssertFalse(alert.messageText.hasSuffix("。"), "\(language): \(alert.messageText)")
-                XCTAssertTrue(alert.informativeText.hasSuffix(period), "\(language): \(alert.informativeText)")
-                XCTAssertFalse(alert.informativeText.hasSuffix(period + period), language)
+                XCTAssertFalse(alert.messageText.hasSuffix("।"), "\(language): \(alert.messageText)")
+                if period.isEmpty {
+                    XCTAssertFalse([".", "。", "।"].contains { alert.informativeText.hasSuffix($0) }, language)
+                } else {
+                    XCTAssertTrue(alert.informativeText.hasSuffix(period), "\(language): \(alert.informativeText)")
+                    XCTAssertFalse(alert.informativeText.hasSuffix(period + period), language)
+                }
             }
         }
     }

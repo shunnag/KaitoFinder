@@ -196,7 +196,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertTrue(window.isVisible)
     }
 
-    func testSettingsStringsHaveAllTenTranslations() throws {
+    func testSettingsStringsHaveAllTwentySixTranslations() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
@@ -254,7 +254,23 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                 "保留封存檔", "將封存檔丟到「垃圾桶」", "在Finder中顯示解壓縮的項目"],
             "ko": ["압축 해제된 파일 저장:", "압축 해제 후:", "폴더 생성:",
                 "아카이브와 동일한 디렉토리 안에", "위치 지정…",
-                "아카이브 그대로 유지", "휴지통으로 아카이브 이동", "Finder에서 압축 해제된 항목 나타내기"]
+                "아카이브 그대로 유지", "휴지통으로 아카이브 이동", "Finder에서 압축 해제된 항목 나타내기"],
+            "th": ["บันทึกไฟล์ที่ขยายไปยัง:", "หลังจากขยาย:", "สร้างโฟลเดอร์:", "ในไดเรกทอรีเดียวกับที่เก็บถาวร", "เข้าใน…", "ปล่อยที่เก็บถาวรไว้ตามเดิม", "ย้ายที่เก็บถาวรไปยังถังขยะ", "แสดงรายการที่ขยายแล้วใน Finder"],
+            "vi": ["Lưu (các) tệp đã giải nén vào:", "Sau khi giải nén:", "Tạo thư mục:", "Trong cùng thư mục với tệp lưu trữ", "trong…", "Giữ nguyên tệp lưu trữ", "Chuyển tệp lưu trữ vào Thùng rác", "Hiển thị mục đã giải nén trong Finder"],
+            "id": ["Simpan file yang diperluas ke:", "Setelah memperluas:", "Buat folder:", "Di direktori yang sama dengan arsip", "ke…", "Biarkan arsip tetap seperti semula", "Pindahkan arsip ke Tong Sampah", "Tampilkan item yang diperluas di Finder"],
+            "ms": ["Simpan fail dikembangkan ke dalam:", "Selepas mengembangkan:", "Cipta folder:", "Dalam direktori yang sama dengan arkib", "ke dalam…", "Biarkan arkib tanpa perubahan", "Alihkan arkib ke Sampah", "Tunjukkan item dikembangkan dalam Finder"],
+            "hi": ["विस्तारित फ़ाइलें इसमें सहेजें :", "विस्तारण के बाद :", "फ़ोल्डर बनाएँ :", "आर्काइव वाली डायरेक्टरी में", "इसमें…", "आर्काइव को वैसा ही रहने दें", "आर्काइव को रद्दी में मूव करें", "Finder में विस्तारित आइटम दिखाएँ"],
+            "ru": ["Сохранить разархив. файл(ы):", "После разархивирования:", "Создавать папку:", "В той же папке, что и архив", "в…", "Оставить архив без изменений", "Переместить архив в Корзину", "Показать разархивированные объекты в Finder"],
+            "nl": ["Bewaar uitgepakte bestanden in:", "Na uitpakken:", "Maak map aan:", "In dezelfde map als het archief", "in…", "Laat het archief ongewijzigd", "Verplaats het archief naar de prullenmand", "Toon uitgepakte onderdelen in Finder"],
+            "pl": ["Zachowaj rozpakowane pliki:", "Po rozpakowaniu:", "Twórz folder:", "W tym samym katalogu co archiwum", "w…", "Pozostaw archiwum bez zmian", "Przenieś archiwum do Kosza", "Pokaż rozpakowane rzeczy w Finderze"],
+            "tr": ["Çıkarılan dosyaları şuraya kaydet:", "Çıkardıktan sonra:", "Klasör yarat:", "Arşivle aynı dizinde", "şuraya…", "Arşivi olduğu gibi bırak", "Arşivi Çöp Sepeti’ne taşı", "Çıkarılan öğeleri Finder’da göster"],
+            "sv": ["Spara expanderade filer i:", "Efter expandering:", "Skapa mapp:", "I samma mapp som arkivet", "i…", "Lämna arkivet oförändrat", "Flytta arkivet till papperskorgen", "Visa expanderade objekt i Finder"],
+            "da": ["Gem dekomprimerede arkiver i:", "Efter dekomprimering:", "Opret mappe:", "I samme mappe som det komprimerede arkiv", "i…", "Lad det komprimerede arkiv være uændret", "Flyt det komprimerede arkiv til papirkurven", "Vis dekomprimerede emner i Finder"],
+            "nb": ["Lagre filer som er pakket ut, i:", "Etter utpakking:", "Opprett mappe:", "I samme mappe som arkivet", "i…", "La arkivet være uendret", "Flytt arkivet til papirkurven", "Vis utpakkede objekter i Finder"],
+            "fi": ["Tallenna puretut tiedostot sijaintiin:", "Purkamisen jälkeen:", "Luo kansio:", "Arkiston kanssa samassa kansiossa", "sijaintiin…", "Jätä arkisto ennalleen", "Siirrä arkisto roskakoriin", "Näytä puretut kohteet Finderissa"],
+            "uk": ["Зберігати розпаковані файли:", "Після розпакування:", "Створювати папку:", "У тій самій папці, що й архів", "у папці…", "Залишити архів без змін", "Перемістити архів у Смітник", "Показати розпаковані елементи у Finder"],
+            "cs": ["Uložit rozbalené soubory do:", "Po rozbalení:", "Vytvořit složku:", "Ve stejné složce jako archiv", "do složky…", "Ponechat archiv beze změny", "Přesunout archiv do koše", "Zobrazit rozbalené položky ve Finderu"],
+            "pt-PT": ["Guardar ficheiro(s) descomprimido(s) em:", "Após descomprimir:", "Criar pasta:", "Na mesma pasta que o arquivo", "em…", "Manter o arquivo inalterado", "Mover o arquivo para o Lixo", "Mostrar elementos descomprimidos no Finder"]
         ]
         for language in LocalizationAcceptance.languages {
             let suite = try ArchivePreferencesTestDefaults()
