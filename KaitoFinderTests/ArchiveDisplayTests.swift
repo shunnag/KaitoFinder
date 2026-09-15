@@ -309,9 +309,9 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
             XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: 1024, filteredCount: 3, bundle: bundle),
                            language == "ja" ? "3/12項目" : "3 of 12 items")
             XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: 1024, selectedCount: 2, selectedSize: 1024, bundle: bundle),
-                           language == "ja" ? "2項目を選択中(\(size))" : "2 of 12 items selected (\(size))")
+                           language == "ja" ? "2項目を選択中(\(size))" : "2 items selected (\(size))")
             XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: nil, selectedCount: 1, selectedSize: nil, bundle: bundle),
-                           language == "ja" ? "1項目を選択中(—)" : "1 of 12 items selected (—)")
+                           language == "ja" ? "1項目を選択中(—)" : "1 items selected (—)")
         }
     }
 

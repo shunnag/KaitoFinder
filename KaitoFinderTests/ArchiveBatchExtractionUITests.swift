@@ -36,7 +36,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
 
     @MainActor func testFileMenuExtractionImmediatelyFollowsNewArchiveInBothLanguages() throws {
         let app = Bundle(for: ArchiveDocument.self)
-        for (language, title) in [("ja", "アーカイブを展開…"), ("en", "Extract Archives…")] {
+        for (language, title) in [("ja", "アーカイブを展開…"), ("en", "Expand Archives…")] {
             let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
             let delegate = AppDelegate(), menu = delegate.makeMenu(bundle: bundle)
             let file = try XCTUnwrap(menu.item(withTitle: String(localized: "ファイル", bundle: bundle))?.submenu)
@@ -210,9 +210,9 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
                 XCTAssertEqual(prompt.alert.informativeText, "“private.zip”のパスワードを入力してください。")
                 XCTAssertEqual(alert.informativeText, "first.zip: First reason。\nsecond.7z: Second reason。")
             } else {
-                XCTAssertEqual(alert.messageText, "Could not extract 2 archives")
+                XCTAssertEqual(alert.messageText, "Could not expand 2 archives")
                 XCTAssertEqual(title, "Expanding 2 Archives…")
-                XCTAssertEqual(prompt.alert.informativeText, "Enter the password for “private.zip”.")
+                XCTAssertEqual(prompt.alert.informativeText, "Please enter the password for “private.zip”.")
                 XCTAssertEqual(alert.informativeText, "first.zip: First reason.\nsecond.7z: Second reason.")
             }
         }
@@ -222,7 +222,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
 
     @MainActor func testProgressTitlesForEveryOperationInJapaneseAndEnglish() throws {
         let cases: [(ArchiveProgressOperation, String, String)] = [
-            (.expanding, "項目を展開中…", "Expanding…"),
+            (.expanding, "項目を展開中…", "Extracting…"),
             (.adding, "項目を追加中…", "Adding…"),
             (.moving, "項目を移動中…", "Moving…"),
             (.deleting, "項目を削除中…", "Deleting…"),
@@ -246,7 +246,8 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
                 progress.completedUnitCount = 3
                 sheet.detail = "photo.jpg"
                 XCTAssertEqual(sheet.statusLabel.stringValue,
-                    String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle) + "\nphoto.jpg")
+                    String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle))
+                XCTAssertEqual(sheet.detailLabel.stringValue, "photo.jpg")
                 sheet.cancelExtraction(nil)
                 XCTAssertTrue(progress.isCancelled)
             }

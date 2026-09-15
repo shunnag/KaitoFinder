@@ -684,9 +684,9 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         await assertPassword(session, equals: nil)
     }
 
-    @MainActor func testPasswordPromptAndNewMessagesHaveEnglishAndJapaneseTranslations() throws {
+    @MainActor func testPasswordPromptAndNewMessagesHaveAllTenTranslations() throws {
         let app = Bundle(for: ArchiveDocument.self)
-        for language in ["en", "ja"] {
+        for language in LocalizationAcceptance.languages {
             let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
             let required = ArchivePasswordPrompt(challenge: .required, bundle: bundle)
             let incorrect = ArchivePasswordPrompt(challenge: .incorrect, bundle: bundle)
@@ -695,12 +695,17 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
             XCTAssertNotEqual(required.alert.informativeText, incorrect.alert.informativeText)
             XCTAssertEqual(required.field.stringValue, "")
             XCTAssertEqual(required.alert.buttons.count, 2)
+            XCTAssertEqual(required.alert.messageText, String(localized: "アーカイブのロックを解除", bundle: bundle))
+            XCTAssertEqual(required.field.placeholderString, String(localized: "パスワード", bundle: bundle))
+            XCTAssertEqual(required.rememberCheckbox.title, String(localized: "このパスワードを記憶", bundle: bundle))
+            XCTAssertEqual(required.alert.buttons.map(\.title), [String(localized: "ロックを解除", bundle: bundle),
+                                                                String(localized: "キャンセル", bundle: bundle)])
             if language == "en" {
                 XCTAssertEqual(required.alert.messageText, "Unlock Archive")
                 XCTAssertEqual(required.field.placeholderString, "Password")
                 XCTAssertEqual(required.alert.informativeText, "Enter the archive password.")
                 XCTAssertEqual(incorrect.alert.informativeText, "The password is incorrect. Please try again.")
-            } else {
+            } else if language == "ja" {
                 XCTAssertEqual(required.alert.messageText, "アーカイブのロックを解除")
                 XCTAssertEqual(required.alert.informativeText, "アーカイブのパスワードを入力してください。")
                 XCTAssertEqual(incorrect.alert.informativeText, "パスワードが違います。もう一度入力してください。")
@@ -713,7 +718,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         for (key, value) in strings {
             let entry = try XCTUnwrap(value as? [String: Any], key)
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
-            for language in ["en", "ja"] {
+            for language in LocalizationAcceptance.languages {
                 let translation = try XCTUnwrap(localizations[language] as? [String: Any], key)
                 let unit = try XCTUnwrap(translation["stringUnit"] as? [String: String], key)
                 XCTAssertEqual(unit["state"], "translated", key)

@@ -8,9 +8,9 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         String(String(repeating: "旅行の写真 Archive ", count: 6).prefix(66)) + ".zip"
     }
 
-    @MainActor private func forEachLanguage(_ body: (String, Bundle) throws -> Void) throws {
+    @MainActor private func forEachLanguage(_ languages: [String] = ["ja", "en"], _ body: (String, Bundle) throws -> Void) throws {
         let app = Bundle(for: ArchiveDocument.self)
-        for language in ["ja", "en"] {
+        for language in languages {
             let url = try XCTUnwrap(app.url(forResource: language, withExtension: "lproj"), language)
             try body(language, XCTUnwrap(Bundle(url: url), language))
         }
@@ -37,9 +37,9 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         checkOverflow(try XCTUnwrap(alert.window.contentView), name: name, file: file, line: line)
     }
 
-    @MainActor func testPasswordPromptsInJapaneseAndEnglish() throws {
+    @MainActor func testPasswordPromptsInEveryLanguage() throws {
         XCTAssertEqual(longArchiveName.count, 70)
-        try forEachLanguage { language, bundle in
+        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
             let names: [(String, String?)] = [("no-name", nil), ("short-name", "写真.zip"), ("long-name", longArchiveName)]
             let challenges: [(String, ArchivePasswordChallenge)] = [("required", .required), ("incorrect", .incorrect)]
             for (state, challenge) in challenges {
@@ -90,8 +90,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testSettingsTabsInJapaneseAndEnglish() throws {
-        try forEachLanguage { language, bundle in
+    @MainActor func testSettingsTabsInEveryLanguage() throws {
+        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
             let suite = try ArchivePreferencesTestDefaults()
             let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle)
             defer { controller.close() }
@@ -100,7 +100,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertEqual(controller.tabController.tabViewItems.count, tabs.count)
             let window = try XCTUnwrap(controller.window)
             XCTAssertFalse(window.styleMask.contains(.resizable))
-            XCTAssertEqual(window.contentView?.bounds.width, 560)
+            let contentSize = try XCTUnwrap(window.contentView).bounds.size
+            XCTAssertGreaterThanOrEqual(contentSize.width, 560)
             for (index, tab) in tabs.enumerated() {
                 controller.tabController.selectedTabViewItemIndex = index
                 controller.window?.layoutIfNeeded()
@@ -110,9 +111,23 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                 XCTAssertEqual(grid.numberOfColumns, 2)
                 XCTAssertEqual(grid.rowSpacing, 12)
                 XCTAssertEqual(grid.numberOfRows, [1, 9, 4][index])
+                XCTAssertLessThanOrEqual(ceil(grid.fittingSize.width) + 48, contentSize.width + 0.5, language)
+                XCTAssertLessThanOrEqual(ceil(grid.fittingSize.height) + 48, contentSize.height + 0.5, language)
+                XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, contentSize, language)
                 for row in 0..<grid.numberOfRows {
                     if let label = grid.cell(atColumnIndex: 0, rowIndex: row).contentView as? NSTextField,
-                       label.stringValue.hasSuffix(":") { XCTAssertEqual(label.alignment, .right) }
+                       label.stringValue.hasSuffix(":") || label.stringValue.hasSuffix("：") {
+                        XCTAssertEqual(label.alignment, .right)
+                        let singleLine = NSTextField(labelWithString: label.stringValue)
+                        if singleLine.intrinsicContentSize.width > 260 {
+                            XCTAssertEqual(label.maximumNumberOfLines, 2, language)
+                            XCTAssertEqual(label.preferredMaxLayoutWidth, 260, language)
+                            XCTAssertEqual(label.lineBreakMode, .byWordWrapping, language)
+                            let control = try XCTUnwrap(grid.cell(atColumnIndex: 1, rowIndex: row).contentView)
+                            XCTAssertEqual(label.alignmentRect(forFrame: label.frame).midY,
+                                           control.alignmentRect(forFrame: control.frame).midY, accuracy: 0.5, language)
+                        }
+                    }
                 }
                 if index == 1 {
                     for row in [0, 4, 6] {
@@ -219,12 +234,15 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testStandaloneProgressSheetInJapaneseAndEnglish() throws {
-        try forEachLanguage { language, bundle in
+    @MainActor func testStandaloneProgressSheetTruncates120CharacterNamesInEveryLanguage() throws {
+        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
             let progress = Progress(totalUnitCount: 1_000)
             progress.completedUnitCount = 345
-            let title = ArchiveProgressOperation.expandingArchive(longArchiveName).title(bundle: bundle)
-            let detail = String(repeating: "長いファイル名 VeryLongFileName_", count: 8) + ".jpg"
+            let archiveName = String(String(repeating: "旅行の写真 Archive ", count: 10).prefix(116)) + ".zip"
+            let detail = String(String(repeating: "長いファイル名 VeryLongFileName_", count: 8).prefix(116)) + ".jpg"
+            XCTAssertEqual(archiveName.count, 120)
+            XCTAssertEqual(detail.count, 120)
+            let title = ArchiveProgressOperation.expandingArchive(archiveName).title(bundle: bundle)
             let sheet = ExtractionProgressSheet(progress: progress, title: title, detail: detail, bundle: bundle)
             defer { sheet.finish() }
             sheet.beginStandalone()
@@ -232,12 +250,22 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertNil(window.sheetParent)
             XCTAssertEqual(window.title, title)
             XCTAssertEqual(sheet.titleLabel.stringValue, title)
-            XCTAssertTrue(sheet.statusLabel.stringValue.hasSuffix(detail))
-            XCTAssertGreaterThanOrEqual(try XCTUnwrap(window.contentView).bounds.width, 420)
+            XCTAssertEqual(sheet.detailLabel.stringValue, detail)
+            for label in [sheet.titleLabel, sheet.detailLabel] {
+                XCTAssertTrue(label.usesSingleLineMode, language)
+                XCTAssertEqual(label.maximumNumberOfLines, 1, language)
+                XCTAssertEqual(label.lineBreakMode, .byTruncatingMiddle, language)
+                XCTAssertEqual(label.cell?.wraps, false, language)
+            }
+            XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.width, 420)
             try snapshot(window, name: "\(language)-standalone-progress")
-            sheet.detail = String(repeating: "a", count: 240) + ".txt"
+            let height = try XCTUnwrap(window.contentView).bounds.height
+            sheet.detail = String(repeating: "a", count: 116) + ".txt"
+            XCTAssertEqual(sheet.detail.count, 120)
+            XCTAssertEqual(window.contentView?.bounds.height, height)
             try snapshot(window, name: "\(language)-progress-unbroken-name")
             sheet.detail = ""
+            XCTAssertTrue(sheet.detailLabel.isHidden)
             XCTAssertEqual(sheet.statusLabel.stringValue, String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle))
             try snapshot(window, name: "\(language)-progress-no-item")
         }

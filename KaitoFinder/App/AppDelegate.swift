@@ -182,9 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services.submenu = servicesMenu
         NSApp.servicesMenu = servicesMenu
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: String(localized: "KaitoFinderを隠す", bundle: bundle),
+        appMenu.addItem(withTitle: String(localized: "KaitoFinderを非表示", bundle: bundle),
                         action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthers = appMenu.addItem(withTitle: String(localized: "ほかを隠す", bundle: bundle),
+        let hideOthers = appMenu.addItem(withTitle: String(localized: "ほかを非表示", bundle: bundle),
                                          action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(withTitle: String(localized: "すべてを表示", bundle: bundle),

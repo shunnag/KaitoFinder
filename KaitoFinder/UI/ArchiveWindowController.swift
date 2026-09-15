@@ -22,7 +22,7 @@ nonisolated enum ArchiveStatusBarText {
             return ByteCountFormatter.string(fromByteCount: signed, countStyle: .file)
         }
         if selectedCount > 0 {
-            // 日本語は選択数のみ、英語は総数も使うため、引数番号で翻訳を対応させる。
+            // 選択数とサイズの引数番号を、すべての言語で揃える。
             return String(format: String(localized: "%1$lld項目を選択中(%3$@)", bundle: bundle),
                           Int64(selectedCount), Int64(filteredCount ?? totalCount), size(selectedSize))
         }

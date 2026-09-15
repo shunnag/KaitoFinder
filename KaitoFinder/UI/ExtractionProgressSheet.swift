@@ -24,8 +24,9 @@ final class ExtractionProgressSheet: NSWindowController {
     let progress: Progress
     private let bundle: Bundle
     private let indicator = NSProgressIndicator()
-    let titleLabel = NSTextField(wrappingLabelWithString: "")
-    let statusLabel = NSTextField(wrappingLabelWithString: "")
+    let titleLabel = NSTextField(labelWithString: "")
+    let statusLabel = NSTextField(labelWithString: "")
+    let detailLabel = NSTextField(labelWithString: "")
     private let stack = NSStackView()
     private var updateTask: Task<Void, Never>?
     // 呼び出し側が処理中の項目を特定できる場合だけ表示する。
@@ -44,6 +45,14 @@ final class ExtractionProgressSheet: NSWindowController {
         titleLabel.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusLabel.textColor = .secondaryLabelColor
+        detailLabel.font = statusLabel.font
+        detailLabel.textColor = .secondaryLabelColor
+        for label in [titleLabel, detailLabel] {
+            label.usesSingleLineMode = true
+            label.maximumNumberOfLines = 1
+            label.lineBreakMode = .byTruncatingMiddle
+            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        }
         indicator.isIndeterminate = false
         indicator.minValue = 0
         indicator.maxValue = 1
@@ -54,7 +63,12 @@ final class ExtractionProgressSheet: NSWindowController {
         let barRow = NSStackView(views: [indicator, cancel])
         barRow.alignment = .centerY
         barRow.spacing = 12
-        stack.setViews([titleLabel, barRow, statusLabel], in: .leading)
+        let statusRow = NSStackView(views: [statusLabel, detailLabel])
+        statusRow.orientation = .vertical
+        statusRow.alignment = .leading
+        statusRow.spacing = 2
+        statusRow.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        stack.setViews([titleLabel, barRow, statusRow], in: .leading)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 12
@@ -70,7 +84,9 @@ final class ExtractionProgressSheet: NSWindowController {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -24),
             barRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4),
             titleLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4),
-            statusLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4),
+            statusRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4),
+            statusLabel.widthAnchor.constraint(equalTo: statusRow.widthAnchor, constant: -4),
+            detailLabel.widthAnchor.constraint(equalTo: statusRow.widthAnchor, constant: -4),
             indicator.widthAnchor.constraint(greaterThanOrEqualToConstant: 180)
         ])
         refresh()
@@ -117,12 +133,13 @@ final class ExtractionProgressSheet: NSWindowController {
     func refresh() {
         indicator.doubleValue = progress.fractionCompleted
         let count = String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle)
-        statusLabel.stringValue = detail.isEmpty ? count : count + "\n" + detail
+        statusLabel.stringValue = count
+        detailLabel.stringValue = detail
+        detailLabel.isHidden = detail.isEmpty
         guard let window, let content = window.contentView else { return }
         let width = max(420, content.bounds.width)
-        for label in [titleLabel, statusLabel] { label.preferredMaxLayoutWidth = width - 52 }
         content.layoutSubtreeIfNeeded()
-        // 長い名前は省略せずに折り返し、必要な高さだけパネルを伸ばす。
+        // タイトルと項目名は一行で中央を省略し、件数を別の行に表示する。
         let height = max(150, ceil(stack.fittingSize.height) + 48)
         if content.bounds.size != NSSize(width: width, height: height) {
             window.setContentSize(NSSize(width: width, height: height))

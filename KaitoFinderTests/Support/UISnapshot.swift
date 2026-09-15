@@ -131,6 +131,10 @@ import XCTest
                 if field.cell?.wraps == true, !field.usesSingleLineMode {
                     let size = field.sizeThatFits(NSSize(width: field.bounds.width, height: .greatestFiniteMagnitude))
                     checkSize(NSSize(width: NSView.noIntrinsicMetric, height: size.height), of: field, path: location)
+                } else if field.usesSingleLineMode, field.lineBreakMode == .byTruncatingMiddle {
+                    // 中央省略を指定した一行ラベルは、幅を超える名前を意図的に省略する。
+                    checkSize(NSSize(width: NSView.noIntrinsicMetric, height: field.intrinsicContentSize.height),
+                              of: field, path: location)
                 } else { checkSize(field.intrinsicContentSize, of: field, path: location) }
             } else if let popup = view as? NSPopUpButton {
                 checkSize(popup.intrinsicContentSize, of: popup, path: location)

@@ -607,8 +607,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             }
         }
         let expected = [
-            "選択した項目を展開…": "Extract Selected Items…", "すべて展開…": "Extract All…", "展開": "Extract",
-            "項目を展開中…": "Expanding…", "項目を展開できませんでした": "Could not extract items",
+            "選択した項目を展開…": "Extract Selected Items…", "すべて展開…": "Expand All…", "展開": "Extract",
+            "項目を展開中…": "Extracting…", "項目を展開できませんでした": "Could not extract items",
             "追加…": "Add…", "検索": "Search", "アーカイブをFinderに表示": "Reveal Archive in Finder",
             "単一ファイルを展開できませんでした": "Could not extract a single file",
             "展開する項目の型情報を取得できません: %@。": "Could not get type information for the item to extract: %@."

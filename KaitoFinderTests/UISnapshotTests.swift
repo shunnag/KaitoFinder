@@ -34,6 +34,22 @@ nonisolated final class UISnapshotTests: XCTestCase {
         XCTAssertTrue(UISnapshot.overflowViolations(in: root).isEmpty)
     }
 
+    @MainActor func testAllowsIntentionalMiddleTruncationButStillDetectsClippedHeight() {
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 180, height: 80))
+        let label = NSTextField(labelWithString: String(repeating: "a", count: 116) + ".zip")
+        label.usesSingleLineMode = true
+        label.maximumNumberOfLines = 1
+        label.lineBreakMode = .byTruncatingMiddle
+        label.frame = NSRect(x: 10, y: 10, width: 140, height: 24)
+        root.addSubview(label)
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).isEmpty)
+        label.setFrameSize(NSSize(width: 140, height: 1))
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).contains { $0.contains("内容の高さ") })
+        label.setFrameSize(NSSize(width: 140, height: 24))
+        label.lineBreakMode = .byClipping
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).contains { $0.contains("内容の幅") })
+    }
+
     @MainActor func testDetectsClippedButtonsAndPopup() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 200))
         let button = NSButton(title: "Create New Archive…", target: nil, action: nil)

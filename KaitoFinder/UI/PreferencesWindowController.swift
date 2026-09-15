@@ -87,14 +87,14 @@ final class PreferencesWindowController: NSWindowController {
         window.setFrameAutosaveName("Preferences")
         tabController.tabStyle = .toolbar
         configureControls()
-        addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", labelWidth: 250, rows: [
+        addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", rows: [
             row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup)
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-で固定です。", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
         footnote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         footnote.preferredMaxLayoutWidth = 504
-        addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", labelWidth: 140, rows: [
+        addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", rows: [
             [section(String(localized: "ZIP", bundle: bundle)), NSGridCell.emptyContentView],
             row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
             row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
@@ -105,14 +105,24 @@ final class PreferencesWindowController: NSWindowController {
             [NSGridCell.emptyContentView, wrappingCheckbox(tarPreservesOwnerIDsCheckbox, width: 352)],
             [footnote, NSGridCell.emptyContentView]
         ], spanningRows: [0, 4, 6, 8])
-        addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", labelWidth: 200, rows: [
+        addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", rows: [
             row(String(localized: "展開したファイルの保存場所:", bundle: bundle), control: extractionDestinationPopup),
             row(String(localized: "展開後:", bundle: bundle), control: afterExpansionPopup),
             row(String(localized: "フォルダを作成:", bundle: bundle), control: folderPolicyPopup),
             [NSGridCell.emptyContentView, wrappingCheckbox(revealsExtractedItemsInFinderCheckbox, width: 292)]
         ])
+        // 最も広いタブに合わせ、切り替えてもすべての文言を表示できるサイズを保つ。
+        let contentSize = tabController.tabViewItems.reduce(NSSize(width: 560, height: 420)) { size, item in
+            let required = item.viewController?.preferredContentSize ?? .zero
+            return NSSize(width: max(size.width, required.width), height: max(size.height, required.height))
+        }
+        for item in tabController.tabViewItems {
+            item.viewController?.preferredContentSize = contentSize
+            item.viewController?.view.setFrameSize(contentSize)
+        }
+        tabController.preferredContentSize = contentSize
         window.contentViewController = tabController
-        window.setContentSize(NSSize(width: 560, height: 420))
+        window.setContentSize(contentSize)
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: store)
         refreshControls()
@@ -169,6 +179,14 @@ final class PreferencesWindowController: NSWindowController {
     private func row(_ title: String, control: NSView) -> [NSView] {
         let label = NSTextField(labelWithString: title)
         label.alignment = .right
+        if label.intrinsicContentSize.width > 260 {
+            // 長い翻訳だけを二行まで折り返し、行のコントロールはグリッドで中央に揃える。
+            label.usesSingleLineMode = false
+            label.cell?.wraps = true
+            label.lineBreakMode = .byWordWrapping
+            label.maximumNumberOfLines = 2
+            label.preferredMaxLayoutWidth = 260
+        }
         control.setAccessibilityLabel(title)
         return [label, control]
     }
@@ -189,17 +207,15 @@ final class PreferencesWindowController: NSWindowController {
         return button
     }
 
-    private func addTab(title: String, symbol: String, labelWidth: CGFloat, rows: [[NSView]], spanningRows: [Int] = []) {
+    private func addTab(title: String, symbol: String, rows: [[NSView]], spanningRows: [Int] = []) {
         let controller = NSViewController()
         controller.title = title
         controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 420))
-        controller.preferredContentSize = controller.view.frame.size
         let grid = NSGridView(views: rows)
         grid.identifier = NSUserInterfaceItemIdentifier("preferences.grid." + symbol)
         grid.rowSpacing = 12
         grid.columnSpacing = 12
         grid.yPlacement = .center
-        grid.column(at: 0).width = labelWidth
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 0).leadingPadding = 2
         grid.column(at: 1).xPlacement = .leading
@@ -208,6 +224,10 @@ final class PreferencesWindowController: NSWindowController {
             grid.mergeCells(inHorizontalRange: NSRange(location: 0, length: 2), verticalRange: NSRange(location: row, length: 1))
             grid.cell(atColumnIndex: 0, rowIndex: row).xPlacement = .leading
         }
+        // 親の幅を制約する前に、ラベルと選択肢が必要とする幅・高さを測る。
+        let required = grid.fittingSize
+        controller.preferredContentSize = NSSize(width: max(560, ceil(required.width) + 48),
+                                                height: max(420, ceil(required.height) + 48))
         grid.translatesAutoresizingMaskIntoConstraints = false
         controller.view.addSubview(grid)
         NSLayoutConstraint.activate([

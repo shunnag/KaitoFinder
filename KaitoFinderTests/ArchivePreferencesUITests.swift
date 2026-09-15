@@ -196,7 +196,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertTrue(window.isVisible)
     }
 
-    func testSettingsStringsHaveEnglishAndJapaneseTranslations() throws {
+    func testSettingsStringsHaveAllTenTranslations() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
@@ -210,7 +210,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         for key in Set(keys) {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
-            for language in ["en", "ja"] {
+            for language in LocalizationAcceptance.languages {
                 let localized = try XCTUnwrap(localizations[language] as? [String: Any], "\(language): \(key)")
                 let unit = try XCTUnwrap(localized["stringUnit"] as? [String: Any])
                 let text = try XCTUnwrap(unit["value"] as? String)
@@ -222,28 +222,66 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         }
     }
 
-    @MainActor func testExtractionSettingsUseArchiveUtilityLabelsInJapaneseAndEnglish() throws {
-        let app = Bundle(for: ArchiveDocument.self)
-        for language in ["ja", "en"] {
+    @MainActor func testExtractionSettingsUseArchiveUtilityLabelsInEveryLanguage() throws {
+        // この固定値はAppleの設定ウインドウ用語集に基づく。翻訳ファイルから期待値を読み戻さない。
+        let expected: [String: [String]] = [
+            "ja": ["展開したファイルの保存場所:", "展開後:", "フォルダを作成:",
+                "アーカイブと同じディレクトリ内", "場所を選択…",
+                "アーカイブをそのままにする", "アーカイブをゴミ箱に入れる", "展開した項目をFinderに表示"],
+            "en": ["Save expanded file(s) into:", "After expanding:", "Create folder:",
+                "In the same directory as the archive", "into…",
+                "Leave the archive alone", "Move the archive to the Trash", "Reveal expanded items in Finder"],
+            "de": ["Entpackte Dateien sichern:", "Nach dem Entpacken:", "Ordner erstellen:",
+                "Im Ordner des Archivs", "In …",
+                "Archiv nicht bewegen", "Archiv in den Papierkorb bewegen", "Entpackte Objekte im Finder anzeigen"],
+            "fr": ["Enregistrer les fichiers décompressés :", "Après la décompression :", "Créer un dossier :",
+                "dans le même répertoire que l’archive", "dans…",
+                "laisser l’archive telle quelle", "placer l’archive dans la corbeille", "Afficher le ou les éléments décompressés dans le Finder"],
+            "es": ["Guardar archivos descomprimidos:", "Tras la descompresión:", "Crear carpeta:",
+                "en el mismo directorio que el archivo comprimido", "en…",
+                "no tocar el archivo comprimido", "trasladar el archivo comprimido a la papelera", "Mostrar ítems descomprimidos en el Finder"],
+            "it": ["Salva file espansi:", "Dopo espansione:", "Crea cartella:",
+                "nella stessa directory dell’archivio", "in…",
+                "non toccare archivio", "sposta archivio nel Cestino", "Mostra elemento(i) espanso(i) nel Finder"],
+            "pt-BR": ["Salvar arquivos expandidos:", "Depois de expandir:", "Criar pasta:",
+                "no mesmo diretório do arquivo comprimido", "dentro de…",
+                "não fazer nada com o arquivo comprimido", "mover arquivo comprimido para o Lixo", "Mostrar conteúdo expandido no Finder"],
+            "zh-Hans": ["保存已解压缩的文件：", "解压缩后：", "创建文件夹：",
+                "放在归档的同一个目录", "放在…",
+                "保留归档", "将归档移到废纸篓", "在访达中显示已解压缩的项目"],
+            "zh-Hant": ["儲存解壓縮的檔案：", "解壓縮後：", "製作檔案夾：",
+                "封存檔的同一目錄", "位置⋯",
+                "保留封存檔", "將封存檔丟到「垃圾桶」", "在Finder中顯示解壓縮的項目"],
+            "ko": ["압축 해제된 파일 저장:", "압축 해제 후:", "폴더 생성:",
+                "아카이브와 동일한 디렉토리 안에", "위치 지정…",
+                "아카이브 그대로 유지", "휴지통으로 아카이브 이동", "Finder에서 압축 해제된 항목 나타내기"]
+        ]
+        for language in LocalizationAcceptance.languages {
             let suite = try ArchivePreferencesTestDefaults()
-            let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
-            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle)
+            let store = ArchivePreferencesStore(defaults: suite.defaults)
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let controller = PreferencesWindowController(store: store, bundle: bundle)
             defer { controller.close() }
+            let values = try XCTUnwrap(expected[language])
             controller.tabController.selectedTabViewItemIndex = 2
             let pane = try XCTUnwrap(controller.tabController.tabViewItems[2].viewController?.view)
             let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
             let labels = (0..<3).compactMap { (grid.cell(atColumnIndex: 0, rowIndex: $0).contentView as? NSTextField)?.stringValue }
-            XCTAssertEqual(labels, language == "ja" ? ["展開したファイルの保存場所:", "展開後:", "フォルダを作成:"]
-                : ["Save expanded files into:", "After expanding:", "Create folder:"])
-            XCTAssertEqual(controller.extractionDestinationPopup.itemTitles, language == "ja"
-                ? ["アーカイブと同じディレクトリ内", "場所を選択…"] : ["In the same directory as the archive", "Choose a location…"])
-            XCTAssertEqual(controller.afterExpansionPopup.itemTitles, language == "ja"
-                ? ["アーカイブをそのままにする", "アーカイブをゴミ箱に入れる"] : ["Leave the archive alone", "Move the archive to the Trash"])
-            XCTAssertEqual(controller.revealsExtractedItemsInFinderCheckbox.title, language == "ja"
-                ? "展開した項目をFinderに表示" : "Reveal expanded items in Finder")
+            XCTAssertEqual(labels.map(LocalizationAcceptance.normalizedTitle), values[0...2].map(LocalizationAcceptance.normalizedTitle), language)
+            XCTAssertEqual(controller.extractionDestinationPopup.itemTitles.map(LocalizationAcceptance.normalizedTitle),
+                           values[3...4].map(LocalizationAcceptance.normalizedTitle), language)
+            XCTAssertEqual(controller.afterExpansionPopup.itemTitles.map(LocalizationAcceptance.normalizedTitle),
+                           values[5...6].map(LocalizationAcceptance.normalizedTitle), language)
+            XCTAssertEqual(LocalizationAcceptance.normalizedTitle(controller.revealsExtractedItemsInFinderCheckbox.title),
+                           LocalizationAcceptance.normalizedTitle(values[7]), language)
             XCTAssertNil(grid.cell(atColumnIndex: 0, rowIndex: 3).contentView)
             XCTAssertTrue(grid.cell(atColumnIndex: 1, rowIndex: 3).contentView === controller.revealsExtractedItemsInFinderCheckbox)
+            XCTAssertFalse(store.preferences.revealsExtractedItemsInFinder)
+            for enabled in [true, false] {
+                controller.revealsExtractedItemsInFinderCheckbox.state = enabled ? .on : .off
+                sendAction(controller.revealsExtractedItemsInFinderCheckbox)
+                XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences.revealsExtractedItemsInFinder, enabled, language)
+            }
         }
     }
-
 }
