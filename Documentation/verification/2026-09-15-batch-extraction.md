@@ -46,6 +46,7 @@ Finderのサービス「KaitoFinderで展開」は、共通の`ArchiveBatchExtra
 - `testPasswordPromptCancellationSkipsOnlyThatArchiveAndRemovesEmptyFolder`
 - `testRememberedPasswordExtractsWithoutPrompting`
 - `testIncorrectRememberedPasswordFallsBackToPrompt`
+  - 注: KaitoKit の ZipCrypto の分類に依存し、ヘッダーチェックを誤ったパスワードが 1/256 の確率で通過していた。KaitoKit に `fix/zipcrypto-wrong-password` の変更を取り込むと、このテストの結果は決定的になる。
 - `testEncryptedSevenZipHeadersRetryAtOpenAndRememberedPasswordWorks`
 - `testCorruptHeaderAndPayloadFailuresAreIsolatedAndEmptyFolderIsRemoved`
 - `testTrashRunsOnceForEachSuccessfulArchiveAndNeverForFailures`

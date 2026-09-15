@@ -9,11 +9,40 @@
 補助 XCTest は **59 件成功、1 件が実行ホストの制約で失敗、1 件が OS サービス接続で中断**。
 完了した描画監査では **26 言語 × 51 画面 = 1,326 PNG、はみ出し 0 件**。
 標準の `xcodebuild build` / `test` は、どちらも sandbox 内の依存解決で **終了コード 74**。
-本番アプリのフルビルド・全件テストが成功したという結果ではない。
+以上は sandbox 内の検証結果であり、本番アプリのフルビルド・全件テストが成功したという結果ではない。
+ユーザーのシェルでの結果は、後述の[オーケストレータによる全件検証](#オーケストレータによる全件検証)を参照。
 
 KaitoKit / GyoshukuKit のパッケージ、既存の Services 訳、Xcode のビルド設定や scheme は変更していない。
 プロジェクトファイルの変更は `knownRegions` の 16 コード追加のみ。コミットは作成していない。
 `inbox/` と git-ignored ファイルには編集・移動・削除を行っていない。
+
+## オーケストレータによる全件検証
+
+2026-09-15 に、オーケストレータがユーザーのシェルで Wave D 適用後の検証を行った。
+全件テストは `xcodebuild test -scheme KaitoFinder -destination 'platform=macOS'` で実行した。
+
+- **1 回目: 598 件・失敗 1**。`ArchiveBatchExtractionTests.testIncorrectRememberedPasswordFallsBackToPrompt` が失敗した。
+- **2 回目: 598 件・失敗 0**。QuickLook の前面化テストのみアクティベーションのタイミングでスキップされ、その他のスキップは **0 件**。
+
+`xcodebuild -configuration Release build` は成功し、生成したアプリのバンドルに **26 個の `.lproj`** を確認した。
+Release 実機のアプリで lldb smoke を行い、`th` / `ru` / `pt-PT` のメニューが
+それぞれ「ไฟล์」「Файл」「Ficheiro」と表示されることと、`nl` → `en` のフォールバックを確認した。
+
+### 1 回目の失敗原因と KaitoKit の修正
+
+原因は実行順序への依存ではなく、KaitoKit の ZipCrypto 読み取り時のパスワード判定だった。
+1 バイトのヘッダーチェックだけで判定していたため、誤ったパスワードでも **1/256** の確率で通過した。
+その後の CRC / デコーダーの失敗が `wrongPassword` ではなく `checksumMismatch` / `malformed` として返され、
+`ArchivePasswordChallenge` が `.incorrect` にならず、一括展開はパスワード入力を求めずに失敗を記録した。
+
+ヘッダーチェックが衝突するパスワードで確実に再現した。
+`kaito sha secret.zip -p wrong-113` は「Checksum mismatch」、`unzip` は
+「(may instead be incorrect password)」、7-Zip は「Wrong password?」を表示した。
+
+KaitoKit の `fix/zipcrypto-wrong-password` ブランチで修正済み。
+完全な ZipCrypto エントリでは、7zAES / RAR4 と同様にこれらのエラーを `wrongPassword` へ正規化し、
+衝突を確実に再現するテストを追加した。WinZip AES の扱いは変更していない。
+KaitoFinder はローカルパス `../KaitoKit` に依存しているため、KaitoFinder 側のコード変更は不要。
 
 ## 言語と用語
 
