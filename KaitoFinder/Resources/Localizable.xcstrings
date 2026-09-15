@@ -1,6 +1,91 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "追加…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加…"
+          }
+        }
+      }
+    },
+    "検索" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索"
+          }
+        }
+      }
+    },
+    "書庫を Finder に表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Archive in Finder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書庫を Finder に表示"
+          }
+        }
+      }
+    },
+    "単一ファイルを展開できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not extract a single file"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単一ファイルを展開できませんでした"
+          }
+        }
+      }
+    },
+    "展開する項目の型情報を取得できません: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not get type information for the item to extract: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開する項目の型情報を取得できません: %@"
+          }
+        }
+      }
+    },
     "移動" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -834,7 +919,7 @@
         }
       }
     },
-    "すべて取り出す…" : {
+    "すべて展開…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -846,7 +931,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "すべて取り出す…"
+            "value" : "すべて展開…"
           }
         }
       }
@@ -987,7 +1072,7 @@
         }
       }
     },
-    "取り出す" : {
+    "展開" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -999,7 +1084,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "取り出す"
+            "value" : "展開"
           }
         }
       }
@@ -1242,19 +1327,19 @@
         }
       }
     },
-    "選択した項目を取り出す…" : {
+    "選択した項目を展開…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Extract Selected…"
+            "value" : "Extract Selected Items…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した項目を取り出す…"
+            "value" : "選択した項目を展開…"
           }
         }
       }
@@ -1327,36 +1412,36 @@
         }
       }
     },
-    "項目を取り出しています" : {
+    "項目を展開しています" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Extracting Items"
+            "value" : "Extracting items"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を取り出しています"
+            "value" : "項目を展開しています"
           }
         }
       }
     },
-    "項目を取り出せませんでした" : {
+    "項目を展開できませんでした" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Could Not Extract Items"
+            "value" : "Could not extract items"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を取り出せませんでした"
+            "value" : "項目を展開できませんでした"
           }
         }
       }

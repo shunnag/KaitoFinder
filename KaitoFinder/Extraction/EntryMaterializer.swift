@@ -37,7 +37,7 @@ actor EntryMaterializer {
             try ArchiveCopyOut.check(result)
             if progress.isCancelled || Task.isCancelled { throw CancellationError() }
             guard result.written.count == 1, let written = result.written.first else {
-                throw ExtractionFailure.refused("単一ファイルを取り出せませんでした")
+                throw ExtractionFailure.refused(String(localized: "単一ファイルを展開できませんでした"))
             }
             return written.url
         } catch {

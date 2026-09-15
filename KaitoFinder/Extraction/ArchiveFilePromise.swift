@@ -44,7 +44,7 @@ import UniformTypeIdentifiers
         let type = promisedType
         // 型サービスが利用できない場合も、AppKit の例外へ渡す前に Swift のエラーにする。
         guard type == .data || type.conforms(to: .data) || type.conforms(to: .directory) else {
-            throw ExtractionFailure.refused("取り出す項目の型情報を取得できません: \(type.identifier)")
+            throw ExtractionFailure.refused(String(localized: "展開する項目の型情報を取得できません: \(type.identifier)"))
         }
         return NSFilePromiseProvider(fileType: type.identifier, delegate: self)
     }

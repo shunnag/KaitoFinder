@@ -283,6 +283,8 @@ memory へ載せ、KaitoKit の遅延読みを潰す)。`isEntireFileLoaded` は
 日本語 UI の語彙は Finder 自身の `ja.lproj/*.strings` に合わせる(項目、など)。
 文字列は `.xcstrings`。
 
+ツールバー `ArchiveToolbar` は unified / iconOnly で「展開」「追加…」「新規フォルダ」「削除」「クイックルック」、伸縮スペース、「検索」の順に並べ、カスタマイズと配置の自動保存を許可する。展開は選択がなければ書庫全体を対象にし、追加はファイル・フォルダの複数選択を表示中のフォルダへ取り込む。ボタンの可否と理由は既存メニューと共通にし、読み取り専用書庫への追加・ペーストは変換提案へ進める。一覧の空白部分の右クリックには「新規フォルダ」「ペースト」、区切り、「すべて展開…」、区切り、「新規書庫…」「書庫を Finder に表示」を出す。行の右クリックは既存の行メニューを使い、未選択の行ならその行を選択する。
+
 Quick Look は `QuickLookUI.QLPreviewPanel` を window controller の responder chain から
 制御する。Space は `NSOutlineView` の `keyDown(with:)` で受ける。独自の
 `QLPreviewItem` は書庫内パスをタイトルにし、未展開時の URL は nil とする。

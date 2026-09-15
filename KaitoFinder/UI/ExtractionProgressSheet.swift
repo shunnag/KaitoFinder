@@ -6,7 +6,7 @@ final class ExtractionProgressSheet: NSWindowController {
     private let status = NSTextField(labelWithString: "")
     private var updateTask: Task<Void, Never>?
 
-    init(progress: Progress, title: String = String(localized: "項目を取り出しています")) {
+    init(progress: Progress, title: String = String(localized: "項目を展開しています")) {
         self.progress = progress
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 150),
                             styleMask: [.titled], backing: .buffered, defer: false)

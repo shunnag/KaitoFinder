@@ -1,6 +1,7 @@
 import AppKit
 
 final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
+    let blankAreaMenu = NSMenu()
     var previewSelection: (() -> Void)?
     var deleteSelection: (() -> Void)?
     var renameSelection: (() -> Void)?
@@ -182,10 +183,14 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         if !commitRenaming() { return nil }
-        let row = row(at: convert(event.locationInWindow, from: nil))
-        if row >= 0, !selectedRowIndexes.contains(row) {
+        return contextMenu(forRow: row(at: convert(event.locationInWindow, from: nil)))
+    }
+
+    func contextMenu(forRow row: Int) -> NSMenu? {
+        if row == -1 { return blankAreaMenu }
+        if !selectedRowIndexes.contains(row) {
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
-        return row >= 0 ? super.menu(for: event) : nil
+        return menu
     }
 }

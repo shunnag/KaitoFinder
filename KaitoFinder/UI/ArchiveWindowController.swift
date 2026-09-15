@@ -47,12 +47,15 @@ final class ArchivePasswordPrompt {
 }
 
 final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
-    NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
+    QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
     private let promiseOwner = UUID()
     private(set) var draggedNodes: [EntryNode] = []
     private(set) var extractionTask: Task<Void, Never>?
+    // 展開先の選択を差し替え、解決済みの対象をパネルなしで検証できるようにする。
+    var extractionDestinationHandler: (([EntryNode]) -> Void)?
     private var extractionProgress: Progress?
     private var extractionCancellation: Task<Void, Never>?
     private(set) var extractionSheet: ExtractionProgressSheet?
@@ -165,6 +168,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         for item in menu.items { item.target = self }
         openWithMenu.delegate = self
         outlineView.menu = menu
+        let blankAreaMenu = outlineView.blankAreaMenu
+        blankAreaMenu.addItem(withTitle: String(localized: "新規フォルダ"), action: #selector(newFolder(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(withTitle: String(localized: "ペースト"), action: #selector(paste(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(.separator())
+        blankAreaMenu.addItem(withTitle: String(localized: "すべて展開…"), action: #selector(extractAll(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(.separator())
+        blankAreaMenu.addItem(withTitle: String(localized: "新規書庫…"), action: #selector(AppDelegate.newArchive(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(withTitle: String(localized: "書庫を Finder に表示"), action: #selector(revealArchiveInFinder(_:)), keyEquivalent: "")
+        for item in blankAreaMenu.items where !item.isSeparatorItem && item.action != #selector(AppDelegate.newArchive(_:)) {
+            item.target = self
+        }
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
         outlineView.setDraggingSourceOperationMask([.move, .copy], forLocal: true)
         outlineView.registerForDraggedTypes(
@@ -182,7 +196,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         renameValidationNotice.textColor = .systemRed
         renameValidationNotice.isHidden = true
         let content = NSView()
-        searchItem.label = String(localized: "名前で絞り込む")
+        searchItem.label = String(localized: "検索")
+        searchItem.paletteLabel = searchItem.label
+        searchItem.toolTip = searchItem.label
+        searchItem.isBordered = true
+        searchItem.target = self
         searchField.placeholderString = String(localized: "名前で絞り込む")
         searchField.setAccessibilityLabel(String(localized: "名前で絞り込む"))
         searchField.target = self
@@ -191,6 +209,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         searchField.sendsWholeSearchString = false
         let toolbar = NSToolbar(identifier: "ArchiveToolbar")
         toolbar.delegate = self
+        toolbar.allowsUserCustomization = true
+        toolbar.autosavesConfiguration = true
         toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
         window.toolbarStyle = .unified
@@ -223,16 +243,57 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     required init?(coder: NSCoder) { nil }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, searchItem.itemIdentifier]
+        [NSToolbarItem.Identifier("extract"), NSToolbarItem.Identifier("addFiles"), NSToolbarItem.Identifier("newFolder"),
+         NSToolbarItem.Identifier("delete"), NSToolbarItem.Identifier("quickLook"), .flexibleSpace, searchItem.itemIdentifier]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        toolbarDefaultItemIdentifiers(toolbar)
+        toolbarDefaultItemIdentifiers(toolbar) + [.space]
     }
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        itemIdentifier == searchItem.itemIdentifier ? searchItem : nil
+        if itemIdentifier == searchItem.itemIdentifier { return searchItem }
+        let label: String, symbol: String, action: Selector
+        switch itemIdentifier.rawValue {
+        case "extract":
+            label = String(localized: "展開")
+            symbol = "square.and.arrow.up"
+            action = #selector(extractFromToolbar(_:))
+        case "addFiles":
+            label = String(localized: "追加…")
+            symbol = "plus"
+            action = #selector(addFiles(_:))
+        case "newFolder":
+            label = String(localized: "新規フォルダ")
+            symbol = "folder.badge.plus"
+            action = #selector(newFolder(_:))
+        case "delete":
+            label = String(localized: "削除")
+            symbol = "trash"
+            action = #selector(deleteEntries(_:))
+        case "quickLook":
+            label = String(localized: "クイックルック")
+            symbol = "eye"
+            action = #selector(togglePreviewPanel(_:))
+        default: return nil
+        }
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = label
+        item.paletteLabel = label
+        item.toolTip = label
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+        item.isBordered = true
+        item.target = self
+        item.action = action
+        return item
+    }
+
+    func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        let menuItem = NSMenuItem(title: item.label, action: item.action, keyEquivalent: "")
+        let enabled = validateMenuItem(menuItem)
+        item.toolTip = menuItem.toolTip ?? item.label
+        return enabled
     }
 
     override func showWindow(_ sender: Any?) {
@@ -554,6 +615,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             menuItem.toolTip = archiveSession?.capabilities.readOnlyReason
             return archiveSession != nil && !operationInFlight
                 && ArchiveIncomingPasteboard.canPaste(AppKitArchivePasteboard(pasteboard: .general))
+        case #selector(addFiles(_:)):
+            menuItem.toolTip = archiveSession?.capabilities.readOnlyReason
+            return archiveSession != nil && !operationInFlight
         case #selector(openEntry(_:)), #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)):
             let items = previewItems()
             let reason = items.first(where: { !$0.capability.canOpen })?.capability.reason
@@ -561,8 +625,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return !items.isEmpty && reason == nil && extractionTask == nil
         case #selector(copy(_:)), #selector(extractSelected(_:)):
             return archiveSession != nil && !selectedNodes.isEmpty && extractionTask == nil
-        case #selector(extractAll(_:)):
+        case #selector(extractAll(_:)), #selector(extractFromToolbar(_:)):
             return archiveSession != nil && !root.children.isEmpty && extractionTask == nil
+        case #selector(revealArchiveInFinder(_:)):
+            return archiveURL != nil
         default: return true
         }
     }
@@ -582,6 +648,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func canPerformEdit(_ action: Selector) -> Bool {
         validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: ""))
+    }
+
+    private var archiveURL: URL? { (document as? ArchiveDocument)?.fileURL ?? archiveSession?.sourceURL }
+
+    @objc func revealArchiveInFinder(_ sender: Any?) {
+        guard let url = archiveURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     @objc func newFolder(_ sender: Any?) {
@@ -895,6 +968,19 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         startImport(urls: ArchiveIncomingPasteboard.readPaste(AppKitArchivePasteboard(pasteboard: .general)), incoming: nil, folder: displayedFolder)
     }
 
+    @objc func addFiles(_ sender: Any?) {
+        guard archiveSession != nil, !operationInFlight, let window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = String(localized: "追加")
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .OK else { return }
+            self.startImport(urls: panel.urls, incoming: nil, folder: self.displayedFolder)
+        }
+    }
+
     private func dropFolder(_ item: Any?) -> String {
         ArchiveDropTarget.folder(for: (item as? EntryNode).map(ArchiveDropTarget.Row.init))
     }
@@ -1072,8 +1158,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     @objc func extractSelected(_ sender: Any?) { chooseDestination(for: selectedNodes) }
     @objc func extractAll(_ sender: Any?) { chooseDestination(for: root.children) }
 
+    @objc func extractFromToolbar(_ sender: Any?) {
+        if selectedNodes.isEmpty { extractAll(sender) }
+        else { extractSelected(sender) }
+    }
+
     private func chooseDestination(for nodes: [EntryNode]) {
         guard let session = archiveSession, let window, extractionTask == nil, !nodes.isEmpty else { return }
+        if let extractionDestinationHandler { extractionDestinationHandler(nodes); return }
         let items = payloads(for: nodes, session: session)
         let entryCount = ExtractionSelection(nodes: nodes).entries.count
         let panel = NSOpenPanel()
@@ -1081,7 +1173,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = String(localized: "取り出す")
+        panel.prompt = String(localized: "展開")
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let destination = panel.url else { return }
             self?.startExtraction(items, session: session, destination: destination, showProgress: true, entryCount: entryCount)
@@ -1146,7 +1238,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func reportFailure(_ reason: String) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = String(localized: "項目を取り出せませんでした")
+        alert.messageText = String(localized: "項目を展開できませんでした")
         alert.informativeText = reason
         alert.beginSheetModal(for: window, completionHandler: nil)
     }

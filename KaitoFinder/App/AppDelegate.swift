@@ -134,9 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                          action: #selector(ArchiveWindowController.newFolder(_:)), keyEquivalent: "n")
         newFolder.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: String(localized: "選択した項目を取り出す…"),
+        fileMenu.addItem(withTitle: String(localized: "選択した項目を展開…"),
                          action: #selector(ArchiveWindowController.extractSelected(_:)), keyEquivalent: "")
-        fileMenu.addItem(withTitle: String(localized: "すべて取り出す…"),
+        fileMenu.addItem(withTitle: String(localized: "すべて展開…"),
                          action: #selector(ArchiveWindowController.extractAll(_:)), keyEquivalent: "")
         let editMenu = NSMenu(title: String(localized: "編集"))
         editMenu.addItem(withTitle: String(localized: "取り消す"), action: #selector(ArchiveDocument.undo(_:)), keyEquivalent: "z")

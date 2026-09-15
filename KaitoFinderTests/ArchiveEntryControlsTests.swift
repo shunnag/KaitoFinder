@@ -383,6 +383,68 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(try digest(fixture), before)
     }
 
+    @MainActor func testReadOnlyBlankMenuKeepsEditRefusalAndPasteConversionValidation() async throws {
+        let fixture = try Fixture(tar: true), (document, controller) = try await interface(fixture)
+        let menu = try XCTUnwrap(controller.outlineView.contextMenu(forRow: -1))
+        let folder = try XCTUnwrap(menu.items.first { $0.action == #selector(ArchiveWindowController.newFolder(_:)) })
+        XCTAssertFalse(controller.validateMenuItem(folder))
+        let reason = try XCTUnwrap(document.session?.capabilities.readOnlyReason)
+        XCTAssertEqual(folder.toolTip, reason)
+        let paste = try XCTUnwrap(menu.items.first { $0.action == #selector(ArchiveWindowController.paste(_:)) })
+        XCTAssertEqual(controller.validateMenuItem(paste),
+                       ArchiveIncomingPasteboard.canPaste(AppKitArchivePasteboard(pasteboard: .general)))
+        XCTAssertEqual(paste.toolTip, reason)
+        let extract = try XCTUnwrap(menu.items.first { $0.action == #selector(ArchiveWindowController.extractAll(_:)) })
+        XCTAssertTrue(controller.validateMenuItem(extract))
+    }
+
+    @MainActor func testToolbarValidationTracksSelectionReadabilityAndArchiveCapabilities() async throws {
+        for readOnly in [false, true] {
+            let fixture = try Fixture(["a.txt", "folder/b.txt"], tar: readOnly)
+            let (document, controller) = try await interface(fixture)
+            let toolbar = try XCTUnwrap(controller.window?.toolbar)
+            func item(_ identifier: String) throws -> NSToolbarItem {
+                try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == identifier })
+            }
+            let extract = try item("extract"), add = try item("addFiles"), folder = try item("newFolder")
+            let delete = try item("delete"), preview = try item("quickLook"), search = try item("search")
+            try select(["a.txt"], in: controller)
+            XCTAssertEqual(controller.validateToolbarItem(folder), !readOnly)
+            XCTAssertEqual(controller.validateToolbarItem(delete), !readOnly)
+            for item in [extract, add, preview, search] { XCTAssertTrue(controller.validateToolbarItem(item), item.label) }
+            if readOnly {
+                let reason = try XCTUnwrap(document.session?.capabilities.readOnlyReason)
+                XCTAssertEqual(folder.toolTip, reason)
+                XCTAssertEqual(delete.toolTip, reason)
+                XCTAssertEqual(add.toolTip, reason)
+            }
+            controller.outlineView.deselectAll(nil)
+            XCTAssertFalse(controller.validateToolbarItem(delete))
+            XCTAssertFalse(controller.validateToolbarItem(preview))
+            XCTAssertEqual(controller.validateToolbarItem(folder), !readOnly)
+            for item in [extract, add, search] { XCTAssertTrue(controller.validateToolbarItem(item), item.label) }
+            try select(["folder"], in: controller)
+            XCTAssertFalse(controller.validateToolbarItem(preview))
+            XCTAssertEqual(preview.toolTip, String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません"))
+            try select(["a.txt"], in: controller)
+            XCTAssertTrue(controller.validateToolbarItem(preview))
+            XCTAssertEqual(preview.toolTip, preview.label)
+            if !readOnly {
+                controller.renameEntry(nil)
+                XCTAssertTrue(controller.outlineView.isRenaming)
+                XCTAssertFalse(controller.validateToolbarItem(folder))
+                XCTAssertFalse(controller.validateToolbarItem(delete))
+                controller.outlineView.cancelRenaming()
+                XCTAssertTrue(controller.validateToolbarItem(folder))
+                XCTAssertTrue(controller.validateToolbarItem(delete))
+            }
+            let manager = try XCTUnwrap(document.undoManager as? ArchiveUndoManager)
+            manager.isSuspended = true
+            for item in [add, folder, delete] { XCTAssertFalse(controller.validateToolbarItem(item), item.label) }
+            manager.isSuspended = false
+        }
+    }
+
     @MainActor func testPendingDeleteDisablesBothActionsAndCancellationPreservesBytesAndUndo() async throws {
         let fixture = try Fixture(), gate = Gate()
         let stack = ArchiveUndoStack { source, destination in
@@ -401,6 +463,10 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
             XCTAssertFalse(controller.validateMenuItem(item))
             XCTAssertFalse(try XCTUnwrap(item.toolTip).isEmpty)
+        }
+        let toolbar = try XCTUnwrap(controller.window?.toolbar)
+        for item in toolbar.items where item.itemIdentifier != .flexibleSpace {
+            XCTAssertEqual(controller.validateToolbarItem(item), item.itemIdentifier.rawValue == "search", item.label)
         }
         controller.deleteEntries(nil)
         controller.renameEntry(nil)
@@ -487,7 +553,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
-        let sources = ["UI/ArchiveOutlineView.swift", "UI/ArchiveWindowController.swift", "App/AppDelegate.swift", "Model/ArchiveUndoStack.swift"]
+        let sources = ["UI/ArchiveOutlineView.swift", "UI/ArchiveWindowController.swift", "App/AppDelegate.swift", "Model/ArchiveUndoStack.swift",
+                       "UI/ExtractionProgressSheet.swift", "Extraction/EntryMaterializer.swift", "Extraction/ArchiveFilePromise.swift"]
         let localized = try NSRegularExpression(pattern: #"String\(localized:\s*"((?:\\.|[^"\\])*)""#)
         let bareUIString = try NSRegularExpression(pattern: #"(?:withTitle:|(?:messageText|informativeText|toolTip)\s*=)\s*"[^"\n]+""#)
         for path in sources {
@@ -496,6 +563,9 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             for match in localized.matches(in: source, range: NSRange(source.startIndex..., in: source)) {
                 let literal = String(source[try XCTUnwrap(Range(match.range(at: 1), in: source))])
                 let key = literal.replacingOccurrences(of: #"\(actionName)"#, with: "%@")
+                    .replacingOccurrences(of: #"\(type.identifier)"#, with: "%@")
+                    .replacingOccurrences(of: #"\(progress.completedUnitCount)"#, with: "%lld")
+                    .replacingOccurrences(of: #"\(progress.totalUnitCount)"#, with: "%lld")
                 let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
                 let translations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
                 XCTAssertNotNil(translations["en"], key)
@@ -513,6 +583,42 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
         for key in ["削除", "名称変更", "追加", "削除・名称変更"] {
             XCTAssertNotNil(strings[key])
+        }
+    }
+
+    func testExtractionCatalogUsesNewWordingAndCompleteTranslations() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
+            root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+        for (key, value) in strings {
+            XCTAssertFalse(key.contains("取り出"), key)
+            let entry = try XCTUnwrap(value as? [String: Any], key)
+            let translations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
+            for language in ["en", "ja"] {
+                let translation = try XCTUnwrap(translations[language] as? [String: Any], key)
+                let unit = try XCTUnwrap(translation["stringUnit"] as? [String: String], key)
+                let text = try XCTUnwrap(unit["value"], key)
+                XCTAssertFalse(text.contains("取り出"), key)
+                XCTAssertFalse(text.isEmpty, key)
+                XCTAssertEqual(unit["state"], "translated", key)
+            }
+        }
+        let expected = [
+            "選択した項目を展開…": "Extract Selected Items…", "すべて展開…": "Extract All…", "展開": "Extract",
+            "項目を展開しています": "Extracting items", "項目を展開できませんでした": "Could not extract items",
+            "追加…": "Add…", "検索": "Search", "書庫を Finder に表示": "Show Archive in Finder",
+            "単一ファイルを展開できませんでした": "Could not extract a single file",
+            "展開する項目の型情報を取得できません: %@": "Could not get type information for the item to extract: %@"
+        ]
+        for (key, english) in expected {
+            let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
+            let translations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
+            for (language, value) in [("ja", key), ("en", english)] {
+                let translation = try XCTUnwrap(translations[language] as? [String: Any], key)
+                let unit = try XCTUnwrap(translation["stringUnit"] as? [String: String], key)
+                XCTAssertEqual(unit["value"], value, key)
+            }
         }
     }
 
