@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let passwordVault: ArchivePasswordVault
     private let preferencesStore: ArchivePreferencesStore
     private(set) var preferencesWindowController: PreferencesWindowController?
+    private(set) var welcomeWindowController: WelcomeWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
     private(set) var creationOpenPanel: NSOpenPanel?
@@ -29,6 +30,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         }
         preferencesWindowController?.showWindow(sender)
         preferencesWindowController?.window?.makeKeyAndOrderFront(sender)
+    }
+
+    @objc func showWelcome(_ sender: Any?) {
+        if welcomeWindowController == nil {
+            welcomeWindowController = WelcomeWindowController(store: preferencesStore,
+                createAction: { [weak self] in self?.newArchive(nil) },
+                createDropAction: { [weak self] sources, parent in
+                    guard let self, self.creationOpenPanel == nil else { return }
+                    self.startArchiveCreation(sources: sources, on: parent)
+                })
+        }
+        welcomeWindowController?.showWindow(sender)
+        welcomeWindowController?.window?.makeKeyAndOrderFront(sender)
+    }
+
+    nonisolated static func shouldShowWelcome(argumentsHadFiles: Bool, hasDocuments: Bool, preference: Bool) -> Bool {
+        !argumentsHadFiles && !hasDocuments && preference
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
+        showWelcome(sender)
+        return false
     }
 
     @objc func showHelp(_ sender: Any?) {
@@ -113,11 +137,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         startArchiveCreation(sources: sources)
     }
 
-    private func startArchiveCreation(sources: [URL]) {
+    private func startArchiveCreation(sources: [URL], on parent: NSWindow? = nil) {
         guard !sources.isEmpty, archiveCreationTask == nil else { return }
         archiveCreationTask = Task {
             defer { archiveCreationTask = nil }
-            do { try await ArchiveCreationController(store: preferencesStore).createAndOpen(sources: sources) }
+            do { try await ArchiveCreationController(store: preferencesStore).createAndOpen(sources: sources, on: parent) }
             catch {
                 if !(error is CancellationError) { ArchiveCreationController.presentFailure(error) }
             }
@@ -174,12 +198,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // 実行ファイルへ直接渡したパスも、通常の文書オープン経路へ流す。
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
               ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
+        var argumentsHadFiles = false
         for argument in CommandLine.arguments.dropFirst() where !argument.hasPrefix("-") {
             let url = URL(fileURLWithPath: argument)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            argumentsHadFiles = true
             documentController.openDocument(withContentsOf: url, display: true) { _, _, error in
                 if let error { NSApp.presentError(error) }
             }
+        }
+        let hadFiles = argumentsHadFiles
+        // LaunchServices の起動時 open が文書を登録する機会を待ってから判断する。
+        DispatchQueue.main.async { [weak self] in
+            guard let self, Self.shouldShowWelcome(argumentsHadFiles: hadFiles,
+                hasDocuments: !NSDocumentController.shared.documents.isEmpty,
+                preference: self.preferencesStore.preferences.showsWelcomeWindowAtLaunch) else { return }
+            self.showWelcome(nil)
         }
     }
 
@@ -273,6 +307,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         hidden.target = self
         hidden.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
         let windowMenu = NSMenu(title: String(localized: "ウインドウ", bundle: bundle))
+        let welcome = windowMenu.addItem(withTitle: String(localized: "ようこそKaitoFinderへ", bundle: bundle),
+                                        action: #selector(showWelcome(_:)), keyEquivalent: "1")
+        welcome.keyEquivalentModifierMask = [.command, .shift]
+        welcome.target = self
+        windowMenu.addItem(.separator())
         windowMenu.addItem(withTitle: String(localized: "しまう", bundle: bundle),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: String(localized: "拡大/縮小", bundle: bundle),

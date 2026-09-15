@@ -33,6 +33,7 @@ final class PreferencesViewModel {
     func changeTarGzipLevel(to level: Int) { store.preferences.tarGzipLevel = ArchivePreferences.clampedLevel(level) }
     func changeTarPreservesOwnerIDs(to enabled: Bool) { store.preferences.tarPreservesOwnerIDs = enabled }
     func changeShowsHiddenFiles(to enabled: Bool) { store.preferences.showsHiddenFiles = enabled }
+    func changeShowsWelcomeWindowAtLaunch(to enabled: Bool) { store.preferences.showsWelcomeWindowAtLaunch = enabled }
     func changeExcludesDSStore(to enabled: Bool) { store.preferences.excludesDSStore = enabled }
     func changeExcludesHiddenFiles(to enabled: Bool) { store.preferences.excludesHiddenFiles = enabled }
 
@@ -71,11 +72,14 @@ final class PreferencesWindowController: NSWindowController {
     let afterExpansionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let revealsExtractedItemsInFinderCheckbox: NSButton
     let showsHiddenFilesCheckbox: NSButton
+    let showsWelcomeWindowAtLaunchCheckbox: NSButton
     let excludesDSStoreCheckbox: NSButton
     let excludesHiddenFilesCheckbox: NSButton
 
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main) {
         self.bundle = bundle
+        showsWelcomeWindowAtLaunchCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "起動時にようこそウインドウを表示", bundle: bundle), target: nil, action: nil)
         showsHiddenFilesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "隠しファイルを表示", bundle: bundle), target: nil, action: nil)
         excludesDSStoreCheckbox = NSButton(
@@ -101,7 +105,8 @@ final class PreferencesWindowController: NSWindowController {
         configureControls()
         addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", rows: [
             row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
-            [NSGridCell.emptyContentView, wrappingCheckbox(showsHiddenFilesCheckbox, width: 352)]
+            [NSGridCell.emptyContentView, wrappingCheckbox(showsHiddenFilesCheckbox, width: 352)],
+            [NSGridCell.emptyContentView, wrappingCheckbox(showsWelcomeWindowAtLaunchCheckbox, width: 352)]
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-で固定です。", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
@@ -159,6 +164,7 @@ final class PreferencesWindowController: NSWindowController {
         folderPolicyPopup.addItems(withTitles: [String(localized: "常に", bundle: bundle), String(localized: "複数の項目があるとき", bundle: bundle),
                                               String(localized: "作らない", bundle: bundle)])
         let actions: [(NSControl, Selector)] = [
+            (showsWelcomeWindowAtLaunchCheckbox, #selector(changeShowsWelcomeWindowAtLaunch(_:))),
             (showsHiddenFilesCheckbox, #selector(changeShowsHiddenFiles(_:))),
             (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
             (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
@@ -265,6 +271,7 @@ final class PreferencesWindowController: NSWindowController {
 
     private func refreshControls() {
         let preferences = viewModel.preferences
+        showsWelcomeWindowAtLaunchCheckbox.state = preferences.showsWelcomeWindowAtLaunch ? .on : .off
         showsHiddenFilesCheckbox.state = preferences.showsHiddenFiles ? .on : .off
         excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
         excludesHiddenFilesCheckbox.state = preferences.excludesHiddenFiles ? .on : .off
@@ -285,6 +292,9 @@ final class PreferencesWindowController: NSWindowController {
 
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
+    @objc private func changeShowsWelcomeWindowAtLaunch(_ sender: NSButton) {
+        viewModel.changeShowsWelcomeWindowAtLaunch(to: sender.state == .on)
+    }
     @objc private func changeExcludesDSStore(_ sender: NSButton) { viewModel.changeExcludesDSStore(to: sender.state == .on) }
     @objc private func changeExcludesHiddenFiles(_ sender: NSButton) { viewModel.changeExcludesHiddenFiles(to: sender.state == .on) }
     @objc private func changeZipMethod(_ sender: NSPopUpButton) { viewModel.selectZipMethod(at: sender.indexOfSelectedItem) }

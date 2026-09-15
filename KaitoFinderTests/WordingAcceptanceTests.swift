@@ -382,6 +382,12 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
 
             let window = try XCTUnwrap(item(menu, title("ウインドウ"))?.submenu)
             XCTAssertNotNil(application.windowsMenu)
+            let welcome = try XCTUnwrap(item(window, title("ようこそKaitoFinderへ")))
+            XCTAssertEqual(welcome.action, #selector(AppDelegate.showWelcome(_:)))
+            XCTAssertTrue(welcome.target === delegate)
+            XCTAssertEqual(welcome.keyEquivalent, "1")
+            XCTAssertEqual(welcome.keyEquivalentModifierMask, [.command, .shift])
+            if language == "ja" { XCTAssertEqual(welcome.title, "ようこそKaitoFinderへ") }
             let bringAll = try XCTUnwrap(item(window, title("すべてを手前に移動")))
             try check(bringAll, #selector(NSApplication.arrangeInFront(_:)), "")
             XCTAssertEqual(window.index(of: bringAll), index(window, title("拡大/縮小")) + 1)

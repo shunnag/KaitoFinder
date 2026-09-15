@@ -112,10 +112,18 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                 let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
                 XCTAssertEqual(grid.numberOfColumns, 2)
                 XCTAssertEqual(grid.rowSpacing, 12)
-                XCTAssertEqual(grid.numberOfRows, [2, 11, 4][index])
+                XCTAssertEqual(grid.numberOfRows, [3, 11, 4][index])
                 XCTAssertLessThanOrEqual(ceil(grid.fittingSize.width) + 48, contentSize.width + 0.5, language)
                 XCTAssertLessThanOrEqual(ceil(grid.fittingSize.height) + 48, contentSize.height + 0.5, language)
                 XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, contentSize, language)
+                if index == 0 {
+                    let content = try XCTUnwrap(window.contentView)
+                    for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                        content.appearance = try XCTUnwrap(NSAppearance(named: appearance))
+                        try snapshot(content, name: "\(language)-settings-general-\(name)")
+                    }
+                    content.appearance = nil
+                }
                 for row in 0..<grid.numberOfRows {
                     if let label = grid.cell(atColumnIndex: 0, rowIndex: row).contentView as? NSTextField,
                        label.stringValue.hasSuffix(":") || label.stringValue.hasSuffix("：") {
@@ -159,6 +167,31 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                             checkOverflow(controller.tabController.view, name: "\(language)-settings-\(tab)-\(item)", file: #filePath, line: #line)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    @MainActor func testWelcomeWindowInEveryLanguageAndAppearance() throws {
+        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
+            let suite = try ArchivePreferencesTestDefaults()
+            let controller = WelcomeWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+                bundle: bundle, createAction: {}, createDropAction: { _, _ in })
+            defer { controller.close() }
+            let content = try XCTUnwrap(controller.window?.contentView)
+            for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                content.appearance = try XCTUnwrap(NSAppearance(named: appearance))
+                content.setFrameSize(WelcomeWindowController.contentSize)
+                try snapshot(content, name: "\(language)-welcome-\(name)")
+                XCTAssertEqual(content.bounds.size, NSSize(width: 720, height: 440))
+                XCTAssertEqual(controller.openDropZone.frame.width, controller.createDropZone.frame.width)
+                XCTAssertEqual(controller.createDropZone.frame.minX - controller.openDropZone.frame.maxX, 24, accuracy: 0.5)
+                for zone in [controller.openDropZone, controller.createDropZone] {
+                    // 省略で監査を通さず、全キャプションを最大二行で見せる。
+                    XCTAssertEqual(zone.captionLabel.lineBreakMode, .byWordWrapping)
+                    let font = try XCTUnwrap(zone.captionLabel.font)
+                    let twoLines = ceil(NSLayoutManager().defaultLineHeight(for: font)) * 2 + 2
+                    XCTAssertLessThanOrEqual(zone.captionLabel.bounds.height, twoLines, language)
                 }
             }
         }

@@ -21,6 +21,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var trashesArchiveAfterExtraction = false
     var revealsExtractedItemsInFinder = false
     var showsHiddenFiles = false
+    var showsWelcomeWindowAtLaunch = true
     var excludesDSStore = true
     var excludesHiddenFiles = false
 
@@ -64,6 +65,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let trashesArchiveAfterExtraction = "ArchiveTrashesArchiveAfterExtraction"
         static let revealsExtractedItemsInFinder = "ArchiveRevealsExtractedItems"
         static let showsHiddenFiles = "ArchiveShowsHiddenFiles"
+        static let showsWelcomeWindowAtLaunch = "ArchiveShowsWelcomeAtLaunch"
         static let excludesDSStore = "ArchiveExcludesDSStore"
         static let excludesHiddenFiles = "ArchiveExcludesHiddenFiles"
     }
@@ -94,6 +96,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.revealsExtractedItemsInFinder = boolean(forKey: Key.revealsExtractedItemsInFinder,
                                                         fallback: value.revealsExtractedItemsInFinder)
             value.showsHiddenFiles = boolean(forKey: Key.showsHiddenFiles, fallback: value.showsHiddenFiles)
+            value.showsWelcomeWindowAtLaunch = boolean(forKey: Key.showsWelcomeWindowAtLaunch,
+                                                      fallback: value.showsWelcomeWindowAtLaunch)
             value.excludesDSStore = boolean(forKey: Key.excludesDSStore, fallback: value.excludesDSStore)
             value.excludesHiddenFiles = boolean(forKey: Key.excludesHiddenFiles, fallback: value.excludesHiddenFiles)
             return value
@@ -110,6 +114,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.trashesArchiveAfterExtraction, forKey: Key.trashesArchiveAfterExtraction)
             defaults.set(newValue.revealsExtractedItemsInFinder, forKey: Key.revealsExtractedItemsInFinder)
             defaults.set(newValue.showsHiddenFiles, forKey: Key.showsHiddenFiles)
+            defaults.set(newValue.showsWelcomeWindowAtLaunch, forKey: Key.showsWelcomeWindowAtLaunch)
             defaults.set(newValue.excludesDSStore, forKey: Key.excludesDSStore)
             defaults.set(newValue.excludesHiddenFiles, forKey: Key.excludesHiddenFiles)
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。
