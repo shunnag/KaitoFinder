@@ -261,9 +261,15 @@ Finder で各ファイルを右クリックし、「このアプリケーショ�
 - [ ] `.txz`（tar.xz）
 - [ ] `.zipx`（ZIP）
 - [ ] `.deb`（ar）
+- [ ] `.cab`（CAB）
 
 `.txz` / `.zipx` / `.deb` は The Unarchiver がインストールされている環境と、
 インストールされていない環境の両方で確認する。export された別識別子が優先されても候補から消えないこと。
+
+`.pkg` は macOS 側の制約（CoreTypes の `apple-internal`）により、宣言が登録されても
+「このアプリケーションで開く」に KaitoFinder は表示されない。「ファイル > 開く…」または
+Dock の KaitoFinder アイコンへのドラッグで開く。`.taz`（tar.Z）は動的な型に解決されるため、
+「ファイル > 開く…」から開く。実測は [LaunchServices の検証記録](verification/2026-09-16-document-types.md)を参照。
 
 他のアーカイバがインストールされておらず、ユーザーが別の既定アプリを指定していない環境で、
 `LSHandlerRank = Default` により次のダブルクリックが KaitoFinder を開くこと。

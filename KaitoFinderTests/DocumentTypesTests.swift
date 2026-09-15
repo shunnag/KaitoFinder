@@ -27,7 +27,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             .cpio: ["public.cpio-archive"],
             .ar: ["com.shunnag.KaitoFinder.ar-archive", "org.debian.deb-archive"],
             .iso: ["public.iso-image"],
-            .cab: ["com.microsoft.cab-archive"],
+            .cab: ["com.microsoft.cab"],
             .rpm: ["com.redhat.rpm-archive"],
             .xar: ["com.apple.xar-archive", "com.apple.installer-package-archive"],
             .gzip: ["org.gnu.gnu-zip-archive"],
@@ -61,6 +61,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "org.debian.deb-archive": ["deb"],
             "com.stuffit.archive.sit": ["sit", "sea"],
             "com.stuffit.archive.sitx": ["sitx"],
+            "com.microsoft.cab": ["cab"],
             "public.zip-archive": ["zip", "zipx", "cbz"],
             "org.tukaani.xz-archive": ["xz", "txz"],
             "com.shunnag.KaitoFinder.ar-archive": ["ar", "a", "deb"]

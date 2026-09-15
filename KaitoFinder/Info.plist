@@ -80,7 +80,7 @@
 				<string>com.shunnag.KaitoFinder.ar-archive</string>
 				<string>com.apple.xar-archive</string>
 				<string>com.apple.installer-package-archive</string>
-				<string>com.microsoft.cab-archive</string>
+				<string>com.microsoft.cab</string>
 				<string>com.redhat.rpm-archive</string>
 				<string>com.stuffit.archive.sit</string>
 				<string>com.stuffit.archive.sitx</string>
@@ -321,7 +321,7 @@
 			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.microsoft.cab-archive</string>
+				<string>com.microsoft.cab</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -689,7 +689,7 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.microsoft.cab-archive</string>
+			<string>com.microsoft.cab</string>
 			<key>UTTypeDescription</key>
 			<string>CAB</string>
 			<key>UTTypeConformsTo</key>
