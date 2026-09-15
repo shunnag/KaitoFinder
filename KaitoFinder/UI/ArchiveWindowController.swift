@@ -41,6 +41,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
     QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     private let bundle: Bundle
+    private var hasPositionedWindow = false
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
     private let promiseOwner = UUID()
@@ -353,6 +354,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     override func showWindow(_ sender: Any?) {
+        if let window, !window.isVisible, !hasPositionedWindow {
+            hasPositionedWindow = true
+            if let reference = NSApp.orderedWindows.first(where: {
+                $0.windowController is ArchiveWindowController && $0.isVisible && $0 !== window
+                    && !($0.tabGroup?.windows.contains { $0 === window } ?? false)
+            }) {
+                let next = reference.cascadeTopLeft(from: .zero)
+                window.cascadeTopLeft(from: next)
+            }
+        }
         super.showWindow(sender)
         if (document as? ArchiveDocument)?.isPasswordLocked == true { unlockArchive(sender) }
     }
@@ -384,7 +395,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             do {
                 if try await document.unlockUsingRememberedPassword() { return }
             } catch {
-                if !(error is CancellationError), !Task.isCancelled { self.reportFailure(String(describing: error)) }
+                if !(error is CancellationError), !Task.isCancelled { self.reportFailure(ArchiveErrorText.describe(error, bundle: self.bundle)) }
                 return
             }
             while !Task.isCancelled {
@@ -397,7 +408,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 } catch {
                     if error is CancellationError || Task.isCancelled { return }
                     if let next = ArchivePasswordChallenge(error) { challenge = next }
-                    else { self.reportFailure(String(describing: error)); return }
+                    else { self.reportFailure(ArchiveErrorText.describe(error, bundle: self.bundle)); return }
                 }
             }
         }
@@ -923,7 +934,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             String(localized: "フォルダを自分自身の中へは移動できません。", bundle: bundle)
         case .missingFolder:
             String(localized: "移動先のフォルダが見つかりません。", bundle: bundle)
-        case nil: error.localizedDescription
+        case nil: ArchiveErrorText.describe(error, bundle: bundle)
         }
     }
 
@@ -1112,7 +1123,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             case .none: return false
             }
             return true
-        } catch { reportImportFailure(String(describing: error)); return false }
+        } catch { reportImportFailure(ArchiveErrorText.describe(error, bundle: bundle)); return false }
     }
 
     private func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String) {
@@ -1146,7 +1157,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 }
             } catch {
                 sheet.finish()
-                if !(error is CancellationError) { self?.reportImportFailure(String(describing: error)) }
+                if !(error is CancellationError), let self { self.reportImportFailure(ArchiveErrorText.describe(error, bundle: self.bundle)) }
             }
             self?.extractionTask = nil
             self?.extractionProgress = nil
@@ -1275,8 +1286,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 sheet?.finish()
             } catch {
                 sheet?.finish()
-                if !(error is CancellationError), !Task.isCancelled {
-                    self?.reportFailure(String(describing: error))
+                if !(error is CancellationError), !Task.isCancelled, let self {
+                    self.reportFailure(ArchiveErrorText.describe(error, bundle: self.bundle))
                 }
             }
             self?.extractionTask = nil
@@ -1375,9 +1386,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         materialization.display(index: index) { [weak self] item in
             guard let self, let url = item.previewItemURL else { return }
             if let application {
-                NSWorkspace.shared.open([url], withApplicationAt: application, configuration: .init()) { [weak self] _, error in
+                NSWorkspace.shared.open([url], withApplicationAt: application, configuration: .init()) { [weak self, bundle = self.bundle] _, error in
                     if let error {
-                        let reason = String(describing: error)
+                        let reason = ArchiveErrorText.describe(error, bundle: bundle)
                         Task { @MainActor [weak self] in self?.reportFailure(reason) }
                     }
                 }

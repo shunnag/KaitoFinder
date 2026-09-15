@@ -105,7 +105,7 @@ final class ArchiveMaterializationController {
                 self.progress = nil
                 self.finished?()
                 if self.reportsFailures, !(error is CancellationError), !progress.isCancelled, !Task.isCancelled {
-                    let reason = (error as? EntryReadCapability.Refusal)?.message() ?? String(describing: error)
+                    let reason = (error as? EntryReadCapability.Refusal)?.message() ?? ArchiveErrorText.describe(error)
                     self.failed?("\(item.payload.path): \(reason)")
                 }
             }

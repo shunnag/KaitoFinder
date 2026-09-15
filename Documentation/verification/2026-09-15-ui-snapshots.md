@@ -53,7 +53,8 @@ GyoshukuKit、KaitoKit、project.pbxprojは変更していない。新規の表�
 ## 保存先
 
 - 環境変数`KAITOFINDER_SNAPSHOT_DIR`があれば、そのディレクトリを作成して使用する。
-- 未指定時は`NSTemporaryDirectory()/KaitoFinderSnapshots/<UTC日時>/`。日時は例として`2026-09-15T03-02-44.042Z`の形式。
+- xcodebuildから指定する場合は`env TEST_RUNNER_KAITOFINDER_SNAPSHOT_DIR=<dir> xcodebuild test …`を使う。xcodebuild自身のプロセスに設定された`TEST_RUNNER_`付き環境変数が、接頭辞を外してテストランナーへ転送される。xcodebuildの引数として渡しても効果はない。
+- 未指定時は`NSTemporaryDirectory()/KaitoFinderSnapshots/<UTC日時>/`。日時は例として`2026-09-15T03-02-44.042Z`の形式。新しい実行ディレクトリを作成した後、日時名で新しい順に今回を含めて5世代だけを残す。環境変数が設定されている場合は削除しない。
 - ファイル名は`ja-password-required-long-name.png`、`en-settings-compression.png`など。ヘルパー検証用は`harness-*.png`。
 - 保存先のパスはテストプロセスにつき一度出力する。
 - 今回の補助検証では`KAITOFINDER_SNAPSHOT_DIR=/private/tmp/kaitofinder-snapshot-check/snapshots`を使用し、47枚を生成した。
@@ -111,4 +112,3 @@ xcodebuild: error: Could not resolve package dependencies:
 <unknown>:0: error: cannot open file '/Users/nagash/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/gyoshukukit.dia' for diagnostics emission (Operation not permitted)
 
 ```
-

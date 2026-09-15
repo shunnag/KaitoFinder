@@ -165,7 +165,7 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                     if let cleanupReason { failures.append(Failure(archive: archive, reason: cleanupReason)) }
                     break
                 }
-                var reason = error is CancellationError ? String(localized: "キャンセル") : String(describing: error)
+                var reason = error is CancellationError ? String(localized: "キャンセル") : ArchiveErrorText.describe(error)
                 if let cleanupReason { reason += "\n" + cleanupReason }
                 failures.append(Failure(archive: archive, reason: reason))
             }
@@ -235,17 +235,17 @@ nonisolated struct ArchiveBatchPlan: Sendable {
             var info = stat()
             if lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
                fchmodat(AT_FDCWD, url.path, 0o700, AT_SYMLINK_NOFOLLOW) != 0 {
-                reasons.append(String(describing: ExtractionFailure.system(errno)))
+                reasons.append(ExtractionFailure.system(errno).description)
             }
         }
         for url in urls.reversed() {
             var info = stat()
             guard lstat(url.path, &info) == 0 else {
-                if errno != ENOENT { reasons.append(String(describing: ExtractionFailure.system(errno))) }
+                if errno != ENOENT { reasons.append(ExtractionFailure.system(errno).description) }
                 continue
             }
             let status = info.st_mode & S_IFMT == S_IFDIR ? rmdir(url.path) : unlink(url.path)
-            if status != 0, errno != ENOENT { reasons.append(String(describing: ExtractionFailure.system(errno))) }
+            if status != 0, errno != ENOENT { reasons.append(ExtractionFailure.system(errno).description) }
         }
         guard !reasons.isEmpty else { return nil }
         return String(localized: "キャンセルしたアーカイブの出力を削除できませんでした: \(reasons.joined(separator: "\n"))。")

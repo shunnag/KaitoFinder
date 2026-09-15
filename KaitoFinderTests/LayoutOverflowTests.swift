@@ -55,6 +55,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testLockedPlaceholderInJapaneseAndEnglish() throws {
+        let frameAutosave = ArchiveWindowFrameAutosave()
+        defer { frameAutosave.restore() }
         try forEachLanguage { language, bundle in
             let controller = ArchiveWindowController(bundle: bundle)
             defer { controller.close() }
@@ -272,6 +274,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testStatusBarWithLargeCountsInJapaneseAndEnglish() throws {
+        let frameAutosave = ArchiveWindowFrameAutosave()
+        defer { frameAutosave.restore() }
         try forEachLanguage { language, bundle in
             let controller = ArchiveWindowController(bundle: bundle)
             defer { controller.close() }

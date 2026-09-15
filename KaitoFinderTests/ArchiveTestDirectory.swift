@@ -135,6 +135,7 @@ nonisolated final class ScenarioGate: Sendable {
 extension XCTestCase {
     @MainActor func scenarioDocument(_ fixture: ScenarioFixture, url: URL? = nil) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
+        preserveArchiveWindowFrame()
         let document = ArchiveDocument(), source = url ?? fixture.archive
         try document.read(from: source, ofType: "public.zip-archive")
         document.fileURL = source

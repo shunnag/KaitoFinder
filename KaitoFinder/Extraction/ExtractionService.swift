@@ -222,7 +222,7 @@ nonisolated enum ExtractionService {
                 break
             } catch {
                 result.failures.append(.init(entryIndex: entry.index, name: entry.name,
-                                             reason: String(describing: error)))
+                                             reason: ArchiveErrorText.describe(error)))
             }
             progress.completedUnitCount += 1
             progress.setUserInfoObject(Int(progress.completedUnitCount), forKey: .fileCompletedCountKey)
@@ -233,7 +233,7 @@ nonisolated enum ExtractionService {
             do { try output.finishDirectory(components, entry: entry) }
             catch {
                 result.failures.append(.init(entryIndex: entry.index, name: entry.name,
-                                             reason: String(localized: "ディレクトリ属性: \(String(describing: error))。")))
+                                             reason: String(localized: "ディレクトリ属性: \(ArchiveErrorText.describe(error))。")))
             }
         }
         result.cancelled = result.cancelled || progress.isCancelled || Task.isCancelled

@@ -11,6 +11,29 @@ import XCTest
 }
 
 nonisolated final class UISnapshotTests: XCTestCase {
+    @MainActor func testPrunesOnlyOldTimestampRunsAndPreservesCustomDirectory() throws {
+        let directory = try ArchiveTestDirectory()
+        let parent = directory.url.appendingPathComponent("KaitoFinderSnapshots", isDirectory: true)
+        let names = (1...7).map { "2026-09-15T00-00-0\($0).000Z" }
+        for name in names.reversed() {
+            try FileManager.default.createDirectory(at: parent.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        let configured = parent.appendingPathComponent("custom-snapshot-output", isDirectory: true)
+        try FileManager.default.createDirectory(at: configured, withIntermediateDirectories: false)
+        let marker = configured.appendingPathComponent("keep.txt")
+        try Data("keep".utf8).write(to: marker)
+        let timestampFile = parent.appendingPathComponent("2026-09-15T00-00-00.000Z")
+        try Data("file".utf8).write(to: timestampFile)
+
+        try UISnapshot.pruneRuns(in: parent, keeping: 5)
+
+        let remaining = try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)
+        XCTAssertEqual(Set(remaining.map(\.lastPathComponent)),
+                       Set(names.suffix(5)).union([configured.lastPathComponent, timestampFile.lastPathComponent]))
+        XCTAssertEqual(try String(contentsOf: marker, encoding: .utf8), "keep")
+        XCTAssertEqual(try String(contentsOf: timestampFile, encoding: .utf8), "file")
+    }
+
     @MainActor func testDetectsClippedSingleLineLabel() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 80))
         let label = NSTextField(labelWithString: String(repeating: "Wide text ", count: 10))

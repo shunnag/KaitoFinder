@@ -63,6 +63,8 @@ nonisolated final class ScenarioConcurrencyTests: XCTestCase {
     }
 
     @MainActor func testOpeningSameArchiveTwiceReturnsOneDocument() async throws {
+        let frameAutosave = ArchiveWindowFrameAutosave()
+        defer { frameAutosave.restore() }
         let fixture = try ScenarioFixture()
         let first = try await NSDocumentController.shared.openDocument(withContentsOf: fixture.archive, display: false)
         let second = try await NSDocumentController.shared.openDocument(withContentsOf: fixture.archive, display: false)

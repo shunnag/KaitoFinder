@@ -98,6 +98,6 @@ nonisolated struct ArchiveCapabilities: Sendable {
             return Self(refusal: .encrypted)
         } catch RewriterError.unrepresentable(let entry, let reason) {
             return Self(refusal: .unrepresentable("\(entry): \(reason)"))
-        } catch { return Self(refusal: .unavailable(String(describing: error))) }
+        } catch { return Self(refusal: .unavailable(ArchiveErrorText.describe(error))) }
     }
 }

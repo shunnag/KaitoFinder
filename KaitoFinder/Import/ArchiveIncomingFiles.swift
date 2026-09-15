@@ -72,7 +72,7 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
         for receiver in receivers {
             receiver.receivePromisedFiles(atDestination: directory, options: [:], operationQueue: queue) { [self] url, error in
                 state.withLock {
-                    if let error { $0.failures.append(String(describing: error)) }
+                    if let error { $0.failures.append(ArchiveErrorText.describe(error)) }
                     else if ExtractionPath.isInside(url, root: directory) { $0.urls.append(url) }
                     else { $0.failures.append(String(localized: "promiseの出力が一時領域の外を指しています。")) }
                     $0.remaining -= 1

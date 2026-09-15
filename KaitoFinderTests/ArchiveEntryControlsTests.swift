@@ -62,6 +62,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor private func interface(_ fixture: Fixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
+        preserveArchiveWindowFrame()
         let document = ArchiveDocument(undoStack: stack)
         try document.read(from: fixture.archive, ofType: "archive")
         let controller = ArchiveWindowController()

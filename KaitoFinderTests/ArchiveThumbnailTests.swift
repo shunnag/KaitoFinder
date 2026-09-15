@@ -82,6 +82,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
     @MainActor private func interface(_ fixture: Fixture) async throws
         -> (document: ArchiveDocument, controller: ArchiveWindowController, session: ArchiveSession,
             root: EntryNode, materialization: ArchiveMaterializationController) {
+        preserveArchiveWindowFrame()
         let document = try ArchiveDocument(contentsOf: fixture.archive, ofType: "public.zip-archive")
         let controller = ArchiveWindowController()
         document.addWindowController(controller)

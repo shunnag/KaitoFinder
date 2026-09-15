@@ -8,7 +8,8 @@ import XCTest
 
     private static let runDirectory: URL = {
         let url: URL
-        if let path = ProcessInfo.processInfo.environment["KAITOFINDER_SNAPSHOT_DIR"], !path.isEmpty {
+        let configuredPath = ProcessInfo.processInfo.environment["KAITOFINDER_SNAPSHOT_DIR"]
+        if let path = configuredPath, !path.isEmpty {
             url = URL(fileURLWithPath: path, isDirectory: true)
         } else {
             let formatter = ISO8601DateFormatter()
@@ -20,9 +21,25 @@ import XCTest
         }
         do { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
         catch { XCTFail("スナップショット保存先を作成できません: \(error)") }
+        if configuredPath == nil {
+            do { try pruneRuns(in: url.deletingLastPathComponent(), keeping: 5) }
+            catch { XCTFail("古いスナップショットを削除できません: \(error)") }
+        }
         print("KaitoFinder UI snapshots: \(url.path)")
         return url
     }()
+
+    static func pruneRuns(in parent: URL, keeping count: Int) throws {
+        let runs = try FileManager.default.contentsOfDirectory(at: parent,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]).filter { url in
+                // 自動生成した日時名の実ディレクトリだけを削除対象にする。
+                guard url.lastPathComponent.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}\.[0-9]{3}Z$"#,
+                                                  options: .regularExpression) != nil else { return false }
+                let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                return values.isDirectory == true && values.isSymbolicLink != true
+            }.sorted { $0.lastPathComponent > $1.lastPathComponent }
+        for run in runs.dropFirst(max(0, count)) { try FileManager.default.removeItem(at: run) }
+    }
 
     private enum SnapshotError: Error {
         case emptyBounds(String)

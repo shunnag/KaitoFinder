@@ -78,7 +78,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
                 occupied.formUnion(names)
                 plan.items.append(contentsOf: batch)
             } catch is CancellationError { throw CancellationError() }
-            catch { plan.failures.append(Failure(name: url.lastPathComponent, reason: String(describing: error))) }
+            catch { plan.failures.append(Failure(name: url.lastPathComponent, reason: ArchiveErrorText.describe(error))) }
         }
         // 衝突などの事前検査は全項目を報告するが、一つでも失敗なら原本を一切変えない。
         return plan

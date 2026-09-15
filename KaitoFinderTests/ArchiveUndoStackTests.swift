@@ -605,6 +605,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     }
 
     @MainActor func testEditMenuShortcutsUseDocumentUndoManager() async throws {
+        preserveArchiveWindowFrame()
         let fixture = try Fixture(), document = try document(fixture)
         document.makeWindowControllers()
         let window = try XCTUnwrap(document.windowControllers.first?.window)
