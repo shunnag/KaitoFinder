@@ -976,7 +976,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M7** | ユーザー要望(2026-09-15): 同一ウインドウ内ドラッグの移動、ブランク領域の右クリック、ツールバー、設定ウインドウ(圧縮 / 展開)、一括展開、文言の macOS 化(書庫→アーカイブ、取り出す→展開、標準メニュー) | Finder の作法と日常のアーカイブ操作 | **完了** — 移動 `906c0e1`、右クリックとツールバー `76b2d66`、設定 `dfac011`、文言 `8df2ad6`、一括展開 `37ec1fc`。クラッシュ修正 `4135e04` / `2d05b22` / `d8e9d72`(いずれも @MainActor の ObjC 面を AppKit / QL がバックグラウンドから呼ぶ型) |
 | **M8** | リリースに向けた磨き込み(2026-09-15): プロセス内スナップショット基盤とはみ出し監査、パスワード UI の修正、ロック状態・設定・進捗・ステータスバーの Finder 化、10 言語対応(Apple の語彙に追随)、実運用シーンのテスト | 出荷品質 | **完了** — 監査基盤 `c1da7e1`、UI 洗練 `cdac130`、10 言語 `d7b9067`、シーンテスト 28 件と 8 件の修正 `6046b80`(検証 `2026-09-15-scenarios.md`)。`6046b80` が持ち込んだ回帰(identity の ctime 照合 → 文書を開くと LaunchServices の拡張属性で全読み取りが拒否)は `3b93b4b` で修正。ウインドウのカスケード、エラー文言の 10 言語化(`ArchiveErrorText`)、スナップショットの世代管理(検証 `2026-09-15-cascade-error-text.md`) |
 | **M9** | ユーザー要望(2026-09-15) 第 2 弾: 英語フォールバック、隠しファイル、圧縮レベル、別名で保存、暗号化 UI、ようこそウインドウ | 日常操作の追加と形式変換 | **Wave A 完了・検証済み** — ユーザーのシェルで XCTest 544 件、失敗 0、スキップ 0、Release smoke 成功(ユーザー報告)。[Wave A 検証](verification/2026-09-15-wave-a.md)。**Wave C 実装完了** — 暗号化付き保存、パスワード設定/変更/削除、既知の鍵による編集と Undo/Redo、10 言語の UI 監査テストを追加。ユーザーのシェルで build 成功。全件実行の順序依存の失敗はテスト用ウインドウのアニメーション待機が原因と判明し、起動時の無効化で 563 件・失敗 0(ユーザーによる追補前の検証)。テスト基盤への恒久対応とエージェントの sandbox 内の検証範囲は [暗号化 UI 検証](verification/2026-09-15-password.md)。**Wave B ウェルカムウインドウ完了** — ようこそ専用 17 テストを追加。補助 XCTest は 49 件中 43 成功・失敗 0・sandbox 制約で 6 スキップ。ようこそと設定の一般タブは 10 言語 × 両外観の 40 描画ではみ出し 0 件。[ようこそ検証](verification/2026-09-15-welcome.md)。**Wave D 実装完了** — 全 292 キーと Services に 16 言語を追加し、計 26 言語。文体・用語テストと描画監査を拡張。ユーザーのシェルで XCTest 598 件・失敗 0(2 回目。1 回目の 1 件失敗は KaitoKit の ZipCrypto 判定が原因、修正済み)、Release 実機で th / ru / pt-PT を確認。全件検証・Release smoke と標準 build / test の sandbox 制約・補助検証の実測は [言語検証](verification/2026-09-15-languages.md) |
-| **M10** | リリース準備: README の全面更新、対応形式の宣言(StuffIt / StuffIt X / Zstandard、txz / zipx / deb の別識別子)、形式名の表示、言語の二次レビュー 39 件、CAB の識別子修正 | 現行機能の案内と Finder の形式認識 | 完了(検証: オーケストレータ、LaunchServices 実測) |
+| **M10** | リリース準備: README の全面更新、対応形式の宣言(StuffIt / StuffIt X / Zstandard、txz / zipx / deb の別識別子)、形式名の表示、言語の二次レビュー 39 件、CAB の識別子修正、大規模アーカイブの実測(10 万・50 万件) | 現行機能の案内と Finder の形式認識 | 完了(検証: オーケストレータ、LaunchServices 実測) |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。
@@ -1017,6 +1017,12 @@ KaitoKit の作法を引き継ぐ。
   GNU tar で読む。**書いたものを KaitoKit 自身で読み直す**往復も必ず行う。
 - clean-room の byte 表からテスト入力を組み立てる(`ArArchiveBuilder` と同じ形)。
 - 実測はすべて `Documentation/verification/YYYY-MM-DD-*.md` に残す。
+
+2026-09-16 の Release ビルドによる[大規模アーカイブの実測](verification/2026-09-16-scale.md)では、
+ウインドウ出現までの時間 / dirty footprint は 10 万件で約 1.3 s / 232 MB、
+50 万件で約 4.2 s / 924 MB。100 万件は KaitoKit の保持メタデータの合計上限
+`maxTotalMetadataSize`(256 MiB)で拒否された。約 25 万件を超える読み込みは
+KaitoKit PR #28(`fix/zip-first-candidate-budget`)の修正に依存する。
 
 **テストプロセスではウインドウの自動アニメーションを無効にする。** 表示されないテスト用
 ウインドウでもシート表示・文書の close が `_NSWindowTransformAnimation` を開始し、
