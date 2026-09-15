@@ -271,7 +271,15 @@ NSSplitViewController / NSToolbar / NSSearchField を使っている。column vi
 | カラム表示 | item-based `NSBrowser` |
 | パスバー・ステータスバー | `NSSplitViewItemAccessoryViewController`(macOS 26 新規) |
 | タブ | `NSWindow` tabbing |
-| 設定・情報を見る・inspector | `NSHostingView` で SwiftUI |
+| 設定 | `NSWindowController` + `NSTabViewController`(`tabStyle = .toolbar`) |
+| 情報を見る・inspector | `NSHostingView` で SwiftUI |
+
+**設定**: アプリメニューの「設定…」(⌘,)から、一般 / 圧縮 / 展開の三つのタブを持つ
+単一のウインドウを開く。新規書庫の既定形式は保存パネルと共有し、ZIP の方式・レベル・
+圧縮済みファイルの無圧縮格納、tar.gz の gzip レベル、tar / tar.gz の所有者 ID 保存を変更できる。
+7z は LZMA2、LHA は -lh5- の固定エンコーダーを使う。操作ごとに UserDefaults へ保存し、
+新規作成・形式変換・開いている書庫の追加や編集へ即時反映する。展開先・フォルダ作成方針・
+展開後の書庫のゴミ箱移動も保存し、今後の一括展開から参照する。
 
 `NSDocument` は**読み取り専用の器**として使う。`readFromURL:ofType:` を
 override して super を呼ばない(継承実装は NSFileWrapper 経由で書庫全体を

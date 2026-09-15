@@ -4,15 +4,26 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
+    private let preferencesStore: ArchivePreferencesStore
+    private(set) var preferencesWindowController: PreferencesWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
     private(set) var creationOpenPanel: NSOpenPanel?
 
     override convenience init() { self.init(passwordVault: .shared) }
 
-    init(passwordVault: ArchivePasswordVault) {
+    init(passwordVault: ArchivePasswordVault = .shared, preferencesStore: ArchivePreferencesStore = .shared) {
         self.passwordVault = passwordVault
+        self.preferencesStore = preferencesStore
         super.init()
+    }
+
+    @objc func showPreferences(_ sender: Any?) {
+        if preferencesWindowController == nil {
+            preferencesWindowController = PreferencesWindowController(store: preferencesStore)
+        }
+        preferencesWindowController?.showWindow(sender)
+        preferencesWindowController?.window?.makeKeyAndOrderFront(sender)
     }
 
     @objc func forgetArchivePasswords(_ sender: Any?) {
@@ -88,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !sources.isEmpty, archiveCreationTask == nil else { return }
         archiveCreationTask = Task {
             defer { archiveCreationTask = nil }
-            do { try await ArchiveCreationController().createAndOpen(sources: sources) }
+            do { try await ArchiveCreationController(store: preferencesStore).createAndOpen(sources: sources) }
             catch {
                 if !(error is CancellationError) { ArchiveCreationController.presentFailure(error) }
             }
@@ -113,6 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenu = NSMenu(title: "KaitoFinder")
         appMenu.addItem(withTitle: String(localized: "KaitoFinderについて"),
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        let preferences = appMenu.addItem(withTitle: String(localized: "設定…"),
+                                          action: #selector(showPreferences(_:)), keyEquivalent: ",")
+        preferences.target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: String(localized: "KaitoFinderを終了"),
                         action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")

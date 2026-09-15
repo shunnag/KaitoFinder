@@ -1,4 +1,5 @@
 import AppKit
+import GyoshukuKit
 import KaitoKit
 import Synchronization
 
@@ -8,6 +9,16 @@ import Synchronization
         case empty, locked(URL), open(ArchiveSession), closed
     }
     nonisolated private let contentsStorage = Mutex<Contents>(.empty)
+    // セッションが文書を保持せずに、通知で更新した設定だけを worker から読めるようにする。
+    nonisolated private final class PreferencesSnapshot: Sendable {
+        let value: Mutex<ArchivePreferences>
+        init(_ preferences: ArchivePreferences) { value = Mutex(preferences) }
+    }
+    nonisolated private let preferencesSnapshot: PreferencesSnapshot
+    private let preferencesStore: ArchivePreferencesStore
+    nonisolated private var sessionWriterOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions {
+        { [preferencesSnapshot] format in preferencesSnapshot.value.withLock { $0.writerOptions(for: format) } }
+    }
     var session: ArchiveSession? {
         contentsStorage.withLock { if case .open(let session) = $0 { session } else { nil } }
     }
@@ -45,15 +56,25 @@ import Synchronization
         self.init(undoStack: ArchiveUndoStack(), passwordVault: passwordVault)
     }
 
-    init(undoStack: ArchiveUndoStack, passwordVault: ArchivePasswordVault = .shared) {
+    init(undoStack: ArchiveUndoStack, passwordVault: ArchivePasswordVault = .shared,
+         preferencesStore: ArchivePreferencesStore = .shared) {
         archiveUndoStack = undoStack
         self.passwordVault = passwordVault
+        self.preferencesStore = preferencesStore
+        preferencesSnapshot = PreferencesSnapshot(preferencesStore.preferences)
         super.init()
+        NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
+                                               name: ArchivePreferencesStore.didChange, object: preferencesStore)
         hasUndoManager = true
         let manager = ArchiveUndoManager()
         manager.groupsByEvent = false
         manager.levelsOfUndo = 10
         undoManager = manager
+    }
+
+    @objc private func preferencesDidChange(_ notification: Notification) {
+        let preferences = preferencesStore.preferences
+        preferencesSnapshot.value.withLock { $0 = preferences }
     }
 
     var canUndoNextMutation: Bool { archiveUndoStack.canUndoNextMutation }
@@ -101,7 +122,7 @@ import Synchronization
     nonisolated override func read(from url: URL, ofType typeName: String) throws {
         // super は NSFileWrapper 経由で全体を読み込むため呼ばない。
         let contents: Contents
-        do { contents = .open(try ArchiveSession(url: url)) }
+        do { contents = .open(try ArchiveSession(url: url, writerOptions: sessionWriterOptions)) }
         catch KaitoError.passwordRequired {
             // AppKit の並行 read では UI を出せない。URL だけを渡し、window 側で解除する。
             contents = .locked(url)
@@ -130,7 +151,7 @@ import Synchronization
 
     func unlock(password: String, remember: Bool = false, vaultGeneration: UInt64? = nil) async throws {
         guard !closed, let url = lockedURL else { throw CancellationError() }
-        let opened = try await Self.openLockedArchive(url, password: password)
+        let opened = try await Self.openLockedArchive(url, password: password, writerOptions: sessionWriterOptions)
         guard !closed, !Task.isCancelled, lockedURL == url else {
             await opened.close()
             throw CancellationError()
@@ -197,9 +218,12 @@ import Synchronization
         catch { return false }
     }
 
-    @concurrent private static func openLockedArchive(_ url: URL, password: String) async throws -> ArchiveSession {
+    @concurrent private static func openLockedArchive(
+        _ url: URL, password: String,
+        writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
+    ) async throws -> ArchiveSession {
         try Task.checkCancellation()
-        return try ArchiveSession(url: url, password: password)
+        return try ArchiveSession(url: url, password: password, writerOptions: writerOptions)
     }
 
     override func makeWindowControllers() {
@@ -406,6 +430,7 @@ import Synchronization
 
     override func close() {
         closed = true
+        NotificationCenter.default.removeObserver(self, name: ArchivePreferencesStore.didChange, object: preferencesStore)
         rememberedPayloadPassword = nil
         disposeMaterialization()
         disposeUndoStack()

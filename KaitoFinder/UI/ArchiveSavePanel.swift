@@ -4,17 +4,17 @@ import UniformTypeIdentifiers
 
 /// popup の選択・型・名前の変更を、パネルを表示せずに検証できる。
 final class ArchiveSavePanelController {
-    static let defaultsKey = "ArchiveCreationFormat"
-    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .sevenZip, .lha]
-    private let defaults: UserDefaults
+    static let defaultsKey = ArchivePreferencesStore.Key.defaultFormat
+    static let formats = ArchivePreferences.formats
+    private let store: ArchivePreferencesStore
     private(set) var format: GyoshukuKit.ArchiveFormat
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        // writer の enum は raw value を持たないため、保存値には正準の拡張子を使う。
-        let saved = defaults.string(forKey: Self.defaultsKey)
-        format = Self.formats.first { ArchiveCreationPlan.filenameExtension(for: $0) == saved } ?? .zip
+    init(store: ArchivePreferencesStore = .shared) {
+        self.store = store
+        format = store.preferences.defaultFormat
     }
+
+    convenience init(defaults: UserDefaults) { self.init(store: ArchivePreferencesStore(defaults: defaults)) }
 
     var selectedIndex: Int { Self.formats.firstIndex(of: format)! }
     var allowedContentTypes: [UTType] { [Self.contentType(for: format)] }
@@ -52,7 +52,7 @@ final class ArchiveSavePanelController {
         let suffix = "." + ArchiveCreationPlan.filenameExtension(for: format)
         let stem = filename.lowercased().hasSuffix(suffix) ? String(filename.dropLast(suffix.count)) : filename
         format = Self.formats[index]
-        defaults.set(ArchiveCreationPlan.filenameExtension(for: format), forKey: Self.defaultsKey)
+        store.preferences.defaultFormat = format
         return stem + "." + ArchiveCreationPlan.filenameExtension(for: format)
     }
 }
@@ -62,8 +62,12 @@ final class ArchiveSavePanel: NSObject {
     let controller: ArchiveSavePanelController
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
 
-    init(sources: [URL], existingURL: URL? = nil, defaults: UserDefaults = .standard) {
-        controller = ArchiveSavePanelController(defaults: defaults)
+    convenience init(sources: [URL], existingURL: URL? = nil, defaults: UserDefaults) {
+        self.init(sources: sources, existingURL: existingURL, store: ArchivePreferencesStore(defaults: defaults))
+    }
+
+    init(sources: [URL], existingURL: URL? = nil, store: ArchivePreferencesStore = .shared) {
+        controller = ArchiveSavePanelController(store: store)
         super.init()
         panel.directoryURL = sources.first?.deletingLastPathComponent()
         panel.nameFieldStringValue = existingURL.map { ArchiveCreationPlan.conversionName(for: $0, format: controller.format) }

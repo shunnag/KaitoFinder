@@ -327,8 +327,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         try assertNoWorkDirectory(directory.url)
     }
 
-    @MainActor private func document(_ fixture: Fixture) throws -> ArchiveDocument {
-        let document = ArchiveDocument()
+    @MainActor private func document(_ fixture: Fixture, preferencesStore: ArchivePreferencesStore = .shared) throws -> ArchiveDocument {
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: preferencesStore)
         try document.read(from: fixture.archive, ofType: "archive")
         addTeardownBlock { @MainActor in
             document.close()
@@ -461,6 +461,121 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     @MainActor func testTGZDocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.tgz) }
     @MainActor func testSevenZipDocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.sevenZip) }
     @MainActor func testLHADocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.lha) }
+
+    @MainActor func testZIPAppendUsesLatestDocumentPreferences() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let directory = try ArchiveTestDirectory(), archive = try zip(in: directory)
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)
+        addTeardownBlock { @MainActor in
+            document.close()
+            await document.undoCleanup?.value
+            await document.sessionCleanup?.value
+            withExtendedLifetime(directory) {}
+        }
+        // 開いたセッションにも、その後の変更を同期する。
+        try document.read(from: archive, ofType: "archive")
+        let session = try XCTUnwrap(document.session)
+        XCTAssertEqual(session.capabilities.mode, .inPlace)
+        let bytes = Data(repeating: 0x61, count: 200 * 1024)
+        var sizes: [UInt64] = []
+        for method in [ArchivePreferences.ZipMethod.stored, .deflate] {
+            store.preferences.zipMethod = method
+            store.preferences.zipLevel = 9
+            store.preferences.zipSkipsCompressedTypes = false
+            let source = directory.url.appendingPathComponent(method.rawValue + ".txt")
+            try bytes.write(to: source)
+            let result = try await document.append(urls: [source], to: "", progress: Progress())
+            XCTAssertEqual(result.addedPaths, [source.lastPathComponent])
+            XCTAssertNil(result.reloadFailure)
+            let reader = try ArchiveReader.open(url: archive)
+            let entry = try XCTUnwrap(reader.entries.first { $0.name == source.lastPathComponent })
+            XCTAssertEqual(entry.uncompressedSize, UInt64(bytes.count))
+            sizes.append(try XCTUnwrap(entry.compressedSize))
+            var contents = Data()
+            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { contents.append(contentsOf: $0) }
+            XCTAssertEqual(contents, bytes)
+        }
+        XCTAssertEqual(sizes[0], UInt64(bytes.count))
+        XCTAssertLessThan(sizes[1], sizes[0])
+    }
+
+    @MainActor func testTarGzipRewriteHonoursPreferredCompressionLevel() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let bytes = Data(repeating: 0x61, count: 200 * 1024)
+        var sizes: [Int] = []
+        for level in [1, 9] {
+            let fixture = try Fixture(.tgz), document = try document(fixture, preferencesStore: store)
+            store.preferences.tarGzipLevel = level
+            let source = try fixture.file("repeated.txt", data: bytes)
+            let result = try await document.append(urls: [source], to: "", progress: Progress())
+            XCTAssertEqual(result.addedPaths, ["repeated.txt"])
+            XCTAssertNil(result.reloadFailure)
+            sizes.append(try Data(contentsOf: fixture.archive).count)
+            try assertContents(Fixture.original.merging(["repeated.txt": .file(bytes)]) { _, new in new },
+                               in: fixture.archive, format: .tar)
+        }
+        XCTAssertGreaterThanOrEqual(sizes[0], sizes[1])
+    }
+
+    @MainActor func testTarAppendHonoursPreferredOwnerIDs() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        for format in [Format.tar, .tgz] {
+            let fixture = try Fixture(format), document = try document(fixture, preferencesStore: store)
+            for preserve in [true, false] {
+                store.preferences.tarPreservesOwnerIDs = preserve
+                let name = preserve ? "with-owners.txt" : "without-owners.txt"
+                let result = try await document.append(urls: [fixture.file(name)], to: "", progress: Progress())
+                XCTAssertEqual(result.addedPaths, [name])
+                XCTAssertNil(result.reloadFailure)
+                let entry = try XCTUnwrap(ArchiveReader.open(url: fixture.archive).entries.first { $0.name == name })
+                XCTAssertEqual(entry.formatSpecific["uid"], String(preserve ? getuid() : 0))
+                XCTAssertEqual(entry.formatSpecific["gid"], String(preserve ? getgid() : 0))
+            }
+        }
+    }
+
+    @MainActor func testSessionRequestsOptionsForAppendCreateFolderAndEditInEveryMode() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences = ArchivePreferences(zipMethod: .stored, zipLevel: 9, zipSkipsCompressedTypes: false,
+                                               tarGzipLevel: 1, tarPreservesOwnerIDs: true)
+        let preferences = store.preferences
+        for format in ArchivePreferences.formats {
+            let directory = try ArchiveTestDirectory()
+            let source = directory.url.appendingPathComponent("input.txt")
+            try Data(repeating: 0x61, count: 1024).write(to: source)
+            let archive = directory.url.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: format))
+            let writer = try ArchiveWriter.create(url: archive, format: format)
+            try writer.add(contentsOf: source, as: "seed.txt")
+            try writer.finish()
+            let requested = Mutex<[GyoshukuKit.ArchiveFormat]>([])
+            let session = try ArchiveSession(url: archive, writerOptions: { outputFormat in
+                requested.withLock { $0.append(outputFormat) }
+                return preferences.writerOptions(for: outputFormat)
+            })
+            addTeardownBlock { @MainActor in
+                await session.close()
+                withExtendedLifetime(directory) {}
+            }
+            let appended = try await session.append(urls: [source], to: "", progress: Progress())
+            XCTAssertNil(appended.reloadFailure)
+            let created = try await session.createFolder(in: "", baseName: "folder", progress: Progress())
+            XCTAssertNil(created.reloadFailure)
+            let selection = ArchiveEditSelection(try await node("seed.txt", in: session))
+            let renamed = try await session.rename(selection, to: "renamed.txt", progress: Progress())
+            XCTAssertNil(renamed.reloadFailure)
+            XCTAssertEqual(requested.withLock { $0 }, [format, format, format])
+            XCTAssertEqual(session.generation, 3)
+            let entries = try ArchiveReader.open(url: archive).entries
+            XCTAssertEqual(Set(entries.map { nameWithoutTrailingSlash($0.name) }), ["renamed.txt", "input.txt", "folder"])
+            let appendedEntry = try XCTUnwrap(entries.first { $0.name == "input.txt" })
+            if format == .tar || format == .tarGzip {
+                // フォルダ作成・改名の再書き込みでも、追加時に保存した所有者を失わない。
+                XCTAssertEqual(appendedEntry.formatSpecific["uid"], String(getuid()))
+            } else if format == .zip {
+                XCTAssertEqual(appendedEntry.compressedSize, appendedEntry.uncompressedSize)
+            }
+        }
+    }
 
     @MainActor func testCancellationDuringRewriteCarryPreservesBytesAndRegistersNoUndo() async throws {
         for format in Format.allCases {

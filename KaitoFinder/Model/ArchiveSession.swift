@@ -1,4 +1,5 @@
 import Foundation
+import GyoshukuKit
 import KaitoKit
 import Synchronization
 
@@ -37,12 +38,15 @@ actor ArchiveSession {
     nonisolated private let generationStorage = Mutex<UInt64>(0)
     nonisolated var generation: UInt64 { generationStorage.withLock { $0 } }
     nonisolated let sourceURL: URL
-    nonisolated let format: ArchiveFormat
+    nonisolated let format: KaitoKit.ArchiveFormat
+    nonisolated let writerOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
     private(set) var quarantine: Data?
 
-    init(url: URL, password: String? = nil) throws {
+    init(url: URL, password: String? = nil,
+         writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions = { _ in WriterOptions() }) throws {
         sourceURL = url
         self.password = password
+        self.writerOptions = writerOptions
         quarantine = try ExtractionQuarantine.read(from: url)
         let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
         self.reader = reader
@@ -156,7 +160,9 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
         }
         let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries, progress: progress)
-        var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
+        let mode = capabilities.mode!
+        var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
+                                                     options: options(for: mode), progress: progress,
                                                      didProcess: didProcess, willPublish: willPublish)
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
@@ -181,7 +187,9 @@ actor ArchiveSession {
         try ArchiveImportPlan.checkCancellation(progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries)
-        var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
+        let mode = capabilities.mode!
+        var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
+                                                               options: options(for: mode), progress: progress,
                                                                willOpenUpdater: willOpenUpdater, willPublish: willPublish)
         do { try reloadAfterMutation() }
         catch { result.reloadFailure = Self.reloadFailureMessage }
@@ -206,13 +214,22 @@ actor ArchiveSession {
         }
         try ArchiveImportPlan.checkCancellation(progress)
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving, existing: reader.entries)
-        var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: capabilities.mode!, progress: progress,
+        let mode = capabilities.mode!
+        var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
+                                                   options: options(for: mode), progress: progress,
                                                    willOpenUpdater: willOpenUpdater, willPublish: willPublish)
         if result.published {
             do { try reloadAfterMutation() }
             catch { result.reloadFailure = Self.reloadFailureMessage }
         }
         return result
+    }
+
+    private func options(for mode: ArchiveCapabilities.Mode) -> WriterOptions {
+        switch mode {
+        case .inPlace: writerOptions(.zip)
+        case .rewrite(let format): writerOptions(format)
+        }
     }
 
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。

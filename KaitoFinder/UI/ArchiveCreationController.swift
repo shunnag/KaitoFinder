@@ -1,21 +1,32 @@
 import AppKit
+import GyoshukuKit
 import KaitoKit
 
 /// 三つの入口で保存先の選択・進捗・完成した文書の open を共有する。
 final class ArchiveCreationController {
+    private let store: ArchivePreferencesStore
     private(set) var savePanel: ArchiveSavePanel?
     private(set) var progressSheet: ExtractionProgressSheet?
 
+    init(store: ArchivePreferencesStore = .shared) { self.store = store }
+
+    // 保存パネルの確定時に設定を読む。表示中に変更されても古い値を使わない。
+    func creationPlan(sources: [URL], destination: URL, format: GyoshukuKit.ArchiveFormat,
+                      existing: ArchiveCreationPlan.Existing? = nil) -> ArchiveCreationPlan {
+        ArchiveCreationPlan(sources: sources, destination: destination, format: format,
+                            options: store.preferences.writerOptions(for: format), existing: existing)
+    }
+
     func createAndOpen(sources: [URL], existing: ArchiveCreationPlan.Existing? = nil,
                        on parent: NSWindow? = nil, progress: Progress = Progress()) async throws {
-        let save = ArchiveSavePanel(sources: sources, existingURL: existing?.url)
+        let save = ArchiveSavePanel(sources: sources, existingURL: existing?.url, store: store)
         savePanel = save
         defer { savePanel = nil }
         guard let destination = try await save.destination(on: parent) else { return }
         savePanel = nil
         try ArchiveImportPlan.checkCancellation(progress)
-        let plan = ArchiveCreationPlan(sources: sources, destination: destination,
-                                       format: save.controller.format, existing: existing)
+        let plan = creationPlan(sources: sources, destination: destination,
+                                format: save.controller.format, existing: existing)
         let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "書庫を作成しています"))
         progressSheet = sheet
         defer { sheet.finish(); progressSheet = nil }

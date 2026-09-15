@@ -107,6 +107,58 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
     func testCreateSevenZipRoundTripsAndSevenZipLists() throws { try assertCreation(.sevenZip) }
     func testCreateLHARoundTripsEveryEntryAndContent() throws { try assertCreation(.lha) }
 
+    @MainActor func testCreationStoredZIPPreferencesStoreEveryEntryWithoutCompression() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.zipMethod = .stored
+        store.preferences.zipSkipsCompressedTypes = false
+        let fixture = try Fixture(), controller = ArchiveCreationController(store: store)
+        let plan = controller.creationPlan(sources: fixture.sources, destination: fixture.output(), format: .zip)
+        let result = try ArchiveCreationTransaction.run(plan: plan, progress: Progress())
+        let reader = try ArchiveReader.open(url: result)
+        XCTAssertEqual(reader.entries.count, Fixture.contents.count)
+        for entry in reader.entries { XCTAssertEqual(entry.compressedSize, entry.uncompressedSize, entry.name) }
+        try assertContents(result, Fixture.contents)
+    }
+
+    @MainActor func testCreationDeflateLevelNinePreferencesCompress200KiBMoreThanStored() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let directory = try ArchiveTestDirectory(), controller = ArchiveCreationController(store: store)
+        let source = directory.url.appendingPathComponent("repeated.txt"), bytes = Data(repeating: 0x61, count: 200 * 1024)
+        try bytes.write(to: source)
+        var sizes: [UInt64] = []
+        for method in [ArchivePreferences.ZipMethod.stored, .deflate] {
+            // 同じ controller でも、保存を確定するたびに現在の設定から plan を作る。
+            store.preferences.zipMethod = method
+            store.preferences.zipLevel = 9
+            let destination = directory.url.appendingPathComponent(method.rawValue + ".zip")
+            let plan = controller.creationPlan(sources: [source], destination: destination, format: .zip)
+            XCTAssertEqual(plan.options.deflateLevel, 9)
+            let result = try ArchiveCreationTransaction.run(plan: plan, progress: Progress())
+            let entry = try XCTUnwrap(ArchiveReader.open(url: result).entries.first)
+            XCTAssertEqual(entry.uncompressedSize, UInt64(bytes.count))
+            sizes.append(try XCTUnwrap(entry.compressedSize))
+            try assertContents(result, ["repeated.txt": .file(bytes)])
+        }
+        XCTAssertEqual(sizes[0], UInt64(bytes.count))
+        XCTAssertLessThan(sizes[1], sizes[0])
+    }
+
+    @MainActor func testConversionUsesCurrentZIPPreferences() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let fixture = try Fixture(), controller = ArchiveCreationController(store: store)
+        let original = try ArchiveCreationTransaction.run(
+            plan: .init(sources: fixture.sources, destination: fixture.output(.tar), format: .tar), progress: Progress())
+        let reader = try ArchiveReader.open(url: original)
+        store.preferences.zipMethod = .stored
+        let plan = controller.creationPlan(sources: [], destination: fixture.output(), format: .zip,
+                                           existing: .init(url: original, password: nil, entries: reader.entries))
+        let result = try ArchiveCreationTransaction.run(plan: plan, progress: Progress())
+        for entry in try ArchiveReader.open(url: result).entries {
+            XCTAssertEqual(entry.compressedSize, entry.uncompressedSize, entry.name)
+        }
+        try assertContents(result, Fixture.contents)
+    }
+
     func testDefaultNamesPreserveFolderAndFileNamesForEveryFormat() {
         let folder = URL(fileURLWithPath: "/tmp/Docs", isDirectory: true), photo = URL(fileURLWithPath: "/tmp/a.jpg")
         let formats: [(GyoshukuKit.ArchiveFormat, String)] = [(.zip, "zip"), (.tar, "tar"), (.tarGzip, "tar.gz"), (.sevenZip, "7z"), (.lha, "lzh")]
