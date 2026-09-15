@@ -33,6 +33,7 @@ actor ArchiveSession {
     private var passwordRevision: UInt64 = 0
     // UI の接続だけは同期的に済ませ、display 直後の読み出しとの競合を避ける。
     nonisolated private let promptStorage = Mutex<PasswordPrompt?>(nil)
+    nonisolated private let capabilitiesObserver = Mutex<(@MainActor @Sendable () -> Void)?>(nil)
     nonisolated private let capabilitiesStorage: Mutex<ArchiveCapabilities>
     nonisolated var capabilities: ArchiveCapabilities { capabilitiesStorage.withLock { $0 } }
     nonisolated private let generationStorage = Mutex<UInt64>(0)
@@ -40,6 +41,21 @@ actor ArchiveSession {
     nonisolated let sourceURL: URL
     nonisolated private let formatStorage: Mutex<KaitoKit.ArchiveFormat>
     nonisolated var format: KaitoKit.ArchiveFormat { formatStorage.withLock { $0 } }
+    nonisolated private let encryptionStorage: Mutex<EncryptionState>
+    private struct EncryptionState: Sendable {
+        var hasEncryptedEntries: Bool
+        var hasKnownPassword: Bool
+    }
+    nonisolated var hasEncryptedEntries: Bool { encryptionStorage.withLock { $0.hasEncryptedEntries } }
+    nonisolated var hasKnownPassword: Bool { encryptionStorage.withLock { $0.hasKnownPassword } }
+    nonisolated var passwordFormat: GyoshukuKit.ArchiveFormat? {
+        switch format {
+        case .zip: .zip
+        case .sevenZip: .sevenZip
+        default: nil
+        }
+    }
+    private var encryptsSevenZipHeaders = false
     private var sourceIdentity: [Int64]
     nonisolated let writerOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
     nonisolated private let importOptions: @Sendable () -> ArchiveImportPlan.Options
@@ -57,7 +73,10 @@ actor ArchiveSession {
         let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
         self.reader = reader
         formatStorage = Mutex(reader.format)
-        capabilitiesStorage = Mutex(ArchiveCapabilities.inspect(url: url, format: reader.format))
+        capabilitiesStorage = Mutex(ArchiveCapabilities.inspect(url: url, format: reader.format, password: password))
+        encryptionStorage = Mutex(EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted),
+                                                  hasKnownPassword: password != nil))
+        encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: url, format: reader.format, password: password)
         guard try ArchiveImportTransaction.identity(url) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
     }
 
@@ -90,6 +109,10 @@ actor ArchiveSession {
 
     nonisolated func setPasswordPrompt(_ prompt: PasswordPrompt?) {
         promptStorage.withLock { $0 = prompt }
+    }
+
+    nonisolated func setCapabilitiesObserver(_ observer: (@MainActor @Sendable () -> Void)?) {
+        capabilitiesObserver.withLock { $0 = observer }
     }
 
     // entry ごとのエラーが文字列になる前に認証を完了する。出力はまだ作らないので、
@@ -125,6 +148,7 @@ actor ArchiveSession {
                         password = candidate
                         passwordRevision &+= 1
                         verifiedEntries = Set(encrypted.map(\.index))
+                        refreshCapabilities()
                         return
                     } catch {
                         guard let next = ArchivePasswordChallenge(error) else { throw error }
@@ -157,7 +181,9 @@ actor ArchiveSession {
         reader = nil
         verifiedEntries.removeAll()
         promptStorage.withLock { $0 = nil }
+        capabilitiesObserver.withLock { $0 = nil }
         passwordRevision &+= 1
+        encryptionStorage.withLock { $0.hasKnownPassword = false }
     }
 
     // 追加と fresh open は await を挟まず直列化し、promise の解決を割り込ませない。
@@ -168,11 +194,12 @@ actor ArchiveSession {
         guard capabilities.canAppend else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
+        try verifyBeforeEditing()
         let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
                                                progress: progress, options: importOptions())
         let mode = capabilities.mode!
         var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
-                                                     options: options(for: mode), progress: progress,
+                                                     options: options(for: mode), password: password, progress: progress,
                                                      didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity)
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
@@ -195,11 +222,12 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
+        try verifyBeforeEditing()
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries)
         let mode = capabilities.mode!
         var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
-                                                               options: options(for: mode), progress: progress,
+                                                               options: options(for: mode), password: password, progress: progress,
                                                                willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity)
         do { try reloadAfterMutation() }
         catch { result.reloadFailure = Self.reloadFailureMessage }
@@ -223,10 +251,11 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
+        try verifyBeforeEditing()
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving, existing: reader.entries)
         let mode = capabilities.mode!
         var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
-                                                   options: options(for: mode), progress: progress,
+                                                   options: options(for: mode), password: password, progress: progress,
                                                    willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity)
         if result.published {
             do { try reloadAfterMutation() }
@@ -236,10 +265,73 @@ actor ArchiveSession {
     }
 
     private func options(for mode: ArchiveCapabilities.Mode) -> WriterOptions {
+        let format: GyoshukuKit.ArchiveFormat
         switch mode {
-        case .inPlace: writerOptions(.zip)
-        case .rewrite(let format): writerOptions(format)
+        case .inPlace: format = .zip
+        case .rewrite(let output): format = output
         }
+        return encryptionSettings().applying(to: writerOptions(format), format: format)
+    }
+
+    func encryptionSettings() -> ArchiveEncryptionSettings {
+        ArchiveEncryptionSettings(password: hasEncryptedEntries || encryptsSevenZipHeaders ? password : nil,
+                                  zipEncryption: ArchiveEncryptionSettings.zipMethod(in: reader?.entries ?? []),
+                                  encryptsSevenZipHeaders: encryptsSevenZipHeaders)
+    }
+
+    private func verifyBeforeEditing() throws {
+        let reader = try requireCurrentReader()
+        let encrypted = reader.entries.filter(\.isEncrypted)
+        if !encrypted.isEmpty, password == nil {
+            throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
+        }
+        try verify(encrypted.filter { !verifiedEntries.contains($0.index) }, using: reader)
+        verifiedEntries.formUnion(encrypted.map(\.index))
+    }
+
+    func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
+                        progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchivePasswordEditResult {
+        _ = try requireCurrentReader()
+        guard let format = passwordFormat, capabilities.canAppend,
+              action == .set ? !hasEncryptedEntries : hasEncryptedEntries && hasKnownPassword else {
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
+        }
+        try verifyBeforeEditing()
+        if action != .remove, settings.password?.isEmpty != false {
+            throw ExtractionFailure.refused(String(localized: "パスワードを入力してください。"))
+        }
+        let output = action == .remove ? ArchiveEncryptionSettings() : settings
+        progress.totalUnitCount = 1
+        progress.completedUnitCount = 0
+        try ArchiveImportTransaction.publish(archive: sourceURL, mode: .rewrite(format),
+            options: output.applying(to: writerOptions(format), format: format), password: password,
+            progress: progress, willPublish: willPublish, expectedIdentity: sourceIdentity) { _ in }
+        // 公開後にだけ新しい鍵を採用する。取消しや競合では旧鍵を維持する。
+        password = output.password
+        passwordRevision &+= 1
+        encryptsSevenZipHeaders = output.encryptsSevenZipHeaders
+        do { try reloadAfterMutation(); return ArchivePasswordEditResult() }
+        catch { return ArchivePasswordEditResult(reloadFailure: Self.reloadFailureMessage) }
+    }
+
+    private func refreshCapabilities() {
+        guard let reader else { return }
+        let capabilities = ArchiveCapabilities.inspect(url: sourceURL, format: reader.format, password: password)
+        capabilitiesStorage.withLock { $0 = capabilities }
+        encryptionStorage.withLock {
+            $0 = EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted), hasKnownPassword: password != nil)
+        }
+        if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
+    }
+
+    // KaitoKit の公開 entry metadata は header の暗号化を含まない。
+    // パスワードなしで一覧を読めるかを調べ、既存の名前の保護を編集でも維持する。
+    private static func hasEncryptedHeaders(url: URL, format: KaitoKit.ArchiveFormat, password: String?) -> Bool {
+        guard format == .sevenZip, password != nil else { return false }
+        do { _ = try ArchiveReader.open(url: url); return false }
+        catch KaitoError.passwordRequired { return true }
+        catch KaitoError.wrongPassword { return true }
+        catch { return false }
     }
 
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。
@@ -256,11 +348,15 @@ actor ArchiveSession {
         let updatedQuarantine = try ExtractionQuarantine.read(from: sourceURL)
         reader = replacement
         quarantine = updatedQuarantine
-        let updatedCapabilities = ArchiveCapabilities.inspect(url: sourceURL, format: replacement.format)
+        let updatedCapabilities = ArchiveCapabilities.inspect(url: sourceURL, format: replacement.format, password: password)
         guard try ArchiveImportTransaction.identity(sourceURL) == identity else { throw ArchiveEditError.archiveChanged }
         sourceIdentity = identity
         formatStorage.withLock { $0 = replacement.format }
         capabilitiesStorage.withLock { $0 = updatedCapabilities }
+        encryptionStorage.withLock {
+            $0 = EncryptionState(hasEncryptedEntries: replacement.entries.contains(where: \.isEncrypted), hasKnownPassword: password != nil)
+        }
+        encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: sourceURL, format: replacement.format, password: password)
         invalidated = false
     }
 
@@ -271,7 +367,11 @@ actor ArchiveSession {
 
     // append と同じ actor で置換と fresh open を連続させ、旧 inode の reader を渡さない。
     func restoreUndoSlot(_ id: UUID, from stack: ArchiveUndoStack) throws {
-        let restorationFailure = try stack.swap(id, archive: sourceURL)
+        guard let slot = stack.slots.first(where: { $0.id == id }) else { throw ArchiveUndoStack.Failure.missingSlot }
+        let restorationFailure = try stack.swap(id, archive: sourceURL, encryption: encryptionSettings())
+        password = slot.encryption.password
+        passwordRevision &+= 1
+        encryptsSevenZipHeaders = slot.encryption.encryptsSevenZipHeaders
         do { try reloadAfterMutation() }
         catch { throw restorationFailure ?? error }
         if let restorationFailure { throw restorationFailure }

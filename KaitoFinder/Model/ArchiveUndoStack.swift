@@ -10,6 +10,7 @@ nonisolated final class ArchiveUndoStack: Sendable {
         let url: URL
         let byteCount: UInt64
         let isRedo: Bool
+        let encryption: ArchiveEncryptionSettings
     }
 
     enum Failure: Error {
@@ -50,7 +51,8 @@ nonisolated final class ArchiveUndoStack: Sendable {
     }
 
     // 原本の公開直前に呼び、公開の成否が決まるまでは履歴へ登録しない。
-    func capture(_ archive: URL, id: UUID = UUID(), isRedo: Bool = false) throws -> Slot? {
+    func capture(_ archive: URL, id: UUID = UUID(), isRedo: Bool = false,
+                 encryption: ArchiveEncryptionSettings = .init()) throws -> Slot? {
         guard storage.withLock({ !$0.closed }) else { throw Failure.closed }
         let info = try Self.attributes(archive)
         let manager = FileManager.default
@@ -70,7 +72,7 @@ nonisolated final class ArchiveUndoStack: Sendable {
         try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         storage.withLock { $0.cloningSupported = true }
         kept = true
-        return Slot(id: id, directory: directory, url: url, byteCount: UInt64(info.st_size), isRedo: isRedo)
+        return Slot(id: id, directory: directory, url: url, byteCount: UInt64(info.st_size), isRedo: isRedo, encryption: encryption)
     }
 
     func discard(_ slot: Slot?) {
@@ -100,13 +102,13 @@ nonisolated final class ArchiveUndoStack: Sendable {
     }
 
     /// 置換後の属性エラーは別に返し、呼び出し側が必ず reader と世代を更新できるようにする。
-    func swap(_ id: UUID, archive: URL) throws -> (any Error)? {
+    func swap(_ id: UUID, archive: URL, encryption: ArchiveEncryptionSettings = .init()) throws -> (any Error)? {
         guard let slot = storage.withLock({ $0.slots.first { $0.id == id } }) else {
             throw Failure.missingSlot
         }
         let before = try Self.attributes(archive)
         let quarantine = try ExtractionQuarantine.read(from: archive)
-        guard let inverse = try capture(archive, id: id, isRedo: !slot.isRedo) else {
+        guard let inverse = try capture(archive, id: id, isRedo: !slot.isRedo, encryption: encryption) else {
             throw Failure.cloningUnsupported
         }
         do {
@@ -193,7 +195,10 @@ final class ArchiveUndoManager: UndoManager {
     }
 
     override func undoMenuTitle(forUndoActionName actionName: String) -> String {
-        actionName.isEmpty ? String(localized: "取り消す") : String(localized: "取り消す — \(actionName)")
+        if actionName == String(localized: "パスワードの設定") { return String(localized: "パスワードの設定を取り消す") }
+        if actionName == String(localized: "パスワードの変更") { return String(localized: "パスワードの変更を取り消す") }
+        if actionName == String(localized: "パスワードの削除") { return String(localized: "パスワードの削除を取り消す") }
+        return actionName.isEmpty ? String(localized: "取り消す") : String(localized: "取り消す — \(actionName)")
     }
 
     override func redoMenuTitle(forUndoActionName actionName: String) -> String {

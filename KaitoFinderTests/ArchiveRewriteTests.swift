@@ -176,7 +176,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), archive = try zip(in: directory, encrypted: encrypted)
         let reader = try ArchiveReader.open(url: archive)
         XCTAssertEqual(reader.entries.contains(where: \.isEncrypted), encrypted)
-        let capability = ArchiveCapabilities.inspect(url: archive, format: reader.format)
+        let capability = ArchiveCapabilities.inspect(url: archive, format: reader.format,
+                                                      password: encrypted ? "rewrite-test-password" : nil)
         XCTAssertEqual(capability.mode, .inPlace)
         XCTAssertTrue(capability.canAppend)
         XCTAssertNil(capability.refusal)
@@ -203,7 +204,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertNil(capability.mode)
         XCTAssertFalse(capability.canAppend)
         XCTAssertNil(capability.rewriteNotice)
-        XCTAssertEqual(capability.readOnlyReason, String(localized: "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。"))
+        XCTAssertEqual(capability.readOnlyReason, String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。"))
         XCTAssertEqual(try digest(archive), original)
         try assertNoWorkDirectory(directory.url)
     }
@@ -211,39 +212,25 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     func testEncryptedSevenZipHeadersAreRefused() throws { try assertEncryptedSevenZip(headers: true) }
     func testEncryptedSevenZipPayloadIsRefused() throws { try assertEncryptedSevenZip(headers: false) }
 
-    @MainActor func testEncryptedSevenZipEditPathsRefuseWithoutPromptingEvenAfterUnlock() async throws {
+    @MainActor func testEncryptedSevenZipEditPathsUseKnownPasswordWithoutPrompting() async throws {
         for headers in [false, true] {
             let directory = try ArchiveTestDirectory(), archive = try encryptedSevenZip(in: directory, headers: headers)
-            let original = try digest(archive)
             let session = try ArchiveSession(url: archive, password: "rewrite-test-password")
-            let prompts = Mutex(0)
-            session.setPasswordPrompt { _ in
-                prompts.withLock { $0 += 1 }
-                throw CancellationError()
-            }
+            session.setPasswordPrompt { _ in XCTFail("The known password must be reused"); throw CancellationError() }
+            XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+            _ = try await session.createFolder(in: "", progress: Progress())
+            let added = directory.url.appendingPathComponent("added.txt")
+            try Data("added encrypted contents".utf8).write(to: added)
+            let result = try await session.append(urls: [added], to: "", progress: Progress())
+            XCTAssertEqual(result.addedPaths, ["added.txt"])
+            XCTAssertTrue(result.failures.isEmpty)
             let selected = try await node("secret.txt", in: session)
-            XCTAssertEqual(session.capabilities.refusal, .encrypted)
-            for operation in 0..<4 {
-                do {
-                    switch operation {
-                    case 0:
-                        _ = try await session.append(urls: [directory.url.appendingPathComponent("secret.txt")], to: "", progress: Progress())
-                    case 1:
-                        _ = try await session.createFolder(in: "", progress: Progress())
-                    case 2:
-                        _ = try await session.remove([ArchiveEditSelection(selected)], progress: Progress())
-                    default:
-                        _ = try await session.rename(ArchiveEditSelection(selected), to: "renamed.txt", progress: Progress())
-                    }
-                    XCTFail("暗号化された書庫を編集しました")
-                } catch {
-                    guard case .refused(let reason) = error as? ExtractionFailure else { return XCTFail("\(error)") }
-                    XCTAssertEqual(reason, session.capabilities.readOnlyReason)
-                }
-            }
-            XCTAssertEqual(prompts.withLock { $0 }, 0)
-            XCTAssertEqual(session.generation, 0)
-            XCTAssertEqual(try digest(archive), original)
+            _ = try await session.rename(ArchiveEditSelection(selected), to: "renamed.txt", progress: Progress())
+            let renamed = try await node("renamed.txt", in: session)
+            _ = try await session.remove([ArchiveEditSelection(renamed)], progress: Progress())
+            XCTAssertEqual(session.generation, 4)
+            let reader = try ArchiveReader.open(url: archive, options: ReaderOptions(password: "rewrite-test-password"))
+            XCTAssertTrue(reader.entries.filter { $0.kind == .file }.allSatisfy(\.isEncrypted))
             try assertNoWorkDirectory(directory.url)
             await session.close()
         }
@@ -730,7 +717,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
         XCTAssertNil(strings["ファイルやフォルダをドラッグ、またはペーストして追加できます"])
         XCTAssertNil(strings["プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更はアーカイブに保存されません。"])
-        for key in ["編集するとアーカイブ全体を再圧縮します", "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。",
+        for key in ["編集するとアーカイブ全体を再圧縮します", "暗号化されたアーカイブを変更するにはパスワードが必要です。",
                     "このアーカイブには、書き直せない項目があります。%@"] {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])

@@ -45,19 +45,21 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case .gatekeeper(.trailingData, let reason): String(localized: "このZIPは終端の後ろに追加データがあり、安全に変更できません。\(reason)")
         case .gatekeeper(.centralDirectoryOffset, let reason):
             String(localized: "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。\(reason)")
-        case .encrypted: String(localized: "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。")
+        case .encrypted: String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。")
         case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。")
         case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)")
         case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)")
         }
     }
 
-    static func inspect(url: URL, format: KaitoKit.ArchiveFormat) -> Self {
+    static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String? = nil) -> Self {
         if ArchiveTemporaryCopy.contains(url) { return Self(refusal: .temporaryCopy) }
         do {
             let mode: Mode
             switch format {
             case .zip:
+                let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
+                if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
                 // open は検査のみ。最初の add まで updater は作業ファイルを作らない。
                 _ = try ArchiveUpdater.open(url: url)
                 mode = .inPlace
@@ -88,13 +90,15 @@ nonisolated struct ArchiveCapabilities: Sendable {
             if case .rewrite(let outputFormat) = mode {
                 // 全 entry の表現可能性を検査するだけで、最初の add / commit まで
                 // ファイルもディレクトリも作らない。開いて破棄するのが副作用のない probe。
-                let rewriter = try ArchiveRewriter.open(url: url, output: nil, format: outputFormat)
-                guard !rewriter.hasEncryptedEntries else { return Self(refusal: .encrypted) }
+                let rewriter = try ArchiveRewriter.open(url: url, password: password, output: nil, format: outputFormat)
+                if rewriter.hasEncryptedEntries, password == nil { return Self(refusal: .encrypted) }
             }
             return Self(mode: mode)
         } catch UpdaterError.editingRefused(let gatekeeper, let reason) {
             return Self(refusal: .gatekeeper(gatekeeper, reason))
         } catch RewriterError.password {
+            return Self(refusal: .encrypted)
+        } catch KaitoError.passwordRequired {
             return Self(refusal: .encrypted)
         } catch RewriterError.unrepresentable(let entry, let reason) {
             return Self(refusal: .unrepresentable("\(entry): \(reason)"))

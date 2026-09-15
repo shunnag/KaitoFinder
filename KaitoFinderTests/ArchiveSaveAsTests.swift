@@ -134,7 +134,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         try await assertConversion(gzip: true, format: .zip)
     }
 
-    @MainActor func testEncryptedZIPUsesKnownPasswordAndSwitchesToDecryptedOutput() async throws {
+    @MainActor func testEncryptedZIPCanExplicitlyDisableProtectionInSaveAs() async throws {
         let (directory, document, controller, store) = try await interface(encrypted: true)
         let source = try XCTUnwrap(document.fileURL), original = try Data(contentsOf: source)
         let session = try XCTUnwrap(document.session)
@@ -144,8 +144,13 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let destination = directory.url.appendingPathComponent("decrypted.7z")
         let creator = ArchiveCreationController(store: store)
         creator.destinationHandler = { save, _ in
+            XCTAssertEqual(save.encryptionCheckbox.state, .on)
+            XCTAssertTrue(save.passwordFields.passwordField.stringValue == "known-password")
+            XCTAssertTrue(save.passwordFields.verifyField.stringValue == "known-password")
             save.formatPopup.selectItem(at: 3)
             save.changeFormat(save.formatPopup)
+            save.encryptionCheckbox.state = .off
+            save.changeEncryption(save.encryptionCheckbox)
             return destination
         }
         try await controller.saveArchiveAs(using: creator)
@@ -155,6 +160,38 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         XCTAssertNil(password)
         XCTAssertEqual(try Data(contentsOf: source), original)
         XCTAssertTrue(try XCTUnwrap(document.session).capabilities.canAppend)
+    }
+
+    @MainActor func testEncryptedSaveAsDefaultsToProtectedCopyAndReopensWithOutputPassword() async throws {
+        let (directory, document, controller, store) = try await interface(encrypted: true)
+        let source = try XCTUnwrap(document.fileURL), original = try Data(contentsOf: source)
+        let session = try XCTUnwrap(document.session)
+        session.setPasswordPrompt { _ in "known-password" }
+        let destination = directory.url.appendingPathComponent("protected.7z")
+        let creator = ArchiveCreationController(store: store)
+        creator.destinationHandler = { save, _ in
+            XCTAssertEqual(save.encryptionCheckbox.state, .on)
+            XCTAssertTrue(save.passwordFields.passwordField.stringValue == "known-password")
+            XCTAssertTrue(save.passwordFields.verifyField.stringValue == "known-password")
+            save.formatPopup.selectItem(at: 3)
+            save.changeFormat(save.formatPopup)
+            save.passwordFields.headersCheckbox.state = .on
+            return destination
+        }
+        try await controller.saveArchiveAs(using: creator)
+        XCTAssertEqual(document.fileURL, destination)
+        let copiedSession = try XCTUnwrap(document.session)
+        XCTAssertTrue(copiedSession.hasKnownPassword)
+        XCTAssertTrue(copiedSession.hasEncryptedEntries)
+        XCTAssertEqual(copiedSession.capabilities.mode, .rewrite(.sevenZip))
+        XCTAssertThrowsError(try ArchiveReader.open(url: destination))
+        let reader = try ArchiveReader.open(url: destination, options: ReaderOptions(password: "known-password"))
+        let entry = try XCTUnwrap(reader.entries.first)
+        XCTAssertTrue(entry.isEncrypted)
+        var bytes = Data()
+        try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { bytes.append(contentsOf: $0) }
+        XCTAssertEqual(bytes, Data("decrypted contents".utf8))
+        XCTAssertEqual(try Data(contentsOf: source), original)
     }
 
     @MainActor func testSameFileAndAliasesAreRefusedWithoutChangingDocument() async throws {

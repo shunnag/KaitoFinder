@@ -8,6 +8,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         let url: URL
         let password: String?
         let entries: [ArchiveEntry]
+        var encryption: ArchiveEncryptionSettings? = nil
     }
 
     let sources: [URL]

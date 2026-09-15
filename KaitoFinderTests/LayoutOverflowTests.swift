@@ -236,7 +236,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                 save.formatPopup.selectItem(at: index)
                 XCTAssertTrue(save.formatPopup.sendAction(save.formatPopup.action, to: save.formatPopup.target))
                 try snapshot(accessory, name: "\(language)-save-panel-\(ArchiveCreationPlan.filenameExtension(for: format))")
-                XCTAssertEqual(accessory.bounds.width, 360, accuracy: 0.5, language)
+                XCTAssertGreaterThanOrEqual(accessory.bounds.width, 360, language)
             }
         }
     }

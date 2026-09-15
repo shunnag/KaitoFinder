@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+import CryptoKit
 @testable import KaitoFinder
 
 nonisolated enum LocalizationAcceptance {
@@ -33,6 +34,57 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+
+    func testPasswordWordingHasTenTranslationsAndRetiresEveryOldRefusalTranslation() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        let keys = [
+            "パスワードを設定…",
+            "パスワードを変更…",
+            "パスワードを削除",
+            "パスワード:",
+            "確認:",
+            "新しいパスワード:",
+            "暗号化",
+            "方式:",
+            "AES-256(推奨)",
+            "ZipCrypto(互換性優先、安全性は低い)",
+            "ファイル名も暗号化",
+            "パスワードを入力してください。",
+            "パスワードが一致しません。",
+            "tar と LHA は暗号化できません",
+            "この形式は暗号化できません。別名で保存で ZIP か 7z にしてください。",
+            "“%@”のパスワードを削除しますか？",
+            "アーカイブは暗号化されていない状態で書き直されます。",
+            "暗号化されたアーカイブを変更するにはパスワードが必要です。",
+            "パスワードの設定を取り消す",
+            "パスワードの変更を取り消す",
+            "パスワードの削除を取り消す",
+        ]
+        for key in keys {
+            let entry = try XCTUnwrap(catalog.strings[key], key)
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages), key)
+        }
+        // 廃止した文言自体をソースへ残さず、10 言語すべての復活を検出する。
+        let retiredDigests: Set<String> = [
+            "aececabd9ae30032d4096b26744c35b27684ab7723f0b80410e1ceb4dff53da5",
+            "65f720b2103c624b5af0443bc4e20a564da27aee9d45ed1d0840a97ded0ba930",
+            "4187d12effa79e8ecf70f289e115edb1d0bd20add5f882c165d5dd15a982f1c9",
+            "64e8a6b7304dfa8180f9d56490b67270828ca779ee4d9c3dd5499b7251ddf15b",
+            "b501c50d95a02a9e1a3a77bbcada0e020e8a22c1cd58d523c9973a56b359e2cd",
+            "0592f5b8e139a0bbcf1e9137f6956be03b1e10e6a41f13c0252cd09c4117b5d2",
+            "4c732318dd66cb8fa418740a83484275f00928291691d00f83c2f024dec7d2d5",
+            "c1a4c79c4fb8ba509111e02b5d38c5af76d80bbbbeb30a78e7c77f13d9ed29ca",
+            "aafa46a7bb91bf00abcf75b1f1d7104a914db9413004a39494805909bf1153a3",
+            "68365b7ce5bcb0ea0df60f1e7488bcf43809cc267677196e32a16febdea0fccd",
+        ]
+        for (key, entry) in catalog.strings {
+            for (language, translation) in entry.localizations {
+                let digest = SHA256.hash(data: Data(translation.stringUnit.value.utf8)).map { String(format: "%02x", $0) }.joined()
+                XCTAssertFalse(retiredDigests.contains(digest), "\(language): \(key)")
+            }
+        }
+    }
+
     func testEnglishDevelopmentFallbackKeepsAllTenLocalizations() {
         XCTAssertEqual(Bundle.main.infoDictionary?["CFBundleDevelopmentRegion"] as? String, "en")
         XCTAssertTrue(Set(LocalizationAcceptance.languages).isSubset(of: Set(Bundle.main.localizations)))
@@ -84,7 +136,8 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertFalse(text.contains("／"), key)
             XCTAssertFalse(text.contains("「%@」"), key)
             // Wave A の指定ラベルは、形式名・ファイル名を区切る空白も仕様どおりに保つ。
-            if ![".DS_Store を含めない", "7z と LHA の圧縮レベルは固定です"].contains(key) {
+            if ![".DS_Store を含めない", "7z と LHA の圧縮レベルは固定です", "tar と LHA は暗号化できません",
+                  "この形式は暗号化できません。別名で保存で ZIP か 7z にしてください。"].contains(key) {
                 XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)
             }
         }

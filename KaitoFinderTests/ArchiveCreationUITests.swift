@@ -190,7 +190,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             if let field = view as? NSTextField { labels.append(field.stringValue) }
             pending.append(contentsOf: view.subviews)
         }
-        XCTAssertTrue(labels.contains(String(localized: "暗号化はできません")))
+        XCTAssertTrue(labels.contains(String(localized: "tar と LHA は暗号化できません")))
         XCTAssertEqual(labels.filter { $0 == String(localized: "フォーマット") }, [String(localized: "フォーマット")])
         XCTAssertEqual(save.formatPopup.accessibilityLabel(), String(localized: "フォーマット"))
         preferences.defaults.set("tar.gz", forKey: "ArchiveCreationFormat")
@@ -253,7 +253,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
             let normal = ArchiveConversionNotice(formatName: "tar.bz2", entries: [entry(encrypted: false)], bundle: bundle)
             let encrypted = ArchiveConversionNotice(formatName: "7z", entries: [entry(encrypted: false), entry(encrypted: true)], bundle: bundle)
-            let paragraph = String(localized: "元のアーカイブは暗号化されていますが、新しいアーカイブは暗号化されません。", bundle: bundle)
+            let paragraph = String(localized: "新しいアーカイブの暗号化設定は、保存時に変更できます。", bundle: bundle)
             XCTAssertTrue(normal.messageText.contains("tar.bz2"))
             XCTAssertTrue(encrypted.messageText.contains("7z"))
             XCTAssertFalse(normal.informativeText.contains(paragraph))
@@ -268,7 +268,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
                 XCTAssertEqual(ArchiveAlertText.informativeText(".hidden.\n", bundle: bundle), ".hidden。")
             } else {
                 XCTAssertEqual(normal.messageText, "This tar.bz2 archive cannot be modified")
-                XCTAssertEqual(paragraph, "The original archive is encrypted, but the new archive will not be encrypted.")
+                XCTAssertEqual(paragraph, "You can change the new archive’s encryption settings when you save it.")
                 XCTAssertEqual(ArchiveAlertText.informativeText("Details", bundle: bundle), "Details.")
                 XCTAssertEqual(ArchiveAlertText.informativeText("Details.\n", bundle: bundle), "Details.")
                 XCTAssertEqual(ArchiveAlertText.informativeText(".hidden.\n", bundle: bundle), ".hidden.")

@@ -292,6 +292,22 @@ import Synchronization
         }
     }
 
+    // メニューと XCTest が共有する入口。パスワードだけの変更も通常編集と同じ公開・Undo 境界を使う。
+    func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
+                        progress: Progress = Progress(),
+                        willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchivePasswordEditResult {
+        let result = try await mutate(progress: progress, actionName: action.actionName, willPublish: willPublish,
+                                     published: { _ in true }) { session, publish in
+            try await session.updatePassword(action, settings: settings, progress: progress, willPublish: publish)
+        }
+        // 以前に記憶した鍵を次回の open に使わせない。新しい鍵の永続化は明示的な記憶操作だけ。
+        if let session, let stored = await passwordVault.password(for: .file(session.sourceURL)) {
+            await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
+        }
+        rememberedPayloadPassword = nil
+        return result
+    }
+
     // 操作の種類によらず、公開の成否・取消し・close 待機を同じ規則で扱う。
     private func mutate<Result: Sendable>(
         progress: Progress, actionName: String, willPublish: (@Sendable () throws -> Void)?,
@@ -307,9 +323,10 @@ import Synchronization
         let pending = Mutex<ArchiveUndoStack.Slot?>(nil)
         let task = Task {
             do {
+                let encryption = await session.encryptionSettings()
                 let result = try await operation(session, {
                     // updater が書き換えるのは作業コピー。退避するのは公開直前の原本だけ。
-                    let slot = try stack.capture(session.sourceURL)
+                    let slot = try stack.capture(session.sourceURL, encryption: encryption)
                     pending.withLock { $0 = slot }
                     try willPublish?()
                 })
@@ -401,7 +418,14 @@ import Synchronization
                 if !self.closed, !self.windowControllers.isEmpty { self.presentError(error) }
             }
             if !self.closed { self.synchronizeUndoActions() }
-            if session.generation != previousGeneration { await self.displayAfterMutation() }
+            if session.generation != previousGeneration {
+                if let stored = await self.passwordVault.password(for: .file(session.sourceURL)) {
+                    let current = await session.password
+                    if current != stored { await self.passwordVault.remove(for: .file(session.sourceURL), matching: stored) }
+                }
+                self.rememberedPayloadPassword = nil
+                await self.displayAfterMutation()
+            }
         }
     }
 
@@ -427,7 +451,7 @@ import Synchronization
         await displayAfterMutation()
     }
 
-    func switchBackingFile(to url: URL) async throws {
+    func switchBackingFile(to url: URL, password: String? = nil) async throws {
         guard !closed, let oldSession = session else { throw CancellationError() }
         guard mutationTask == nil, undoTask == nil, !switchingBackingFile else {
             throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
@@ -440,7 +464,7 @@ import Synchronization
         }
         // 新しい reader・capabilities・identity が揃うまでは文書の参照先を変えない。
         // 作成 transaction の公開後は、遅れて届いた取消しで成功を隠さない。
-        let opened = try await Self.openArchive(url, password: nil, writerOptions: sessionWriterOptions,
+        let opened = try await Self.openArchive(url, password: password, writerOptions: sessionWriterOptions,
                                                 importOptions: sessionImportOptions, checksCancellation: false)
         guard !closed, session === oldSession else {
             await opened.close()

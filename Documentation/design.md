@@ -565,7 +565,7 @@ level を選べない。既定は Info-ZIP と同じ **level 6**、設定で変�
 - extra field 0x5455 は local 9 byte / central 5 byte で**長さが違う**。
 - ZIP64 は sentinel をフィールドごとに判定する。local header の 0x0001 は
   **常に両サイズを載せ、offset は載せない**(APPNOTE 4.5.3)。
-- 暗号化は AES-256 (AE-2) を既定、ZipCrypto は「古い方式」と明示して選択可能に。
+- ZIP 暗号化は AES-256 を既定にし、ZipCrypto は「互換性優先、安全性は低い」と表示する。
   CTR は CommonCrypto の AES-ECB + 手動 little-endian counter(CommonCrypto の
   CTR は BE のみ)。KaitoKit の `WinZipAES.swift` の逆をやる。salt は entry ごとに
   新しい乱数。
@@ -605,8 +605,7 @@ level を選べない。既定は Info-ZIP と同じ **level 6**、設定で変�
   level 6 固定・単一 block)。zstd は macOS に無いので対象外。
 - **7z**:Apple の Compression framework が出す `.xz` から **LZMA2 payload を
   そのまま抜き出して** 7z の coder として使えることが実測で分かっている
-  (props 0x16、終端 0x00 込み)。LZMA encoder を書かずに non-solid・非暗号・
-  平ヘッダの 7z writer が作れる。比率は 7-Zip 本家に劣る。
+  (props 0x16、終端 0x00 込み)。LZMA encoder を書かずに non-solid の 7z writer を構成する。AES-256 とファイル名の暗号化も選択できる。比率は 7-Zip 本家に劣る。
 - **LHA**:`-lh5-` を書く。member が独立(`solidGroup == -1`)なので更新は素直。
 - **書けない形式**:RAR は license が明示的に禁じている
   (「cannot be used to develop RAR (WinRAR) compatible archiver」)。CAB / RPM /
@@ -729,10 +728,10 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   `publish` は形式で実装を選ぶだけにする。取り消しは同じ `willPublish` で
   clonefile の slot を取るので、そのまま効く。
 - **代償を隠さない**:触っていない entry も再符号化される(`-lh7-` は `-lh5-` に、
-  solid 7z は non-solid に、暗号化された entry は**平文に**なる)。所要時間は
+  solid 7z は non-solid になる)。既知のパスワードとファイル名の暗号化設定は引き継ぐ。所要時間は
   変更量でなく書庫の大きさに比例する。KaitoFinder は capability に
   `.rewrite` を持たせ、通知欄に「編集すると書庫全体を再圧縮します」と出し、
-  暗号化 entry を含む書庫の変換では「新しい書庫は暗号化されません」を確認に含める。
+  変換時は保存パネルで出力の暗号化設定を選べる(§7.9)。
 - 生き残る entry は index 昇順に一つの reader から読む。KaitoKit は solid 群の
   decoder を連続した `stream()` 呼び出しの間で保持する(7z は folder ごとの
   coordinator、RAR は `solidState`)ので、この順なら solid 群を一度しか復号しない。
@@ -762,10 +761,44 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   完了後に同じ文書の `fileURL`・型・session・capabilities・identity を更新する。
   Quick Look、実体化、サムネイルと旧 undo 履歴を破棄し、空の undo stack を用意する。
   最近使った項目にも登録する。元ファイルは変更せず、同一ファイル(path / symlink / hard link)
-  への保存は拒否する。読み取り専用形式からも利用でき、既知のパスワードで復号した内容を
-  暗号化なしで保存する。ドロップによる変換は従来どおり別の文書を開く。
+  への保存は拒否する。読み取り専用形式からも利用できる。暗号化された入力は既知の鍵を保存パネルの両欄へ
+  入れ、暗号化を初期選択する。出力の鍵で新しい session を開く。ドロップによる変換は従来どおり別の文書を開く。
 - 未対応言語の fallback は `Info.plist` の `CFBundleDevelopmentRegion = en` で指定する。
   プロジェクトの開発言語とカタログの sourceLanguage は `ja` のままとする。
+
+### 7.9 パスワードの設定・変更・削除 — 2026-09-15
+
+- 新規アーカイブ(⌘N)、Finder の圧縮サービス、ドロップからの形式変換、別名で保存は
+  `ArchiveSavePanel` の同じ暗号化行を使う。既定はオフ、ZIP は AES-256、7z のファイル名暗号化はオフ。
+  ZIP は ZipCrypto も選べる。tar / tar.gz / LHA は暗号化できず、チェックボックスを無効にして理由を示す。
+  形式を切り替えても両パスワード欄の値は保ち、出力形式で有効な設定だけを `WriterOptions` へ渡す。
+  `NSOpenSavePanelDelegate.panel(_:validate:)` が空欄と不一致を拒否し、保存パネルを開いたままにする。
+- ファイルメニューの「別名で保存…」の直後に「パスワードを設定…」「パスワードを変更…」
+  「パスワードを削除」を常に表示する。ZIP / 7z の開いた編集可能な文書だけが対象。
+  設定は暗号化項目がないとき、変更・削除は暗号化項目があり鍵が既知のとき有効。ロック中・処理中は無効。
+  RAR 等や tar / LHA は形式変換を案内するツールチップを出す。
+- 設定・変更シートは `ArchivePasswordPrompt` とアクセサリのレイアウト規則を共有する。
+  変更では古い鍵を再入力させない。空欄・不一致をインラインで表示し、確定ボタンを無効にする。
+  削除は対象名と、暗号化せず書き直す説明を含む確認シートを出す。
+- 三操作とも `ArchiveDocument.updatePassword` → `ArchiveSession.updatePassword` →
+  `ArchiveImportTransaction.publish(mode: .rewrite(format))` を通る。mutate は空で、`commit()` が
+  全項目を読み直す。入力の復号鍵は `password`、出力の鍵は `options.password` として分離する。
+  削除は出力の鍵を nil にする。identity 照合、取消し、属性・quarantine の保持、進捗は通常編集と共通。
+  鍵の採用・capabilities の再計算・一覧の再読込は公開成功後に行う。
+- 通常編集は鍵が既知なら許可する。ZIP は `.inPlace` で既存 record を保持し、追加項目に同じ鍵を使う。
+  既存の暗号化項目がすべて ZipCrypto なら追加も ZipCrypto、それ以外は AES-256。
+  7z は `.rewrite(.sevenZip)` で同じ鍵とファイル名の保護を維持する。KaitoKit の entry metadata に
+  header 暗号化フラグはないため、パスワードなしで一覧を開けるかを検査する。
+  鍵が不明なら「暗号化されたアーカイブを変更するにはパスワードが必要です。」で拒否する。
+  誤った既知の候補でも書き込まないよう、編集前に CRC / HMAC まで検証する。
+- `writerOptions` のクロージャは従来の preferences snapshot を基礎とし、session が公開時に鍵を重ねる。
+  worker は UserDefaults を読まない。平文入力への通常編集は平文を維持する。
+- Undo スロットは clonefile の原本に対応する鍵・方式・header 設定をメモリ内に持つ。
+  Undo / Redo は byte と鍵を一緒に入れ替え、7z の header も再び開ける状態にする。
+  設定・変更・削除は専用の取り消し名を使う。パスワードは診断文やスナップショットに含めず、
+  文書を閉じると session と履歴を破棄する。変更時は旧来の記憶済み鍵を除き、新しい鍵を自動保存しない。
+- 保存パネルと全三シートは 10 言語で描画・`UISnapshot.overflowViolations` の対象とする。
+  パスワード欄を隠しても必要な高さを確保し、長い翻訳では popup の固有幅からアクセサリ幅を決める。
 
 ## 8. 並行性
 
@@ -815,7 +848,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | **完了** `1491bce`(検証 `2026-09-15-archive-creation.md`)。保存パネル・サービス・変換ダイアログの実挙動は `manual-verification.md` §4-5 / §6 |
 | **M7** | ユーザー要望(2026-09-15): 同一ウインドウ内ドラッグの移動、ブランク領域の右クリック、ツールバー、設定ウインドウ(圧縮 / 展開)、一括展開、文言の macOS 化(書庫→アーカイブ、取り出す→展開、標準メニュー) | Finder の作法と日常のアーカイブ操作 | **完了** — 移動 `906c0e1`、右クリックとツールバー `76b2d66`、設定 `dfac011`、文言 `8df2ad6`、一括展開 `37ec1fc`。クラッシュ修正 `4135e04` / `2d05b22` / `d8e9d72`(いずれも @MainActor の ObjC 面を AppKit / QL がバックグラウンドから呼ぶ型) |
 | **M8** | リリースに向けた磨き込み(2026-09-15): プロセス内スナップショット基盤とはみ出し監査、パスワード UI の修正、ロック状態・設定・進捗・ステータスバーの Finder 化、10 言語対応(Apple の語彙に追随)、実運用シーンのテスト | 出荷品質 | **完了** — 監査基盤 `c1da7e1`、UI 洗練 `cdac130`、10 言語 `d7b9067`、シーンテスト 28 件と 8 件の修正 `6046b80`(検証 `2026-09-15-scenarios.md`)。`6046b80` が持ち込んだ回帰(identity の ctime 照合 → 文書を開くと LaunchServices の拡張属性で全読み取りが拒否)は `3b93b4b` で修正。ウインドウのカスケード、エラー文言の 10 言語化(`ArchiveErrorText`)、スナップショットの世代管理(検証 `2026-09-15-cascade-error-text.md`) |
-| **M9** | ユーザー要望(2026-09-15) 第 2 弾: 英語フォールバック、隠しファイル、圧縮レベル、別名で保存 | 日常操作の追加と形式変換 | **完了(今回の実装)** — Wave A、XCTest 新規 24 件と既存テスト拡張(保存パネルは 10 言語 × 5 形式)。XCTest の実行は sandbox の制約で未確認。検証は [2026-09-15-wave-a.md](verification/2026-09-15-wave-a.md)。**予定** — ウェルカムウインドウ、暗号化書き込み(GyoshukuKit)、パスワード設定/変更/解除 UI、言語追加(第 1 陣 16 言語) |
+| **M9** | ユーザー要望(2026-09-15) 第 2 弾: 英語フォールバック、隠しファイル、圧縮レベル、別名で保存、暗号化 UI | 日常操作の追加と形式変換 | **Wave A 完了・検証済み** — ユーザーのシェルで XCTest 544 件、失敗 0、スキップ 0、Release smoke 成功(ユーザー報告)。[Wave A 検証](verification/2026-09-15-wave-a.md)。**Wave C 実装完了** — 暗号化付き保存、パスワード設定/変更/削除、既知の鍵による編集と Undo/Redo、10 言語の UI 監査テストを追加。ユーザーのシェルで build 成功。全件実行の順序依存の失敗はテスト用ウインドウのアニメーション待機が原因と判明し、起動時の無効化で 563 件・失敗 0(ユーザーによる追補前の検証)。テスト基盤への恒久対応とエージェントの sandbox 内の検証範囲は [暗号化 UI 検証](verification/2026-09-15-password.md)。**予定** — ウェルカムウインドウ、言語追加(第 1 陣 16 言語) |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。
@@ -837,11 +870,12 @@ M1 は三つに割った。安全側の中核(M1a)を先に単体で固め、UI 
 
 Developer ID による署名と notarize はこの環境に鍵が無く、ユーザーの Mac で行う(§11.5)。
 
+**書き込み時の暗号化は実装済み**(ZIP AES-256 / ZipCrypto、7z AES-256 とファイル名暗号化)。UI と取り消しの扱いは §7.9、今回の検証範囲は [検証報告](verification/2026-09-15-password.md)。
+
 **見送り(ユーザーが覆せる)**:
 
 | 項目 | 理由 |
 |---|---|
-| 書き込み時の暗号化(ZIP AES / 7z AES) | GyoshukuKit の writer は暗号化を持たない。読める書庫を作れないのは片手落ちだが、形式を揃えることを優先した |
 | bzip2 / xz で包んだ tar の作成・更新 | writer が gzip 包装しか持たない。`.tar.bz2` / `.tar.xz` は読み取り専用のまま、変換で逃がす |
 | アイコン / カラム / ギャラリー表示 | Finder らしさの中核はリスト表示で満たしている。描画をこの環境で確認できないため、パスバー・タブ・サムネイルまでを実装し、表示形式の切替は後回し |
 | 動画・音声のサムネイル | 画像のみ。動画は `QLThumbnailGenerator` が entry の実体化を要求し、遅延実体化の設計と衝突する |
@@ -855,6 +889,18 @@ KaitoKit の作法を引き継ぐ。
   GNU tar で読む。**書いたものを KaitoKit 自身で読み直す**往復も必ず行う。
 - clean-room の byte 表からテスト入力を組み立てる(`ArArchiveBuilder` と同じ形)。
 - 実測はすべて `Documentation/verification/YYYY-MM-DD-*.md` に残す。
+
+**テストプロセスではウインドウの自動アニメーションを無効にする。** 表示されないテスト用
+ウインドウでもシート表示・文書の close が `_NSWindowTransformAnimation` を開始し、
+`_runBlocking` が GCD ワーカーを占有したまま残る。ユーザーの調査では全件実行中に
+`task_threads` が 9 → 96（うち 80 がアニメーション待機）へ増え、プールの枯渇で
+`NSDocumentController` の Coordination キューが開始できず、内包書庫の open がタイムアウトした。
+テストバンドルの principal class `TestProcessSetup` が全テストより先に
+`NSAutomaticWindowAnimationsEnabled = false` を `UserDefaults.standard.register(defaults:)` で
+揮発性の登録ドメインへ登録し、アプリの保存済み設定には書き込まない。無効化後は 23 スレッド以下、
+全 563 件成功（ユーザー報告）。標準の名前順で末尾の `ZZProcessHealthTests` が登録を確認し、
+`task_threads` を一度だけ取得して 48 を超えたら失敗させる。取得した Mach ポートの送信権と配列も解放する。
+詳細は [Wave C 検証報告](verification/2026-09-15-password.md#追補テストプロセスのウインドウアニメーション)。
 
 ## 11.5 配布(sandbox なし・notarize 済み)— 2026-09-15
 

@@ -66,6 +66,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private(set) var deletionConfirmation: NSAlert?
     private(set) var conversionConfirmation: NSAlert?
     private(set) var creationController: ArchiveCreationController?
+    private(set) var passwordEditor: ArchivePasswordEditor?
     private(set) var editProgressSheet: ExtractionProgressSheet?
     let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
@@ -490,6 +491,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? session?.capabilities.rewriteNotice ?? ""
         capabilityNotice.isHidden = capabilityNotice.stringValue.isEmpty
         if let session, let controller = nextMaterialization {
+            session.setCapabilitiesObserver { [weak self, weak session] in
+                guard let self, let session, self.archiveSession === session else { return }
+                self.capabilityNotice.stringValue = session.capabilities.readOnlyReason ?? session.capabilities.rewriteNotice ?? ""
+                self.capabilityNotice.isHidden = self.capabilityNotice.stringValue.isEmpty
+                self.window?.toolbar?.validateVisibleItems()
+            }
             session.setPasswordPrompt { [weak self, weak session] challenge in
                 guard let self, let session, self.archiveSession === session else { throw CancellationError() }
                 guard let document = self.document as? ArchiveDocument else {
@@ -693,6 +700,15 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(setArchivePassword(_:)), #selector(changeArchivePassword(_:)), #selector(removeArchivePassword(_:)):
+            guard let session = archiveSession, !isLocked else { menuItem.toolTip = nil; return false }
+            menuItem.toolTip = session.passwordFormat == nil
+                ? String(localized: "この形式は暗号化できません。別名で保存で ZIP か 7z にしてください。", bundle: bundle)
+                : session.capabilities.readOnlyReason
+            guard document is ArchiveDocument, !operationInFlight, session.passwordFormat != nil,
+                  session.capabilities.canAppend else { return false }
+            return menuItem.action == #selector(setArchivePassword(_:))
+                ? !session.hasEncryptedEntries : session.hasEncryptedEntries && session.hasKnownPassword
         case #selector(saveArchiveAs(_:)):
             return archiveSession != nil && !isLocked && document is ArchiveDocument && !operationInFlight
         case #selector(newFolder(_:)):
@@ -727,7 +743,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     var operationInFlight: Bool {
-        extractionTask != nil || creationController != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
+        extractionTask != nil || creationController != nil || passwordEditor != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
     }
 
@@ -1260,6 +1276,70 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
     }
 
+    @objc func setArchivePassword(_ sender: Any?) { presentPasswordEditor(.set, selector: #selector(setArchivePassword(_:))) }
+    @objc func changeArchivePassword(_ sender: Any?) { presentPasswordEditor(.change, selector: #selector(changeArchivePassword(_:))) }
+    @objc func removeArchivePassword(_ sender: Any?) { presentPasswordEditor(.remove, selector: #selector(removeArchivePassword(_:))) }
+
+    private func presentPasswordEditor(_ action: ArchivePasswordAction, selector: Selector) {
+        guard canPerformEdit(selector), outlineView.commitRenaming(), let session = archiveSession,
+              let format = session.passwordFormat, let window, let document = document as? ArchiveDocument else { return }
+        closePreview()
+        materialization?.cancel()
+        let progress = Progress(totalUnitCount: 0)
+        extractionProgress = progress
+        extractionTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                passwordEditor?.fields?.clear()
+                passwordEditor = nil
+                editProgressSheet?.finish()
+                editProgressSheet = nil
+                extractionProgress = nil
+                extractionTask = nil
+                extractionCancellation?.cancel()
+                extractionCancellation = nil
+            }
+            do {
+                // 既知の鍵も CRC / HMAC まで検証してから変更する。
+                _ = try await session.preparedPassword()
+                try Task.checkCancellation()
+                let editor = ArchivePasswordEditor(action: action, format: format, archiveName: document.displayName,
+                                                   settings: await session.encryptionSettings(), bundle: bundle)
+                passwordEditor = editor
+                let response: NSApplication.ModalResponse = await withTaskCancellationHandler {
+                    await withCheckedContinuation { continuation in
+                        guard !Task.isCancelled else { continuation.resume(returning: .alertSecondButtonReturn); return }
+                        editor.alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+                        if let field = editor.fields?.passwordField { editor.alert.window.makeFirstResponder(field) }
+                    }
+                } onCancel: {
+                    Task { @MainActor [weak self] in
+                        if let alert = self?.passwordEditor?.alert, let parent = alert.window.sheetParent {
+                            parent.endSheet(alert.window, returnCode: .alertSecondButtonReturn)
+                        }
+                    }
+                }
+                guard response == .alertFirstButtonReturn else { return }
+                try Task.checkCancellation()
+                try editor.fields?.validate()
+                let settings = editor.fields?.settings ?? ArchiveEncryptionSettings()
+                editor.fields?.clear()
+                passwordEditor = nil
+                let sheet = ExtractionProgressSheet(progress: progress,
+                    title: String(localized: "アーカイブを書き直し中…", bundle: bundle), detail: document.displayName, bundle: bundle)
+                editProgressSheet = sheet
+                sheet.begin(on: window)
+                let result = try await document.updatePassword(action, settings: settings, progress: progress)
+                sheet.finish()
+                if let reason = result.reloadFailure { reportEditFailure(reason, published: true) }
+            } catch {
+                editProgressSheet?.finish()
+                if !(error is CancellationError), !Task.isCancelled { reportEditFailure(editFailureReason(error)) }
+            }
+        }
+        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+    }
+
     // 実際の保存・文書切り替えを共有し、テストでは保存先の選択だけを差し替える。
     func saveArchiveAs(using creator: ArchiveCreationController, progress: Progress = Progress()) async throws {
         guard let window, let session = archiveSession, let document = document as? ArchiveDocument,
@@ -1271,7 +1351,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         defer { creationController = nil; extractionProgress = nil }
         let existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
         guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress) else { return }
-        try await document.switchBackingFile(to: destination)
+        try await document.switchBackingFile(to: destination, password: creator.createdEncryption.password)
     }
 
     func prepareForBackingFileSwitch() {
@@ -1371,6 +1451,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.cancelRenaming()
         unlockTask?.cancel()
         passwordPresenter.cancel()
+        if let editor = passwordEditor, let parent = editor.alert.window.sheetParent {
+            parent.endSheet(editor.alert.window, returnCode: .alertSecondButtonReturn)
+        }
         if let alert = deletionConfirmation {
             deletionConfirmation = nil
             window?.endSheet(alert.window, returnCode: .alertSecondButtonReturn)

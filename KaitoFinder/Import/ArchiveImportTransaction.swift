@@ -308,7 +308,7 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
 
 nonisolated enum ArchiveEditTransaction {
     static func run(plan: ArchiveEditPlan, archive: URL, mode: ArchiveCapabilities.Mode,
-                    options: WriterOptions = WriterOptions(), progress: Progress,
+                    options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                     willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
@@ -316,7 +316,7 @@ nonisolated enum ArchiveEditTransaction {
         }
         progress.totalUnitCount = Int64(plan.removals.count + plan.renames.count + 1)
         progress.completedUnitCount = 0
-        try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, progress: progress,
+        try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
                                              willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try plan.verifyNames(updater.entryNames)
@@ -339,12 +339,12 @@ nonisolated enum ArchiveEditTransaction {
 /// session の actor 内だけで実行する。書庫の原本へ書くのは最後の rename 一回だけ。
 nonisolated enum ArchiveImportTransaction {
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
-                             options: WriterOptions = WriterOptions(), progress: Progress,
+                             options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                              willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveImportResult {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
-        try publish(archive: archive, mode: mode, options: options, progress: progress,
+        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
                     willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
             try ArchiveImportPlan.checkCancellation(progress)
@@ -356,7 +356,7 @@ nonisolated enum ArchiveImportTransaction {
 
     // phase hook は同じ worker 上で呼び、取消し・障害の境界を XCTest で再現する。
     static func run(plan: ArchiveImportPlan, archive: URL, mode: ArchiveCapabilities.Mode,
-                    options: WriterOptions = WriterOptions(), progress: Progress,
+                    options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,
                     willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveImportResult {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
@@ -364,7 +364,7 @@ nonisolated enum ArchiveImportTransaction {
         }
         progress.totalUnitCount = Int64(plan.items.count + 1)
         progress.completedUnitCount = 0
-        try publish(archive: archive, mode: mode, options: options, progress: progress, willPublish: willPublish,
+        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: willPublish,
                     expectedIdentity: expectedIdentity) { updater in
             for (index, item) in plan.items.enumerated() {
                 try ArchiveImportPlan.checkCancellation(progress)
@@ -382,7 +382,7 @@ nonisolated enum ArchiveImportTransaction {
     }
 
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
-    static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, progress: Progress,
+    static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: [Int64]? = nil,
@@ -409,9 +409,9 @@ nonisolated enum ArchiveImportTransaction {
             let suffix = archive.pathExtension.isEmpty ? "bin" : archive.pathExtension
             work = directory.appendingPathComponent("archive." + suffix)
             try willOpenUpdater?()
-            let rewriter = try ArchiveRewriter.open(url: archive, output: work, format: format, options: options)
-            // capability 検査後に原本が差し替えられても、暗号化を外して公開しない。
-            guard !rewriter.hasEncryptedEntries else {
+            let rewriter = try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+            // 入力の復号鍵と出力の暗号化設定を分離し、削除だけが平文へ書き直せる。
+            guard !rewriter.hasEncryptedEntries || password != nil else {
                 throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
             }
             try mutate(rewriter)
@@ -423,7 +423,7 @@ nonisolated enum ArchiveImportTransaction {
             }
             try preserveAttributes(from: archive, to: work)
         }
-        _ = try ArchiveReader.open(url: work)
+        _ = try ArchiveReader.open(url: work, options: ReaderOptions(password: options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard try identity(archive) == original else {

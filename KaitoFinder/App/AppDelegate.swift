@@ -232,6 +232,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let saveAs = fileMenu.addItem(withTitle: String(localized: "別名で保存…", bundle: bundle),
                                       action: #selector(ArchiveWindowController.saveArchiveAs(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(withTitle: String(localized: "パスワードを設定…", bundle: bundle),
+                         action: #selector(ArchiveWindowController.setArchivePassword(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: String(localized: "パスワードを変更…", bundle: bundle),
+                         action: #selector(ArchiveWindowController.changeArchivePassword(_:)), keyEquivalent: "")
+        fileMenu.addItem(withTitle: String(localized: "パスワードを削除", bundle: bundle),
+                         action: #selector(ArchiveWindowController.removeArchivePassword(_:)), keyEquivalent: "")
         fileMenu.addItem(.separator())
         let newFolder = fileMenu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle),
                                          action: #selector(ArchiveWindowController.newFolder(_:)), keyEquivalent: "n")

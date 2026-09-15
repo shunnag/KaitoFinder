@@ -31,14 +31,11 @@ final class ArchivePasswordPrompt {
         alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
         alert.buttons.last?.keyEquivalent = "\u{1b}"
         field.placeholderString = String(localized: "パスワード", bundle: bundle)
-        let accessory = NSStackView(views: [field, rememberCheckbox])
-        accessory.orientation = .vertical
-        accessory.alignment = .leading
-        accessory.spacing = 8
+        let accessory = ArchivePasswordLayout.stack([field, rememberCheckbox])
         field.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
         field.widthAnchor.constraint(equalTo: accessory.widthAnchor).isActive = true
         // NSAlertはアクセサリの初期フレームで領域を確保する。
-        accessory.setFrameSize(accessory.fittingSize)
+        ArchivePasswordLayout.size(accessory)
         alert.accessoryView = accessory
     }
 }

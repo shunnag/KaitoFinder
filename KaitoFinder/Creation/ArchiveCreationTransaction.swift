@@ -58,7 +58,7 @@ nonisolated enum ArchiveCreationTransaction {
             if quarantine == nil { quarantine = value }
         }
         try ExtractionQuarantine.apply(quarantine, to: output)
-        _ = try ArchiveReader.open(url: output)
+        _ = try ArchiveReader.open(url: output, options: ReaderOptions(password: plan.options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }

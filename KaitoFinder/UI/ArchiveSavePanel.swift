@@ -113,13 +113,15 @@ final class ArchiveSavePanelController {
     }
 }
 
-final class ArchiveSavePanel: NSObject {
-    private static let accessoryWidth: CGFloat = 360
+final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     private static let accessoryHorizontalInset: CGFloat = 2
     let panel = NSSavePanel()
     let controller: ArchiveSavePanelController
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let levelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let encryptionCheckbox: NSButton
+    let passwordFields: ArchivePasswordFields
+    let encryptionNote: NSTextField
     private let fixedLevelNote: NSTextField
     private let bundle: Bundle
 
@@ -127,11 +129,20 @@ final class ArchiveSavePanel: NSObject {
         self.init(sources: sources, existingURL: existingURL, store: ArchivePreferencesStore(defaults: defaults), bundle: bundle)
     }
 
-    init(sources: [URL], existingURL: URL? = nil, store: ArchivePreferencesStore = .shared, bundle: Bundle = .main) {
+    init(sources: [URL], existingURL: URL? = nil, store: ArchivePreferencesStore = .shared,
+         encryption: ArchiveEncryptionSettings = .init(), bundle: Bundle = .main) {
         self.bundle = bundle
-        fixedLevelNote = Self.makeNote(String(localized: "7z と LHA の圧縮レベルは固定です", bundle: bundle))
+        passwordFields = ArchivePasswordFields(format: store.preferences.defaultFormat, bundle: bundle)
+        encryptionCheckbox = NSButton(checkboxWithTitle: String(localized: "暗号化", bundle: bundle), target: nil, action: nil)
+        encryptionNote = Self.makeNote(String(localized: "tar と LHA は暗号化できません", bundle: bundle), width: passwordFields.width)
+        fixedLevelNote = Self.makeNote(String(localized: "7z と LHA の圧縮レベルは固定です", bundle: bundle), width: passwordFields.width)
         controller = ArchiveSavePanelController(store: store)
         super.init()
+        panel.delegate = self
+        passwordFields.fill(encryption)
+        encryptionCheckbox.state = encryption.password == nil ? .off : .on
+        encryptionCheckbox.target = self
+        encryptionCheckbox.action = #selector(changeEncryption(_:))
         panel.directoryURL = (existingURL ?? sources.first)?.deletingLastPathComponent()
         panel.nameFieldStringValue = existingURL.map { ArchiveCreationPlan.conversionName(for: $0, format: controller.format) }
             ?? ArchiveCreationPlan.defaultName(for: sources, format: controller.format)
@@ -146,12 +157,16 @@ final class ArchiveSavePanel: NSObject {
         levelPopup.action = #selector(changeLevel(_:))
         refreshLevel()
         panel.accessoryView = Self.makeAccessoryView(formatPopup: formatPopup, levelPopup: levelPopup,
-                                                     fixedLevelNote: fixedLevelNote, bundle: bundle)
+                                                     fixedLevelNote: fixedLevelNote, encryptionCheckbox: encryptionCheckbox,
+                                                     passwordFields: passwordFields, encryptionNote: encryptionNote, bundle: bundle)
+        refreshEncryption()
     }
 
     // 保存パネルの外部サービスに接続せず、同じアクセサリを構築できる。
     static func makeAccessoryView(formatPopup: NSPopUpButton, levelPopup: NSPopUpButton,
-                                  fixedLevelNote: NSTextField, bundle: Bundle = .main) -> NSView {
+                                  fixedLevelNote: NSTextField, encryptionCheckbox: NSButton,
+                                  passwordFields: ArchivePasswordFields, encryptionNote: NSTextField,
+                                  bundle: Bundle = .main) -> NSView {
         formatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
         levelPopup.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
         let rows = NSGridView(views: [
@@ -164,27 +179,42 @@ final class ArchiveSavePanel: NSObject {
         rows.column(at: 1).trailingPadding = 2
         rows.column(at: 1).xPlacement = .fill
         rows.yPlacement = .center
-        let note = makeNote(String(localized: "暗号化はできません", bundle: bundle))
-        let accessory = NSStackView(views: [rows, note, fixedLevelNote])
-        accessory.orientation = .vertical
-        accessory.alignment = .leading
-        accessory.spacing = 8
+        let width = passwordFields.width
+        let accessory = ArchivePasswordLayout.stack([rows, encryptionCheckbox, passwordFields.view, encryptionNote, fixedLevelNote],
+                                                     width: width + 2 * accessoryHorizontalInset)
         accessory.edgeInsets = NSEdgeInsets(top: 0, left: accessoryHorizontalInset, bottom: 0, right: accessoryHorizontalInset)
-        accessory.widthAnchor.constraint(equalToConstant: accessoryWidth).isActive = true
-        accessory.setFrameSize(accessory.fittingSize)
+        rows.widthAnchor.constraint(equalToConstant: width).isActive = true
+        ArchivePasswordLayout.size(accessory)
         return accessory
     }
 
-    private static func makeNote(_ text: String) -> NSTextField {
+    static func makeNote(_ text: String, width: CGFloat) -> NSTextField {
         let note = NSTextField(wrappingLabelWithString: text)
         note.alignment = .left
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        // NSTextField の左右の整列用余白も、固定幅のアクセサリ内に収める。
-        let width = accessoryWidth - 2 * accessoryHorizontalInset
         note.preferredMaxLayoutWidth = width
         note.widthAnchor.constraint(equalToConstant: width).isActive = true
         return note
+    }
+
+    var encryptionSettings: ArchiveEncryptionSettings {
+        encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on ? passwordFields.settings : .init()
+    }
+
+    func panel(_ sender: Any, validate url: URL) throws {
+        if encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on { try passwordFields.validate() }
+    }
+
+    @objc func changeEncryption(_ sender: NSButton) { refreshEncryption() }
+
+    private func refreshEncryption() {
+        encryptionCheckbox.isEnabled = ArchiveEncryptionSettings.supports(controller.format)
+        passwordFields.selectFormat(controller.format)
+        passwordFields.view.isHidden = !encryptionCheckbox.isEnabled || encryptionCheckbox.state != .on
+        encryptionNote.isHidden = encryptionCheckbox.isEnabled
+        // detachesHiddenViews=false により全形式・チェック状態で領域を確保する。
+        if let accessory = panel.accessoryView { ArchivePasswordLayout.size(accessory) }
     }
 
     private func refreshLevel() {
@@ -203,6 +233,7 @@ final class ArchiveSavePanel: NSObject {
         panel.allowedContentTypes = controller.allowedContentTypes
         panel.nameFieldStringValue = filename
         refreshLevel()
+        refreshEncryption()
     }
 
     func destination(on parent: NSWindow?) async throws -> URL? {
