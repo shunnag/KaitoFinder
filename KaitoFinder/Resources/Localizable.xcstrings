@@ -1556,7 +1556,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nie udało się usunąć wyniku anulowanego archiwum: %@."
+            "value" : "Nie udało się usunąć wyniku anulowanego rozpakowywania: %@."
           }
         },
         "tr" : {
@@ -1598,7 +1598,7 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nepodařilo se odstranit výstup zrušeného archivu: %@."
+            "value" : "Nepodařilo se odstranit výstup zrušeného rozbalování: %@."
           }
         },
         "pt-PT" : {
@@ -5408,7 +5408,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось извлечь отдельный файл"
+            "value" : "Не удалось разархивировать отдельный файл"
           }
         },
         "nl" : {
@@ -5569,7 +5569,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось получить сведения о типе извлекаемого объекта: %@."
+            "value" : "Не удалось получить сведения о типе разархивируемого объекта: %@."
           }
         },
         "nl" : {
@@ -7179,7 +7179,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выбор"
+            "value" : "Выбрать"
           }
         },
         "nl" : {
@@ -7877,7 +7877,7 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Komprimovat pomocí KaitoFinderu"
+            "value" : "Komprimovat pomocí aplikace KaitoFinder"
           }
         },
         "pt-PT" : {
@@ -17494,7 +17494,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ścieżka rzeczy jest niebezpieczna i nie można jej otworzyć."
+            "value" : "Nie można otworzyć rzeczy, ponieważ jej ścieżka jest niebezpieczna."
           }
         },
         "tr" : {
@@ -17536,7 +17536,7 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cesta položky není bezpečná a nelze ji otevřít."
+            "value" : "Položku nelze otevřít, protože její cesta není bezpečná."
           }
         },
         "pt-PT" : {
@@ -22473,7 +22473,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Снять защиту"
+            "value" : "Разблокировать"
           }
         },
         "nl" : {
@@ -24566,7 +24566,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Цель жесткой ссылки не была извлечена тем же средством чтения в то же место назначения."
+            "value" : "Цель жесткой ссылки не была разархивирована тем же средством чтения в то же место назначения."
           }
         },
         "nl" : {
@@ -24727,7 +24727,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этот тип записи нельзя извлечь."
+            "value" : "Записи этого типа нельзя разархивировать."
           }
         },
         "nl" : {
@@ -26015,7 +26015,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Номер inode цели жесткой ссылки изменился после извлечения."
+            "value" : "Номер inode цели жесткой ссылки изменился после разархивирования."
           }
         },
         "nl" : {
@@ -32509,7 +32509,7 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nápověda KaitoFinderu"
+            "value" : "Nápověda pro KaitoFinder"
           }
         },
         "pt-PT" : {
@@ -34387,7 +34387,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Снять защиту…"
+            "value" : "Разблокировать…"
           }
         },
         "nl" : {
@@ -40632,7 +40632,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Стандартная"
+            "value" : "Стандартный"
           }
         },
         "nl" : {
@@ -40680,7 +40680,7 @@
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Звичайна"
+            "value" : "Звичайний"
           }
         },
         "cs" : {
@@ -46773,7 +46773,7 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zobrazovat toto okno při spuštění KaitoFinderu"
+            "value" : "Zobrazovat toto okno při spuštění aplikace KaitoFinder"
           }
         },
         "pt-PT" : {

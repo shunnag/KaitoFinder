@@ -421,7 +421,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             "隠しファイルを表示": "Zobrazovat skryté soubory",
             "別名で保存…": "Uložit jako…",
             "パスワード:": "Heslo:",
-            "KaitoFinderで圧縮": "Komprimovat pomocí KaitoFinderu"
+            "KaitoFinderで圧縮": "Komprimovat pomocí aplikace KaitoFinder"
         ])
     }
 
@@ -517,7 +517,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             "nb": ["Komprimer med KaitoFinder", "Pakk ut med KaitoFinder"],
             "fi": ["Pakkaa KaitoFinderilla", "Pura KaitoFinderilla"],
             "uk": ["Створити архів за допомогою KaitoFinder", "Розпакувати за допомогою KaitoFinder"],
-            "cs": ["Komprimovat pomocí KaitoFinderu", "Rozbalit pomocí KaitoFinderu"],
+            "cs": ["Komprimovat pomocí aplikace KaitoFinder", "Rozbalit pomocí aplikace KaitoFinder"],
             "pt-PT": ["Comprimir com KaitoFinder", "Descomprimir com KaitoFinder"]
         ]
         for language in LocalizationAcceptance.languages {
