@@ -35,8 +35,12 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             model.changeTarPreservesOwnerIDs(to: enabled)
             expected.tarPreservesOwnerIDs = enabled
             check()
-            model.changeTrashesArchiveAfterExtraction(to: enabled)
+            model.selectAfterExpansion(at: enabled ? 1 : 0)
             expected.trashesArchiveAfterExtraction = enabled
+            check()
+            XCTAssertEqual(model.afterExpansionIndex, enabled ? 1 : 0)
+            model.changeRevealsExtractedItemsInFinder(to: enabled)
+            expected.revealsExtractedItemsInFinder = enabled
             check()
         }
         for (index, destination) in PreferencesViewModel.extractionDestinations.enumerated() {
@@ -55,7 +59,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let saved = ArchivePreferences(defaultFormat: .tarGzip, zipMethod: .stored, zipLevel: 8,
                                        zipSkipsCompressedTypes: false, tarGzipLevel: 2, tarPreservesOwnerIDs: true,
-                                       extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true)
+                                       extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true,
+                                       revealsExtractedItemsInFinder: true)
         store.preferences = saved
         let model = PreferencesViewModel(store: ArchivePreferencesStore(defaults: suite.defaults))
         XCTAssertEqual(model.preferences, saved)
@@ -63,6 +68,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(model.zipMethodIndex, 1)
         XCTAssertEqual(model.extractionDestinationIndex, 1)
         XCTAssertEqual(model.folderPolicyIndex, 2)
+        XCTAssertEqual(model.afterExpansionIndex, 1)
         XCTAssertEqual(model.zipLevelLabel, "8")
         XCTAssertEqual(model.tarGzipLevelLabel, "2")
         for (input, expected) in [(Int.min, 1), (0, 1), (42, 9), (Int.max, 9)] {
@@ -81,6 +87,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             model.selectZipMethod(at: index)
             model.selectExtractionDestination(at: index)
             model.selectFolderPolicy(at: index)
+            model.selectAfterExpansion(at: index)
         }
         XCTAssertEqual(store.preferences, before)
     }
@@ -121,9 +128,12 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         controller.folderPolicyPopup.selectItem(at: 2)
         sendAction(controller.folderPolicyPopup)
         XCTAssertEqual(store.preferences.folderPolicy, .never)
-        controller.trashesArchiveAfterExtractionCheckbox.state = .on
-        sendAction(controller.trashesArchiveAfterExtractionCheckbox)
+        controller.afterExpansionPopup.selectItem(at: 1)
+        sendAction(controller.afterExpansionPopup)
         XCTAssertTrue(store.preferences.trashesArchiveAfterExtraction)
+        controller.revealsExtractedItemsInFinderCheckbox.state = .on
+        sendAction(controller.revealsExtractedItemsInFinderCheckbox)
+        XCTAssertTrue(store.preferences.revealsExtractedItemsInFinder)
         // 保存パネルなど、別の入口で保存した変更も開いたままの画面へ同期する。
         store.preferences = ArchivePreferences()
         XCTAssertEqual(controller.defaultFormatPopup.indexOfSelectedItem, 0)
@@ -137,7 +147,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(controller.tarPreservesOwnerIDsCheckbox.state, .off)
         XCTAssertEqual(controller.extractionDestinationPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.folderPolicyPopup.indexOfSelectedItem, 1)
-        XCTAssertEqual(controller.trashesArchiveAfterExtractionCheckbox.state, .off)
+        XCTAssertEqual(controller.afterExpansionPopup.indexOfSelectedItem, 0)
+        XCTAssertEqual(controller.revealsExtractedItemsInFinderCheckbox.state, .off)
     }
 
     @MainActor func testSavePanelAndSettingsShareDefaultFormat() throws {
@@ -210,4 +221,29 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             }
         }
     }
+
+    @MainActor func testExtractionSettingsUseArchiveUtilityLabelsInJapaneseAndEnglish() throws {
+        let app = Bundle(for: ArchiveDocument.self)
+        for language in ["ja", "en"] {
+            let suite = try ArchivePreferencesTestDefaults()
+            let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
+            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle)
+            defer { controller.close() }
+            controller.tabController.selectedTabViewItemIndex = 2
+            let pane = try XCTUnwrap(controller.tabController.tabViewItems[2].viewController?.view)
+            let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
+            let labels = (0..<3).compactMap { (grid.cell(atColumnIndex: 0, rowIndex: $0).contentView as? NSTextField)?.stringValue }
+            XCTAssertEqual(labels, language == "ja" ? ["展開したファイルの保存場所:", "展開後:", "フォルダを作成:"]
+                : ["Save expanded files into:", "After expanding:", "Create folder:"])
+            XCTAssertEqual(controller.extractionDestinationPopup.itemTitles, language == "ja"
+                ? ["アーカイブと同じディレクトリ内", "場所を選択…"] : ["In the same directory as the archive", "Choose a location…"])
+            XCTAssertEqual(controller.afterExpansionPopup.itemTitles, language == "ja"
+                ? ["アーカイブをそのままにする", "アーカイブをゴミ箱に入れる"] : ["Leave the archive alone", "Move the archive to the Trash"])
+            XCTAssertEqual(controller.revealsExtractedItemsInFinderCheckbox.title, language == "ja"
+                ? "展開した項目をFinderに表示" : "Reveal expanded items in Finder")
+            XCTAssertNil(grid.cell(atColumnIndex: 0, rowIndex: 3).contentView)
+            XCTAssertTrue(grid.cell(atColumnIndex: 1, rowIndex: 3).contentView === controller.revealsExtractedItemsInFinderCheckbox)
+        }
+    }
+
 }

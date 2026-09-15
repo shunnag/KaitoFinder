@@ -51,6 +51,20 @@ nonisolated final class UISnapshotTests: XCTestCase {
         XCTAssertTrue(UISnapshot.overflowViolations(in: root).isEmpty)
     }
 
+    @MainActor func testDetectsWrappingCheckboxWithInsufficientHeight() throws {
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 500))
+        let button = NSButton(checkboxWithTitle: String(repeating: "折り返す設定の説明 ", count: 6), target: nil, action: nil)
+        let cell = try XCTUnwrap(button.cell)
+        cell.wraps = true
+        cell.lineBreakMode = .byWordWrapping
+        button.frame = NSRect(x: 10, y: 10, width: 180, height: 16)
+        root.addSubview(button)
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).contains { $0.contains("内容の高さ") })
+        let required = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: 180, height: 1000))
+        button.setFrameSize(NSSize(width: 180, height: ceil(required.height)))
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).isEmpty)
+    }
+
     @MainActor func testDetectsFramesOutsideParentAndSkipsHiddenSubtrees() {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
         root.bounds.origin = NSPoint(x: 20, y: 10)

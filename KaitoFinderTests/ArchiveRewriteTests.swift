@@ -683,12 +683,11 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
     @MainActor func testWindowRewriteNoticeContainsRecompressionAndZIPDoesNot() async throws {
         let notice = String(localized: "編集するとアーカイブ全体を再圧縮します")
-        let lockText = String(localized: "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます")
         let controller = ArchiveWindowController()
         defer { controller.close() }
         controller.displayLocked()
         let capabilityNotice = try XCTUnwrap(labels(in: try XCTUnwrap(controller.window?.contentView))
-            .first { $0.stringValue == lockText })
+            .first { $0.identifier?.rawValue == "archive.capability-notice" })
         for format in Format.allCases {
             let fixture = try Fixture(format), session = try ArchiveSession(url: fixture.archive)
             let snapshot = await session.snapshot()
@@ -717,8 +716,9 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         await readOnlySession.close()
 
         controller.displayLocked()
-        XCTAssertEqual(capabilityNotice.stringValue, lockText)
-        XCTAssertFalse(capabilityNotice.isHidden)
+        XCTAssertEqual(capabilityNotice.stringValue, "")
+        XCTAssertTrue(capabilityNotice.isHidden)
+        XCTAssertFalse(controller.lockedPlaceholder.isHidden)
     }
 
     func testRewriteNoticeAndRefusalsHaveJapaneseCatalogEntries() throws {

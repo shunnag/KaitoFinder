@@ -27,7 +27,8 @@ final class ArchiveCreationController {
         try ArchiveImportPlan.checkCancellation(progress)
         let plan = creationPlan(sources: sources, destination: destination,
                                 format: save.controller.format, existing: existing)
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "アーカイブを作成しています"))
+        let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.creatingArchive.title(),
+                                            detail: destination.lastPathComponent)
         progressSheet = sheet
         defer { sheet.finish(); progressSheet = nil }
         if let parent { sheet.begin(on: parent) }

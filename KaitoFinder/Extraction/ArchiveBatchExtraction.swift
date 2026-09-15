@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 
@@ -41,17 +42,23 @@ nonisolated struct ArchiveBatchPlan: Sendable {
     private let passwordPrompt: @MainActor (URL, ArchivePasswordChallenge) async throws -> String
     private let rememberedPassword: @Sendable (URL) async -> String?
     private let trash: @Sendable (URL) throws -> Void
+    private let reveal: @Sendable ([URL]) -> Void
+    private let currentArchive: @MainActor (URL?) -> Void
 
     init(preferences: ArchivePreferences,
          passwordPrompt: @escaping @MainActor (URL, ArchivePasswordChallenge) async throws -> String,
          rememberedPassword: @escaping @Sendable (URL) async -> String? = { _ in nil },
          trash: @escaping @Sendable (URL) throws -> Void = {
              try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
-         }) {
+         },
+         reveal: @escaping @Sendable ([URL]) -> Void = { NSWorkspace.shared.activateFileViewerSelecting($0) },
+         currentArchive: @escaping @MainActor (URL?) -> Void = { _ in }) {
         self.preferences = preferences
         self.passwordPrompt = passwordPrompt
         self.rememberedPassword = rememberedPassword
         self.trash = trash
+        self.reveal = reveal
+        self.currentArchive = currentArchive
     }
 
     func run(archives: [URL], base: URL?, progress: Progress) async -> Report {
@@ -77,8 +84,11 @@ nonisolated struct ArchiveBatchPlan: Sendable {
     private func extractArchives(_ archives: [URL], base: URL?, progress: Progress) async -> Report {
         var extracted: [URL] = []
         var failures: [Failure] = []
+        var revealedItems: [URL] = []
+        defer { currentArchive(nil) }
         for archive in archives {
             if progress.isCancelled || Task.isCancelled { break }
+            currentArchive(archive)
             let child = Progress(totalUnitCount: 1)
             progress.addChild(child, withPendingUnitCount: 1)
             defer {
@@ -127,6 +137,13 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                 await opened.close()
                 try Self.checkCancellation(progress)
                 session = nil
+                // 成功した出力だけを一度に表示する。ゴミ箱への移動失敗でも出力は残っている。
+                if let createdFolder { revealedItems.append(createdFolder) }
+                else {
+                    revealedItems.append(contentsOf: root.children.map {
+                        item.destinationFolder.appendingPathComponent($0.name, isDirectory: $0.isDirectory)
+                    })
+                }
                 createdFolder = nil
                 written.removeAll()
                 extracted.append(archive)
@@ -150,6 +167,9 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                 if let cleanupReason { reason += "\n" + cleanupReason }
                 failures.append(Failure(archive: archive, reason: reason))
             }
+        }
+        if preferences.revealsExtractedItemsInFinder && !revealedItems.isEmpty {
+            reveal(revealedItems)
         }
         return Report(extracted: extracted, failures: failures, cancelled: progress.isCancelled || Task.isCancelled)
     }

@@ -19,6 +19,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var extractionDestination: ExtractionDestination = .sameFolder
     var folderPolicy: FolderPolicy = .whenMultipleTopLevelItems
     var trashesArchiveAfterExtraction = false
+    var revealsExtractedItemsInFinder = false
 
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
         switch format {
@@ -54,6 +55,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let extractionDestination = "ArchiveExtractionDestination"
         static let folderPolicy = "ArchiveFolderPolicy"
         static let trashesArchiveAfterExtraction = "ArchiveTrashesArchiveAfterExtraction"
+        static let revealsExtractedItemsInFinder = "ArchiveRevealsExtractedItems"
     }
 
     private let defaults: UserDefaults
@@ -79,6 +81,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                 .flatMap(ArchivePreferences.FolderPolicy.init(rawValue:)) ?? value.folderPolicy
             value.trashesArchiveAfterExtraction = boolean(forKey: Key.trashesArchiveAfterExtraction,
                                                          fallback: value.trashesArchiveAfterExtraction)
+            value.revealsExtractedItemsInFinder = boolean(forKey: Key.revealsExtractedItemsInFinder,
+                                                        fallback: value.revealsExtractedItemsInFinder)
             return value
         }
         set {
@@ -91,6 +95,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.extractionDestination.rawValue, forKey: Key.extractionDestination)
             defaults.set(newValue.folderPolicy.rawValue, forKey: Key.folderPolicy)
             defaults.set(newValue.trashesArchiveAfterExtraction, forKey: Key.trashesArchiveAfterExtraction)
+            defaults.set(newValue.revealsExtractedItemsInFinder, forKey: Key.revealsExtractedItemsInFinder)
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。
             NotificationCenter.default.post(name: Self.didChange, object: self)
         }

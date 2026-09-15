@@ -253,4 +253,66 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertEqual(window.tabbingIdentifier, "KaitoFinder.archive")
         XCTAssertEqual(window.tabbingMode, .automatic)
     }
+
+    @MainActor func testLockedPlaceholderRestoresListToolbarAndStatusAfterUnlock() async throws {
+        let (document, controller, root) = try await interface()
+        let session = try XCTUnwrap(document.session), window = try XCTUnwrap(controller.window)
+        controller.displayLocked()
+        XCTAssertFalse(controller.lockedPlaceholder.isHidden)
+        XCTAssertTrue(controller.outlineView.isHiddenOrHasHiddenAncestor)
+        XCTAssertFalse(controller.searchField.isEnabled)
+        XCTAssertTrue(controller.statusBar.isHidden)
+        XCTAssertTrue(window.defaultButtonCell === controller.unlockButton.cell)
+        controller.display(root, session: session)
+        XCTAssertTrue(controller.lockedPlaceholder.isHidden)
+        XCTAssertFalse(controller.outlineView.isHiddenOrHasHiddenAncestor)
+        XCTAssertTrue(controller.searchField.isEnabled)
+        XCTAssertFalse(controller.statusBar.isHidden)
+        XCTAssertNil(window.defaultButtonCell)
+        XCTAssertEqual(controller.unlockButton.keyEquivalent, "")
+        XCTAssertEqual(controller.outlineView.numberOfRows, 2)
+        let extract = try XCTUnwrap(window.toolbar?.items.first { $0.itemIdentifier.rawValue == "extract" })
+        XCTAssertTrue(controller.validateToolbarItem(extract))
+    }
+
+    @MainActor func testStatusBarUpdatesCountsFilterSelectionAndAvoidsDoubleCountingSize() async throws {
+        let (_, controller, root) = try await interface()
+        func expected(filtered: Int? = nil, selected: Int = 0, size: UInt64? = nil) -> String {
+            ArchiveStatusBarText.text(totalCount: 4, totalSize: 10, filteredCount: filtered,
+                                      selectedCount: selected, selectedSize: size)
+        }
+        XCTAssertEqual(controller.statusBar.stringValue, expected())
+        controller.setFilterQuery("c.txt")
+        XCTAssertEqual(controller.statusBar.stringValue, expected(filtered: 3))
+        controller.setFilterQuery("missing")
+        XCTAssertEqual(controller.statusBar.stringValue, expected(filtered: 0))
+        controller.setFilterQuery("")
+        let a = try child("a", in: root), b = try child("b", in: a), c = try child("c.txt", in: b)
+        let view = controller.outlineView
+        view.expandItem(nil, expandChildren: true)
+        view.selectRowIndexes(IndexSet([view.row(forItem: a), view.row(forItem: c)]), byExtendingSelection: false)
+        XCTAssertEqual(controller.statusBar.stringValue, expected(selected: 2, size: 6))
+        view.deselectAll(nil)
+        XCTAssertEqual(controller.statusBar.stringValue, expected())
+        controller.setFilterQuery("note")
+        view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        XCTAssertEqual(controller.statusBar.stringValue, expected(filtered: 1, selected: 1, size: 4))
+    }
+
+    @MainActor func testStatusBarTextInJapaneseAndEnglish() throws {
+        let app = Bundle(for: ArchiveDocument.self)
+        let size = ByteCountFormatter.string(fromByteCount: 1024, countStyle: .file)
+        for language in ["ja", "en"] {
+            let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
+            XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: 1024, bundle: bundle),
+                           language == "ja" ? "12項目、\(size)" : "12 items, \(size)")
+            XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: 1024, filteredCount: 3, bundle: bundle),
+                           language == "ja" ? "3/12項目" : "3 of 12 items")
+            XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: 1024, selectedCount: 2, selectedSize: 1024, bundle: bundle),
+                           language == "ja" ? "2項目を選択中(\(size))" : "2 of 12 items selected (\(size))")
+            XCTAssertEqual(ArchiveStatusBarText.text(totalCount: 12, totalSize: nil, selectedCount: 1, selectedSize: nil, bundle: bundle),
+                           language == "ja" ? "1項目を選択中(—)" : "1 of 12 items selected (—)")
+        }
+    }
+
 }

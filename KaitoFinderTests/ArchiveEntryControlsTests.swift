@@ -562,11 +562,13 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertNil(bareUIString.firstMatch(in: source, range: NSRange(source.startIndex..., in: source)), path)
             for match in localized.matches(in: source, range: NSRange(source.startIndex..., in: source)) {
                 let literal = String(source[try XCTUnwrap(Range(match.range(at: 1), in: source))])
-                let key = literal.replacingOccurrences(of: #"\(actionName)"#, with: "%@")
-                    .replacingOccurrences(of: #"\(type.identifier)"#, with: "%@")
-                    .replacingOccurrences(of: #"\(progress.completedUnitCount)"#, with: "%lld")
-                    .replacingOccurrences(of: #"\(progress.totalUnitCount)"#, with: "%lld")
-                let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
+                // 補間は種類を問わず「%」に潰し、catalog 側の %@ / %lld / %1$lld も同じ形に正規化して照合する。
+                let key = Self.collapsingInterpolations(literal)
+                    .replacingOccurrences(of: #"%[0-9]*\$?(lld|ld|d|@)"#, with: "%", options: .regularExpression)
+                let normalized = Dictionary(strings.map { name, value in
+                    (name.replacingOccurrences(of: #"%[0-9]*\$?(lld|ld|d|@)"#, with: "%", options: .regularExpression), value)
+                }, uniquingKeysWith: { first, _ in first })
+                let entry = try XCTUnwrap(normalized[key] as? [String: Any], key)
                 let translations = try XCTUnwrap(entry["localizations"] as? [String: Any], key)
                 XCTAssertNotNil(translations["en"], key)
                 XCTAssertNotNil(translations["ja"], key)
@@ -606,7 +608,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
         let expected = [
             "選択した項目を展開…": "Extract Selected Items…", "すべて展開…": "Extract All…", "展開": "Extract",
-            "項目を展開しています": "Extracting items", "項目を展開できませんでした": "Could not extract items",
+            "項目を展開中…": "Expanding…", "項目を展開できませんでした": "Could not extract items",
             "追加…": "Add…", "検索": "Search", "アーカイブをFinderに表示": "Reveal Archive in Finder",
             "単一ファイルを展開できませんでした": "Could not extract a single file",
             "展開する項目の型情報を取得できません: %@。": "Could not get type information for the item to extract: %@."
@@ -834,14 +836,14 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor func testNewFolderAndFilterStringsHaveExactJapaneseAndEnglishLocalizations() throws {
         let bundle = Bundle(for: ArchiveDocument.self)
         for (language, values) in [
-            ("ja", ["新規フォルダ", "名称未設定フォルダ", "検索", "フォルダを作成しています"]),
-            ("en", ["New Folder", "untitled folder", "Search", "Creating Folder"])
+            ("ja", ["新規フォルダ", "名称未設定フォルダ", "検索", "フォルダを作成中…"]),
+            ("en", ["New Folder", "untitled folder", "Search", "Creating Folder…"])
         ] {
             let localized = try XCTUnwrap(Bundle(url: XCTUnwrap(bundle.url(forResource: language, withExtension: "lproj"))))
             XCTAssertEqual(String(localized: "新規フォルダ", bundle: localized), values[0])
             XCTAssertEqual(String(localized: "名称未設定フォルダ", bundle: localized), values[1])
             XCTAssertEqual(String(localized: "検索", bundle: localized), values[2])
-            XCTAssertEqual(String(localized: "フォルダを作成しています", bundle: localized), values[3])
+            XCTAssertEqual(String(localized: "フォルダを作成中…", bundle: localized), values[3])
             let base = values[1], number = 2
             XCTAssertEqual(String(localized: "\(base) \(number)", bundle: localized), base + " 2")
         }
@@ -985,7 +987,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         // move は pasteboard を一度も読まない。drag 終了で配列を消しても Task は選択を保持する。
         XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
         XCTAssertEqual(info.pasteboardReads, 0)
-        XCTAssertEqual(controller.editProgressSheet?.window?.title, String(localized: "項目を移動しています"))
+        XCTAssertEqual(controller.editProgressSheet?.window?.title, String(localized: "項目を移動中…"))
         let task = try XCTUnwrap(controller.extractionTask)
         controller.outlineView(controller.outlineView, draggingSession: session, endedAt: .zero, operation: .move)
         XCTAssertTrue(controller.draggedNodes.isEmpty)
@@ -1093,7 +1095,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor func testMoveStringsHaveExactJapaneseAndEnglishLocalizations() throws {
         let bundle = Bundle(for: ArchiveDocument.self)
         let translations = [
-            ("移動", "Move"), ("項目を移動しています", "Moving Items"),
+            ("移動", "Move"), ("項目を移動中…", "Moving…"),
             ("同じ場所です。", "The items are already in this folder."),
             ("フォルダを自分自身の中へは移動できません。", "A folder cannot be moved into itself or one of its subfolders."),
             ("移動先のフォルダが見つかりません。", "The destination folder could not be found.")
@@ -1104,5 +1106,21 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
                 XCTAssertEqual(String(localized: String.LocalizationValue(key), bundle: localized), language == "ja" ? key : english)
             }
         }
+    }
+
+    // 入れ子の括弧を含む補間 \(f(x)) も一つの「%」に潰す。
+    private static func collapsingInterpolations(_ literal: String) -> String {
+        var result = "", depth = 0, index = literal.startIndex
+        while index < literal.endIndex {
+            if depth == 0, literal[index...].hasPrefix("\\(") {
+                result += "%"; depth = 1; index = literal.index(index, offsetBy: 2); continue
+            }
+            if depth > 0 {
+                if literal[index] == "(" { depth += 1 } else if literal[index] == ")" { depth -= 1 }
+                index = literal.index(after: index); continue
+            }
+            result.append(literal[index]); index = literal.index(after: index)
+        }
+        return result
     }
 }

@@ -29,6 +29,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
                 XCTAssertEqual(unit["state"], "translated", key)
                 if language == "ja" {
                     XCTAssertEqual(text, key)
+                    XCTAssertFalse(text.contains("「%@」"), key)
                     XCTAssertFalse(text.contains("書庫"), key)
                     XCTAssertFalse(text.contains("／"), key)
                     XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)

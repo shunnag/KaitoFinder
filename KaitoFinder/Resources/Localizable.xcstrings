@@ -35,19 +35,19 @@
         }
       }
     },
-    "%lld個のアーカイブを展開しています" : {
+    "%lld個のアーカイブを展開中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Extracting %lld archives"
+            "value" : "Expanding %lld Archives…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld個のアーカイブを展開しています"
+            "value" : "%lld個のアーカイブを展開中…"
           }
         }
       }
@@ -69,7 +69,7 @@
         }
       }
     },
-    "「%@」のパスワードを入力してください。" : {
+    "“%@”のパスワードを入力してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -81,12 +81,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%@」のパスワードを入力してください。"
+            "value" : "“%@”のパスワードを入力してください。"
           }
         }
       }
     },
-    "「%@」のパスワードが違います。もう一度入力してください。" : {
+    "“%@”のパスワードが違います。もう一度入力してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -98,7 +98,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「%@」のパスワードが違います。もう一度入力してください。"
+            "value" : "“%@”のパスワードが違います。もう一度入力してください。"
           }
         }
       }
@@ -205,19 +205,19 @@
         }
       }
     },
-    "新規アーカイブの既定形式" : {
+    "新規アーカイブの既定フォーマット:" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Default archive format"
+            "value" : "Default format for new archives:"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新規アーカイブの既定形式"
+            "value" : "新規アーカイブの既定フォーマット:"
           }
         }
       }
@@ -324,87 +324,87 @@
         }
       }
     },
-    "7zはLZMA2、LHAは-lh5-固定です" : {
+    "7zはLZMA2、LHAは-lh5-で固定です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "7z uses LZMA2 and LHA uses -lh5-; these encoders are fixed."
+            "value" : "7z uses LZMA2 and LHA uses -lh5-; these are fixed."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "7zはLZMA2、LHAは-lh5-固定です"
+            "value" : "7zはLZMA2、LHAは-lh5-で固定です。"
           }
         }
       }
     },
-    "展開先" : {
+    "展開したファイルの保存場所:" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Extraction destination"
+            "value" : "Save expanded files into:"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "展開先"
+            "value" : "展開したファイルの保存場所:"
           }
         }
       }
     },
-    "フォルダを作成" : {
+    "フォルダを作成:" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Create a folder"
+            "value" : "Create folder:"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フォルダを作成"
+            "value" : "フォルダを作成:"
           }
         }
       }
     },
-    "アーカイブと同じフォルダ" : {
+    "アーカイブと同じディレクトリ内" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Same folder as the archive"
+            "value" : "In the same directory as the archive"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "アーカイブと同じフォルダ"
+            "value" : "アーカイブと同じディレクトリ内"
           }
         }
       }
     },
-    "毎回選ぶ" : {
+    "場所を選択…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ask every time"
+            "value" : "Choose a location…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "毎回選ぶ"
+            "value" : "場所を選択…"
           }
         }
       }
@@ -460,19 +460,19 @@
         }
       }
     },
-    "展開後にアーカイブをゴミ箱に入れる" : {
+    "アーカイブをゴミ箱に入れる" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Move archive to Trash after extraction"
+            "value" : "Move the archive to the Trash"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "展開後にアーカイブをゴミ箱に入れる"
+            "value" : "アーカイブをゴミ箱に入れる"
           }
         }
       }
@@ -579,19 +579,19 @@
         }
       }
     },
-    "項目を移動しています" : {
+    "項目を移動中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moving Items"
+            "value" : "Moving…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を移動しています"
+            "value" : "項目を移動中…"
           }
         }
       }
@@ -783,19 +783,19 @@
         }
       }
     },
-    "アーカイブを作成しています" : {
+    "アーカイブを作成中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Creating Archive"
+            "value" : "Creating Archive…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "アーカイブを作成しています"
+            "value" : "アーカイブを作成中…"
           }
         }
       }
@@ -1072,19 +1072,19 @@
         }
       }
     },
-    "フォルダを作成しています" : {
+    "フォルダを作成中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Creating Folder"
+            "value" : "Creating Folder…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フォルダを作成しています"
+            "value" : "フォルダを作成中…"
           }
         }
       }
@@ -1871,19 +1871,19 @@
         }
       }
     },
-    "項目を展開しています" : {
+    "項目を展開中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Extracting items"
+            "value" : "Expanding…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を展開しています"
+            "value" : "項目を展開中…"
           }
         }
       }
@@ -1905,19 +1905,19 @@
         }
       }
     },
-    "項目を追加しています" : {
+    "項目を追加中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Adding Items"
+            "value" : "Adding…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を追加しています"
+            "value" : "項目を追加中…"
           }
         }
       }
@@ -2160,19 +2160,19 @@
         }
       }
     },
-    "名称を変更しています" : {
+    "名称を変更中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Renaming Items"
+            "value" : "Renaming…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "名称を変更しています"
+            "value" : "名称を変更中…"
           }
         }
       }
@@ -2262,19 +2262,19 @@
         }
       }
     },
-    "項目を削除しています" : {
+    "項目を削除中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deleting Items"
+            "value" : "Deleting…"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を削除しています"
+            "value" : "項目を削除中…"
           }
         }
       }
@@ -2432,19 +2432,19 @@
         }
       }
     },
-    "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます" : {
+    "このアーカイブはロックされています" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This archive is locked. Enter its password to view the contents."
+            "value" : "This archive is locked"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます"
+            "value" : "このアーカイブはロックされています"
           }
         }
       }
@@ -3516,6 +3516,227 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "POSIX %d: %@"
+          }
+        }
+      }
+    },
+    "圧縮方式:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compression method:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圧縮方式:"
+          }
+        }
+      }
+    },
+    "圧縮レベル:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compression level:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圧縮レベル:"
+          }
+        }
+      }
+    },
+    "gzipレベル:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gzip level:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gzipレベル:"
+          }
+        }
+      }
+    },
+    "展開後:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After expanding:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開後:"
+          }
+        }
+      }
+    },
+    "アーカイブをそのままにする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave the archive alone"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブをそのままにする"
+          }
+        }
+      }
+    },
+    "展開した項目をFinderに表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reveal expanded items in Finder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開した項目をFinderに表示"
+          }
+        }
+      }
+    },
+    "パスワードを入力すると内容を表示できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter the password to view its contents."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを入力すると内容を表示できます。"
+          }
+        }
+      }
+    },
+    "ロックを解除…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロックを解除…"
+          }
+        }
+      }
+    },
+    "“%@”を展開中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanding “%@”…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を展開中…"
+          }
+        }
+      }
+    },
+    "%lld項目、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld items, %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld項目、%@"
+          }
+        }
+      }
+    },
+    "%lld/%lld項目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld items"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld項目"
+          }
+        }
+      }
+    },
+    "%1$lld項目を選択中(%3$@)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld items selected (%3$@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld項目を選択中(%3$@)"
+          }
+        }
+      }
+    },
+    "—" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
           }
         }
       }

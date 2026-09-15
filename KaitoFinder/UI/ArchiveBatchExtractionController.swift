@@ -5,14 +5,17 @@ import UniformTypeIdentifiers
 @MainActor final class ArchiveBatchExtractionController {
     private let store: ArchivePreferencesStore
     private let passwordVault: ArchivePasswordVault
+    private let reveal: @Sendable ([URL]) -> Void
     private let passwordPresenter = ArchivePasswordPresenter()
     private(set) var destinationPanel: NSOpenPanel?
     private(set) var progressSheet: ExtractionProgressSheet?
     var passwordPrompt: ArchivePasswordPrompt? { passwordPresenter.prompt }
 
-    init(store: ArchivePreferencesStore = .shared, passwordVault: ArchivePasswordVault = .shared) {
+    init(store: ArchivePreferencesStore = .shared, passwordVault: ArchivePasswordVault = .shared,
+         reveal: @escaping @Sendable ([URL]) -> Void = { NSWorkspace.shared.activateFileViewerSelecting($0) }) {
         self.store = store
         self.passwordVault = passwordVault
+        self.reveal = reveal
     }
 
     static func archiveContentTypes(bundle: Bundle = .main) -> [UTType] {
@@ -43,7 +46,7 @@ import UniformTypeIdentifiers
     }
 
     static func progressTitle(count: Int, bundle: Bundle = .main) -> String {
-        String(localized: "\(count)個のアーカイブを展開しています", bundle: bundle)
+        ArchiveProgressOperation.expandingArchives(count).title(bundle: bundle)
     }
 
     @discardableResult
@@ -89,6 +92,8 @@ import UniformTypeIdentifiers
             return response.password
         }, rememberedPassword: { archive in
             await vault.password(for: .file(archive))
+        }, reveal: reveal, currentArchive: { archive in
+            sheet.detail = archive?.lastPathComponent ?? ""
         })
         let report = await extractor.run(archives: archives, base: base, progress: progress)
         for archive in report.extracted {

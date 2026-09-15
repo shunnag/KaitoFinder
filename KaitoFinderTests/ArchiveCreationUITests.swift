@@ -177,14 +177,14 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
 
     @MainActor func testStandaloneProgressPanelFloatsAndFinishesWithoutAParent() throws {
         let progress = Progress(totalUnitCount: 2)
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "アーカイブを作成しています"))
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "アーカイブを作成中…"))
         defer { sheet.finish() }
         sheet.beginStandalone()
         let panel = try XCTUnwrap(sheet.window)
         XCTAssertNil(panel.sheetParent)
         XCTAssertEqual(panel.level, .floating)
         XCTAssertTrue(panel.isVisible)
-        XCTAssertEqual(panel.title, String(localized: "アーカイブを作成しています"))
+        XCTAssertEqual(panel.title, String(localized: "アーカイブを作成中…"))
         sheet.cancelExtraction(nil)
         XCTAssertTrue(progress.isCancelled)
         sheet.finish()

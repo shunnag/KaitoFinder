@@ -406,4 +406,101 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         XCTAssertTrue(cancelled.failures.isEmpty)
         assertAbsent(fixture.directory.url.appendingPathComponent("secret"))
     }
+
+    @MainActor func testRevealRunsOnceAfterBatchWithCreatedFoldersAndUnwrappedTopLevelItems() async throws {
+        let fixture = try Fixture(), base = try fixture.folder("chosen"), bytes = Data("contents".utf8)
+        let single = try fixture.archive("single.zip", files: ["docs/readme.txt": bytes])
+        let multiple = try fixture.archive("multiple.zip", files: ["a.txt": bytes, "b.txt": bytes])
+        let flat = try fixture.archive("flat.zip", files: ["photo.jpg": bytes])
+        let existing = base.appendingPathComponent("multiple", isDirectory: true)
+        try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: false)
+        let revealed = Mutex<[[URL]]>([])
+        var current: [URL?] = []
+        let progress = Progress()
+        let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(revealsExtractedItemsInFinder: true),
+            passwordPrompt: { _, _ in throw CancellationError() }, reveal: { urls in
+                XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
+                XCTAssertTrue(urls.allSatisfy { FileManager.default.fileExists(atPath: $0.path) })
+                revealed.withLock { $0.append(urls) }
+            }, currentArchive: { current.append($0) })
+        let report = await engine.run(archives: [single, multiple, flat], base: base, progress: progress)
+        XCTAssertEqual(report.extracted, [single, multiple, flat])
+        XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertEqual(revealed.withLock { $0 }, [[base.appendingPathComponent("docs", isDirectory: true),
+            base.appendingPathComponent("multiple 2", isDirectory: true), base.appendingPathComponent("photo.jpg")]])
+        XCTAssertEqual(current, [single, multiple, flat, nil])
+    }
+
+    @MainActor func testRevealIncludesSuccessfulOutputWhenTrashFailsAndExcludesExtractionFailures() async throws {
+        let fixture = try Fixture(), bytes = Data("contents".utf8)
+        let first = try fixture.archive("first.zip", files: ["a": bytes])
+        let bad = try fixture.corruptPayload()
+        let last = try fixture.archive("last.zip", files: ["b": bytes])
+        let revealed = Mutex<[[URL]]>([])
+        let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .always,
+            trashesArchiveAfterExtraction: true, revealsExtractedItemsInFinder: true),
+            passwordPrompt: { _, _ in throw CancellationError() }, trash: { archive in
+                if archive == first { throw CocoaError(.fileWriteNoPermission) }
+            }, reveal: { urls in revealed.withLock { $0.append(urls) } })
+        let report = await engine.run(archives: [first, bad, last], base: nil, progress: Progress())
+        XCTAssertEqual(report.extracted, [first, last])
+        XCTAssertEqual(report.failures.map(\.archive), [first, bad])
+        XCTAssertEqual(revealed.withLock { $0 }, [[fixture.directory.url.appendingPathComponent("first", isDirectory: true),
+            fixture.directory.url.appendingPathComponent("last", isDirectory: true)]])
+    }
+
+    @MainActor func testRevealNeverPolicySelectsAllTopLevelItemsAndDefaultPreferenceDoesNotReveal() async throws {
+        let fixture = try Fixture(), bytes = Data("contents".utf8)
+        let archive = try fixture.archive("flat.zip", files: ["a.txt": bytes, "nested/b.txt": bytes])
+        let revealed = Mutex<[[URL]]>([])
+        for enabled in [false, true] {
+            let base = try fixture.folder(enabled ? "enabled" : "disabled")
+            let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .never,
+                revealsExtractedItemsInFinder: enabled), passwordPrompt: { _, _ in throw CancellationError() },
+                reveal: { urls in revealed.withLock { $0.append(urls) } })
+            let report = await engine.run(archives: [archive], base: base, progress: Progress())
+            XCTAssertEqual(report.extracted, [archive])
+            XCTAssertTrue(report.failures.isEmpty)
+            let calls = revealed.withLock { $0 }
+            if enabled {
+                XCTAssertEqual(calls.count, 1)
+                XCTAssertEqual(Set(try XCTUnwrap(calls.first)), [base.appendingPathComponent("a.txt"),
+                    base.appendingPathComponent("nested", isDirectory: true)])
+            } else { XCTAssertTrue(calls.isEmpty) }
+        }
+    }
+
+    @MainActor func testRevealAfterCancellationContainsOnlyCompletedArchives() async throws {
+        let fixture = try Fixture(), base = try fixture.folder("out"), bytes = Data("complete".utf8)
+        let first = try fixture.archive("first.zip", files: ["first.txt": bytes])
+        let cancelled = try fixture.encryptedArchive(publicEntry: true)
+        let last = try fixture.archive("last.zip", files: ["last.txt": bytes])
+        let revealed = Mutex<[[URL]]>([]), progress = Progress()
+        let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .always,
+            revealsExtractedItemsInFinder: true), passwordPrompt: { _, _ in progress.cancel(); throw CancellationError() },
+            reveal: { urls in revealed.withLock { $0.append(urls) } })
+        let report = await engine.run(archives: [first, cancelled, last], base: base, progress: progress)
+        XCTAssertTrue(report.cancelled)
+        XCTAssertEqual(report.extracted, [first])
+        XCTAssertEqual(revealed.withLock { $0 }, [[base.appendingPathComponent("first", isDirectory: true)]])
+        assertAbsent(base.appendingPathComponent("secret"))
+        assertAbsent(base.appendingPathComponent("last"))
+    }
+
+    @MainActor func testRevealIsNotCalledForEmptyPrecancelledOrEntirelyFailedBatch() async throws {
+        let fixture = try Fixture(), failed = try fixture.corruptPayload()
+        let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(revealsExtractedItemsInFinder: true),
+            passwordPrompt: { _, _ in throw CancellationError() }, reveal: { _ in XCTFail("成功した出力がない場合はFinderを開かない") })
+        let empty = await engine.run(archives: [], base: nil, progress: Progress())
+        XCTAssertTrue(empty.extracted.isEmpty)
+        let progress = Progress()
+        progress.cancel()
+        let cancelled = await engine.run(archives: [failed], base: nil, progress: progress)
+        XCTAssertTrue(cancelled.cancelled)
+        XCTAssertTrue(cancelled.extracted.isEmpty)
+        let report = await engine.run(archives: [failed], base: nil, progress: Progress())
+        XCTAssertTrue(report.extracted.isEmpty)
+        XCTAssertEqual(report.failures.map(\.archive), [failed])
+    }
+
 }

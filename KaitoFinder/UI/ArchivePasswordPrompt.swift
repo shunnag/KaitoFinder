@@ -22,9 +22,9 @@ final class ArchivePasswordPrompt {
         if let archiveName {
             switch challenge {
             case .required:
-                alert.informativeText = String(localized: "「\(archiveName)」のパスワードを入力してください。", bundle: bundle)
+                alert.informativeText = String(localized: "“\(archiveName)”のパスワードを入力してください。", bundle: bundle)
             case .incorrect:
-                alert.informativeText = String(localized: "「\(archiveName)」のパスワードが違います。もう一度入力してください。", bundle: bundle)
+                alert.informativeText = String(localized: "“\(archiveName)”のパスワードが違います。もう一度入力してください。", bundle: bundle)
             }
         } else { alert.informativeText = challenge.message(bundle: bundle) }
         alert.addButton(withTitle: String(localized: "ロックを解除", bundle: bundle))

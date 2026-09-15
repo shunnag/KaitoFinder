@@ -13,6 +13,24 @@ import QuickLookUI
     }
 }
 
+/// Finderの項目数表記を、表示の更新と文字列テストで共有する。
+nonisolated enum ArchiveStatusBarText {
+    static func text(totalCount: Int, totalSize: UInt64?, filteredCount: Int? = nil,
+                     selectedCount: Int = 0, selectedSize: UInt64? = nil, bundle: Bundle = .main) -> String {
+        func size(_ bytes: UInt64?) -> String {
+            guard let bytes, let signed = Int64(exactly: bytes) else { return String(localized: "—", bundle: bundle) }
+            return ByteCountFormatter.string(fromByteCount: signed, countStyle: .file)
+        }
+        if selectedCount > 0 {
+            // 日本語は選択数のみ、英語は総数も使うため、引数番号で翻訳を対応させる。
+            return String(format: String(localized: "%1$lld項目を選択中(%3$@)", bundle: bundle),
+                          Int64(selectedCount), Int64(filteredCount ?? totalCount), size(selectedSize))
+        }
+        if let filteredCount { return String(localized: "\(filteredCount)/\(totalCount)項目", bundle: bundle) }
+        return String(localized: "\(totalCount)項目、\(size(totalSize))", bundle: bundle)
+    }
+}
+
 final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
     NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
     QLPreviewPanelDataSource, QLPreviewPanelDelegate {
@@ -30,7 +48,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let passwordPresenter = ArchivePasswordPresenter()
     var passwordPrompt: ArchivePasswordPrompt? { passwordPresenter.prompt }
     private(set) var unlockTask: Task<Void, Never>?
-    private let unlockButton: NSButton
+    let unlockButton: NSButton
+    let lockedPlaceholder = NSView()
+    private var isLocked = false
+    let statusBar = NSTextField(wrappingLabelWithString: "")
     private(set) var deletionConfirmation: NSAlert?
     private(set) var conversionConfirmation: NSAlert?
     private(set) var creationController: ArchiveCreationController?
@@ -72,7 +93,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     init(bundle: Bundle = .main) {
         self.bundle = bundle
-        unlockButton = NSButton(title: String(localized: "ロックを解除", bundle: bundle), target: nil, action: nil)
+        unlockButton = NSButton(title: String(localized: "ロックを解除…", bundle: bundle), target: nil, action: nil)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 600),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -158,13 +179,51 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         scrollView.documentView = outlineView
         unlockButton.target = self
         unlockButton.action = #selector(unlockArchive(_:))
-        unlockButton.isHidden = true
-        let footer = NSStackView(views: [unlockButton, renameValidationNotice, capabilityNotice])
+        unlockButton.bezelStyle = .rounded
+        lockedPlaceholder.identifier = NSUserInterfaceItemIdentifier("archive.locked-placeholder")
+        lockedPlaceholder.isHidden = true
+        let lock = NSImageView()
+        lock.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 56, weight: .regular))
+        lock.contentTintColor = .secondaryLabelColor
+        lock.imageScaling = .scaleProportionallyDown
+        // SF Symbolsの整列余白をスタックの外へ出さず、画像全体をこの領域に収める。
+        let symbolView = NSView(frame: NSRect(x: 0, y: 0, width: 80, height: 80))
+        lock.frame = symbolView.bounds
+        lock.autoresizingMask = [.width, .height]
+        symbolView.addSubview(lock)
+        let title = NSTextField(wrappingLabelWithString: String(localized: "このアーカイブはロックされています", bundle: bundle))
+        title.font = NSFontManager.shared.convert(.preferredFont(forTextStyle: .title2), toHaveTrait: .boldFontMask)
+        title.alignment = .center
+        let subtitle = NSTextField(wrappingLabelWithString: String(localized: "パスワードを入力すると内容を表示できます。", bundle: bundle))
+        subtitle.font = .preferredFont(forTextStyle: .body)
+        subtitle.textColor = .secondaryLabelColor
+        subtitle.alignment = .center
+        let placeholderStack = NSStackView(views: [symbolView, title, subtitle, unlockButton])
+        placeholderStack.orientation = .vertical
+        placeholderStack.alignment = .centerX
+        placeholderStack.spacing = 12
+        placeholderStack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        placeholderStack.translatesAutoresizingMaskIntoConstraints = false
+        lockedPlaceholder.addSubview(placeholderStack)
+        for label in [title, subtitle] {
+            label.preferredMaxLayoutWidth = 420
+            label.widthAnchor.constraint(equalToConstant: 420).isActive = true
+        }
+        NSLayoutConstraint.activate([
+            symbolView.widthAnchor.constraint(equalToConstant: 80),
+            symbolView.heightAnchor.constraint(equalToConstant: 80),
+            placeholderStack.widthAnchor.constraint(equalToConstant: 428),
+            placeholderStack.centerXAnchor.constraint(equalTo: lockedPlaceholder.centerXAnchor),
+            placeholderStack.centerYAnchor.constraint(equalTo: lockedPlaceholder.centerYAnchor)
+        ])
+        let footer = NSStackView(views: [renameValidationNotice, capabilityNotice])
         footer.identifier = NSUserInterfaceItemIdentifier("archive.footer")
         footer.orientation = .vertical
         footer.alignment = .leading
         // ラベルの整列用余白もスタックの表示領域に収める。
         footer.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        capabilityNotice.identifier = NSUserInterfaceItemIdentifier("archive.capability-notice")
         capabilityNotice.textColor = .secondaryLabelColor
         capabilityNotice.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         capabilityNotice.isHidden = true
@@ -193,11 +252,19 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         pathControl.isEditable = false
         pathControl.target = self
         pathControl.action = #selector(selectClickedPathItem(_:))
+        statusBar.identifier = NSUserInterfaceItemIdentifier("archive.status")
+        statusBar.alignment = .center
+        statusBar.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        statusBar.textColor = .secondaryLabelColor
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
+        lockedPlaceholder.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         footer.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(scrollView)
+        content.addSubview(lockedPlaceholder)
         content.addSubview(footer)
+        content.addSubview(statusBar)
         content.addSubview(pathControl)
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: content.topAnchor),
@@ -210,7 +277,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             pathControl.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -6),
             footer.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
             footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
-            footer.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6)
+            footer.bottomAnchor.constraint(equalTo: statusBar.topAnchor, constant: -6),
+            statusBar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+            statusBar.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+            statusBar.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6),
+            lockedPlaceholder.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            lockedPlaceholder.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            lockedPlaceholder.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            lockedPlaceholder.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor)
         ])
         window.contentView = content
     }
@@ -265,6 +339,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        guard !isLocked else { return false }
         let menuItem = NSMenuItem(title: item.label, action: item.action, keyEquivalent: "")
         let enabled = validateMenuItem(menuItem)
         item.toolTip = menuItem.toolTip ?? item.label
@@ -279,9 +354,15 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func displayLocked() {
         display(EntryNode.tree(from: []))
         pathControl.pathItems = []
-        capabilityNotice.stringValue = String(localized: "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます", bundle: bundle)
-        capabilityNotice.isHidden = capabilityNotice.stringValue.isEmpty
-        unlockButton.isHidden = false
+        isLocked = true
+        lockedPlaceholder.isHidden = false
+        outlineView.enclosingScrollView?.isHidden = true
+        statusBar.isHidden = true
+        searchField.isEnabled = false
+        searchItem.isEnabled = false
+        unlockButton.keyEquivalent = "\r"
+        window?.defaultButtonCell = unlockButton.cell as? NSButtonCell
+        window?.toolbar?.validateVisibleItems()
     }
 
     @objc func unlockArchive(_ sender: Any?) {
@@ -361,7 +442,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
         if materialization !== nextMaterialization { materialization?.close() }
         archiveSession = session
-        unlockButton.isHidden = true
+        isLocked = false
+        lockedPlaceholder.isHidden = true
+        outlineView.enclosingScrollView?.isHidden = false
+        statusBar.isHidden = false
+        searchField.isEnabled = true
+        searchItem.isEnabled = true
+        unlockButton.keyEquivalent = ""
+        window?.defaultButtonCell = nil
         self.generation = generation
         self.root = root
         parents.removeAll()
@@ -386,7 +474,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 guard let self else { return }
                 self.materializationCancellation = self.watchCancellation(progress) { [weak controller] in controller?.cancel() }
                 guard item.requiresProgress, let window = self.window else { return }
-                let sheet = ExtractionProgressSheet(progress: progress, bundle: bundle)
+                let sheet = ExtractionProgressSheet(progress: progress, detail: item.payload.path, bundle: bundle)
                 // 進捗シートが key window になっても、QL の responder chain を文書へ戻す。
                 sheet.nextResponder = self
                 self.materializationSheet = sheet
@@ -415,6 +503,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         } else { materialization = nil }
         reloadFilteredEntries(restoring: state)
         updatePathControl()
+        window?.toolbar?.validateVisibleItems()
     }
 
     var selectedNodes: [EntryNode] {
@@ -433,6 +522,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func updatePathControl() {
+        updateStatusBar()
         let archive = NSPathControlItem()
         if let url = (document as? ArchiveDocument)?.fileURL ?? archiveSession?.sourceURL {
             archive.title = url.lastPathComponent
@@ -449,6 +539,34 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             item.image = icon(for: node)
             return item
         }
+    }
+
+    private func updateStatusBar() {
+        var nodes: [EntryNode] = [], pending = root.children
+        while let node = pending.popLast() {
+            nodes.append(node)
+            pending.append(contentsOf: node.children)
+        }
+        let selected = selectedNodes
+        let selectedIDs = Set(selected.map(ObjectIdentifier.init))
+        // 親と子を同時に選択しても、展開後のサイズは二重に加算しない。
+        let selectedRoots = selected.filter { node in
+            var ancestor = parents[ObjectIdentifier(node)]
+            while let parent = ancestor {
+                if selectedIDs.contains(ObjectIdentifier(parent)) { return false }
+                ancestor = parents[ObjectIdentifier(parent)]
+            }
+            return true
+        }
+        var size: UInt64? = 0
+        for node in selectedRoots {
+            guard let total = size, let bytes = node.size else { size = nil; break }
+            let sum = total.addingReportingOverflow(bytes)
+            size = sum.overflow ? nil : sum.partialValue
+        }
+        statusBar.stringValue = ArchiveStatusBarText.text(totalCount: nodes.count, totalSize: root.size,
+            filteredCount: filterQuery.isEmpty ? nil : nodes.filter { entryFilter?.contains($0) != false }.count,
+            selectedCount: selected.count, selectedSize: size, bundle: bundle)
     }
 
     @objc private func selectClickedPathItem(_ sender: NSPathControl) {
@@ -599,7 +717,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         materialization?.cancel()
         let progress = Progress(totalUnitCount: 0)
         extractionProgress = progress
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "フォルダを作成しています", bundle: bundle), bundle: bundle)
+        let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.creatingFolder.title(bundle: bundle), bundle: bundle)
         editProgressSheet = sheet
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
@@ -705,7 +823,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let progress = Progress(totalUnitCount: 0)
         extractionProgress = progress
         let sheet = ExtractionProgressSheet(progress: progress, title: name == nil
-            ? String(localized: "項目を削除しています", bundle: bundle) : String(localized: "名称を変更しています", bundle: bundle), bundle: bundle)
+            ? ArchiveProgressOperation.deleting.title(bundle: bundle) : ArchiveProgressOperation.renaming.title(bundle: bundle),
+            detail: nodes.count == 1 ? nodes[0].name : "", bundle: bundle)
         editProgressSheet = sheet
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
@@ -744,7 +863,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         materialization?.cancel()
         let progress = Progress(totalUnitCount: 0)
         extractionProgress = progress
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "項目を移動しています", bundle: bundle), bundle: bundle)
+        let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.moving.title(bundle: bundle),
+            detail: nodes.count == 1 ? nodes[0].name : "", bundle: bundle)
         editProgressSheet = sheet
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
@@ -999,7 +1119,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         materialization?.cancel()
         let progress = Progress(totalUnitCount: 0)
         extractionProgress = progress
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "項目を追加しています", bundle: bundle), bundle: bundle)
+        let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.adding.title(bundle: bundle),
+            detail: urls.count == 1 ? urls[0].lastPathComponent : "", bundle: bundle)
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
             do {
@@ -1127,7 +1248,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let window, extractionTask == nil else { return }
         let progress = Progress(totalUnitCount: Int64(entryCount))
         extractionProgress = progress
-        let sheet = showProgress ? ExtractionProgressSheet(progress: progress, bundle: bundle) : nil
+        let sheet = showProgress ? ExtractionProgressSheet(progress: progress,
+            title: ArchiveProgressOperation.expandingArchive(session.sourceURL.lastPathComponent).title(bundle: bundle),
+            detail: items.count == 1 ? items[0].path : "", bundle: bundle) : nil
         extractionSheet = sheet
         sheet?.begin(on: window)
         // シートの表示後に worker を起動する。小さい copy も UI actor で stream を読まない。

@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import Synchronization
 import XCTest
 @testable import KaitoFinder
 
@@ -121,8 +122,11 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         try directory.run("/usr/bin/zip", ["-q", "-P", "batch-password", archive.path, "secret.txt"])
         let store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.folderPolicy = .always
+        store.preferences.revealsExtractedItemsInFinder = true
+        let revealed = Mutex<[[URL]]>([])
         let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256), directory: directory.url.appendingPathComponent("vault"))
-        let controller = ArchiveBatchExtractionController(store: store, passwordVault: vault)
+        let controller = ArchiveBatchExtractionController(store: store, passwordVault: vault,
+            reveal: { urls in revealed.withLock { $0.append(urls) } })
         let documents = NSDocumentController.shared.documents.count
         let task = Task { await controller.extract(archives: [archive]) }
         addTeardownBlock { @MainActor in task.cancel(); _ = await task.value }
@@ -136,12 +140,14 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         XCTAssertTrue(prompt.alert.informativeText.contains(archive.lastPathComponent))
         XCTAssertEqual(window.title, ArchiveBatchExtractionController.progressTitle(count: 1))
         XCTAssertEqual(sheet.progress.totalUnitCount, 1)
+        XCTAssertEqual(sheet.detail, archive.lastPathComponent)
         prompt.field.stringValue = "batch-password"
         prompt.rememberCheckbox.state = .on
         window.endSheet(prompt.alert.window, returnCode: .alertFirstButtonReturn)
         let completed = await task.value
         let report = try XCTUnwrap(completed)
         XCTAssertEqual(report.extracted, [archive])
+        XCTAssertEqual(revealed.withLock { $0 }, [[directory.url.appendingPathComponent("locked", isDirectory: true)]])
         XCTAssertTrue(report.failures.isEmpty)
         XCTAssertEqual(try Data(contentsOf: directory.url.appendingPathComponent("locked/secret.txt")), bytes)
         let saved = await vault.password(for: .file(archive))
@@ -200,12 +206,12 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
             XCTAssertFalse(alert.messageText.hasSuffix("。"))
             if language == "ja" {
                 XCTAssertEqual(alert.messageText, "2個のアーカイブを展開できませんでした")
-                XCTAssertEqual(title, "2個のアーカイブを展開しています")
-                XCTAssertEqual(prompt.alert.informativeText, "「private.zip」のパスワードを入力してください。")
+                XCTAssertEqual(title, "2個のアーカイブを展開中…")
+                XCTAssertEqual(prompt.alert.informativeText, "“private.zip”のパスワードを入力してください。")
                 XCTAssertEqual(alert.informativeText, "first.zip: First reason。\nsecond.7z: Second reason。")
             } else {
                 XCTAssertEqual(alert.messageText, "Could not extract 2 archives")
-                XCTAssertEqual(title, "Extracting 2 archives")
+                XCTAssertEqual(title, "Expanding 2 Archives…")
                 XCTAssertEqual(prompt.alert.informativeText, "Enter the password for “private.zip”.")
                 XCTAssertEqual(alert.informativeText, "first.zip: First reason.\nsecond.7z: Second reason.")
             }
@@ -213,4 +219,41 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         XCTAssertNil(ArchiveBatchExtractionController.failureAlert(for: .init(extracted: [], failures: [], cancelled: false)))
         XCTAssertNil(ArchiveBatchExtractionController.failureAlert(for: .init(extracted: [], failures: [], cancelled: true)))
     }
+
+    @MainActor func testProgressTitlesForEveryOperationInJapaneseAndEnglish() throws {
+        let cases: [(ArchiveProgressOperation, String, String)] = [
+            (.expanding, "項目を展開中…", "Expanding…"),
+            (.adding, "項目を追加中…", "Adding…"),
+            (.moving, "項目を移動中…", "Moving…"),
+            (.deleting, "項目を削除中…", "Deleting…"),
+            (.renaming, "名称を変更中…", "Renaming…"),
+            (.creatingFolder, "フォルダを作成中…", "Creating Folder…"),
+            (.creatingArchive, "アーカイブを作成中…", "Creating Archive…"),
+            (.expandingArchive("smoke.zip"), "“smoke.zip”を展開中…", "Expanding “smoke.zip”…"),
+            (.expandingArchives(12), "12個のアーカイブを展開中…", "Expanding 12 Archives…")
+        ]
+        let app = Bundle(for: ArchiveDocument.self)
+        for language in ["ja", "en"] {
+            let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
+            for (operation, japanese, english) in cases {
+                let expected = language == "ja" ? japanese : english
+                XCTAssertEqual(operation.title(bundle: bundle), expected)
+                let progress = Progress(totalUnitCount: 10)
+                let sheet = ExtractionProgressSheet(progress: progress, title: operation.title(bundle: bundle), bundle: bundle)
+                defer { sheet.finish() }
+                XCTAssertEqual(sheet.window?.title, expected)
+                XCTAssertEqual(sheet.titleLabel.stringValue, expected)
+                progress.completedUnitCount = 3
+                sheet.detail = "photo.jpg"
+                XCTAssertEqual(sheet.statusLabel.stringValue,
+                    String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle) + "\nphoto.jpg")
+                sheet.cancelExtraction(nil)
+                XCTAssertTrue(progress.isCancelled)
+            }
+            let defaultSheet = ExtractionProgressSheet(progress: Progress(), bundle: bundle)
+            defer { defaultSheet.finish() }
+            XCTAssertEqual(defaultSheet.window?.title, ArchiveProgressOperation.expanding.title(bundle: bundle))
+        }
+    }
+
 }

@@ -54,7 +54,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testLockedWindowAndFooterInJapaneseAndEnglish() throws {
+    @MainActor func testLockedPlaceholderInJapaneseAndEnglish() throws {
         try forEachLanguage { language, bundle in
             let controller = ArchiveWindowController(bundle: bundle)
             defer { controller.close() }
@@ -68,9 +68,25 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertEqual(content.bounds.size, NSSize(width: 1040, height: 684))
             try snapshot(content, name: "\(language)-locked-window")
             let footer = try XCTUnwrap(content.subviews.first { $0.identifier?.rawValue == "archive.footer" } as? NSStackView)
-            XCTAssertFalse(footer.isHidden)
-            XCTAssertTrue(footer.arrangedSubviews.contains { $0 is NSButton && !$0.isHidden })
-            try snapshot(footer, name: "\(language)-locked-footer")
+            XCTAssertFalse(footer.arrangedSubviews.contains { $0 is NSButton })
+            XCTAssertTrue(controller.outlineView.isHiddenOrHasHiddenAncestor)
+            XCTAssertFalse(controller.lockedPlaceholder.isHidden)
+            XCTAssertTrue(controller.statusBar.isHidden)
+            XCTAssertFalse(controller.searchField.isEnabled)
+            XCTAssertEqual(controller.unlockButton.title, language == "ja" ? "ロックを解除…" : "Unlock…")
+            XCTAssertEqual(controller.unlockButton.keyEquivalent, "\r")
+            XCTAssertTrue(window.defaultButtonCell === controller.unlockButton.cell)
+            for item in try XCTUnwrap(window.toolbar).items where item.itemIdentifier != .flexibleSpace {
+                XCTAssertFalse(controller.validateToolbarItem(item), item.label)
+                XCTAssertFalse(item.isEnabled, item.label)
+            }
+            let placeholder = controller.lockedPlaceholder
+            let stack = try XCTUnwrap(placeholder.subviews.first as? NSStackView)
+            XCTAssertEqual(stack.frame.midX, placeholder.bounds.midX, accuracy: 0.5)
+            XCTAssertEqual(stack.frame.midY, placeholder.bounds.midY, accuracy: 0.5)
+            try snapshot(placeholder, name: "\(language)-locked-placeholder")
+            window.setContentSize(NSSize(width: 600, height: 300))
+            try snapshot(window, name: "\(language)-locked-window-small")
         }
     }
 
@@ -82,10 +98,51 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             controller.window?.setFrameAutosaveName("")
             let tabs = ["general", "compression", "extraction"]
             XCTAssertEqual(controller.tabController.tabViewItems.count, tabs.count)
+            let window = try XCTUnwrap(controller.window)
+            XCTAssertFalse(window.styleMask.contains(.resizable))
+            XCTAssertEqual(window.contentView?.bounds.width, 560)
             for (index, tab) in tabs.enumerated() {
                 controller.tabController.selectedTabViewItemIndex = index
                 controller.window?.layoutIfNeeded()
                 try snapshot(controller.tabController.view, name: "\(language)-settings-\(tab)")
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[index].viewController?.view)
+                let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
+                XCTAssertEqual(grid.numberOfColumns, 2)
+                XCTAssertEqual(grid.rowSpacing, 12)
+                XCTAssertEqual(grid.numberOfRows, [1, 9, 4][index])
+                for row in 0..<grid.numberOfRows {
+                    if let label = grid.cell(atColumnIndex: 0, rowIndex: row).contentView as? NSTextField,
+                       label.stringValue.hasSuffix(":") { XCTAssertEqual(label.alignment, .right) }
+                }
+                if index == 1 {
+                    for row in [0, 4, 6] {
+                        XCTAssertTrue(grid.cell(atColumnIndex: 0, rowIndex: row) === grid.cell(atColumnIndex: 1, rowIndex: row))
+                    }
+                    for (slider, label) in [(controller.zipLevelSlider, controller.zipLevelLabel),
+                                            (controller.tarGzipLevelSlider, controller.tarGzipLevelLabel)] {
+                        let original = label.frame
+                        for level in [6, 9] {
+                            slider.integerValue = level
+                            XCTAssertTrue(slider.sendAction(slider.action, to: slider.target))
+                            window.layoutIfNeeded()
+                            XCTAssertEqual(label.alignment, .right)
+                            XCTAssertEqual(label.frame, original)
+                            // NSTextFieldの描画余白を除いた整列領域が固定の24ポイント幅。
+                            XCTAssertEqual(label.alignmentRect(forFrame: label.frame).width, 24, accuracy: 0.5)
+                        }
+                    }
+                    try snapshot(controller.tabController.view, name: "\(language)-settings-compression-level-9")
+                }
+                if index == 2 {
+                    for popup in [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup] {
+                        for item in 0..<popup.numberOfItems {
+                            popup.selectItem(at: item)
+                            XCTAssertTrue(popup.sendAction(popup.action, to: popup.target))
+                            window.layoutIfNeeded()
+                            checkOverflow(controller.tabController.view, name: "\(language)-settings-\(tab)-\(item)", file: #filePath, line: #line)
+                        }
+                    }
+                }
             }
         }
     }
@@ -166,14 +223,45 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         try forEachLanguage { language, bundle in
             let progress = Progress(totalUnitCount: 1_000)
             progress.completedUnitCount = 345
-            let title = String(localized: "項目を展開しています", bundle: bundle) + " — " + longArchiveName
-            let sheet = ExtractionProgressSheet(progress: progress, title: title, bundle: bundle)
+            let title = ArchiveProgressOperation.expandingArchive(longArchiveName).title(bundle: bundle)
+            let detail = String(repeating: "長いファイル名 VeryLongFileName_", count: 8) + ".jpg"
+            let sheet = ExtractionProgressSheet(progress: progress, title: title, detail: detail, bundle: bundle)
             defer { sheet.finish() }
             sheet.beginStandalone()
             let window = try XCTUnwrap(sheet.window)
             XCTAssertNil(window.sheetParent)
             XCTAssertEqual(window.title, title)
+            XCTAssertEqual(sheet.titleLabel.stringValue, title)
+            XCTAssertTrue(sheet.statusLabel.stringValue.hasSuffix(detail))
+            XCTAssertGreaterThanOrEqual(try XCTUnwrap(window.contentView).bounds.width, 420)
             try snapshot(window, name: "\(language)-standalone-progress")
+            sheet.detail = String(repeating: "a", count: 240) + ".txt"
+            try snapshot(window, name: "\(language)-progress-unbroken-name")
+            sheet.detail = ""
+            XCTAssertEqual(sheet.statusLabel.stringValue, String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle))
+            try snapshot(window, name: "\(language)-progress-no-item")
         }
     }
+
+    @MainActor func testStatusBarWithLargeCountsInJapaneseAndEnglish() throws {
+        try forEachLanguage { language, bundle in
+            let controller = ArchiveWindowController(bundle: bundle)
+            defer { controller.close() }
+            let window = try XCTUnwrap(controller.window)
+            window.setFrameAutosaveName("")
+            window.setContentSize(NSSize(width: 600, height: 300))
+            controller.display(EntryNode.tree(from: []))
+            let states: [(String, Int?, Int)] = [("all", nil, 0), ("filter", 876_543_210, 0), ("selection", nil, 876_543_210)]
+            for (state, filtered, selected) in states {
+                controller.statusBar.stringValue = ArchiveStatusBarText.text(totalCount: 987_654_321,
+                    totalSize: 9_876_543_210_000, filteredCount: filtered, selectedCount: selected,
+                    selectedSize: 8_765_432_100_000, bundle: bundle)
+                window.layoutIfNeeded()
+                XCTAssertEqual(controller.statusBar.alignment, .center)
+                XCTAssertEqual(controller.statusBar.frame.midX, try XCTUnwrap(window.contentView).bounds.midX, accuracy: 0.5)
+                try snapshot(controller.statusBar, name: "\(language)-status-\(state)")
+            }
+        }
+    }
+
 }

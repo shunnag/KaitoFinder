@@ -135,7 +135,10 @@ import XCTest
             } else if let popup = view as? NSPopUpButton {
                 checkSize(popup.intrinsicContentSize, of: popup, path: location)
             } else if let button = view as? NSButton {
-                checkSize(button.intrinsicContentSize, of: button, path: location)
+                if let cell = button.cell, cell.wraps {
+                    let required = cell.cellSize(forBounds: NSRect(x: 0, y: 0, width: button.bounds.width, height: 1000))
+                    checkSize(required, of: button, path: location)
+                } else { checkSize(button.intrinsicContentSize, of: button, path: location) }
             }
             for (index, child) in view.subviews.enumerated() { visit(child, path: location + "/\(index)") }
         }

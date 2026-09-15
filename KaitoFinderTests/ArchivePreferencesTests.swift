@@ -25,6 +25,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(value.extractionDestination, .sameFolder)
         XCTAssertEqual(value.folderPolicy, .whenMultipleTopLevelItems)
         XCTAssertFalse(value.trashesArchiveAfterExtraction)
+        XCTAssertFalse(value.revealsExtractedItemsInFinder)
         XCTAssertTrue(suite.defaults.persistentDomain(forName: suite.name)?.isEmpty ?? true)
     }
 
@@ -36,7 +37,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
                                            tarGzipLevel: 9 - index * 2, tarPreservesOwnerIDs: index.isMultiple(of: 2),
                                            extractionDestination: index.isMultiple(of: 2) ? .ask : .sameFolder,
                                            folderPolicy: [.always, .whenMultipleTopLevelItems, .never][index % 3],
-                                           trashesArchiveAfterExtraction: index.isMultiple(of: 2))
+                                           trashesArchiveAfterExtraction: index.isMultiple(of: 2),
+                                           revealsExtractedItemsInFinder: !index.isMultiple(of: 2))
             store.preferences = value
             let reopened = ArchivePreferencesStore(defaults: try XCTUnwrap(UserDefaults(suiteName: suite.name)))
             XCTAssertEqual(reopened.preferences, value)
@@ -49,6 +51,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveExtractionDestination"), value.extractionDestination.rawValue)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveFolderPolicy"), value.folderPolicy.rawValue)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveTrashesArchiveAfterExtraction"), value.trashesArchiveAfterExtraction)
+            XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveRevealsExtractedItems"), value.revealsExtractedItemsInFinder)
         }
     }
 
@@ -58,7 +61,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             "ArchiveCreationFormat": "rar", "ArchiveZipMethod": "bzip2", "ArchiveZipLevel": 42,
             "ArchiveZipSkipsCompressedTypes": "broken", "ArchiveTarGzipLevel": -1,
             "ArchiveTarPreservesOwnerIDs": "yes", "ArchiveExtractionDestination": "desktop",
-            "ArchiveFolderPolicy": "sometimes", "ArchiveTrashesArchiveAfterExtraction": Data([0xff])
+            "ArchiveFolderPolicy": "sometimes", "ArchiveTrashesArchiveAfterExtraction": Data([0xff]),
+            "ArchiveRevealsExtractedItems": "true"
         ]
         for (key, value) in corrupt { suite.defaults.set(value, forKey: key) }
         XCTAssertEqual(store.preferences, ArchivePreferences())
@@ -83,7 +87,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         let suiteName = suite.name
         let value = ArchivePreferences(defaultFormat: .tarGzip, zipMethod: .stored, zipLevel: 9,
                                        zipSkipsCompressedTypes: false, tarGzipLevel: 1, tarPreservesOwnerIDs: true,
-                                       extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true)
+                                       extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true,
+                                       revealsExtractedItemsInFinder: true)
         XCTAssertEqual(ArchivePreferencesStore.didChange.rawValue, "ArchivePreferencesDidChange")
         let token = NotificationCenter.default.addObserver(forName: ArchivePreferencesStore.didChange,
                                                            object: store, queue: nil) { notification in
