@@ -3345,7 +3345,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bevar ejer-id'er (uid / gid)"
+            "value" : "Bevar ejer-id’er (uid / gid)"
           }
         },
         "nb" : {
@@ -5414,7 +5414,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eén bestand kon niet worden uitgepakt"
+            "value" : "Het bestand kon niet worden uitgepakt"
           }
         },
         "pl" : {
@@ -42398,7 +42398,7 @@
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Controleer:"
+            "value" : "Verificatie:"
           }
         },
         "pl" : {
@@ -42428,7 +42428,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bekreft:"
+            "value" : "Verifiser:"
           }
         },
         "fi" : {
