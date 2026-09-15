@@ -82,6 +82,12 @@
 				<string>com.apple.installer-package-archive</string>
 				<string>com.microsoft.cab-archive</string>
 				<string>com.redhat.rpm-archive</string>
+				<string>com.stuffit.archive.sit</string>
+				<string>com.stuffit.archive.sitx</string>
+				<string>org.zstandard.zstd-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
+				<string>com.winzip.zipx-archive</string>
+				<string>org.debian.deb-archive</string>
 			</array>
 			<key>NSRequiredContext</key>
 			<dict>
@@ -102,6 +108,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.zip-archive</string>
+				<string>com.winzip.zipx-archive</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -159,6 +166,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -169,7 +177,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>org.tukaani.lzma-archive</string>
@@ -197,7 +205,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>org.7-zip.7-zip-archive</string>
@@ -211,7 +219,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.rarlab.rar-archive</string>
@@ -225,7 +233,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.lha-archive</string>
@@ -267,10 +275,11 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.shunnag.KaitoFinder.ar-archive</string>
+				<string>org.debian.deb-archive</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -309,7 +318,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.microsoft.cab-archive</string>
@@ -323,10 +332,52 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>LSHandlerRank</key>
-			<string>Alternate</string>
+			<string>Default</string>
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.redhat.rpm-archive</string>
+			</array>
+			<key>NSDocumentClass</key>
+			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>StuffIt</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.stuffit.archive.sit</string>
+			</array>
+			<key>NSDocumentClass</key>
+			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>StuffIt X</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.stuffit.archive.sitx</string>
+			</array>
+			<key>NSDocumentClass</key>
+			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Zstandard</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Default</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.zstandard.zstd-archive</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -669,6 +720,118 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>rpm</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.zstandard.zstd-archive</string>
+			<key>UTTypeDescription</key>
+			<string>Zstandard</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>zst</string>
+					<string>tzst</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.tukaani.tar-xz-archive</string>
+			<key>UTTypeDescription</key>
+			<string>tar.xz</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>txz</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.winzip.zipx-archive</string>
+			<key>UTTypeDescription</key>
+			<string>ZIPX</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>zipx</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>org.debian.deb-archive</string>
+			<key>UTTypeDescription</key>
+			<string>Debian Package</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>deb</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.stuffit.archive.sit</string>
+			<key>UTTypeDescription</key>
+			<string>StuffIt</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+				<string>com.allume.stuffit-archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sit</string>
+					<string>sea</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.stuffit.archive.sitx</string>
+			<key>UTTypeDescription</key>
+			<string>StuffIt X</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+				<string>com.allume.stuffit-archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>sitx</string>
 				</array>
 			</dict>
 		</dict>

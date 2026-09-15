@@ -308,7 +308,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         }
         for format in KaitoKit.ArchiveFormat.allCases where ![.zip, .tar, .sevenZip, .lha].contains(format) {
             let capability = ArchiveCapabilities.inspect(url: archive, format: format)
-            XCTAssertEqual(capability.refusal, .format(format.rawValue.uppercased()))
+            XCTAssertEqual(capability.refusal, .format(format.displayName))
             XCTAssertNil(capability.mode)
         }
         try assertNoWorkDirectory(directory.url)

@@ -37,18 +37,20 @@ nonisolated struct ArchiveCapabilities: Sendable {
         guard case .rewrite = mode else { return nil }
         return String(localized: "編集するとアーカイブ全体を再圧縮します")
     }
-    var readOnlyReason: String? {
+    var readOnlyReason: String? { readOnlyReason(bundle: .main) }
+
+    func readOnlyReason(bundle: Bundle) -> String? {
         switch refusal {
         case nil: nil
-        case .format(let name): String(localized: "\(name)アーカイブは変更できません。")
-        case .gatekeeper(.sfxPrefix, let reason): String(localized: "SFX付きZIPは安全に変更できません。\(reason)")
-        case .gatekeeper(.trailingData, let reason): String(localized: "このZIPは終端の後ろに追加データがあり、安全に変更できません。\(reason)")
+        case .format(let name): String(localized: "\(name)アーカイブは変更できません。", bundle: bundle)
+        case .gatekeeper(.sfxPrefix, let reason): String(localized: "SFX付きZIPは安全に変更できません。\(reason)", bundle: bundle)
+        case .gatekeeper(.trailingData, let reason): String(localized: "このZIPは終端の後ろに追加データがあり、安全に変更できません。\(reason)", bundle: bundle)
         case .gatekeeper(.centralDirectoryOffset, let reason):
-            String(localized: "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。\(reason)")
-        case .encrypted: String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。")
-        case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。")
-        case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)")
-        case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)")
+            String(localized: "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。\(reason)", bundle: bundle)
+        case .encrypted: String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。", bundle: bundle)
+        case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。", bundle: bundle)
+        case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)", bundle: bundle)
+        case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)", bundle: bundle)
         }
     }
 
@@ -81,7 +83,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 mode = .rewrite(magic.starts(with: [0x1f, 0x8b]) ? .tarGzip : .tar)
             case .sevenZip: mode = .rewrite(.sevenZip)
             case .lha: mode = .rewrite(.lha)
-            default: return Self(refusal: .format(format.rawValue.uppercased()))
+            default: return Self(refusal: .format(format.displayName))
             }
             guard FileManager.default.isWritableFile(atPath: url.path),
                   FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path) else {

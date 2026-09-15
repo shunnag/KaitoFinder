@@ -244,3 +244,30 @@
 8. §8.1 の全 26 言語で、ライト・ダーク両外観の
    ようこそと設定 › 一般を確認する。見出しやチェックの欠け、キャプションの省略がなく、
    ドロップの受け入れ可否が見分けられること。確認後は起動時表示を元の設定に戻す。
+
+## 13. Finder の「このアプリケーションで開く」
+
+再ビルドしたアプリを一度起動して LaunchServices の登録キャッシュを更新してから確認する。
+必要なら `/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f <app>`
+で再登録する。`<app>` は再ビルドした `KaitoFinder.app` のパスに置き換える。
+
+Finder で各ファイルを右クリックし、「このアプリケーションで開く」に KaitoFinder が出ること。
+選択すると一覧を開けることも確認する。
+
+- [ ] `.sit`（StuffIt）
+- [ ] `.sitx`（StuffIt X）
+- [ ] `.zst`（Zstandard）
+- [ ] `.tzst`（tar.zst）
+- [ ] `.txz`（tar.xz）
+- [ ] `.zipx`（ZIP）
+- [ ] `.deb`（ar）
+
+`.txz` / `.zipx` / `.deb` は The Unarchiver がインストールされている環境と、
+インストールされていない環境の両方で確認する。export された別識別子が優先されても候補から消えないこと。
+
+他のアーカイバがインストールされておらず、ユーザーが別の既定アプリを指定していない環境で、
+`LSHandlerRank = Default` により次のダブルクリックが KaitoFinder を開くこと。
+
+- [ ] `.7z`
+- [ ] `.rar`
+- [ ] `.lha`

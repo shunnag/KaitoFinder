@@ -39,7 +39,7 @@ Release 実機のアプリで lldb smoke を行い、`th` / `ru` / `pt-PT` の�
 `kaito sha secret.zip -p wrong-113` は「Checksum mismatch」、`unzip` は
 「(may instead be incorrect password)」、7-Zip は「Wrong password?」を表示した。
 
-KaitoKit の `fix/zipcrypto-wrong-password` ブランチで修正済み。
+KaitoKit PR #27 としてマージ済み（`862b32d`、2026-09-15）。
 完全な ZipCrypto エントリでは、7zAES / RAR4 と同様にこれらのエラーを `wrongPassword` へ正規化し、
 衝突を確実に再現するテストを追加した。WinZip AES の扱いは変更していない。
 KaitoFinder はローカルパス `../KaitoKit` に依存しているため、KaitoFinder 側のコード変更は不要。

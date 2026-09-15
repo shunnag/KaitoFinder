@@ -524,6 +524,57 @@ Wave D は 16 言語・4,672 訳を追加し、既存 10 言語の 2,920 訳と�
   [手動検証 §8.1](manual-verification.md#81-言語)、実行結果と sandbox 制約は
   [Wave D 検証](verification/2026-09-15-languages.md)を参照。
 
+### 5.5 対応形式の宣言 — 2026-09-16
+
+`Info.plist` の `CFBundleDocumentTypes` は、KaitoKit が読む全形式を次の識別子で宣言する。
+今回 StuffIt / StuffIt X / Zstandard を追加した。文書の role はすべて `Viewer`、
+クラスは `ArchiveDocument`。実際の形式は KaitoKit が内容から判定し、これら三形式は
+`ArchiveCapabilities` の共通経路で読み取り専用になる。
+
+| 文書形式 | LSItemContentTypes | LSHandlerRank |
+|---|---|---|
+| ZIP | `public.zip-archive`、`com.winzip.zipx-archive` | Alternate |
+| tar / tar.gz | `public.tar-archive`、`org.gnu.gnu-zip-tar-archive` | Alternate |
+| gzip | `org.gnu.gnu-zip-archive` | Alternate |
+| bzip2 | `public.bzip2-archive` | Alternate |
+| XZ | `org.tukaani.xz-archive`、`org.tukaani.tar-xz-archive` | Alternate |
+| LZMA | `org.tukaani.lzma-archive` | Default |
+| UNIX compress | `public.z-archive` | Alternate |
+| 7-Zip | `org.7-zip.7-zip-archive` | Default |
+| RAR | `com.rarlab.rar-archive` | Default |
+| LHA | `public.lha-archive` | Default |
+| ISO 9660 | `public.iso-image` | Alternate |
+| cpio | `public.cpio-archive` | Alternate |
+| ar / deb | `com.shunnag.KaitoFinder.ar-archive`、`org.debian.deb-archive` | Default |
+| xar | `com.apple.xar-archive` | Alternate |
+| Installer Package | `com.apple.installer-package-archive` | Alternate |
+| CAB | `com.microsoft.cab-archive` | Default |
+| RPM | `com.redhat.rpm-archive` | Default |
+| StuffIt | `com.stuffit.archive.sit` | Default |
+| StuffIt X | `com.stuffit.archive.sitx` | Default |
+| Zstandard | `org.zstandard.zstd-archive` | Default |
+
+Archive Utility が開ける形式は Alternate、macOS に標準の開き手がない形式は Default とする。
+ISO 9660 は Finder がマウントするので Alternate を維持し、Installer Package / xar も
+Alternate とする。この方針を戻す場合は各文書型の `LSHandlerRank` を変更する。
+
+The Unarchiver が export する `org.tukaani.tar-xz-archive`（`.txz`）、
+`com.winzip.zipx-archive`（`.zipx`）、`org.debian.deb-archive`（`.deb`）は
+既存の宣言型に準拠しないため、拡張子の関連付けで優先される環境でも Finder の
+「このアプリケーションで開く」に出るよう、XZ / ZIP / ar の別識別子として追加した。
+未インストールの環境でも意味を持つよう、三識別子を `public.data` / `public.archive` に
+準拠する imported type として、それぞれの拡張子とともに宣言する。
+既存 import の `txz` / `zipx` / `deb` はフォールバックとして残す。
+Zstandard も同じ準拠先で import し、`zst` / `tzst` を登録する（`.tar.zst` は `zst` で対応）。
+StuffIt は CoreTypes の識別子を参照し、`sit` / `sea`、`sitx` の import も明記する。
+`.tbz2` / `.tbz`、`.z01`、`.jar`、`.cbz` は既存型への準拠で対応するため変更しない。
+
+展開サービスの `NSSendFileTypes` は全 `LSItemContentTypes` の集合と一致させる。
+一括展開パネルとようこそのドロップ判定もこの宣言を参照する。
+拒否・変換の形式名は `Model/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
+圧縮 tar の magic による名前と既存の tar / 7z / SFX ZIP の扱いは維持する。
+Finder の登録・ダブルクリックの実機確認は [手動検証 §13](manual-verification.md#13-finder-のこのアプリケーションで開く)を参照。
+
 ## 6. 取り出しと取り込み
 
 ### 6.1 実測で決まったこと
@@ -913,6 +964,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M7** | ユーザー要望(2026-09-15): 同一ウインドウ内ドラッグの移動、ブランク領域の右クリック、ツールバー、設定ウインドウ(圧縮 / 展開)、一括展開、文言の macOS 化(書庫→アーカイブ、取り出す→展開、標準メニュー) | Finder の作法と日常のアーカイブ操作 | **完了** — 移動 `906c0e1`、右クリックとツールバー `76b2d66`、設定 `dfac011`、文言 `8df2ad6`、一括展開 `37ec1fc`。クラッシュ修正 `4135e04` / `2d05b22` / `d8e9d72`(いずれも @MainActor の ObjC 面を AppKit / QL がバックグラウンドから呼ぶ型) |
 | **M8** | リリースに向けた磨き込み(2026-09-15): プロセス内スナップショット基盤とはみ出し監査、パスワード UI の修正、ロック状態・設定・進捗・ステータスバーの Finder 化、10 言語対応(Apple の語彙に追随)、実運用シーンのテスト | 出荷品質 | **完了** — 監査基盤 `c1da7e1`、UI 洗練 `cdac130`、10 言語 `d7b9067`、シーンテスト 28 件と 8 件の修正 `6046b80`(検証 `2026-09-15-scenarios.md`)。`6046b80` が持ち込んだ回帰(identity の ctime 照合 → 文書を開くと LaunchServices の拡張属性で全読み取りが拒否)は `3b93b4b` で修正。ウインドウのカスケード、エラー文言の 10 言語化(`ArchiveErrorText`)、スナップショットの世代管理(検証 `2026-09-15-cascade-error-text.md`) |
 | **M9** | ユーザー要望(2026-09-15) 第 2 弾: 英語フォールバック、隠しファイル、圧縮レベル、別名で保存、暗号化 UI、ようこそウインドウ | 日常操作の追加と形式変換 | **Wave A 完了・検証済み** — ユーザーのシェルで XCTest 544 件、失敗 0、スキップ 0、Release smoke 成功(ユーザー報告)。[Wave A 検証](verification/2026-09-15-wave-a.md)。**Wave C 実装完了** — 暗号化付き保存、パスワード設定/変更/削除、既知の鍵による編集と Undo/Redo、10 言語の UI 監査テストを追加。ユーザーのシェルで build 成功。全件実行の順序依存の失敗はテスト用ウインドウのアニメーション待機が原因と判明し、起動時の無効化で 563 件・失敗 0(ユーザーによる追補前の検証)。テスト基盤への恒久対応とエージェントの sandbox 内の検証範囲は [暗号化 UI 検証](verification/2026-09-15-password.md)。**Wave B ウェルカムウインドウ完了** — ようこそ専用 17 テストを追加。補助 XCTest は 49 件中 43 成功・失敗 0・sandbox 制約で 6 スキップ。ようこそと設定の一般タブは 10 言語 × 両外観の 40 描画ではみ出し 0 件。[ようこそ検証](verification/2026-09-15-welcome.md)。**Wave D 実装完了** — 全 292 キーと Services に 16 言語を追加し、計 26 言語。文体・用語テストと描画監査を拡張。ユーザーのシェルで XCTest 598 件・失敗 0(2 回目。1 回目の 1 件失敗は KaitoKit の ZipCrypto 判定が原因、修正済み)、Release 実機で th / ru / pt-PT を確認。全件検証・Release smoke と標準 build / test の sandbox 制約・補助検証の実測は [言語検証](verification/2026-09-15-languages.md) |
+| **M10** | リリース準備: README の全面更新、対応形式の宣言(StuffIt / StuffIt X / Zstandard、txz / zipx / deb の別識別子)、形式名の表示 | 現行機能の案内と Finder の形式認識 | 実装完了(検証はオーケストレータ) |
 
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。

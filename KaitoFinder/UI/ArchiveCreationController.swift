@@ -118,7 +118,7 @@ nonisolated struct ArchiveConversionNotice {
             switch session.format {
             case .tar: return String(localized: "tar")
             case .sevenZip: return String(localized: "7z")
-            default: return session.format.rawValue.uppercased()
+            default: return session.format.displayName
             }
         }
     }
