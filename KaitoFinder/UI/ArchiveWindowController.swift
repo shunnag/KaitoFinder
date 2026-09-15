@@ -31,7 +31,7 @@ final class ArchivePasswordPrompt {
                                     target: nil, action: nil)
         // 記憶は毎回明示的に選ぶ。前の入力や別の書庫の選択を引き継がない。
         rememberCheckbox.state = .off
-        alert.messageText = String(localized: "書庫のロックを解除", bundle: bundle)
+        alert.messageText = String(localized: "アーカイブのロックを解除", bundle: bundle)
         alert.informativeText = challenge.message(bundle: bundle)
         alert.addButton(withTitle: String(localized: "ロックを解除", bundle: bundle))
         alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
@@ -155,7 +155,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             self?.renameValidationNotice.isHidden = reason == nil
         }
         let menu = NSMenu()
-        menu.addItem(withTitle: String(localized: "開く（読み取り専用のコピー）"),
+        menu.addItem(withTitle: String(localized: "開く"),
                      action: #selector(openEntry(_:)), keyEquivalent: "")
         menu.addItem(withTitle: String(localized: "クイックルック"),
                      action: #selector(togglePreviewPanel(_:)), keyEquivalent: "")
@@ -174,8 +174,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         blankAreaMenu.addItem(.separator())
         blankAreaMenu.addItem(withTitle: String(localized: "すべて展開…"), action: #selector(extractAll(_:)), keyEquivalent: "")
         blankAreaMenu.addItem(.separator())
-        blankAreaMenu.addItem(withTitle: String(localized: "新規書庫…"), action: #selector(AppDelegate.newArchive(_:)), keyEquivalent: "")
-        blankAreaMenu.addItem(withTitle: String(localized: "書庫を Finder に表示"), action: #selector(revealArchiveInFinder(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(withTitle: String(localized: "新規アーカイブ…"), action: #selector(AppDelegate.newArchive(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(withTitle: String(localized: "アーカイブをFinderに表示"), action: #selector(revealArchiveInFinder(_:)), keyEquivalent: "")
         for item in blankAreaMenu.items where !item.isSeparatorItem && item.action != #selector(AppDelegate.newArchive(_:)) {
             item.target = self
         }
@@ -201,8 +201,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         searchItem.toolTip = searchItem.label
         searchItem.isBordered = true
         searchItem.target = self
-        searchField.placeholderString = String(localized: "名前で絞り込む")
-        searchField.setAccessibilityLabel(String(localized: "名前で絞り込む"))
+        searchField.placeholderString = String(localized: "検索")
+        searchField.setAccessibilityLabel(String(localized: "検索"))
         searchField.target = self
         searchField.action = #selector(filterEntries(_:))
         searchField.sendsSearchStringImmediately = true
@@ -304,7 +304,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func displayLocked() {
         display(EntryNode.tree(from: []))
         pathControl.pathItems = []
-        capabilityNotice.stringValue = String(localized: "この書庫はロックされています。パスワードを入力すると一覧を表示できます")
+        capabilityNotice.stringValue = String(localized: "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます")
         capabilityNotice.isHidden = capabilityNotice.stringValue.isEmpty
         unlockButton.isHidden = false
     }
@@ -641,9 +641,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var editRefusal: String? {
         // モデルと同じ ZIP updater の門番を使う。canDelete / canRename は未使用の予約値。
         if let session = archiveSession, !session.capabilities.canAppend {
-            return session.capabilities.readOnlyReason ?? String(localized: "この書庫は変更できません")
+            return session.capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。")
         }
-        return operationInFlight ? String(localized: "別の操作が完了するまでお待ちください") : nil
+        return operationInFlight ? String(localized: "別の操作が完了するまでお待ちください。") : nil
     }
 
     private func canPerformEdit(_ action: Selector) -> Bool {
@@ -742,10 +742,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let entries = ExtractionSelection(nodes: [root]).entries
         let selection = ArchiveEditSelection(node)
         outlineView.beginRenaming(node, validate: { [weak self] name in
-            guard let self else { return String(localized: "書庫が閉じられています") }
+            guard let self else { return String(localized: "アーカイブが閉じられています。") }
             if let reason = self.editRefusal { return reason }
             guard self.generation == expectedGeneration, self.archiveSession?.generation == expectedGeneration else {
-                return String(localized: "選択した項目が変更されています。書庫を開き直してください")
+                return String(localized: "選択した項目が変更されています。アーカイブを開き直してください。")
             }
             do {
                 _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: selection, name: name)], existing: entries)
@@ -846,17 +846,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         case .invalidName:
             String(localized: "この名前は使えません。空の名前、予約文字、長すぎる名前を避けてください。")
         case .staleSelection:
-            String(localized: "選択した項目が変更されています。書庫を開き直してください")
+            String(localized: "選択した項目が変更されています。アーカイブを開き直してください。")
         case .indexMismatch:
-            String(localized: "選択した項目と書庫内の項目が一致しません。書庫を開き直してください")
+            String(localized: "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。")
         case .conflictingSelection:
-            String(localized: "同じ項目への変更が重複しています")
+            String(localized: "同じ項目への変更が重複しています。")
         case .sameLocation:
-            String(localized: "同じ場所です")
+            String(localized: "同じ場所です。")
         case .destinationInsideSource:
-            String(localized: "フォルダを自分自身の中へは移動できません")
+            String(localized: "フォルダを自分自身の中へは移動できません。")
         case .missingFolder:
-            String(localized: "移動先のフォルダが見つかりません")
+            String(localized: "移動先のフォルダが見つかりません。")
         case nil: error.localizedDescription
         }
     }
@@ -864,9 +864,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func reportEditFailure(_ reason: String, published: Bool = false) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = published ? String(localized: "項目を変更しましたが、書庫を読み直せませんでした")
+        alert.messageText = published ? String(localized: "項目を変更しましたが、アーカイブを読み直せませんでした")
             : String(localized: "項目を変更できませんでした")
-        alert.informativeText = reason
+        alert.informativeText = ArchiveAlertText.informativeText(reason)
         alert.beginSheetModal(for: window, completionHandler: nil)
     }
 
@@ -1091,7 +1091,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let alert = NSAlert()
         alert.messageText = notice.messageText
         alert.informativeText = notice.informativeText
-        alert.addButton(withTitle: String(localized: "新しい書庫を作成…"))
+        alert.addButton(withTitle: String(localized: "新規アーカイブを作成…"))
         alert.addButton(withTitle: String(localized: "キャンセル"))
         alert.buttons.last?.keyEquivalent = "\u{1b}"
         conversionConfirmation = alert
@@ -1140,9 +1140,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func reportImportFailure(_ reason: String, added: Bool = false) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = added ? String(localized: "項目を追加しましたが、書庫を読み直せませんでした")
+        alert.messageText = added ? String(localized: "項目を追加しましたが、アーカイブを読み直せませんでした")
             : String(localized: "項目を追加できませんでした")
-        alert.informativeText = reason
+        alert.informativeText = ArchiveAlertText.informativeText(reason)
         alert.beginSheetModal(for: window, completionHandler: nil)
     }
 
@@ -1239,7 +1239,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let window else { return }
         let alert = NSAlert()
         alert.messageText = String(localized: "項目を展開できませんでした")
-        alert.informativeText = reason
+        alert.informativeText = ArchiveAlertText.informativeText(reason)
         alert.beginSheetModal(for: window, completionHandler: nil)
     }
 
@@ -1302,7 +1302,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                     }
                 }
             } else if !NSWorkspace.shared.open(url) {
-                self.reportFailure(String(localized: "この項目を開くアプリケーションが見つからないか、起動できませんでした"))
+                self.reportFailure(String(localized: "この項目を開くアプリケーションが見つからないか、起動できませんでした。"))
             }
             self.openNext(index: index + 1, application: application)
         }

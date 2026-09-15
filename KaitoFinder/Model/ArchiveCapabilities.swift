@@ -34,19 +34,19 @@ nonisolated struct ArchiveCapabilities: Sendable {
     var canEditAttributes: Bool { false }
     var rewriteNotice: String? {
         guard case .rewrite = mode else { return nil }
-        return String(localized: "編集すると書庫全体を再圧縮します")
+        return String(localized: "編集するとアーカイブ全体を再圧縮します")
     }
     var readOnlyReason: String? {
         switch refusal {
         case nil: nil
-        case .format(let name): "\(name) 書庫は変更できません"
-        case .gatekeeper(.sfxPrefix, let reason): "SFX 付き ZIP は安全に変更できません。\(reason)"
-        case .gatekeeper(.trailingData, let reason): "この ZIP は終端の後ろに追加データがあり、安全に変更できません。\(reason)"
+        case .format(let name): String(localized: "\(name)アーカイブは変更できません。")
+        case .gatekeeper(.sfxPrefix, let reason): String(localized: "SFX付きZIPは安全に変更できません。\(reason)")
+        case .gatekeeper(.trailingData, let reason): String(localized: "このZIPは終端の後ろに追加データがあり、安全に変更できません。\(reason)")
         case .gatekeeper(.centralDirectoryOffset, let reason):
-            "この ZIP は中央ディレクトリの位置が不正です。4 GiB 超の項目を ZIP64 なしで格納した場合など、安全に変更できません。\(reason)"
-        case .encrypted: String(localized: "暗号化された書庫は、編集すると暗号化が外れるため変更できません")
-        case .unrepresentable(let reason): String(localized: "この書庫には、書き直せない項目があります。\(reason)")
-        case .unavailable(let reason): "この書庫は変更できません。\(reason)"
+            String(localized: "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。\(reason)")
+        case .encrypted: String(localized: "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。")
+        case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)")
+        case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)")
         }
     }
 
@@ -80,7 +80,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
             }
             guard FileManager.default.isWritableFile(atPath: url.path),
                   FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path) else {
-                return Self(refusal: .unavailable("書庫または親フォルダへの書き込み権限がありません"))
+                return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
             if case .rewrite(let outputFormat) = mode {
                 // 全 entry の表現可能性を検査するだけで、最初の add / commit まで

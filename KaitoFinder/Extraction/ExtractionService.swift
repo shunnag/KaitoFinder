@@ -43,7 +43,7 @@ nonisolated enum ExtractionFailure: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .refused(let reason): reason
-        case .system(let code): "POSIX \(code): \(String(cString: strerror(code)))"
+        case .system(let code): String(localized: "POSIX \(code): \(String(cString: strerror(code)))")
         }
     }
 }
@@ -100,7 +100,7 @@ nonisolated enum ExtractionService {
         let root: URL
         let mapping: OutputMapping
         if let item = promisedItem {
-            guard destination.isFileURL else { throw ExtractionFailure.refused("出力先は file URL が必要です") }
+            guard destination.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
             let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: snapshot.quarantine)
             let leaf = [destination.lastPathComponent]
             try parent.validate(leaf)
@@ -131,7 +131,7 @@ nonisolated enum ExtractionService {
             case .archive: return parts
             case .file(let leaf): return leaf
             case .subtree(let prefix):
-                guard parts.starts(with: prefix) else { throw ExtractionFailure.refused("部分木の外の項目です") }
+                guard parts.starts(with: prefix) else { throw ExtractionFailure.refused(String(localized: "部分木の外の項目です。")) }
                 return Array(parts.dropFirst(prefix.count))
             }
         }
@@ -154,18 +154,18 @@ nonisolated enum ExtractionService {
             do {
                 try checkCancellation()
                 guard reader.entries.indices.contains(entry.index), reader.entries[entry.index] == entry else {
-                    throw ExtractionFailure.refused("選択がこの書庫の entry と一致しません")
+                    throw ExtractionFailure.refused(String(localized: "選択がこのアーカイブのentryと一致しません。"))
                 }
                 let components = try mapping.components(entry.name)
                 let key = components.joined(separator: "/").precomposedStringWithCanonicalMapping
                 // 最初の名前を予約し、失敗しても後続の同名 entry へ差し替えない。
                 // Unicode 正規化で同じ名前も含む。大文字小文字の衝突は O_EXCL で防ぐ。
                 guard claimed.insert(key).inserted else {
-                    throw ExtractionFailure.refused("重複する出力名です（書庫順で最初の entry を優先）")
+                    throw ExtractionFailure.refused(String(localized: "重複する出力名です（アーカイブ順で最初のentryを優先）。"))
                 }
                 // promise の明示フォルダ entry は今回作成した root 自身を表す。
                 if components.isEmpty {
-                    guard entry.kind == .directory else { throw ExtractionFailure.refused("root がフォルダではありません") }
+                    guard entry.kind == .directory else { throw ExtractionFailure.refused(String(localized: "rootがフォルダではありません。")) }
                 } else { try output.validate(components) }
                 switch entry.kind {
                 case .directory:
@@ -185,16 +185,16 @@ nonisolated enum ExtractionService {
                         var data = Data()
                         try consume(reader.stream(entry), checkCancellation: checkCancellation) { bytes in
                             guard data.count + bytes.count <= 16_384 else {
-                                throw ExtractionFailure.refused("シンボリックリンクの target が長すぎます")
+                                throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが長すぎます。"))
                             }
                             data.append(contentsOf: bytes)
                         }
                         guard let decoded = String(data: data, encoding: .utf8) else {
-                            throw ExtractionFailure.refused("リンクの target が UTF-8 ではありません")
+                            throw ExtractionFailure.refused(String(localized: "リンクのtargetがUTF-8ではありません。"))
                         }
                         target = decoded
                     } else {
-                        throw ExtractionFailure.refused("リンクの target がありません")
+                        throw ExtractionFailure.refused(String(localized: "リンクのtargetがありません。"))
                     }
                     try output.symlink(components, target: target)
                 case .hardlink:
@@ -207,14 +207,14 @@ nonisolated enum ExtractionService {
                               let target = materialized[index], index < entry.index,
                               let targetName = entry.formatSpecific["linkPath"],
                               try mapping.components(targetName) == target else {
-                            throw ExtractionFailure.refused("同じ reader と root で先に展開した hard link target がありません")
+                            throw ExtractionFailure.refused(String(localized: "同じreaderとrootで先に展開したhard link targetがありません。"))
                         }
                         try drain(reader.stream(entry), checkCancellation: checkCancellation)
                         try output.hardlink(components, target: target)
                     }
                     materialized[entry.index] = components
                 case .other:
-                    throw ExtractionFailure.refused("この entry の種類は展開できません")
+                    throw ExtractionFailure.refused(String(localized: "このentryの種類は展開できません。"))
                 }
                 result.written.append(.init(entryIndex: entry.index, url: output.url(components)))
             } catch is CancellationError {
@@ -233,7 +233,7 @@ nonisolated enum ExtractionService {
             do { try output.finishDirectory(components, entry: entry) }
             catch {
                 result.failures.append(.init(entryIndex: entry.index, name: entry.name,
-                                             reason: "ディレクトリ属性: \(error)"))
+                                             reason: String(localized: "ディレクトリ属性: \(String(describing: error))。")))
             }
         }
         result.cancelled = result.cancelled || progress.isCancelled || Task.isCancelled

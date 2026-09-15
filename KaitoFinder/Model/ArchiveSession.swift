@@ -16,8 +16,8 @@ nonisolated enum ArchivePasswordChallenge: Equatable, Sendable {
 
     func message(bundle: Bundle = .main) -> String {
         switch self {
-        case .required: String(localized: "書庫のパスワードを入力してください", bundle: bundle)
-        case .incorrect: String(localized: "パスワードが違います。もう一度入力してください", bundle: bundle)
+        case .required: String(localized: "アーカイブのパスワードを入力してください。", bundle: bundle)
+        case .incorrect: String(localized: "パスワードが違います。もう一度入力してください。", bundle: bundle)
         }
     }
 }
@@ -75,7 +75,7 @@ actor ArchiveSession {
 
     private func requireCurrentReader() throws -> ArchiveReader {
         guard !closed, let reader else { throw CancellationError() }
-        guard !invalidated else { throw ExtractionFailure.refused("変更後の書庫を読み直せませんでした") }
+        guard !invalidated else { throw ExtractionFailure.refused(String(localized: "変更後のアーカイブを読み直せませんでした。")) }
         return reader
     }
 
@@ -107,7 +107,7 @@ actor ArchiveSession {
                     do {
                         let replacement = try ArchiveReader.open(url: sourceURL, options: ReaderOptions(password: candidate))
                         guard replacement.entries == (try requireCurrentReader().entries) else {
-                            throw ExtractionFailure.refused(String(localized: "書庫が変更されています。開き直してください"))
+                            throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
                         }
                         try verify(encrypted, using: replacement)
                         try checkReadRequest(generation: expectedGeneration)
@@ -130,7 +130,7 @@ actor ArchiveSession {
         try Task.checkCancellation()
         _ = try requireCurrentReader()
         guard generation == expectedGeneration else {
-            throw ExtractionFailure.refused(String(localized: "書庫が変更されています。開き直してください"))
+            throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
         }
     }
 
@@ -157,7 +157,7 @@ actor ArchiveSession {
                 willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
         guard capabilities.canAppend else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries, progress: progress)
         let mode = capabilities.mode!
@@ -182,7 +182,7 @@ actor ArchiveSession {
                       willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
         guard capabilities.canAppend else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "この書庫は変更できません"))
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
@@ -210,7 +210,7 @@ actor ArchiveSession {
         let reader = try requireCurrentReader()
         // canAppend は編集の共通門番。拒否理由も追加と揃える。
         guard capabilities.canAppend else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? "この書庫は変更できません")
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving, existing: reader.entries)
@@ -240,7 +240,7 @@ actor ArchiveSession {
         generationStorage.withLock { $0 += 1 }
         invalidated = true
         verifiedEntries.removeAll()
-        capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable("変更後の書庫を読み直せませんでした")) }
+        capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(String(localized: "変更後のアーカイブを読み直せませんでした。"))) }
         let replacement = try ArchiveReader.open(url: sourceURL, options: ReaderOptions(password: password))
         let updatedQuarantine = try ExtractionQuarantine.read(from: sourceURL)
         reader = replacement
@@ -252,7 +252,7 @@ actor ArchiveSession {
 
     // ReaderOptions や下位エラーの説明を公開結果へ持ち込まず、秘密を含まない文言に限定する。
     nonisolated static var reloadFailureMessage: String {
-        String(localized: "変更は保存されましたが、書庫を読み直せませんでした。書庫を開き直してください")
+        String(localized: "変更は保存されましたが、アーカイブを読み直せませんでした。アーカイブを開き直してください。")
     }
 
     // append と同じ actor で置換と fresh open を連続させ、旧 inode の reader を渡さない。
@@ -275,7 +275,7 @@ actor ArchiveSession {
         var selected: [Int: ArchiveEntry] = [:]
         for payload in payloads {
             guard payload.archiveURL == sourceURL else {
-                throw ExtractionFailure.refused("選択した項目の書庫が一致しません")
+                throw ExtractionFailure.refused(String(localized: "選択した項目のアーカイブが一致しません。"))
             }
             for entry in try payload.resolve(in: reader.entries, generation: generation) {
                 selected[entry.index] = entry

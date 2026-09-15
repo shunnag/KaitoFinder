@@ -21,14 +21,14 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidName(let name): "この名前には変更できません: \(name)"
-        case .collision(let name): "同じ名前の項目が既にあります: \(name)"
-        case .sameLocation(let path): "同じ場所です: \(path)"
-        case .destinationInsideSource(let path): "フォルダを自分自身の中へは移動できません: \(path)"
-        case .missingFolder(let folder): "移動先のフォルダが見つかりません: \(folder)"
-        case .indexMismatch: "選択した項目と書庫内の項目が一致しません。書庫を開き直してください"
-        case .staleSelection: "選択した項目が変更されています。書庫を開き直してください"
-        case .conflictingSelection: "同じ項目への変更が重複しています"
+        case .invalidName(let name): String(localized: "この名前には変更できません: \(name)。")
+        case .collision(let name): String(localized: "同じ名前の項目が既にあります: \(name)。")
+        case .sameLocation(let path): String(localized: "同じ場所です: \(path)。")
+        case .destinationInsideSource(let path): String(localized: "フォルダを自分自身の中へは移動できません: \(path)。")
+        case .missingFolder(let folder): String(localized: "移動先のフォルダが見つかりません: \(folder)。")
+        case .indexMismatch: String(localized: "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。")
+        case .staleSelection: String(localized: "選択した項目が変更されています。アーカイブを開き直してください。")
+        case .conflictingSelection: String(localized: "同じ項目への変更が重複しています。")
         }
     }
 }
@@ -420,7 +420,7 @@ nonisolated enum ArchiveImportTransaction {
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard try identity(archive) == original else {
-            throw ExtractionFailure.refused("処理中に書庫が別の操作で変更されました")
+            throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
         }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
@@ -441,7 +441,7 @@ nonisolated enum ArchiveImportTransaction {
             listxattr(archive.path, $0.baseAddress, $0.count, XATTR_NOFOLLOW)
         }
         guard count >= 0 else { throw ExtractionFailure.system(errno) }
-        guard count == size else { throw ExtractionFailure.refused("処理中に書庫が別の操作で変更されました") }
+        guard count == size else { throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。")) }
         for nameBytes in names.split(separator: 0) {
             try (Array(nameBytes) + [0]).withUnsafeBufferPointer { name in
                 let size = getxattr(archive.path, name.baseAddress!, nil, 0, 0, XATTR_NOFOLLOW)
@@ -451,7 +451,7 @@ nonisolated enum ArchiveImportTransaction {
                     getxattr(archive.path, name.baseAddress!, $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW)
                 }
                 guard count >= 0 else { throw ExtractionFailure.system(errno) }
-                guard count == size else { throw ExtractionFailure.refused("処理中に書庫が別の操作で変更されました") }
+                guard count == size else { throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。")) }
                 let status = value.withUnsafeBytes {
                     setxattr(work.path, name.baseAddress!, $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW)
                 }
@@ -463,7 +463,7 @@ nonisolated enum ArchiveImportTransaction {
     private static func identity(_ url: URL) throws -> [Int64] {
         var info = stat()
         guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
-            throw ExtractionFailure.refused("書庫の原本を確認できません")
+            throw ExtractionFailure.refused(String(localized: "アーカイブの原本を確認できません。"))
         }
         return [Int64(info.st_dev), Int64(bitPattern: info.st_ino), info.st_size, Int64(info.st_mode),
                 Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec),

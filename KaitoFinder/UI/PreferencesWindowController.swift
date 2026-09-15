@@ -53,15 +53,15 @@ final class PreferencesWindowController: NSWindowController {
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
     let zipSkipsCompressedTypesCheckbox = NSButton(
-        checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4 など)は無圧縮で格納"), target: nil, action: nil)
+        checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納"), target: nil, action: nil)
     let tarGzipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let tarGzipLevelLabel = NSTextField(labelWithString: "")
     let tarPreservesOwnerIDsCheckbox = NSButton(
-        checkboxWithTitle: String(localized: "所有者 ID(uid / gid)を保存"), target: nil, action: nil)
+        checkboxWithTitle: String(localized: "所有者ID(uid / gid)を保存"), target: nil, action: nil)
     let extractionDestinationPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let folderPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let trashesArchiveAfterExtractionCheckbox = NSButton(
-        checkboxWithTitle: String(localized: "展開後に書庫をゴミ箱に入れる"), target: nil, action: nil)
+        checkboxWithTitle: String(localized: "展開後にアーカイブをゴミ箱に入れる"), target: nil, action: nil)
 
     init(store: ArchivePreferencesStore = .shared) {
         viewModel = PreferencesViewModel(store: store)
@@ -76,7 +76,7 @@ final class PreferencesWindowController: NSWindowController {
         tabController.tabStyle = .toolbar
         configureControls()
         addTab(title: String(localized: "一般"), symbol: "gearshape", views: [
-            row(String(localized: "新規書庫の既定形式"), control: defaultFormatPopup)
+            row(String(localized: "新規アーカイブの既定形式"), control: defaultFormatPopup)
         ])
         addTab(title: String(localized: "圧縮"), symbol: "archivebox", views: [
             group(title: String(localized: "ZIP"), views: [
@@ -85,10 +85,10 @@ final class PreferencesWindowController: NSWindowController {
                 zipSkipsCompressedTypesCheckbox
             ]),
             group(title: String(localized: "tar.gz"), views: [
-                row(String(localized: "gzip レベル"), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel))
+                row(String(localized: "gzipレベル"), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel))
             ]),
             group(title: String(localized: "tar"), views: [tarPreservesOwnerIDsCheckbox]),
-            NSTextField(wrappingLabelWithString: String(localized: "7z は LZMA2、LHA は -lh5- 固定です"))
+            NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-固定です"))
         ])
         addTab(title: String(localized: "展開"), symbol: "tray.and.arrow.down", views: [
             row(String(localized: "展開先"), control: extractionDestinationPopup),
@@ -111,7 +111,7 @@ final class PreferencesWindowController: NSWindowController {
     private func configureControls() {
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map(ArchiveSavePanelController.title))
         zipMethodPopup.addItems(withTitles: [String(localized: "Deflate"), String(localized: "無圧縮")])
-        extractionDestinationPopup.addItems(withTitles: [String(localized: "書庫と同じフォルダ"), String(localized: "毎回選ぶ")])
+        extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じフォルダ"), String(localized: "毎回選ぶ")])
         folderPolicyPopup.addItems(withTitles: [String(localized: "常に"), String(localized: "複数の項目があるとき"),
                                               String(localized: "作らない")])
         let actions: [(NSControl, Selector)] = [
@@ -127,7 +127,7 @@ final class PreferencesWindowController: NSWindowController {
         ]
         for (control, action) in actions { control.target = self; control.action = action }
         zipLevelSlider.setAccessibilityLabel(String(localized: "圧縮レベル"))
-        tarGzipLevelSlider.setAccessibilityLabel(String(localized: "gzip レベル"))
+        tarGzipLevelSlider.setAccessibilityLabel(String(localized: "gzipレベル"))
     }
 
     private func levelControl(_ slider: NSSlider, label: NSTextField) -> NSView {

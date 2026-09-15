@@ -31,7 +31,7 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
                     Array($0.pathComponents.drop(while: { $0 == "." }))
                 return parts.starts(with: components) && (parts.count > components.count || $0.kind == .directory)
             }
-            guard !subtree.isEmpty else { throw ExtractionFailure.refused("選択したフォルダが見つかりません: \(path)") }
+            guard !subtree.isEmpty else { throw ExtractionFailure.refused(String(localized: "選択したフォルダが見つかりません: \(path)。")) }
             return subtree
         }
         if generation == current, let index = entryIndex,
@@ -40,7 +40,7 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
         }
         let matches = entries.filter { $0.name == path && $0.kind != .directory }
         guard matches.count == 1 else {
-            throw ExtractionFailure.refused("選択した項目が見つからないか、同名の項目があります: \(path)")
+            throw ExtractionFailure.refused(String(localized: "選択した項目が見つからないか、同名の項目があります: \(path)。"))
         }
         return matches
     }

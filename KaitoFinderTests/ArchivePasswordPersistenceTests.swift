@@ -328,7 +328,7 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
             XCTAssertEqual(String(localized: "記憶したパスワードをすべて削除", bundle: bundle),
                            language == "ja" ? "記憶したパスワードをすべて削除" : "Forget All Saved Passwords")
             XCTAssertEqual(String(localized: "記憶したパスワードを削除できませんでした", bundle: bundle),
-                           language == "ja" ? "記憶したパスワードを削除できませんでした" : "Could not forget saved passwords.")
+                           language == "ja" ? "記憶したパスワードを削除できませんでした" : "Could not forget saved passwords")
             XCTAssertTrue((prompt.alert.accessoryView as? NSStackView)?.arrangedSubviews.contains(prompt.rememberCheckbox) == true)
         }
     }

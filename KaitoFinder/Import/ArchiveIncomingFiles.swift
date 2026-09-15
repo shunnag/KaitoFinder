@@ -74,7 +74,7 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
                 state.withLock {
                     if let error { $0.failures.append(String(describing: error)) }
                     else if ExtractionPath.isInside(url, root: directory) { $0.urls.append(url) }
-                    else { $0.failures.append("promise の出力が一時領域の外を指しています") }
+                    else { $0.failures.append(String(localized: "promiseの出力が一時領域の外を指しています。")) }
                     $0.remaining -= 1
                 }
             }

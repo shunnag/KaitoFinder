@@ -89,6 +89,8 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             pending.append(contentsOf: view.subviews)
         }
         XCTAssertTrue(labels.contains(String(localized: "暗号化はできません")))
+        XCTAssertEqual(labels.filter { $0 == String(localized: "フォーマット") }, [String(localized: "フォーマット")])
+        XCTAssertEqual(save.formatPopup.accessibilityLabel(), String(localized: "フォーマット"))
         preferences.defaults.set("tar.gz", forKey: "ArchiveCreationFormat")
         let conversion = ArchiveSavePanel(sources: [source], existingURL: directory.url.appendingPathComponent("Original.tar.bz2"),
                                           defaults: preferences.defaults)
@@ -101,7 +103,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         let delegate = AppDelegate(), menu = delegate.makeMenu()
         let file = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })
         let first = try XCTUnwrap(file.items.first)
-        XCTAssertEqual(first.title, String(localized: "新規書庫…"))
+        XCTAssertEqual(first.title, String(localized: "新規アーカイブ…"))
         XCTAssertEqual(first.action, #selector(AppDelegate.newArchive(_:)))
         XCTAssertTrue(first.target === delegate)
         XCTAssertEqual(first.keyEquivalent, "n")
@@ -149,32 +151,40 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))
             let normal = ArchiveConversionNotice(formatName: "tar.bz2", entries: [entry(encrypted: false)], bundle: bundle)
             let encrypted = ArchiveConversionNotice(formatName: "7z", entries: [entry(encrypted: false), entry(encrypted: true)], bundle: bundle)
-            let paragraph = String(localized: "元の書庫は暗号化されていますが、新しい書庫は暗号化されません。", bundle: bundle)
+            let paragraph = String(localized: "元のアーカイブは暗号化されていますが、新しいアーカイブは暗号化されません。", bundle: bundle)
             XCTAssertTrue(normal.messageText.contains("tar.bz2"))
             XCTAssertTrue(encrypted.messageText.contains("7z"))
             XCTAssertFalse(normal.informativeText.contains(paragraph))
             XCTAssertEqual(encrypted.informativeText, normal.informativeText + "\n\n" + paragraph)
             if language == "ja" {
-                XCTAssertEqual(normal.messageText, "この tar.bz2 書庫は変更できません")
-                XCTAssertEqual(normal.informativeText, "中身と追加する項目で新しい書庫を作れます。元の書庫は変わりません。")
+                XCTAssertEqual(normal.messageText, "このtar.bz2アーカイブは変更できません")
+                XCTAssertEqual(normal.informativeText, "中身と追加する項目で新しいアーカイブを作れます。元のアーカイブは変わりません。")
                 XCTAssertEqual(String(localized: "アーカイブ", bundle: bundle) + ".zip", "アーカイブ.zip")
+                XCTAssertEqual(ArchiveAlertText.informativeText("詳細", bundle: bundle), "詳細。")
+                XCTAssertEqual(ArchiveAlertText.informativeText("詳細。\n", bundle: bundle), "詳細。")
+                XCTAssertEqual(ArchiveAlertText.informativeText("Details.", bundle: bundle), "Details。")
+                XCTAssertEqual(ArchiveAlertText.informativeText(".hidden.\n", bundle: bundle), ".hidden。")
             } else {
-                XCTAssertEqual(normal.messageText, "This tar.bz2 archive cannot be modified.")
+                XCTAssertEqual(normal.messageText, "This tar.bz2 archive cannot be modified")
                 XCTAssertEqual(paragraph, "The original archive is encrypted, but the new archive will not be encrypted.")
+                XCTAssertEqual(ArchiveAlertText.informativeText("Details", bundle: bundle), "Details.")
+                XCTAssertEqual(ArchiveAlertText.informativeText("Details.\n", bundle: bundle), "Details.")
+                XCTAssertEqual(ArchiveAlertText.informativeText(".hidden.\n", bundle: bundle), ".hidden.")
             }
+            XCTAssertEqual(ArchiveAlertText.informativeText(" \n", bundle: bundle), "")
         }
     }
 
     @MainActor func testStandaloneProgressPanelFloatsAndFinishesWithoutAParent() throws {
         let progress = Progress(totalUnitCount: 2)
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "書庫を作成しています"))
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "アーカイブを作成しています"))
         defer { sheet.finish() }
         sheet.beginStandalone()
         let panel = try XCTUnwrap(sheet.window)
         XCTAssertNil(panel.sheetParent)
         XCTAssertEqual(panel.level, .floating)
         XCTAssertTrue(panel.isVisible)
-        XCTAssertEqual(panel.title, String(localized: "書庫を作成しています"))
+        XCTAssertEqual(panel.title, String(localized: "アーカイブを作成しています"))
         sheet.cancelExtraction(nil)
         XCTAssertTrue(progress.isCancelled)
         sheet.finish()

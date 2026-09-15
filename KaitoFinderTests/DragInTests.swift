@@ -122,7 +122,8 @@ nonisolated final class DragInTests: XCTestCase {
         let fixture = try Fixture(filename: "archive.tar.bz2", script: "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))")
         let session = try ArchiveSession(url: fixture.archive)
         XCTAssertEqual(session.capabilities.refusal, .format("tar.bz2"))
-        XCTAssertEqual(session.capabilities.readOnlyReason, "tar.bz2 書庫は変更できません")
+        let formatName = "tar.bz2"
+        XCTAssertEqual(session.capabilities.readOnlyReason, String(localized: "\(formatName)アーカイブは変更できません。"))
         XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: true, hasFiles: true, busy: false))
         let before = try Data(contentsOf: fixture.archive)
         do {

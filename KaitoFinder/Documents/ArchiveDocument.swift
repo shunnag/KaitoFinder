@@ -200,7 +200,7 @@ import Synchronization
         try Task.checkCancellation()
         guard !closed, self.session === session else { throw CancellationError() }
         guard session.generation == generation else {
-            throw ExtractionFailure.refused(String(localized: "書庫が変更されています。開き直してください"))
+            throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
         }
     }
 
@@ -291,8 +291,8 @@ import Synchronization
         published: @escaping @Sendable (Result) -> Bool,
         operation: @escaping @Sendable (ArchiveSession, @escaping @Sendable () throws -> Void) async throws -> Result
     ) async throws -> Result {
-        guard !closed, let session else { throw ExtractionFailure.refused("書庫が閉じられています") }
-        guard mutationTask == nil, undoTask == nil else { throw ExtractionFailure.refused("書庫を変更しています") }
+        guard !closed, let session else { throw ExtractionFailure.refused(String(localized: "アーカイブが閉じられています。")) }
+        guard mutationTask == nil, undoTask == nil else { throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。")) }
         let previousGeneration = session.generation
         let stack = archiveUndoStack
         let pending = Mutex<ArchiveUndoStack.Slot?>(nil)
@@ -402,10 +402,10 @@ import Synchronization
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         switch item.action {
         case #selector(undo(_:)):
-            (item as? NSMenuItem)?.title = undoManager?.undoMenuItemTitle ?? "取り消す"
+            (item as? NSMenuItem)?.title = undoManager?.undoMenuItemTitle ?? String(localized: "取り消す")
             return undoManager?.canUndo == true
         case #selector(redo(_:)):
-            (item as? NSMenuItem)?.title = undoManager?.redoMenuItemTitle ?? "やり直す"
+            (item as? NSMenuItem)?.title = undoManager?.redoMenuItemTitle ?? String(localized: "やり直す")
             return undoManager?.canRedo == true
         default: return super.validateUserInterfaceItem(item)
         }

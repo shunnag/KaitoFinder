@@ -26,6 +26,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferencesWindowController?.window?.makeKeyAndOrderFront(sender)
     }
 
+    @objc func showHelp(_ sender: Any?) {
+        NSWorkspace.shared.open(URL(string: "https://github.com/shunnag/KaitoFinder")!)
+    }
+
     @objc func forgetArchivePasswords(_ sender: Any?) {
         guard forgetPasswordsTask == nil else { return }
         forgetPasswordsTask = Task {
@@ -66,7 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         panel.prompt = String(localized: "選択")
-        panel.message = String(localized: "書庫にする項目を選んでください")
+        panel.message = String(localized: "アーカイブにする項目を選んでください")
         creationOpenPanel = panel
         panel.begin { [weak self] response in
             guard let self else { return }
@@ -84,11 +88,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                              error: AutoreleasingUnsafeMutablePointer<NSString>) {
         let sources = Self.filesToCompress(from: pboard)
         guard !sources.isEmpty else {
-            error.pointee = String(localized: "書庫にする項目を選んでください") as NSString
+            error.pointee = String(localized: "アーカイブにする項目を選んでください") as NSString
             return
         }
         guard archiveCreationTask == nil, creationOpenPanel == nil else {
-            error.pointee = String(localized: "別の操作が完了するまでお待ちください") as NSString
+            error.pointee = String(localized: "別の操作が完了するまでお待ちください。") as NSString
             return
         }
         NSApp.activate()
@@ -119,68 +123,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func makeMenu() -> NSMenu {
+    func makeMenu(bundle: Bundle = .main) -> NSMenu {
         let menu = NSMenu()
-        let appMenu = NSMenu(title: "KaitoFinder")
-        appMenu.addItem(withTitle: String(localized: "KaitoFinderについて"),
+        let appMenu = NSMenu(title: String(localized: "KaitoFinder", bundle: bundle))
+        appMenu.addItem(withTitle: String(localized: "KaitoFinderについて", bundle: bundle),
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
-        let preferences = appMenu.addItem(withTitle: String(localized: "設定…"),
+        let preferences = appMenu.addItem(withTitle: String(localized: "設定…", bundle: bundle),
                                           action: #selector(showPreferences(_:)), keyEquivalent: ",")
         preferences.target = self
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: String(localized: "KaitoFinderを終了"),
+        let services = appMenu.addItem(withTitle: String(localized: "サービス", bundle: bundle), action: nil, keyEquivalent: "")
+        let servicesMenu = NSMenu(title: services.title)
+        services.submenu = servicesMenu
+        NSApp.servicesMenu = servicesMenu
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: String(localized: "KaitoFinderを隠す", bundle: bundle),
+                        action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = appMenu.addItem(withTitle: String(localized: "ほかを隠す", bundle: bundle),
+                                         action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        appMenu.addItem(withTitle: String(localized: "すべてを表示", bundle: bundle),
+                        action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: String(localized: "KaitoFinderを終了", bundle: bundle),
                         action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        let fileMenu = NSMenu(title: String(localized: "ファイル"))
-        let create = fileMenu.addItem(withTitle: String(localized: "新規書庫…"),
+        let fileMenu = NSMenu(title: String(localized: "ファイル", bundle: bundle))
+        let create = fileMenu.addItem(withTitle: String(localized: "新規アーカイブ…", bundle: bundle),
                                      action: #selector(newArchive(_:)), keyEquivalent: "n")
         create.target = self
-        let open = fileMenu.addItem(withTitle: String(localized: "開く…"),
+        let open = fileMenu.addItem(withTitle: String(localized: "開く…", bundle: bundle),
                                    action: #selector(NSDocumentController.openDocument(_:)), keyEquivalent: "O")
         open.target = documentController
-        fileMenu.addItem(withTitle: String(localized: "開く（読み取り専用のコピー）"),
+        let recent = fileMenu.addItem(withTitle: String(localized: "最近使った項目を開く", bundle: bundle), action: nil, keyEquivalent: "")
+        let recentMenu = NSMenu(title: recent.title)
+        recentMenu.addItem(withTitle: String(localized: "メニューを消去", bundle: bundle),
+                           action: #selector(NSDocumentController.clearRecentDocuments(_:)), keyEquivalent: "")
+        recent.submenu = recentMenu
+        fileMenu.addItem(withTitle: String(localized: "開く", bundle: bundle),
                          action: #selector(ArchiveWindowController.openEntry(_:)), keyEquivalent: "o")
-        fileMenu.addItem(withTitle: String(localized: "クイックルック"),
+        fileMenu.addItem(withTitle: String(localized: "クイックルック", bundle: bundle),
                          action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
-        fileMenu.addItem(withTitle: String(localized: "閉じる"),
+        fileMenu.addItem(withTitle: String(localized: "閉じる", bundle: bundle),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenu.addItem(.separator())
-        let newFolder = fileMenu.addItem(withTitle: String(localized: "新規フォルダ"),
+        let newFolder = fileMenu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle),
                                          action: #selector(ArchiveWindowController.newFolder(_:)), keyEquivalent: "n")
         newFolder.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(.separator())
-        fileMenu.addItem(withTitle: String(localized: "選択した項目を展開…"),
+        fileMenu.addItem(withTitle: String(localized: "選択した項目を展開…", bundle: bundle),
                          action: #selector(ArchiveWindowController.extractSelected(_:)), keyEquivalent: "")
-        fileMenu.addItem(withTitle: String(localized: "すべて展開…"),
+        fileMenu.addItem(withTitle: String(localized: "すべて展開…", bundle: bundle),
                          action: #selector(ArchiveWindowController.extractAll(_:)), keyEquivalent: "")
-        let editMenu = NSMenu(title: String(localized: "編集"))
-        editMenu.addItem(withTitle: String(localized: "取り消す"), action: #selector(ArchiveDocument.undo(_:)), keyEquivalent: "z")
-        editMenu.addItem(withTitle: String(localized: "やり直す"), action: #selector(ArchiveDocument.redo(_:)), keyEquivalent: "Z")
+        let editMenu = NSMenu(title: String(localized: "編集", bundle: bundle))
+        editMenu.addItem(withTitle: String(localized: "取り消す", bundle: bundle), action: #selector(ArchiveDocument.undo(_:)), keyEquivalent: "z")
+        editMenu.addItem(withTitle: String(localized: "やり直す", bundle: bundle), action: #selector(ArchiveDocument.redo(_:)), keyEquivalent: "Z")
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: String(localized: "コピー"),
+        editMenu.addItem(withTitle: String(localized: "コピー", bundle: bundle),
                          action: #selector(ArchiveWindowController.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: String(localized: "ペースト"),
+        editMenu.addItem(withTitle: String(localized: "ペースト", bundle: bundle),
                          action: #selector(ArchiveWindowController.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: String(localized: "削除"),
+        editMenu.addItem(withTitle: String(localized: "すべてを選択", bundle: bundle),
+                         action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(withTitle: String(localized: "削除", bundle: bundle),
                          action: #selector(ArchiveWindowController.deleteEntries(_:)), keyEquivalent: "\u{7f}")
-        editMenu.addItem(withTitle: String(localized: "名称変更"),
+        editMenu.addItem(withTitle: String(localized: "名称変更", bundle: bundle),
                          action: #selector(ArchiveWindowController.renameEntry(_:)), keyEquivalent: "")
         editMenu.addItem(.separator())
-        let forget = editMenu.addItem(withTitle: String(localized: "記憶したパスワードをすべて削除"),
+        let forget = editMenu.addItem(withTitle: String(localized: "記憶したパスワードをすべて削除", bundle: bundle),
                                       action: #selector(forgetArchivePasswords(_:)), keyEquivalent: "")
         // 文書がないときや保管庫が読めないときも、アプリ全体の削除を利用できる。
         forget.target = self
-        let windowMenu = NSMenu(title: String(localized: "ウインドウ"))
-        windowMenu.addItem(withTitle: String(localized: "しまう"),
+        let windowMenu = NSMenu(title: String(localized: "ウインドウ", bundle: bundle))
+        windowMenu.addItem(withTitle: String(localized: "しまう", bundle: bundle),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
-        windowMenu.addItem(withTitle: String(localized: "拡大／縮小"),
+        windowMenu.addItem(withTitle: String(localized: "拡大/縮小", bundle: bundle),
                            action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
-        for submenu in [appMenu, fileMenu, editMenu, windowMenu] {
+        windowMenu.addItem(withTitle: String(localized: "すべてを手前に移動", bundle: bundle),
+                           action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
+        let helpMenu = NSMenu(title: String(localized: "ヘルプ", bundle: bundle))
+        let help = helpMenu.addItem(withTitle: String(localized: "KaitoFinderヘルプ", bundle: bundle),
+                                    action: #selector(showHelp(_:)), keyEquivalent: "")
+        help.target = self
+        for submenu in [appMenu, fileMenu, editMenu, windowMenu, helpMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu
             menu.addItem(item)
         }
         NSApp.windowsMenu = windowMenu
+        NSApp.helpMenu = helpMenu
         return menu
     }
 }

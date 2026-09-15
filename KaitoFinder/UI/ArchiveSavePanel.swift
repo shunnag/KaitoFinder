@@ -79,8 +79,8 @@ final class ArchiveSavePanel: NSObject {
         formatPopup.selectItem(at: controller.selectedIndex)
         formatPopup.target = self
         formatPopup.action = #selector(changeFormat(_:))
-        formatPopup.setAccessibilityLabel(String(localized: "形式"))
-        let row = NSStackView(views: [NSTextField(labelWithString: String(localized: "形式")), formatPopup])
+        formatPopup.setAccessibilityLabel(String(localized: "フォーマット"))
+        let row = NSStackView(views: [NSTextField(labelWithString: String(localized: "フォーマット")), formatPopup])
         row.spacing = 12
         let note = NSTextField(labelWithString: String(localized: "暗号化はできません"))
         note.textColor = .secondaryLabelColor

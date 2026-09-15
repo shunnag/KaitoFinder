@@ -17,7 +17,7 @@ nonisolated enum ArchiveCreationTransaction {
             throw WriterError.invalidPath(plan.destination.absoluteString)
         }
         if let existing = plan.existing, isSameFile(existing.url, plan.destination) {
-            throw ExtractionFailure.refused(String(localized: "元の書庫とは別の保存先を選んでください"))
+            throw ExtractionFailure.refused(String(localized: "元のアーカイブとは別の保存先を選んでください。"))
         }
         progress.totalUnitCount = Int64(imported.items.count + (plan.existing?.entries.count ?? 0) + 1)
         progress.completedUnitCount = 0

@@ -12,12 +12,12 @@ nonisolated struct EntryReadCapability: Sendable {
         // 表示だけを翻訳し、判定とテストには enum の値を使う。
         func message(bundle: Bundle = .main) -> String {
             switch self {
-            case .directory: String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません", bundle: bundle)
-            case .incomplete: String(localized: "不完全な項目は内容を検証できないため開けません", bundle: bundle)
-            case .linkOrSpecial: String(localized: "リンクまたは特殊な項目は単独で開けません", bundle: bundle)
-            case .missingEntry: String(localized: "選択した項目が見つかりません", bundle: bundle)
-            case .unsupportedMethod(let method): String(localized: "未対応の圧縮方式です: \(method)", bundle: bundle)
-            case .invalidPath: String(localized: "項目のパスが安全ではないため開けません", bundle: bundle)
+            case .directory: String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません。", bundle: bundle)
+            case .incomplete: String(localized: "不完全な項目は内容を検証できないため開けません。", bundle: bundle)
+            case .linkOrSpecial: String(localized: "リンクまたは特殊な項目は単独で開けません。", bundle: bundle)
+            case .missingEntry: String(localized: "選択した項目が見つかりません。", bundle: bundle)
+            case .unsupportedMethod(let method): String(localized: "未対応の圧縮方式です: \(method)。", bundle: bundle)
+            case .invalidPath: String(localized: "項目のパスが安全ではないため開けません。", bundle: bundle)
             }
         }
     }

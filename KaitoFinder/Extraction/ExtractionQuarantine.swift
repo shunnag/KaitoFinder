@@ -19,7 +19,7 @@ nonisolated enum ExtractionQuarantine {
             if count >= 0 { return Data(data.prefix(count)) }
             if errno != ERANGE { throw ExtractionFailure.system(errno) }
         }
-        throw ExtractionFailure.refused("quarantine 属性が読み取り中に変化しました")
+        throw ExtractionFailure.refused(String(localized: "quarantine属性が読み取り中に変化しました。"))
     }
 
     static func apply(_ data: Data?, to url: URL) throws {

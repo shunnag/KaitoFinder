@@ -69,7 +69,7 @@
         }
       }
     },
-    "新規書庫の既定形式" : {
+    "新規アーカイブの既定形式" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -81,7 +81,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新規書庫の既定形式"
+            "value" : "新規アーカイブの既定形式"
           }
         }
       }
@@ -137,7 +137,7 @@
         }
       }
     },
-    "圧縮済みのファイル(zip・jpg・mp4 など)は無圧縮で格納" : {
+    "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -149,12 +149,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "圧縮済みのファイル(zip・jpg・mp4 など)は無圧縮で格納"
+            "value" : "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納"
           }
         }
       }
     },
-    "gzip レベル" : {
+    "gzipレベル" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -166,12 +166,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "gzip レベル"
+            "value" : "gzipレベル"
           }
         }
       }
     },
-    "所有者 ID(uid / gid)を保存" : {
+    "所有者ID(uid / gid)を保存" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -183,12 +183,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所有者 ID(uid / gid)を保存"
+            "value" : "所有者ID(uid / gid)を保存"
           }
         }
       }
     },
-    "7z は LZMA2、LHA は -lh5- 固定です" : {
+    "7zはLZMA2、LHAは-lh5-固定です" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -200,7 +200,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "7z は LZMA2、LHA は -lh5- 固定です"
+            "value" : "7zはLZMA2、LHAは-lh5-固定です"
           }
         }
       }
@@ -239,7 +239,7 @@
         }
       }
     },
-    "書庫と同じフォルダ" : {
+    "アーカイブと同じフォルダ" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -251,7 +251,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫と同じフォルダ"
+            "value" : "アーカイブと同じフォルダ"
           }
         }
       }
@@ -324,7 +324,7 @@
         }
       }
     },
-    "展開後に書庫をゴミ箱に入れる" : {
+    "展開後にアーカイブをゴミ箱に入れる" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -336,7 +336,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "展開後に書庫をゴミ箱に入れる"
+            "value" : "展開後にアーカイブをゴミ箱に入れる"
           }
         }
       }
@@ -375,19 +375,19 @@
         }
       }
     },
-    "書庫を Finder に表示" : {
+    "アーカイブをFinderに表示" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Show Archive in Finder"
+            "value" : "Reveal Archive in Finder"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫を Finder に表示"
+            "value" : "アーカイブをFinderに表示"
           }
         }
       }
@@ -409,19 +409,19 @@
         }
       }
     },
-    "展開する項目の型情報を取得できません: %@" : {
+    "展開する項目の型情報を取得できません: %@。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Could not get type information for the item to extract: %@"
+            "value" : "Could not get type information for the item to extract: %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "展開する項目の型情報を取得できません: %@"
+            "value" : "展開する項目の型情報を取得できません: %@。"
           }
         }
       }
@@ -460,7 +460,7 @@
         }
       }
     },
-    "同じ場所です" : {
+    "同じ場所です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -472,12 +472,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同じ場所です"
+            "value" : "同じ場所です。"
           }
         }
       }
     },
-    "フォルダを自分自身の中へは移動できません" : {
+    "フォルダを自分自身の中へは移動できません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -489,12 +489,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フォルダを自分自身の中へは移動できません"
+            "value" : "フォルダを自分自身の中へは移動できません。"
           }
         }
       }
     },
-    "移動先のフォルダが見つかりません" : {
+    "移動先のフォルダが見つかりません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -506,24 +506,24 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移動先のフォルダが見つかりません"
+            "value" : "移動先のフォルダが見つかりません。"
           }
         }
       }
     },
-    "書庫を作成できませんでした" : {
+    "アーカイブを作成できませんでした" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The archive could not be created."
+            "value" : "The archive could not be created"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫を作成できませんでした"
+            "value" : "アーカイブを作成できませんでした"
           }
         }
       }
@@ -562,7 +562,7 @@
         }
       }
     },
-    "新規書庫…" : {
+    "新規アーカイブ…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -574,7 +574,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新規書庫…"
+            "value" : "新規アーカイブ…"
           }
         }
       }
@@ -596,7 +596,7 @@
         }
       }
     },
-    "書庫にする項目を選んでください" : {
+    "アーカイブにする項目を選んでください" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -608,12 +608,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫にする項目を選んでください"
+            "value" : "アーカイブにする項目を選んでください"
           }
         }
       }
     },
-    "形式" : {
+    "フォーマット" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -625,7 +625,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "形式"
+            "value" : "フォーマット"
           }
         }
       }
@@ -647,7 +647,7 @@
         }
       }
     },
-    "書庫を作成しています" : {
+    "アーカイブを作成しています" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -659,7 +659,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫を作成しています"
+            "value" : "アーカイブを作成しています"
           }
         }
       }
@@ -681,24 +681,24 @@
         }
       }
     },
-    "この %@ 書庫は変更できません" : {
+    "この%@アーカイブは変更できません" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This %@ archive cannot be modified."
+            "value" : "This %@ archive cannot be modified"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この %@ 書庫は変更できません"
+            "value" : "この%@アーカイブは変更できません"
           }
         }
       }
     },
-    "中身と追加する項目で新しい書庫を作れます。元の書庫は変わりません。" : {
+    "中身と追加する項目で新しいアーカイブを作れます。元のアーカイブは変わりません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -710,12 +710,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中身と追加する項目で新しい書庫を作れます。元の書庫は変わりません。"
+            "value" : "中身と追加する項目で新しいアーカイブを作れます。元のアーカイブは変わりません。"
           }
         }
       }
     },
-    "元の書庫は暗号化されていますが、新しい書庫は暗号化されません。" : {
+    "元のアーカイブは暗号化されていますが、新しいアーカイブは暗号化されません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -727,12 +727,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元の書庫は暗号化されていますが、新しい書庫は暗号化されません。"
+            "value" : "元のアーカイブは暗号化されていますが、新しいアーカイブは暗号化されません。"
           }
         }
       }
     },
-    "新しい書庫を作成…" : {
+    "新規アーカイブを作成…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -744,12 +744,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新しい書庫を作成…"
+            "value" : "新規アーカイブを作成…"
           }
         }
       }
     },
-    "元の書庫とは別の保存先を選んでください" : {
+    "元のアーカイブとは別の保存先を選んでください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -761,7 +761,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "元の書庫とは別の保存先を選んでください"
+            "value" : "元のアーカイブとは別の保存先を選んでください。"
           }
         }
       }
@@ -851,7 +851,7 @@
         }
       }
     },
-    "編集すると書庫全体を再圧縮します" : {
+    "編集するとアーカイブ全体を再圧縮します" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -863,12 +863,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "編集すると書庫全体を再圧縮します"
+            "value" : "編集するとアーカイブ全体を再圧縮します"
           }
         }
       }
     },
-    "暗号化された書庫は、編集すると暗号化が外れるため変更できません" : {
+    "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -880,12 +880,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "暗号化された書庫は、編集すると暗号化が外れるため変更できません"
+            "value" : "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。"
           }
         }
       }
     },
-    "この書庫には、書き直せない項目があります。%@" : {
+    "このアーカイブには、書き直せない項目があります。%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -897,7 +897,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この書庫には、書き直せない項目があります。%@"
+            "value" : "このアーカイブには、書き直せない項目があります。%@"
           }
         }
       }
@@ -932,23 +932,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名称未設定フォルダ"
-          }
-        }
-      }
-    },
-    "名前で絞り込む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filter by Name"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "名前で絞り込む"
           }
         }
       }
@@ -1027,7 +1010,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Could not forget saved passwords."
+            "value" : "Could not forget saved passwords"
           }
         },
         "ja" : {
@@ -1038,7 +1021,7 @@
         }
       }
     },
-    "%lld / %lld 項目" : {
+    "%lld / %lld項目" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1050,7 +1033,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld / %lld 項目"
+            "value" : "%lld / %lld項目"
           }
         }
       }
@@ -1191,7 +1174,7 @@
         }
       }
     },
-    "この項目を開くアプリケーションが見つからないか、起動できませんでした" : {
+    "この項目を開くアプリケーションが見つからないか、起動できませんでした。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1203,7 +1186,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この項目を開くアプリケーションが見つからないか、起動できませんでした"
+            "value" : "この項目を開くアプリケーションが見つからないか、起動できませんでした。"
           }
         }
       }
@@ -1344,7 +1327,7 @@
         }
       }
     },
-    "フォルダはプレビューまたは外部アプリケーションで開けません" : {
+    "フォルダはプレビューまたは外部アプリケーションで開けません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1356,7 +1339,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フォルダはプレビューまたは外部アプリケーションで開けません"
+            "value" : "フォルダはプレビューまたは外部アプリケーションで開けません。"
           }
         }
       }
@@ -1378,7 +1361,7 @@
         }
       }
     },
-    "リンクまたは特殊な項目は単独で開けません" : {
+    "リンクまたは特殊な項目は単独で開けません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1390,12 +1373,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "リンクまたは特殊な項目は単独で開けません"
+            "value" : "リンクまたは特殊な項目は単独で開けません。"
           }
         }
       }
     },
-    "不完全な項目は内容を検証できないため開けません" : {
+    "不完全な項目は内容を検証できないため開けません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1407,7 +1390,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不完全な項目は内容を検証できないため開けません"
+            "value" : "不完全な項目は内容を検証できないため開けません。"
           }
         }
       }
@@ -1514,7 +1497,7 @@
         }
       }
     },
-    "拡大／縮小" : {
+    "拡大/縮小" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1526,7 +1509,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "拡大／縮小"
+            "value" : "拡大/縮小"
           }
         }
       }
@@ -1548,7 +1531,7 @@
         }
       }
     },
-    "暗号化された項目にはパスワードが必要です" : {
+    "暗号化された項目にはパスワードが必要です。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1560,7 +1543,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "暗号化された項目にはパスワードが必要です"
+            "value" : "暗号化された項目にはパスワードが必要です。"
           }
         }
       }
@@ -1582,19 +1565,19 @@
         }
       }
     },
-    "未対応の圧縮方式です: %@" : {
+    "未対応の圧縮方式です: %@。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Unsupported compression method: %@"
+            "value" : "Unsupported compression method: %@."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未対応の圧縮方式です: %@"
+            "value" : "未対応の圧縮方式です: %@。"
           }
         }
       }
@@ -1650,7 +1633,7 @@
         }
       }
     },
-    "選択した項目が見つかりません" : {
+    "選択した項目が見つかりません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1662,7 +1645,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した項目が見つかりません"
+            "value" : "選択した項目が見つかりません。"
           }
         }
       }
@@ -1718,24 +1701,24 @@
         }
       }
     },
-    "開く（読み取り専用のコピー）" : {
+    "開く" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open (Read-Only Copy)"
+            "value" : "Open"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開く（読み取り専用のコピー）"
+            "value" : "開く"
           }
         }
       }
     },
-    "項目のパスが安全ではないため開けません" : {
+    "項目のパスが安全ではないため開けません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1747,7 +1730,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目のパスが安全ではないため開けません"
+            "value" : "項目のパスが安全ではないため開けません。"
           }
         }
       }
@@ -1803,7 +1786,7 @@
         }
       }
     },
-    "項目を追加しましたが、書庫を読み直せませんでした" : {
+    "項目を追加しましたが、アーカイブを読み直せませんでした" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1815,7 +1798,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を追加しましたが、書庫を読み直せませんでした"
+            "value" : "項目を追加しましたが、アーカイブを読み直せませんでした"
           }
         }
       }
@@ -1871,7 +1854,7 @@
         }
       }
     },
-    "この書庫は変更できません" : {
+    "このアーカイブは変更できません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1883,7 +1866,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この書庫は変更できません"
+            "value" : "このアーカイブは変更できません。"
           }
         }
       }
@@ -1922,7 +1905,7 @@
         }
       }
     },
-    "別の操作が完了するまでお待ちください" : {
+    "別の操作が完了するまでお待ちください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1934,7 +1917,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "別の操作が完了するまでお待ちください"
+            "value" : "別の操作が完了するまでお待ちください。"
           }
         }
       }
@@ -2024,7 +2007,7 @@
         }
       }
     },
-    "同じ項目への変更が重複しています" : {
+    "同じ項目への変更が重複しています。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2036,7 +2019,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "同じ項目への変更が重複しています"
+            "value" : "同じ項目への変更が重複しています。"
           }
         }
       }
@@ -2075,7 +2058,7 @@
         }
       }
     },
-    "書庫が閉じられています" : {
+    "アーカイブが閉じられています。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2087,12 +2070,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫が閉じられています"
+            "value" : "アーカイブが閉じられています。"
           }
         }
       }
     },
-    "選択した項目が変更されています。書庫を開き直してください" : {
+    "選択した項目が変更されています。アーカイブを開き直してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2104,12 +2087,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した項目が変更されています。書庫を開き直してください"
+            "value" : "選択した項目が変更されています。アーカイブを開き直してください。"
           }
         }
       }
     },
-    "選択した項目と書庫内の項目が一致しません。書庫を開き直してください" : {
+    "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2121,7 +2104,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択した項目と書庫内の項目が一致しません。書庫を開き直してください"
+            "value" : "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。"
           }
         }
       }
@@ -2160,19 +2143,19 @@
         }
       }
     },
-    "項目を変更しましたが、書庫を読み直せませんでした" : {
+    "項目を変更しましたが、アーカイブを読み直せませんでした" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The items were changed, but the archive could not be reloaded."
+            "value" : "The items were changed, but the archive could not be reloaded"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "項目を変更しましたが、書庫を読み直せませんでした"
+            "value" : "項目を変更しましたが、アーカイブを読み直せませんでした"
           }
         }
       }
@@ -2183,7 +2166,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The items could not be changed."
+            "value" : "The items could not be changed"
           }
         },
         "ja" : {
@@ -2194,7 +2177,7 @@
         }
       }
     },
-    "書庫のパスワードを入力してください" : {
+    "アーカイブのパスワードを入力してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2206,12 +2189,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫のパスワードを入力してください"
+            "value" : "アーカイブのパスワードを入力してください。"
           }
         }
       }
     },
-    "パスワードが違います。もう一度入力してください" : {
+    "パスワードが違います。もう一度入力してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2223,12 +2206,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "パスワードが違います。もう一度入力してください"
+            "value" : "パスワードが違います。もう一度入力してください。"
           }
         }
       }
     },
-    "書庫が変更されています。開き直してください" : {
+    "アーカイブが変更されています。開き直してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2240,12 +2223,12 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫が変更されています。開き直してください"
+            "value" : "アーカイブが変更されています。開き直してください。"
           }
         }
       }
     },
-    "変更は保存されましたが、書庫を読み直せませんでした。書庫を開き直してください" : {
+    "変更は保存されましたが、アーカイブを読み直せませんでした。アーカイブを開き直してください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2257,7 +2240,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "変更は保存されましたが、書庫を読み直せませんでした。書庫を開き直してください"
+            "value" : "変更は保存されましたが、アーカイブを読み直せませんでした。アーカイブを開き直してください。"
           }
         }
       }
@@ -2279,7 +2262,7 @@
         }
       }
     },
-    "書庫のロックを解除" : {
+    "アーカイブのロックを解除" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2291,7 +2274,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "書庫のロックを解除"
+            "value" : "アーカイブのロックを解除"
           }
         }
       }
@@ -2313,7 +2296,7 @@
         }
       }
     },
-    "この書庫はロックされています。パスワードを入力すると一覧を表示できます" : {
+    "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -2325,7 +2308,1078 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この書庫はロックされています。パスワードを入力すると一覧を表示できます"
+            "value" : "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます"
+          }
+        }
+      }
+    },
+    "quarantine属性が読み取り中に変化しました。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The quarantine attribute changed while it was being read."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quarantine属性が読み取り中に変化しました。"
+          }
+        }
+      }
+    },
+    "出力先はfile URLが必要です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination must be a file URL."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出力先はfile URLが必要です。"
+          }
+        }
+      }
+    },
+    "部分木の外の項目です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The item is outside the selected folder tree."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分木の外の項目です。"
+          }
+        }
+      }
+    },
+    "選択がこのアーカイブのentryと一致しません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selection does not match an entry in this archive."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択がこのアーカイブのentryと一致しません。"
+          }
+        }
+      }
+    },
+    "重複する出力名です（アーカイブ順で最初のentryを優先）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The output name is duplicated. The first entry in archive order takes precedence."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重複する出力名です（アーカイブ順で最初のentryを優先）。"
+          }
+        }
+      }
+    },
+    "rootがフォルダではありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The root item is not a folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootがフォルダではありません。"
+          }
+        }
+      }
+    },
+    "シンボリックリンクのtargetが長すぎます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The symbolic link target is too long."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンボリックリンクのtargetが長すぎます。"
+          }
+        }
+      }
+    },
+    "リンクのtargetがUTF-8ではありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The link target is not valid UTF-8."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクのtargetがUTF-8ではありません。"
+          }
+        }
+      }
+    },
+    "リンクのtargetがありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The link has no target."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リンクのtargetがありません。"
+          }
+        }
+      }
+    },
+    "同じreaderとrootで先に展開したhard link targetがありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The hard link target has not been extracted by the same reader into the same destination."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じreaderとrootで先に展開したhard link targetがありません。"
+          }
+        }
+      }
+    },
+    "このentryの種類は展開できません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This entry type cannot be extracted."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このentryの種類は展開できません。"
+          }
+        }
+      }
+    },
+    "ディレクトリ属性: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directory attributes: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ディレクトリ属性: %@。"
+          }
+        }
+      }
+    },
+    "出力先の実パスを解決できません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination’s real path could not be resolved."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出力先の実パスを解決できません。"
+          }
+        }
+      }
+    },
+    "出力先の外へ解決されるパスです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The path resolves outside the destination."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出力先の外へ解決されるパスです。"
+          }
+        }
+      }
+    },
+    "出力先に既存の項目があります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An item already exists at the destination."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出力先に既存の項目があります。"
+          }
+        }
+      }
+    },
+    "シンボリックリンクのtargetが空またはNULを含みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The symbolic link target is empty or contains a null character."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンボリックリンクのtargetが空またはNULを含みます。"
+          }
+        }
+      }
+    },
+    "シンボリックリンクのtargetが安全な出力先へ解決されません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The symbolic link target does not resolve to a safe destination."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンボリックリンクのtargetが安全な出力先へ解決されません。"
+          }
+        }
+      }
+    },
+    "シンボリックリンクが自分自身を参照します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The symbolic link refers to itself."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンボリックリンクが自分自身を参照します。"
+          }
+        }
+      }
+    },
+    "hard link targetのinodeが展開時と一致しません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The hard link target’s inode has changed since extraction."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hard link targetのinodeが展開時と一致しません。"
+          }
+        }
+      }
+    },
+    "変更日時が範囲外です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The modification date is out of range."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更日時が範囲外です。"
+          }
+        }
+      }
+    },
+    "クリップボードへ書き込めません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The clipboard could not be written to."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボードへ書き込めません。"
+          }
+        }
+      }
+    },
+    "一時領域はfile URLが必要です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary directory must be a file URL."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時領域はfile URLが必要です。"
+          }
+        }
+      }
+    },
+    "一時領域は現在のユーザー専用の実ディレクトリが必要です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The temporary directory must be a real directory accessible only to the current user."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時領域は現在のユーザー専用の実ディレクトリが必要です。"
+          }
+        }
+      }
+    },
+    "パスにNULがあります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The path contains a null character."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスにNULがあります。"
+          }
+        }
+      }
+    },
+    "パスに..成分があります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The path contains a parent-directory component."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスに..成分があります。"
+          }
+        }
+      }
+    },
+    "パスに有効な名前がありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The path has no valid name."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスに有効な名前がありません。"
+          }
+        }
+      }
+    },
+    "安全でない追加先パスです: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The path to add items to is unsafe: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安全でない追加先パスです: %@。"
+          }
+        }
+      }
+    },
+    "追加先フォルダが見つからないか、ファイルと衝突しています: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination folder could not be found or conflicts with a file: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加先フォルダが見つからないか、ファイルと衝突しています: %@。"
+          }
+        }
+      }
+    },
+    "追加元はfile URLが必要です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The source must be a file URL."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加元はfile URLが必要です。"
+          }
+        }
+      }
+    },
+    "同じ名前の項目が既にあります: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An item with this name already exists: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ名前の項目が既にあります: %@。"
+          }
+        }
+      }
+    },
+    "この種類のファイルは追加できません: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This type of file cannot be added: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この種類のファイルは追加できません: %@。"
+          }
+        }
+      }
+    },
+    "promiseの出力が一時領域の外を指しています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The promised file is outside the temporary directory."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "promiseの出力が一時領域の外を指しています。"
+          }
+        }
+      }
+    },
+    "この名前には変更できません: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The item cannot be renamed to this name: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この名前には変更できません: %@。"
+          }
+        }
+      }
+    },
+    "同じ場所です: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The item is already in this location: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ場所です: %@。"
+          }
+        }
+      }
+    },
+    "フォルダを自分自身の中へは移動できません: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A folder cannot be moved into itself or one of its subfolders: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを自分自身の中へは移動できません: %@。"
+          }
+        }
+      }
+    },
+    "移動先のフォルダが見つかりません: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The destination folder could not be found: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動先のフォルダが見つかりません: %@。"
+          }
+        }
+      }
+    },
+    "処理中にアーカイブが別の操作で変更されました。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another operation changed the archive while it was being processed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "処理中にアーカイブが別の操作で変更されました。"
+          }
+        }
+      }
+    },
+    "アーカイブの原本を確認できません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original archive could not be verified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブの原本を確認できません。"
+          }
+        }
+      }
+    },
+    "アーカイブを変更しています。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive is being modified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブを変更しています。"
+          }
+        }
+      }
+    },
+    "変更後のアーカイブを読み直せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The modified archive could not be reloaded."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更後のアーカイブを読み直せませんでした。"
+          }
+        }
+      }
+    },
+    "選択した項目のアーカイブが一致しません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected items belong to a different archive."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目のアーカイブが一致しません。"
+          }
+        }
+      }
+    },
+    "選択したフォルダが見つかりません: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected folder could not be found: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したフォルダが見つかりません: %@。"
+          }
+        }
+      }
+    },
+    "選択した項目が見つからないか、同名の項目があります: %@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected item could not be found or multiple items have the same name: %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目が見つからないか、同名の項目があります: %@。"
+          }
+        }
+      }
+    },
+    "%@アーカイブは変更できません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ archives cannot be modified."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@アーカイブは変更できません。"
+          }
+        }
+      }
+    },
+    "SFX付きZIPは安全に変更できません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ZIP archives with an SFX prefix cannot be modified safely. %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SFX付きZIPは安全に変更できません。%@"
+          }
+        }
+      }
+    },
+    "このZIPは終端の後ろに追加データがあり、安全に変更できません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This ZIP archive has data after its end and cannot be modified safely. %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このZIPは終端の後ろに追加データがあり、安全に変更できません。%@"
+          }
+        }
+      }
+    },
+    "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This ZIP archive has an invalid central directory offset, which can occur when items larger than 4 GiB are stored without ZIP64. It cannot be modified safely. %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。%@"
+          }
+        }
+      }
+    },
+    "このアーカイブは変更できません。%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This archive cannot be modified. %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアーカイブは変更できません。%@"
+          }
+        }
+      }
+    },
+    "アーカイブまたは親フォルダへの書き込み権限がありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You do not have permission to write to the archive or its parent folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブまたは親フォルダへの書き込み権限がありません。"
+          }
+        }
+      }
+    },
+    "サービス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Services"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービス"
+          }
+        }
+      }
+    },
+    "KaitoFinderを隠す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide KaitoFinder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinderを隠す"
+          }
+        }
+      }
+    },
+    "ほかを隠す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Others"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ほかを隠す"
+          }
+        }
+      }
+    },
+    "すべてを表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを表示"
+          }
+        }
+      }
+    },
+    "最近使った項目を開く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Recent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近使った項目を開く"
+          }
+        }
+      }
+    },
+    "メニューを消去" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Menu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メニューを消去"
+          }
+        }
+      }
+    },
+    "すべてを選択" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを選択"
+          }
+        }
+      }
+    },
+    "すべてを手前に移動" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bring All to Front"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを手前に移動"
+          }
+        }
+      }
+    },
+    "ヘルプ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Help"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ヘルプ"
+          }
+        }
+      }
+    },
+    "KaitoFinderヘルプ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinder Help"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinderヘルプ"
+          }
+        }
+      }
+    },
+    "KaitoFinder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinder"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KaitoFinder"
+          }
+        }
+      }
+    },
+    "項目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "item"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "項目"
+          }
+        }
+      }
+    },
+    "%@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。"
+          }
+        }
+      }
+    },
+    "POSIX %d: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "POSIX %d: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "POSIX %d: %@"
           }
         }
       }

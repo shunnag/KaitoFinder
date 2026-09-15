@@ -698,7 +698,12 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
             if language == "en" {
                 XCTAssertEqual(required.alert.messageText, "Unlock Archive")
                 XCTAssertEqual(required.field.placeholderString, "Password")
+                XCTAssertEqual(required.alert.informativeText, "Enter the archive password.")
                 XCTAssertEqual(incorrect.alert.informativeText, "The password is incorrect. Please try again.")
+            } else {
+                XCTAssertEqual(required.alert.messageText, "アーカイブのロックを解除")
+                XCTAssertEqual(required.alert.informativeText, "アーカイブのパスワードを入力してください。")
+                XCTAssertEqual(incorrect.alert.informativeText, "パスワードが違います。もう一度入力してください。")
             }
         }
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()

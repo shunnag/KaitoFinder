@@ -20,7 +20,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
             .map { String(decoding: $0, as: UTF8.self) }
         guard !parts.isEmpty, !parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." || $0.contains("\\") || $0.contains("\0") }),
               !(parts.first?.contains(":") ?? false) else {
-            throw ExtractionFailure.refused("安全でない追加先パスです: \(raw)")
+            throw ExtractionFailure.refused(String(localized: "安全でない追加先パスです: \(raw)。"))
         }
         return raw.precomposedStringWithCanonicalMapping
     }
@@ -40,32 +40,32 @@ nonisolated struct ArchiveImportPlan: Sendable {
             let parts = target.split(separator: "/")
             let ancestors = (1...parts.count).map { parts.prefix($0).joined(separator: "/") }
             guard occupied.contains(target), !ancestors.contains(where: files.contains) else {
-                throw ExtractionFailure.refused("追加先フォルダが見つからないか、ファイルと衝突しています: \(target)")
+                throw ExtractionFailure.refused(String(localized: "追加先フォルダが見つからないか、ファイルと衝突しています: \(target)。"))
             }
         }
         var plan = Self()
         for url in urls {
             try checkCancellation(progress)
             do {
-                guard url.isFileURL else { throw ExtractionFailure.refused("追加元は file URL が必要です") }
+                guard url.isFileURL else { throw ExtractionFailure.refused(String(localized: "追加元はfile URLが必要です。")) }
                 let leaf = try path(url.lastPathComponent)
                 let rootPath = target.isEmpty ? leaf : target + "/" + leaf
                 // 仮想フォルダとの衝突も拒否する。フォルダの暗黙の併合は行わない。
                 guard !occupied.contains(rootPath) else {
-                    throw ExtractionFailure.refused("同じ名前の項目が既にあります: \(rootPath)")
+                    throw ExtractionFailure.refused(String(localized: "同じ名前の項目が既にあります: \(rootPath)。"))
                 }
                 var pending = [(url, rootPath)], batch: [Item] = [], names = Set<String>()
                 while let (source, name) = pending.popLast() {
                     try checkCancellation(progress)
                     let key = try path(name)
                     guard names.insert(key).inserted, !occupied.contains(key) else {
-                        throw ExtractionFailure.refused("同じ名前の項目が既にあります: \(key)")
+                        throw ExtractionFailure.refused(String(localized: "同じ名前の項目が既にあります: \(key)。"))
                     }
                     var info = stat()
                     guard lstat(source.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
                     let kind = info.st_mode & S_IFMT
                     guard kind == S_IFREG || kind == S_IFDIR || kind == S_IFLNK else {
-                        throw ExtractionFailure.refused("この種類のファイルは追加できません: \(source.lastPathComponent)")
+                        throw ExtractionFailure.refused(String(localized: "この種類のファイルは追加できません: \(source.lastPathComponent)。"))
                     }
                     batch.append(Item(url: source, path: key, isDirectory: kind == S_IFDIR))
                     // リンクを再帰しない。writer が lstat でリンク自体を保存する。

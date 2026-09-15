@@ -40,14 +40,14 @@ nonisolated struct ExtractionTemporaryDirectory {
     }
 
     private func openRoot() throws -> Int32 {
-        guard root.isFileURL else { throw ExtractionFailure.refused("一時領域は file URL が必要です") }
+        guard root.isFileURL else { throw ExtractionFailure.refused(String(localized: "一時領域はfile URLが必要です。")) }
         if mkdir(root.path, 0o700) != 0, errno != EEXIST { throw ExtractionFailure.system(errno) }
         let directory = open(root.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard directory >= 0 else { throw ExtractionFailure.system(errno) }
         var info = stat()
         guard fstat(directory, &info) == 0, info.st_uid == geteuid(), info.st_mode & 0o077 == 0 else {
             close(directory)
-            throw ExtractionFailure.refused("一時領域は現在のユーザー専用の実ディレクトリが必要です")
+            throw ExtractionFailure.refused(String(localized: "一時領域は現在のユーザー専用の実ディレクトリが必要です。"))
         }
         return directory
     }

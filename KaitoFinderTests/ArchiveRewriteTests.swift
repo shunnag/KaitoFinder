@@ -114,7 +114,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertTrue(capability.canAppend, file: file, line: line)
         XCTAssertNil(capability.refusal, file: file, line: line)
         XCTAssertNil(capability.readOnlyReason, file: file, line: line)
-        XCTAssertEqual(capability.rewriteNotice, String(localized: "編集すると書庫全体を再圧縮します"), file: file, line: line)
+        XCTAssertEqual(capability.rewriteNotice, String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
         XCTAssertEqual(try digest(fixture.archive), before, file: file, line: line)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted(), files,
                        file: file, line: line)
@@ -146,7 +146,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             XCTAssertNil(capability.mode)
             XCTAssertFalse(capability.canAppend)
             XCTAssertNil(capability.rewriteNotice)
-            XCTAssertEqual(capability.readOnlyReason, "\(name) 書庫は変更できません")
+            XCTAssertEqual(capability.readOnlyReason, String(localized: "\(name)アーカイブは変更できません。"))
         }
     }
 
@@ -203,7 +203,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertNil(capability.mode)
         XCTAssertFalse(capability.canAppend)
         XCTAssertNil(capability.rewriteNotice)
-        XCTAssertEqual(capability.readOnlyReason, String(localized: "暗号化された書庫は、編集すると暗号化が外れるため変更できません"))
+        XCTAssertEqual(capability.readOnlyReason, String(localized: "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。"))
         XCTAssertEqual(try digest(archive), original)
         try assertNoWorkDirectory(directory.url)
     }
@@ -284,7 +284,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             defer { XCTAssertEqual(chmod(parent.path, 0o700), 0) }
             let capability = ArchiveCapabilities.inspect(url: archive, format: format)
             guard case .unavailable(let reason) = capability.refusal else { return XCTFail("\(capability)") }
-            XCTAssertEqual(reason, "書庫または親フォルダへの書き込み権限がありません")
+            XCTAssertEqual(reason, String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。"))
             XCTAssertNil(capability.mode)
             XCTAssertFalse(capability.canAppend)
         }
@@ -306,7 +306,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertEqual(capability.refusal, .unrepresentable(reason))
         XCTAssertNil(capability.mode)
         XCTAssertNil(capability.rewriteNotice)
-        XCTAssertEqual(capability.readOnlyReason, String(localized: "この書庫には、書き直せない項目があります。\(reason)"))
+        XCTAssertEqual(capability.readOnlyReason, String(localized: "このアーカイブには、書き直せない項目があります。\(reason)"))
         XCTAssertEqual(try digest(archive), before)
         try assertNoWorkDirectory(directory.url)
     }
@@ -682,8 +682,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     }
 
     @MainActor func testWindowRewriteNoticeContainsRecompressionAndZIPDoesNot() async throws {
-        let notice = String(localized: "編集すると書庫全体を再圧縮します")
-        let lockText = String(localized: "この書庫はロックされています。パスワードを入力すると一覧を表示できます")
+        let notice = String(localized: "編集するとアーカイブ全体を再圧縮します")
+        let lockText = String(localized: "このアーカイブはロックされています。パスワードを入力すると一覧を表示できます")
         let controller = ArchiveWindowController()
         defer { controller.close() }
         controller.displayLocked()
@@ -727,9 +727,9 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
         XCTAssertNil(strings["ファイルやフォルダをドラッグ、またはペーストして追加できます"])
-        XCTAssertNil(strings["プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更は書庫に保存されません。"])
-        for key in ["編集すると書庫全体を再圧縮します", "暗号化された書庫は、編集すると暗号化が外れるため変更できません",
-                    "この書庫には、書き直せない項目があります。%@"] {
+        XCTAssertNil(strings["プレビュー・外部アプリで開く項目は読み取り専用の一時コピーです。変更はアーカイブに保存されません。"])
+        for key in ["編集するとアーカイブ全体を再圧縮します", "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。",
+                    "このアーカイブには、書き直せない項目があります。%@"] {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
             let localizations = try XCTUnwrap(entry["localizations"] as? [String: Any])
             let japanese = try XCTUnwrap(localizations["ja"] as? [String: Any])

@@ -45,8 +45,8 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertEqual(toolbar.displayMode, .iconOnly)
         XCTAssertEqual(window.toolbarStyle, .unified)
         let search = controller.searchField
-        XCTAssertEqual(search.placeholderString, String(localized: "名前で絞り込む"))
-        XCTAssertEqual(search.accessibilityLabel(), String(localized: "名前で絞り込む"))
+        XCTAssertEqual(search.placeholderString, String(localized: "検索"))
+        XCTAssertEqual(search.accessibilityLabel(), String(localized: "検索"))
         XCTAssertTrue(search.target === controller)
         XCTAssertEqual(search.action, #selector(ArchiveWindowController.filterEntries(_:)))
         XCTAssertTrue(search.sendsSearchStringImmediately)
@@ -97,7 +97,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         let blank = try XCTUnwrap(view.contextMenu(forRow: -1))
         XCTAssertTrue(blank === view.blankAreaMenu)
         XCTAssertEqual(blank.items.map(\.title), [String(localized: "新規フォルダ"), String(localized: "ペースト"), "",
-            String(localized: "すべて展開…"), "", String(localized: "新規書庫…"), String(localized: "書庫を Finder に表示")])
+            String(localized: "すべて展開…"), "", String(localized: "新規アーカイブ…"), String(localized: "アーカイブをFinderに表示")])
         XCTAssertEqual(blank.items.map(\.isSeparatorItem), [false, false, true, false, true, false, false])
         XCTAssertEqual(blank.items.map(\.action), [#selector(ArchiveWindowController.newFolder(_:)),
             #selector(ArchiveWindowController.paste(_:)), nil, #selector(ArchiveWindowController.extractAll(_:)), nil,

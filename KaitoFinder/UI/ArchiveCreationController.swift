@@ -27,7 +27,7 @@ final class ArchiveCreationController {
         try ArchiveImportPlan.checkCancellation(progress)
         let plan = creationPlan(sources: sources, destination: destination,
                                 format: save.controller.format, existing: existing)
-        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "書庫を作成しています"))
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "アーカイブを作成しています"))
         progressSheet = sheet
         defer { sheet.finish(); progressSheet = nil }
         if let parent { sheet.begin(on: parent) }
@@ -47,8 +47,8 @@ final class ArchiveCreationController {
     static func presentFailure(_ error: any Error) {
         // ExtractionFailure / WriterError の具体的な理由も AppKit のエラーパネルへ渡す。
         NSApp.presentError(NSError(domain: "com.shunnag.KaitoFinder.creation", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: String(localized: "書庫を作成できませんでした"),
-            NSLocalizedFailureReasonErrorKey: String(describing: error)
+            NSLocalizedDescriptionKey: String(localized: "アーカイブを作成できませんでした"),
+            NSLocalizedFailureReasonErrorKey: ArchiveAlertText.informativeText(String(describing: error))
         ]))
     }
 }
@@ -58,10 +58,10 @@ nonisolated struct ArchiveConversionNotice {
     let informativeText: String
 
     init(formatName: String, entries: [ArchiveEntry], bundle: Bundle = .main) {
-        messageText = String(localized: "この \(formatName) 書庫は変更できません", bundle: bundle)
-        var detail = String(localized: "中身と追加する項目で新しい書庫を作れます。元の書庫は変わりません。", bundle: bundle)
+        messageText = String(localized: "この\(formatName)アーカイブは変更できません", bundle: bundle)
+        var detail = String(localized: "中身と追加する項目で新しいアーカイブを作れます。元のアーカイブは変わりません。", bundle: bundle)
         if entries.contains(where: \.isEncrypted) {
-            detail += "\n\n" + String(localized: "元の書庫は暗号化されていますが、新しい書庫は暗号化されません。", bundle: bundle)
+            detail += "\n\n" + String(localized: "元のアーカイブは暗号化されていますが、新しいアーカイブは暗号化されません。", bundle: bundle)
         }
         informativeText = detail
     }
@@ -72,8 +72,8 @@ nonisolated struct ArchiveConversionNotice {
         case .gatekeeper(.sfxPrefix, _): return String(localized: "SFX ZIP")
         default:
             switch session.format {
-            case .tar: return "tar"
-            case .sevenZip: return "7z"
+            case .tar: return String(localized: "tar")
+            case .sevenZip: return String(localized: "7z")
             default: return session.format.rawValue.uppercased()
             }
         }

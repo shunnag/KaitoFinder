@@ -62,7 +62,7 @@ import AppKit
             return item
         }
         pasteboard.clearContents()
-        guard pasteboard.writeObjects(items) else { throw ExtractionFailure.refused("クリップボードへ書き込めません") }
+        guard pasteboard.writeObjects(items) else { throw ExtractionFailure.refused(String(localized: "クリップボードへ書き込めません。")) }
         return urls
     }
 }

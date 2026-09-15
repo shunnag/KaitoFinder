@@ -44,7 +44,7 @@ import UniformTypeIdentifiers
         let type = promisedType
         // 型サービスが利用できない場合も、AppKit の例外へ渡す前に Swift のエラーにする。
         guard type == .data || type.conforms(to: .data) || type.conforms(to: .directory) else {
-            throw ExtractionFailure.refused(String(localized: "展開する項目の型情報を取得できません: \(type.identifier)"))
+            throw ExtractionFailure.refused(String(localized: "展開する項目の型情報を取得できません: \(type.identifier)。"))
         }
         return NSFilePromiseProvider(fileType: type.identifier, delegate: self)
     }
@@ -52,7 +52,7 @@ import UniformTypeIdentifiers
     // 同一プロセスで受信すると、受信側の OperationQueue からこの二つの delegate メソッドが
     // 呼ばれることを実測。main actor に隔離すると @objc thunk の動的隔離検査で trap する。
     nonisolated func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
-        (try? ExtractionPath.components(payload.path).last) ?? "item"
+        (try? ExtractionPath.components(payload.path).last) ?? String(localized: "項目")
     }
 
     nonisolated func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue { queue }

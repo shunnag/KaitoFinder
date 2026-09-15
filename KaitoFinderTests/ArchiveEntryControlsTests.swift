@@ -425,7 +425,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             for item in [extract, add, search] { XCTAssertTrue(controller.validateToolbarItem(item), item.label) }
             try select(["folder"], in: controller)
             XCTAssertFalse(controller.validateToolbarItem(preview))
-            XCTAssertEqual(preview.toolTip, String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません"))
+            XCTAssertEqual(preview.toolTip, String(localized: "フォルダはプレビューまたは外部アプリケーションで開けません。"))
             try select(["a.txt"], in: controller)
             XCTAssertTrue(controller.validateToolbarItem(preview))
             XCTAssertEqual(preview.toolTip, preview.label)
@@ -607,9 +607,9 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let expected = [
             "選択した項目を展開…": "Extract Selected Items…", "すべて展開…": "Extract All…", "展開": "Extract",
             "項目を展開しています": "Extracting items", "項目を展開できませんでした": "Could not extract items",
-            "追加…": "Add…", "検索": "Search", "書庫を Finder に表示": "Show Archive in Finder",
+            "追加…": "Add…", "検索": "Search", "アーカイブをFinderに表示": "Reveal Archive in Finder",
             "単一ファイルを展開できませんでした": "Could not extract a single file",
-            "展開する項目の型情報を取得できません: %@": "Could not get type information for the item to extract: %@"
+            "展開する項目の型情報を取得できません: %@。": "Could not get type information for the item to extract: %@."
         ]
         for (key, english) in expected {
             let entry = try XCTUnwrap(strings[key] as? [String: Any], key)
@@ -834,13 +834,13 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor func testNewFolderAndFilterStringsHaveExactJapaneseAndEnglishLocalizations() throws {
         let bundle = Bundle(for: ArchiveDocument.self)
         for (language, values) in [
-            ("ja", ["新規フォルダ", "名称未設定フォルダ", "名前で絞り込む", "フォルダを作成しています"]),
-            ("en", ["New Folder", "untitled folder", "Filter by Name", "Creating Folder"])
+            ("ja", ["新規フォルダ", "名称未設定フォルダ", "検索", "フォルダを作成しています"]),
+            ("en", ["New Folder", "untitled folder", "Search", "Creating Folder"])
         ] {
             let localized = try XCTUnwrap(Bundle(url: XCTUnwrap(bundle.url(forResource: language, withExtension: "lproj"))))
             XCTAssertEqual(String(localized: "新規フォルダ", bundle: localized), values[0])
             XCTAssertEqual(String(localized: "名称未設定フォルダ", bundle: localized), values[1])
-            XCTAssertEqual(String(localized: "名前で絞り込む", bundle: localized), values[2])
+            XCTAssertEqual(String(localized: "検索", bundle: localized), values[2])
             XCTAssertEqual(String(localized: "フォルダを作成しています", bundle: localized), values[3])
             let base = values[1], number = 2
             XCTAssertEqual(String(localized: "\(base) \(number)", bundle: localized), base + " 2")
@@ -1094,9 +1094,9 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let bundle = Bundle(for: ArchiveDocument.self)
         let translations = [
             ("移動", "Move"), ("項目を移動しています", "Moving Items"),
-            ("同じ場所です", "The items are already in this folder."),
-            ("フォルダを自分自身の中へは移動できません", "A folder cannot be moved into itself or one of its subfolders."),
-            ("移動先のフォルダが見つかりません", "The destination folder could not be found.")
+            ("同じ場所です。", "The items are already in this folder."),
+            ("フォルダを自分自身の中へは移動できません。", "A folder cannot be moved into itself or one of its subfolders."),
+            ("移動先のフォルダが見つかりません。", "The destination folder could not be found.")
         ]
         for language in ["ja", "en"] {
             let localized = try XCTUnwrap(Bundle(url: XCTUnwrap(bundle.url(forResource: language, withExtension: "lproj"))))

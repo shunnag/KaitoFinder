@@ -71,7 +71,7 @@ final class ExtractionProgressSheet: NSWindowController {
 
     private func refresh() {
         indicator.doubleValue = progress.fractionCompleted
-        status.stringValue = String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount) 項目")
+        status.stringValue = String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目")
     }
 
     @objc func cancelExtraction(_ sender: Any?) { progress.cancel() }

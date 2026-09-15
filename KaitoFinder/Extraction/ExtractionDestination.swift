@@ -20,9 +20,9 @@ nonisolated final class ExtractionDestination {
          didWrite: (@Sendable (Int) -> Void)? = nil) throws {
         self.readOnly = readOnly
         self.didWrite = didWrite
-        guard url.isFileURL else { throw ExtractionFailure.refused("出力先は file URL が必要です") }
+        guard url.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
         guard let resolvedRoot = ExtractionPath.resolvedPath(url.path) else {
-            throw ExtractionFailure.refused("出力先の実パスを解決できません")
+            throw ExtractionFailure.refused(String(localized: "出力先の実パスを解決できません。"))
         }
         // 元のパスを NOFOLLOW で開き、root 自身の symlink を拒否する（祖先の別名は許す）。
         descriptor = Darwin.open(url.path, Self.directoryFlags)
@@ -44,7 +44,7 @@ nonisolated final class ExtractionDestination {
               components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." &&
                   !$0.utf8.contains(0) && !$0.utf8.contains(47) && !$0.utf8.contains(92) }),
               ExtractionPath.isInside(url(components), root: root) else {
-            throw ExtractionFailure.refused("出力先の外へ解決されるパスです")
+            throw ExtractionFailure.refused(String(localized: "出力先の外へ解決されるパスです。"))
         }
     }
 
@@ -89,7 +89,7 @@ nonisolated final class ExtractionDestination {
             defer { close(parent) }
             var info = stat()
             if fstatat(parent, components.last!, &info, AT_SYMLINK_NOFOLLOW) == 0 {
-                throw ExtractionFailure.refused("出力先に既存の項目があります")
+                throw ExtractionFailure.refused(String(localized: "出力先に既存の項目があります。"))
             }
             guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
         }
@@ -135,7 +135,7 @@ nonisolated final class ExtractionDestination {
 
     func symlink(_ components: [String], target: String) throws {
         guard !target.isEmpty, !target.utf8.contains(0) else {
-            throw ExtractionFailure.refused("シンボリックリンクの target が空または NUL を含みます")
+            throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが空またはNULを含みます。"))
         }
         let parentComponents = Array(components.dropLast())
         let parent = try openDirectory(parentComponents, create: true)
@@ -146,7 +146,7 @@ nonisolated final class ExtractionDestination {
         guard let resolved = ExtractionPath.resolvedPath(targetPath, requireExistingParents: true),
               resolved == root.path || ExtractionPath.isInside(URL(fileURLWithPath: resolved), root: root),
               resolved != url(components).path else {
-            throw ExtractionFailure.refused("シンボリックリンクの target が安全な出力先へ解決されません")
+            throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが安全な出力先へ解決されません。"))
         }
         let leaf = components.last!
         guard symlinkat(target, parent, leaf) == 0 else { throw ExtractionFailure.system(errno) }
@@ -158,7 +158,7 @@ nonisolated final class ExtractionDestination {
             }
             if lstat(resolved, &targetInfo) == 0 {
                 guard linkInfo.st_dev != targetInfo.st_dev || linkInfo.st_ino != targetInfo.st_ino else {
-                    throw ExtractionFailure.refused("シンボリックリンクが自分自身を参照します")
+                    throw ExtractionFailure.refused(String(localized: "シンボリックリンクが自分自身を参照します。"))
                 }
             } else if errno != ENOENT { throw ExtractionFailure.system(errno) }
             try ExtractionQuarantine.apply(quarantine, to: url(components))
@@ -176,7 +176,7 @@ nonisolated final class ExtractionDestination {
         guard info.st_mode & S_IFMT == S_IFREG,
               let identity = identities[target.joined(separator: "/")],
               info.st_dev == identity.0, info.st_ino == identity.1 else {
-            throw ExtractionFailure.refused("hard link target の inode が展開時と一致しません")
+            throw ExtractionFailure.refused(String(localized: "hard link targetのinodeが展開時と一致しません。"))
         }
         let parent = try openDirectory(Array(components.dropLast()), create: true)
         defer { close(parent) }
@@ -196,7 +196,7 @@ nonisolated final class ExtractionDestination {
         if let date = entry.modificationDate {
             let seconds = date.timeIntervalSince1970
             guard seconds.isFinite, seconds > Double(Int.min), seconds < Double(Int.max) else {
-                throw ExtractionFailure.refused("変更日時が範囲外です")
+                throw ExtractionFailure.refused(String(localized: "変更日時が範囲外です。"))
             }
             var times = [timespec(tv_sec: 0, tv_nsec: Int(UTIME_OMIT)),
                          timespec(tv_sec: Int(floor(seconds)), tv_nsec: Int((seconds - floor(seconds)) * 1_000_000_000))]
