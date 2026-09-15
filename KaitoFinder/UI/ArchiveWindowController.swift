@@ -16,7 +16,8 @@ import QuickLookUI
 /// Finderの項目数表記を、表示の更新と文字列テストで共有する。
 nonisolated enum ArchiveStatusBarText {
     static func text(totalCount: Int, totalSize: UInt64?, filteredCount: Int? = nil,
-                     selectedCount: Int = 0, selectedSize: UInt64? = nil, bundle: Bundle = .main) -> String {
+                     selectedCount: Int = 0, selectedSize: UInt64? = nil, bundle: Bundle = .main,
+                     locale: Locale = .current) -> String {
         func size(_ bytes: UInt64?) -> String {
             guard let bytes, let signed = Int64(exactly: bytes) else { return String(localized: "—", bundle: bundle) }
             return ByteCountFormatter.string(fromByteCount: signed, countStyle: .file)
@@ -24,10 +25,15 @@ nonisolated enum ArchiveStatusBarText {
         if selectedCount > 0 {
             // 選択数とサイズの引数番号を、すべての言語で揃える。
             return String(format: String(localized: "%1$lld項目を選択中(%3$@)", bundle: bundle),
-                          Int64(selectedCount), Int64(filteredCount ?? totalCount), size(selectedSize))
+                          locale: locale, Int64(selectedCount), Int64(filteredCount ?? totalCount), size(selectedSize))
         }
-        if let filteredCount { return String(localized: "\(filteredCount)/\(totalCount)項目", bundle: bundle) }
-        return String(localized: "\(totalCount)項目、\(size(totalSize))", bundle: bundle)
+        // 数値の挿入にもロケールを渡し、件数の桁区切りをFinderと揃える。
+        if let filteredCount {
+            return String(format: String(localized: "%lld/%lld項目", bundle: bundle), locale: locale,
+                          Int64(filteredCount), Int64(totalCount))
+        }
+        return String(format: String(localized: "%lld項目、%@", bundle: bundle), locale: locale,
+                      Int64(totalCount), size(totalSize))
     }
 }
 
@@ -56,7 +62,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private(set) var conversionConfirmation: NSAlert?
     private(set) var creationController: ArchiveCreationController?
     private(set) var editProgressSheet: ExtractionProgressSheet?
-    private let capabilityNotice = NSTextField(wrappingLabelWithString: "")
+    let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
     let outlineView = ArchiveOutlineView()
     private let searchItem = NSSearchToolbarItem(itemIdentifier: NSToolbarItem.Identifier("search"))
@@ -684,7 +690,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
-    private var operationInFlight: Bool {
+    var operationInFlight: Bool {
         extractionTask != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
     }
@@ -899,6 +905,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func editFailureReason(_ error: any Error) -> String {
         switch error as? ArchiveEditError {
+        case .archiveChanged:
+            String(localized: "アーカイブが変更されています。開き直してください。", bundle: bundle)
         case .collision:
             String(localized: "同じ名前の項目が既にあります。別の名前を入力してください。", bundle: bundle)
         case .invalidName:
@@ -1244,7 +1252,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func startExtraction(_ items: [ArchiveEntryPayload], session: ArchiveSession,
-                                 destination: URL?, showProgress: Bool, entryCount: Int) {
+                                 destination: URL?, showProgress: Bool, entryCount: Int,
+                                 didWrite: (@Sendable (Int) -> Void)? = nil) {
         guard let window, extractionTask == nil else { return }
         let progress = Progress(totalUnitCount: Int64(entryCount))
         extractionProgress = progress
@@ -1257,7 +1266,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionTask = Task { [weak self] in
             do {
                 if let destination {
-                    let result = try await ExtractionService.extract(items, from: session, to: destination, progress: progress)
+                    let result = try await ExtractionService.extract(items, from: session, to: destination,
+                                                                     progress: progress, didWrite: didWrite)
                     try ArchiveCopyOut.check(result)
                 } else {
                     _ = try await ArchiveCopyOut.copy(items, from: session, to: .general, progress: progress)
@@ -1370,6 +1380,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                         let reason = String(describing: error)
                         Task { @MainActor [weak self] in self?.reportFailure(reason) }
                     }
+                }
+            } else if let type = UTType(filenameExtension: url.pathExtension),
+                      ArchiveBatchExtractionController.archiveContentTypes().contains(where: { type.conforms(to: $0) }) {
+                // 書庫内の書庫は同じアプリで開き、一時コピーの変更不可理由を表示する。
+                NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { [weak self] _, _, error in
+                    if let error { self?.reportFailure(error.localizedDescription) }
                 }
             } else if !NSWorkspace.shared.open(url) {
                 self.reportFailure(String(localized: "この項目を開くアプリケーションが見つからないか、起動できませんでした。", bundle: self.bundle))

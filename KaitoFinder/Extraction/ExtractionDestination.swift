@@ -40,6 +40,12 @@ nonisolated final class ExtractionDestination {
     }
 
     func validate(_ components: [String]) throws {
+        // containment検査のENOENT以外の失敗を「外側のパス」と誤報しない。
+        // どの親も作る前に、終端NULを含むPATH_MAXと各成分のNAME_MAXを確認する。
+        guard components.allSatisfy({ $0.utf8.count <= Int(NAME_MAX) }),
+              url(components).path.utf8.count < Int(PATH_MAX) else {
+            throw ExtractionFailure.system(ENAMETOOLONG)
+        }
         guard !components.isEmpty,
               components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." &&
                   !$0.utf8.contains(0) && !$0.utf8.contains(47) && !$0.utf8.contains(92) }),
@@ -125,7 +131,10 @@ nonisolated final class ExtractionDestination {
         }
         try attributes(entry, descriptor: file)
         // プレビューと外部オープンは所有者の読み取りだけを許す。公開前、同じ fd で適用する。
-        if readOnly, fchmod(file, 0o400) != 0 { throw ExtractionFailure.system(errno) }
+        if readOnly {
+            try ArchiveTemporaryCopy.mark(descriptor: file)
+            if fchmod(file, 0o400) != 0 { throw ExtractionFailure.system(errno) }
+        }
         try checkCancellation()
         var info = stat()
         guard fstat(file, &info) == 0 else { throw ExtractionFailure.system(errno) }

@@ -93,7 +93,7 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
             (.always, ["docs"], "photos"), (.always, ["x.txt", "y.txt"], "photos"),
             (.whenMultipleTopLevelItems, ["docs"], nil), (.whenMultipleTopLevelItems, ["x.txt", "y.txt"], "photos"),
             (.never, ["docs"], nil), (.never, ["x.txt", "y.txt"], nil),
-            (.always, [], "photos"), (.whenMultipleTopLevelItems, [], nil), (.never, [], nil)
+            (.always, [], nil), (.whenMultipleTopLevelItems, [], nil), (.never, [], nil)
         ]
         for (policy, names, folder) in cases {
             let result = ArchiveBatchPlan.destinationFolder(for: archive, base: base, policy: policy,

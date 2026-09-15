@@ -9,7 +9,7 @@ nonisolated struct ArchiveImportResult: Sendable {
     var reloadFailure: String?
 }
 
-nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError {
+nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStringConvertible {
     case invalidName(String)
     case collision(String)
     case sameLocation(String)
@@ -17,7 +17,10 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError {
     case missingFolder(String)
     case indexMismatch(Int)
     case staleSelection
+    case archiveChanged
     case conflictingSelection
+
+    var description: String { errorDescription! }
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +31,7 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError {
         case .missingFolder(let folder): String(localized: "移動先のフォルダが見つかりません: \(folder)。")
         case .indexMismatch: String(localized: "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。")
         case .staleSelection: String(localized: "選択した項目が変更されています。アーカイブを開き直してください。")
+        case .archiveChanged: String(localized: "アーカイブが変更されています。開き直してください。")
         case .conflictingSelection: String(localized: "同じ項目への変更が重複しています。")
         }
     }
@@ -306,14 +310,14 @@ nonisolated enum ArchiveEditTransaction {
     static func run(plan: ArchiveEditPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), progress: Progress,
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
         progress.totalUnitCount = Int64(plan.removals.count + plan.renames.count + 1)
         progress.completedUnitCount = 0
         try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, progress: progress,
-                                             willOpenUpdater: willOpenUpdater, willPublish: willPublish) { updater in
+                                             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try plan.verifyNames(updater.entryNames)
             try plan.validateChanges(entries: plan.existing)
@@ -337,11 +341,11 @@ nonisolated enum ArchiveImportTransaction {
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                             willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
+                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveImportResult {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
         try publish(archive: archive, mode: mode, options: options, progress: progress,
-                    willOpenUpdater: willOpenUpdater, willPublish: willPublish) { updater in
+                    willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
             try ArchiveImportPlan.checkCancellation(progress)
             try updater.addDirectory(plan.path)
@@ -354,13 +358,14 @@ nonisolated enum ArchiveImportTransaction {
     static func run(plan: ArchiveImportPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveImportResult {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
         progress.totalUnitCount = Int64(plan.items.count + 1)
         progress.completedUnitCount = 0
-        try publish(archive: archive, mode: mode, options: options, progress: progress, willPublish: willPublish) { updater in
+        try publish(archive: archive, mode: mode, options: options, progress: progress, willPublish: willPublish,
+                    expectedIdentity: expectedIdentity) { updater in
             for (index, item) in plan.items.enumerated() {
                 try ArchiveImportPlan.checkCancellation(progress)
                 // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
@@ -380,9 +385,11 @@ nonisolated enum ArchiveImportTransaction {
     static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, progress: Progress,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
+                        expectedIdentity: [Int64]? = nil,
                         mutate: (any ArchiveEditing) throws -> Void) throws {
         try ArchiveImportPlan.checkCancellation(progress)
         let original = try identity(archive)
+        if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
         let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
                                                attributes: [.posixPermissions: 0o700])
@@ -460,7 +467,7 @@ nonisolated enum ArchiveImportTransaction {
         }
     }
 
-    private static func identity(_ url: URL) throws -> [Int64] {
+    static func identity(_ url: URL) throws -> [Int64] {
         var info = stat()
         guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
             throw ExtractionFailure.refused(String(localized: "アーカイブの原本を確認できません。"))

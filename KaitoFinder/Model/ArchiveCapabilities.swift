@@ -14,6 +14,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case encrypted
         case unrepresentable(String)
         case unavailable(String)
+        case temporaryCopy
     }
     let mode: Mode?
     let refusal: Refusal?
@@ -45,12 +46,14 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case .gatekeeper(.centralDirectoryOffset, let reason):
             String(localized: "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。\(reason)")
         case .encrypted: String(localized: "暗号化されたアーカイブは、編集すると暗号化が外れるため変更できません。")
+        case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。")
         case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)")
         case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)")
         }
     }
 
     static func inspect(url: URL, format: KaitoKit.ArchiveFormat) -> Self {
+        if ArchiveTemporaryCopy.contains(url) { return Self(refusal: .temporaryCopy) }
         do {
             let mode: Mode
             switch format {

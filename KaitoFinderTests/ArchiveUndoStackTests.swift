@@ -168,8 +168,9 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     }
 
     @MainActor private func assertModeRoundTrip(_ permissions: mode_t) async throws {
-        let fixture = try Fixture(), document = try document(fixture)
+        let fixture = try Fixture()
         XCTAssertEqual(chmod(fixture.archive.path, permissions), 0)
+        let document = try document(fixture)
         try await append("added.txt", fixture: fixture, document: document)
         let slot = try XCTUnwrap(document.archiveUndoStack.slots.first)
         XCTAssertEqual(try mode(slot.url), 0o600)
@@ -185,8 +186,9 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     @MainActor func testMode0600SurvivesUndoAndRedo() async throws { try await assertModeRoundTrip(0o600) }
 
     @MainActor func testSwapPreservesModeReadImmediatelyBeforeReplacement() async throws {
-        let fixture = try Fixture(), document = try document(fixture)
+        let fixture = try Fixture()
         XCTAssertEqual(chmod(fixture.archive.path, 0o644), 0)
+        let document = try document(fixture)
         try await append("added.txt", fixture: fixture, document: document)
         XCTAssertEqual(chmod(fixture.archive.path, 0o600), 0)
         try await undo(document)
@@ -197,9 +199,10 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     }
 
     @MainActor func testQuarantineBytesSurviveUndoAndRedo() async throws {
-        let fixture = try Fixture(), document = try document(fixture)
+        let fixture = try Fixture()
         let quarantine = Data("0081;12345678;KaitoFinderUndoTests;original".utf8)
         try ExtractionQuarantine.apply(quarantine, to: fixture.archive)
+        let document = try document(fixture)
         try await append("added.txt", fixture: fixture, document: document)
         try await undo(document)
         XCTAssertEqual(try ExtractionQuarantine.read(from: fixture.archive), quarantine)

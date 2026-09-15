@@ -76,7 +76,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.writeObjects([first as NSURL, second as NSURL, directory.url as NSURL,
                                                NSURL(string: "https://example.com/archive.zip")!]))
-        XCTAssertEqual(AppDelegate.archivesToExtract(from: pasteboard), [first, second])
+        XCTAssertEqual(AppDelegate.archivesToExtract(from: pasteboard), [first, second, directory.url])
     }
 
     @MainActor func testSecondBatchServiceRequestIsRejectedAndMenuIsIgnoredWhileChoosingDestination() async throws {

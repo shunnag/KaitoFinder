@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var batchExtractionTask: Task<Void, Never>?
     private(set) var batchExtractionOpenPanel: NSOpenPanel?
     private(set) var batchExtractionController: ArchiveBatchExtractionController?
+    // Servicesの入力経路をパネルなしで検証するための実行境界。
+    var batchExtractionHandler: (([URL]) async -> Void)?
 
     override convenience init() { self.init(passwordVault: .shared) }
 
@@ -126,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func archivesToExtract(from pasteboard: NSPasteboard) -> [URL] {
         let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
-        return urls.filter { $0.isFileURL && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != true }
+        return urls.filter(\.isFileURL)
     }
 
     @objc func extractArchives(_ pboard: NSPasteboard, userData: String,
@@ -147,6 +149,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startBatchExtraction(archives: [URL]) {
         guard !archives.isEmpty, batchExtractionTask == nil else { return }
         batchExtractionTask = Task {
+            if let batchExtractionHandler {
+                await batchExtractionHandler(archives)
+                batchExtractionTask = nil
+                return
+            }
             let controller = ArchiveBatchExtractionController(store: preferencesStore, passwordVault: passwordVault)
             batchExtractionController = controller
             defer { batchExtractionTask = nil; batchExtractionController = nil }

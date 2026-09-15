@@ -222,7 +222,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                                                       willPublish: { published.withLock { $0 += 1 } })
                     }
                     XCTFail("置換前の一覧で書庫を変更しました")
-                } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
+                } catch { XCTAssertEqual(error as? ArchiveEditError, .archiveChanged) }
                 XCTAssertEqual(try digest(fixture.archive), expected)
                 XCTAssertEqual(session.generation, 0)
                 XCTAssertEqual(published.withLock { $0 }, 0)
@@ -799,7 +799,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         do {
             _ = try await document.createFolder(in: "", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
             XCTFail("古い一覧で作成先を決めました")
-        } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
+        } catch { XCTAssertEqual(error as? ArchiveEditError, .archiveChanged) }
         XCTAssertEqual(published.withLock { $0 }, 0)
         XCTAssertEqual(try digest(fixture.archive), before)
         XCTAssertEqual(session.generation, 0)
@@ -1026,7 +1026,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         do {
             _ = try await document.move([node], to: "b", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
             XCTFail("古い一覧で移動を公開しました")
-        } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
+        } catch { XCTAssertEqual(error as? ArchiveEditError, .archiveChanged) }
         XCTAssertEqual(try digest(replaced.archive), replacedBytes)
         XCTAssertEqual(published.withLock { $0 }, 0)
         XCTAssertEqual(document.generation, 0)

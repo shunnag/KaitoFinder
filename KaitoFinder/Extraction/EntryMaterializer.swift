@@ -1,4 +1,22 @@
 import Foundation
+import Darwin
+
+/// ファイル属性だけでなく、一時コピーの出自を文書の再オープンにも引き継ぐ。
+nonisolated enum ArchiveTemporaryCopy {
+    private static let attribute = "com.shunnag.KaitoFinder.temporaryCopy"
+
+    static func mark(descriptor: Int32) throws {
+        var value: UInt8 = 1
+        guard fsetxattr(descriptor, attribute, &value, 1, 0, 0) == 0 else {
+            throw ExtractionFailure.system(errno)
+        }
+    }
+
+    static func contains(_ url: URL) -> Bool {
+        var value: UInt8 = 0
+        return getxattr(url.path, attribute, &value, 1, 0, XATTR_NOFOLLOW) == 1 && value == 1
+    }
+}
 
 /// 文書ごとに一つ所有する。公開したコピーも文書の終了時に回収する。
 actor EntryMaterializer {

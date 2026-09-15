@@ -38,7 +38,9 @@ actor ArchiveSession {
     nonisolated private let generationStorage = Mutex<UInt64>(0)
     nonisolated var generation: UInt64 { generationStorage.withLock { $0 } }
     nonisolated let sourceURL: URL
-    nonisolated let format: KaitoKit.ArchiveFormat
+    nonisolated private let formatStorage: Mutex<KaitoKit.ArchiveFormat>
+    nonisolated var format: KaitoKit.ArchiveFormat { formatStorage.withLock { $0 } }
+    private var sourceIdentity: [Int64]
     nonisolated let writerOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
     private(set) var quarantine: Data?
 
@@ -47,11 +49,13 @@ actor ArchiveSession {
         sourceURL = url
         self.password = password
         self.writerOptions = writerOptions
+        sourceIdentity = try ArchiveImportTransaction.identity(url)
         quarantine = try ExtractionQuarantine.read(from: url)
         let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
         self.reader = reader
-        format = reader.format
+        formatStorage = Mutex(reader.format)
         capabilitiesStorage = Mutex(ArchiveCapabilities.inspect(url: url, format: reader.format))
+        guard try ArchiveImportTransaction.identity(url) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
     }
 
     func extractionReader() throws -> sending ArchiveReader {
@@ -76,6 +80,8 @@ actor ArchiveSession {
     private func requireCurrentReader() throws -> ArchiveReader {
         guard !closed, let reader else { throw CancellationError() }
         guard !invalidated else { throw ExtractionFailure.refused(String(localized: "変更後のアーカイブを読み直せませんでした。")) }
+        // reopenは旧inodeを保持する。文書を開いてからの置換・削除を先に検出する。
+        guard try ArchiveImportTransaction.identity(sourceURL) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
         return reader
     }
 
@@ -163,7 +169,7 @@ actor ArchiveSession {
         let mode = capabilities.mode!
         var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                      options: options(for: mode), progress: progress,
-                                                     didProcess: didProcess, willPublish: willPublish)
+                                                     didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity)
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
             do { try reloadAfterMutation() }
@@ -190,7 +196,7 @@ actor ArchiveSession {
         let mode = capabilities.mode!
         var result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
                                                                options: options(for: mode), progress: progress,
-                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish)
+                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity)
         do { try reloadAfterMutation() }
         catch { result.reloadFailure = Self.reloadFailureMessage }
         return result
@@ -217,7 +223,7 @@ actor ArchiveSession {
         let mode = capabilities.mode!
         var result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                    options: options(for: mode), progress: progress,
-                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish)
+                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity)
         if result.published {
             do { try reloadAfterMutation() }
             catch { result.reloadFailure = Self.reloadFailureMessage }
@@ -241,11 +247,15 @@ actor ArchiveSession {
         invalidated = true
         verifiedEntries.removeAll()
         capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(String(localized: "変更後のアーカイブを読み直せませんでした。"))) }
+        let identity = try ArchiveImportTransaction.identity(sourceURL)
         let replacement = try ArchiveReader.open(url: sourceURL, options: ReaderOptions(password: password))
         let updatedQuarantine = try ExtractionQuarantine.read(from: sourceURL)
         reader = replacement
         quarantine = updatedQuarantine
-        let updatedCapabilities = ArchiveCapabilities.inspect(url: sourceURL, format: format)
+        let updatedCapabilities = ArchiveCapabilities.inspect(url: sourceURL, format: replacement.format)
+        guard try ArchiveImportTransaction.identity(sourceURL) == identity else { throw ArchiveEditError.archiveChanged }
+        sourceIdentity = identity
+        formatStorage.withLock { $0 = replacement.format }
         capabilitiesStorage.withLock { $0 = updatedCapabilities }
         invalidated = false
     }

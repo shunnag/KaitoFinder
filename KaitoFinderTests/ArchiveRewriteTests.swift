@@ -267,8 +267,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             _ = try await document.remove(nodes, progress: Progress())
             XCTFail("capability 検査後の暗号化を見落としました")
         } catch {
-            guard case .refused(let reason) = error as? ExtractionFailure else { return XCTFail("\(error)") }
-            XCTAssertEqual(reason, ArchiveCapabilities(refusal: .encrypted).readOnlyReason)
+            XCTAssertEqual(error as? ArchiveEditError, .archiveChanged)
+            XCTAssertEqual(error.localizedDescription, String(localized: "アーカイブが変更されています。開き直してください。"))
         }
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         XCTAssertEqual(document.generation, 0)

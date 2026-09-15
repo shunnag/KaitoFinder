@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
+import KaitoKit
 
 nonisolated struct ArchiveBatchPlan: Sendable {
     struct Item: Sendable {
@@ -10,7 +11,8 @@ nonisolated struct ArchiveBatchPlan: Sendable {
 
     static func destinationFolder(for archive: URL, base: URL, policy: ArchivePreferences.FolderPolicy,
                                   topLevelNames: Set<String>, exists: (URL) -> Bool) -> URL {
-        guard policy == .always || (policy == .whenMultipleTopLevelItems && topLevelNames.count > 1) else {
+        guard !topLevelNames.isEmpty,
+              policy == .always || (policy == .whenMultipleTopLevelItems && topLevelNames.count > 1) else {
             return base
         }
         let stem = ArchiveCreationPlan.archiveStem(for: archive)
@@ -193,7 +195,14 @@ nonisolated struct ArchiveBatchPlan: Sendable {
 
     @concurrent private static func openArchive(_ archive: URL, password: String?) async throws -> ArchiveSession {
         try Task.checkCancellation()
-        return try ArchiveSession(url: archive, password: password)
+        // Servicesから渡されたフォルダも一項目の失敗として残し、後続の展開を続ける。
+        guard try archive.resourceValues(forKeys: [.isDirectoryKey]).isDirectory != true else {
+            throw ExtractionFailure.refused(String(localized: "対応していないフォーマットです。"))
+        }
+        do { return try ArchiveSession(url: archive, password: password) }
+        catch KaitoError.unsupportedFormat {
+            throw ExtractionFailure.refused(String(localized: "対応していないフォーマットです。"))
+        }
     }
 
     nonisolated private static func exists(_ url: URL) -> Bool {
