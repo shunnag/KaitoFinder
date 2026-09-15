@@ -1532,7 +1532,7 @@
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tidak dapat mengeluarkan output arkib yang dibatalkan: %@."
+            "value" : "Tidak dapat memadam output arkib yang dibatalkan: %@."
           }
         },
         "hi" : {
@@ -11186,7 +11186,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keluar dari KaitoFinder"
+            "value" : "Tutup KaitoFinder"
           }
         },
         "ms" : {
@@ -30499,7 +30499,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Độ lệch thư mục trung tâm của tệp lưu trữ ZIP này không hợp lệ. Điều này có thể xảy ra khi lưu mục lớn hơn 4 GiB mà không dùng ZIP64. Không thể sửa đổi tệp lưu trữ an toàn. %@"
+            "value" : "Độ lệch thư mục trung tâm của tệp lưu trữ ZIP này không hợp lệ. Điều này có thể xảy ra khi lưu mục lớn hơn 4 GiB mà không dùng ZIP64. Không thể sửa đổi an toàn tệp lưu trữ này. %@"
           }
         },
         "id" : {
