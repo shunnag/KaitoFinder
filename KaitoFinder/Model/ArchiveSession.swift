@@ -42,13 +42,16 @@ actor ArchiveSession {
     nonisolated var format: KaitoKit.ArchiveFormat { formatStorage.withLock { $0 } }
     private var sourceIdentity: [Int64]
     nonisolated let writerOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
+    nonisolated private let importOptions: @Sendable () -> ArchiveImportPlan.Options
     private(set) var quarantine: Data?
 
     init(url: URL, password: String? = nil,
-         writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions = { _ in WriterOptions() }) throws {
+         writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions = { _ in WriterOptions() },
+         importOptions: @escaping @Sendable () -> ArchiveImportPlan.Options = { .init() }) throws {
         sourceURL = url
         self.password = password
         self.writerOptions = writerOptions
+        self.importOptions = importOptions
         sourceIdentity = try ArchiveImportTransaction.identity(url)
         quarantine = try ExtractionQuarantine.read(from: url)
         let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
@@ -165,7 +168,8 @@ actor ArchiveSession {
         guard capabilities.canAppend else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
-        let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries, progress: progress)
+        let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
+                                               progress: progress, options: importOptions())
         let mode = capabilities.mode!
         var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                      options: options(for: mode), progress: progress,

@@ -7,38 +7,58 @@ final class ArchiveCreationController {
     private let store: ArchivePreferencesStore
     private(set) var savePanel: ArchiveSavePanel?
     private(set) var progressSheet: ExtractionProgressSheet?
+    // パネルの確定だけを置き換え、実際の作成・進捗・文書切り替えを検証する。
+    var destinationHandler: ((ArchiveSavePanel, NSWindow?) async throws -> URL?)?
 
     init(store: ArchivePreferencesStore = .shared) { self.store = store }
 
     // 保存パネルの確定時に設定を読む。表示中に変更されても古い値を使わない。
     func creationPlan(sources: [URL], destination: URL, format: GyoshukuKit.ArchiveFormat,
-                      existing: ArchiveCreationPlan.Existing? = nil) -> ArchiveCreationPlan {
-        ArchiveCreationPlan(sources: sources, destination: destination, format: format,
-                            options: store.preferences.writerOptions(for: format), existing: existing)
+                      existing: ArchiveCreationPlan.Existing? = nil,
+                      level: ArchiveSavePanelController.Level? = nil) -> ArchiveCreationPlan {
+        let preferences = store.preferences
+        let defaults = preferences.writerOptions(for: format)
+        let options = level?.applying(to: defaults, format: format) ?? defaults
+        return ArchiveCreationPlan(sources: sources, destination: destination, format: format,
+                                   options: options, existing: existing, importOptions: preferences.importOptions)
     }
 
     func createAndOpen(sources: [URL], existing: ArchiveCreationPlan.Existing? = nil,
                        on parent: NSWindow? = nil, progress: Progress = Progress()) async throws {
+        guard let result = try await create(sources: sources, existing: existing, on: parent, progress: progress) else { return }
+        // rename 後の取消しで成功を隠さない。文書の open 失敗は作成失敗と分けて提示する。
+        NSDocumentController.shared.openDocument(withContentsOf: result, display: true) { _, _, error in
+            if let error { NSApp.presentError(error) }
+        }
+    }
+
+    func create(sources: [URL], existing: ArchiveCreationPlan.Existing? = nil,
+                on parent: NSWindow? = nil, progress: Progress = Progress()) async throws -> URL? {
         let save = ArchiveSavePanel(sources: sources, existingURL: existing?.url, store: store)
         savePanel = save
         defer { savePanel = nil }
-        guard let destination = try await save.destination(on: parent) else { return }
+        let destination: URL?
+        if let destinationHandler { destination = try await destinationHandler(save, parent) }
+        else { destination = try await save.destination(on: parent) }
+        guard let destination else { return nil }
         savePanel = nil
         try ArchiveImportPlan.checkCancellation(progress)
         let plan = creationPlan(sources: sources, destination: destination,
-                                format: save.controller.format, existing: existing)
+                                format: save.controller.format, existing: existing, level: save.controller.level)
         let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.creatingArchive.title(),
                                             detail: destination.lastPathComponent)
         progressSheet = sheet
         defer { sheet.finish(); progressSheet = nil }
         if let parent { sheet.begin(on: parent) }
         else { sheet.beginStandalone() }
-        let result = try await Self.create(plan: plan, progress: progress)
-        sheet.finish()
-        // rename 後の取消しで成功を隠さない。文書の open 失敗は作成失敗と分けて提示する。
-        NSDocumentController.shared.openDocument(withContentsOf: result, display: true) { _, _, error in
-            if let error { NSApp.presentError(error) }
-        }
+        return try await Self.create(plan: plan, progress: progress)
+    }
+
+    static func existingArchive(from session: ArchiveSession, progress: Progress) async throws -> ArchiveCreationPlan.Existing {
+        let password = try await session.preparedPassword()
+        let snapshot = await session.snapshot()
+        try ArchiveImportPlan.checkCancellation(progress)
+        return .init(url: session.sourceURL, password: password, entries: snapshot.entries)
     }
 
     @concurrent private static func create(plan: ArchiveCreationPlan, progress: Progress) async throws -> URL {

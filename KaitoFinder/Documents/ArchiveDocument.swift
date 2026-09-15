@@ -19,6 +19,9 @@ import Synchronization
     nonisolated private var sessionWriterOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions {
         { [preferencesSnapshot] format in preferencesSnapshot.value.withLock { $0.writerOptions(for: format) } }
     }
+    nonisolated private var sessionImportOptions: @Sendable () -> ArchiveImportPlan.Options {
+        { [preferencesSnapshot] in preferencesSnapshot.value.withLock { $0.importOptions } }
+    }
     var session: ArchiveSession? {
         contentsStorage.withLock { if case .open(let session) = $0 { session } else { nil } }
     }
@@ -31,7 +34,7 @@ import Synchronization
     private var loadingTask: Task<Void, Never>?
     private var materialization: ArchiveMaterializationController?
     private(set) var materializationCleanup: Task<Void, Never>?
-    let archiveUndoStack: ArchiveUndoStack
+    private(set) var archiveUndoStack: ArchiveUndoStack
     let passwordVault: ArchivePasswordVault
     private var rememberedPayloadPassword: String?
     private var mutationTask: Task<Void, Never>?
@@ -41,6 +44,7 @@ import Synchronization
     private(set) var undoCleanup: Task<Void, Never>?
     private(set) var undoFailure: (any Error)?
     private var closed = false
+    private var switchingBackingFile = false
     private var repairingUndoRegistration = false
     private var undoActions: [UUID: UndoAction] = [:]
 
@@ -122,7 +126,7 @@ import Synchronization
     nonisolated override func read(from url: URL, ofType typeName: String) throws {
         // super は NSFileWrapper 経由で全体を読み込むため呼ばない。
         let contents: Contents
-        do { contents = .open(try ArchiveSession(url: url, writerOptions: sessionWriterOptions)) }
+        do { contents = .open(try ArchiveSession(url: url, writerOptions: sessionWriterOptions, importOptions: sessionImportOptions)) }
         catch KaitoError.passwordRequired {
             // AppKit の並行 read では UI を出せない。URL だけを渡し、window 側で解除する。
             contents = .locked(url)
@@ -151,7 +155,8 @@ import Synchronization
 
     func unlock(password: String, remember: Bool = false, vaultGeneration: UInt64? = nil) async throws {
         guard !closed, let url = lockedURL else { throw CancellationError() }
-        let opened = try await Self.openLockedArchive(url, password: password, writerOptions: sessionWriterOptions)
+        let opened = try await Self.openArchive(url, password: password, writerOptions: sessionWriterOptions,
+                                                importOptions: sessionImportOptions)
         guard !closed, !Task.isCancelled, lockedURL == url else {
             await opened.close()
             throw CancellationError()
@@ -218,16 +223,18 @@ import Synchronization
         catch { return false }
     }
 
-    @concurrent private static func openLockedArchive(
-        _ url: URL, password: String,
-        writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
+    @concurrent private static func openArchive(
+        _ url: URL, password: String?,
+        writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions,
+        importOptions: @escaping @Sendable () -> ArchiveImportPlan.Options,
+        checksCancellation: Bool = true
     ) async throws -> ArchiveSession {
-        try Task.checkCancellation()
-        return try ArchiveSession(url: url, password: password, writerOptions: writerOptions)
+        if checksCancellation { try Task.checkCancellation() }
+        return try ArchiveSession(url: url, password: password, writerOptions: writerOptions, importOptions: importOptions)
     }
 
     override func makeWindowControllers() {
-        let controller = ArchiveWindowController()
+        let controller = ArchiveWindowController(preferencesStore: preferencesStore)
         addWindowController(controller)
         guard let session else {
             if isPasswordLocked { controller.displayLocked() }
@@ -292,7 +299,9 @@ import Synchronization
         operation: @escaping @Sendable (ArchiveSession, @escaping @Sendable () throws -> Void) async throws -> Result
     ) async throws -> Result {
         guard !closed, let session else { throw ExtractionFailure.refused(String(localized: "アーカイブが閉じられています。")) }
-        guard mutationTask == nil, undoTask == nil else { throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。")) }
+        guard mutationTask == nil, undoTask == nil, !switchingBackingFile else {
+            throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
+        }
         let previousGeneration = session.generation
         let stack = archiveUndoStack
         let pending = Mutex<ArchiveUndoStack.Slot?>(nil)
@@ -415,6 +424,60 @@ import Synchronization
         guard let session else { return }
         disposeMaterialization()
         try await session.reloadAfterMutation()
+        await displayAfterMutation()
+    }
+
+    func switchBackingFile(to url: URL) async throws {
+        guard !closed, let oldSession = session else { throw CancellationError() }
+        guard mutationTask == nil, undoTask == nil, !switchingBackingFile else {
+            throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
+        }
+        switchingBackingFile = true
+        (undoManager as? ArchiveUndoManager)?.isSuspended = true
+        defer {
+            switchingBackingFile = false
+            (undoManager as? ArchiveUndoManager)?.isSuspended = closed
+        }
+        // 新しい reader・capabilities・identity が揃うまでは文書の参照先を変えない。
+        // 作成 transaction の公開後は、遅れて届いた取消しで成功を隠さない。
+        let opened = try await Self.openArchive(url, password: nil, writerOptions: sessionWriterOptions,
+                                                importOptions: sessionImportOptions, checksCancellation: false)
+        guard !closed, session === oldSession else {
+            await opened.close()
+            throw CancellationError()
+        }
+        let format: GyoshukuKit.ArchiveFormat
+        switch opened.capabilities.mode {
+        case .inPlace: format = .zip
+        case .rewrite(let outputFormat): format = outputFormat
+        case nil:
+            await opened.close()
+            throw ExtractionFailure.refused(String(localized: "対応していないフォーマットです。"))
+        }
+        loadingTask?.cancel()
+        loadingTask = nil
+        for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
+            controller.prepareForBackingFileSwitch()
+        }
+        disposeMaterialization()
+        rememberedPayloadPassword = nil
+        let nextUndoStack = archiveUndoStack.emptyCopy()
+        disposeUndoStack()
+        archiveUndoStack = nextUndoStack
+        undoFailure = nil
+        contentsStorage.withLock { $0 = .open(opened) }
+        fileURL = url
+        fileType = ArchiveSavePanelController.contentType(for: format).identifier
+        NSDocumentController.shared.noteNewRecentDocumentURL(url)
+        let previous = sessionCleanup
+        let cleanup = Task {
+            await previous?.value
+            await oldSession.close()
+        }
+        sessionCleanup = cleanup
+        await cleanup.value
+        await undoCleanup?.value
+        guard !closed, session === opened else { return }
         await displayAfterMutation()
     }
 

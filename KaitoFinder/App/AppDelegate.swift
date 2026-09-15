@@ -1,7 +1,7 @@
 import AppKit
 
 @main
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
     private let preferencesStore: ArchivePreferencesStore
@@ -33,6 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func showHelp(_ sender: Any?) {
         NSWorkspace.shared.open(URL(string: "https://github.com/shunnag/KaitoFinder")!)
+    }
+
+    @objc func toggleHiddenFiles(_ sender: Any?) { preferencesStore.preferences.showsHiddenFiles.toggle() }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(toggleHiddenFiles(_:)) {
+            menuItem.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
+        }
+        return true
     }
 
     @objc func forgetArchivePasswords(_ sender: Any?) {
@@ -220,6 +229,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                          action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "閉じる", bundle: bundle),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        let saveAs = fileMenu.addItem(withTitle: String(localized: "別名で保存…", bundle: bundle),
+                                      action: #selector(ArchiveWindowController.saveArchiveAs(_:)), keyEquivalent: "S")
+        saveAs.keyEquivalentModifierMask = [.command, .shift]
         fileMenu.addItem(.separator())
         let newFolder = fileMenu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle),
                                          action: #selector(ArchiveWindowController.newFolder(_:)), keyEquivalent: "n")
@@ -248,6 +260,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                       action: #selector(forgetArchivePasswords(_:)), keyEquivalent: "")
         // 文書がないときや保管庫が読めないときも、アプリ全体の削除を利用できる。
         forget.target = self
+        let viewMenu = NSMenu(title: String(localized: "表示", bundle: bundle))
+        let hidden = viewMenu.addItem(withTitle: String(localized: "隠しファイルを表示", bundle: bundle),
+                                      action: #selector(toggleHiddenFiles(_:)), keyEquivalent: ".")
+        hidden.keyEquivalentModifierMask = [.command, .shift]
+        hidden.target = self
+        hidden.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
         let windowMenu = NSMenu(title: String(localized: "ウインドウ", bundle: bundle))
         windowMenu.addItem(withTitle: String(localized: "しまう", bundle: bundle),
                            action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
@@ -259,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let help = helpMenu.addItem(withTitle: String(localized: "KaitoFinderヘルプ", bundle: bundle),
                                     action: #selector(showHelp(_:)), keyEquivalent: "")
         help.target = self
-        for submenu in [appMenu, fileMenu, editMenu, windowMenu, helpMenu] {
+        for submenu in [appMenu, fileMenu, editMenu, viewMenu, windowMenu, helpMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu
             menu.addItem(item)

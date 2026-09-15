@@ -6,6 +6,108 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveCreationUITests: XCTestCase {
+    @MainActor func testCompressionLevelMappingRoundTripsEveryChoice() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let save = ArchiveSavePanel(sources: [], store: store)
+        let creator = ArchiveCreationController(store: store)
+        for (index, level) in ArchiveSavePanelController.Level.allCases.enumerated() {
+            save.levelPopup.selectItem(at: index)
+            XCTAssertTrue(save.levelPopup.sendAction(save.levelPopup.action, to: save.levelPopup.target))
+            XCTAssertEqual(save.controller.level, level)
+            XCTAssertEqual(save.controller.selectedLevelIndex, index)
+            let plan = creator.creationPlan(sources: [], destination: URL(fileURLWithPath: "/tmp/test.zip"),
+                                             format: .zip, level: save.controller.level)
+            XCTAssertEqual(plan.options.compressionMethod, level == .none ? .stored : .deflate)
+            XCTAssertEqual(plan.options.deflateLevel, level == .none ? 6 : level.rawValue)
+        }
+        XCTAssertEqual(store.preferences.zipLevel, 6)
+        XCTAssertEqual(store.preferences.zipMethod, .deflate)
+    }
+
+    @MainActor func testInitialCompressionLevelUsesNearestPreferenceWithHigherTie() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let expected: [ArchiveSavePanelController.Level] = [.fast, .fast, .fast, .normal, .normal, .normal, .high, .high, .maximum]
+        for value in 1...9 {
+            for format in [GyoshukuKit.ArchiveFormat.zip, .tarGzip] {
+                store.preferences.defaultFormat = format
+                store.preferences.zipLevel = value
+                store.preferences.tarGzipLevel = value
+                let controller = ArchiveSavePanelController(store: store)
+                XCTAssertEqual(controller.level, expected[value - 1])
+                XCTAssertEqual(controller.levels[controller.selectedLevelIndex], expected[value - 1])
+            }
+        }
+        store.preferences.defaultFormat = .zip
+        store.preferences.zipMethod = .stored
+        XCTAssertEqual(ArchiveSavePanelController(store: store).level, .none)
+    }
+
+    @MainActor func testFormatChangeResetsLevelAndDisablesFixedFormats() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.zipLevel = 9
+        store.preferences.tarGzipLevel = 1
+        let save = ArchiveSavePanel(sources: [], store: store)
+        XCTAssertEqual(save.controller.level, .maximum)
+        save.controller.selectLevel(at: 2)
+        for (index, format) in ArchiveSavePanelController.formats.enumerated() {
+            save.formatPopup.selectItem(at: index)
+            XCTAssertTrue(save.formatPopup.sendAction(save.formatPopup.action, to: save.formatPopup.target))
+            XCTAssertEqual(save.levelPopup.isEnabled, format == .zip || format == .tarGzip)
+            XCTAssertEqual(save.levelPopup.numberOfItems, save.controller.levels.count)
+            XCTAssertEqual(save.levelPopup.indexOfSelectedItem, save.controller.selectedLevelIndex)
+            switch format {
+            case .zip: XCTAssertEqual(save.controller.level, .maximum)
+            case .tarGzip:
+                XCTAssertEqual(save.controller.level, .fast)
+                XCTAssertFalse(save.controller.levels.contains(.none))
+            case .tar: XCTAssertEqual(save.controller.level, .normal)
+            case .sevenZip, .lha:
+                XCTAssertEqual(save.controller.level, .normal)
+                save.controller.selectLevel(at: 0)
+                XCTAssertEqual(save.controller.level, .normal)
+            }
+        }
+        XCTAssertEqual(store.preferences.zipLevel, 9)
+        XCTAssertEqual(store.preferences.tarGzipLevel, 1)
+    }
+
+    @MainActor func testPanelLevelOverridesStoredZIPAndPreservesOtherWriterPreferences() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.zipMethod = .stored
+        store.preferences.zipSkipsCompressedTypes = false
+        store.preferences.tarPreservesOwnerIDs = true
+        let creator = ArchiveCreationController(store: store)
+        let zip = creator.creationPlan(sources: [], destination: URL(fileURLWithPath: "/tmp/test.zip"), format: .zip, level: .high)
+        XCTAssertEqual(zip.options.compressionMethod, .deflate)
+        XCTAssertEqual(zip.options.deflateLevel, 8)
+        XCTAssertFalse(zip.options.useCompressionHeuristic)
+        for level in [ArchiveSavePanelController.Level.fast, .normal, .high, .maximum] {
+            let tar = creator.creationPlan(sources: [], destination: URL(fileURLWithPath: "/tmp/test.tar.gz"), format: .tarGzip, level: level)
+            XCTAssertEqual(tar.options.deflateLevel, level.rawValue)
+            XCTAssertTrue(tar.options.preserveOwnerIDs)
+        }
+    }
+
+    @MainActor func testCreationUsesConfirmedPanelChoiceWithoutPersistingLevel() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let directory = try ArchiveTestDirectory(), creator = ArchiveCreationController(store: store)
+        let source = directory.url.appendingPathComponent("repeated.txt")
+        let bytes = Data(repeating: 0x61, count: 8192)
+        try bytes.write(to: source)
+        let destination = directory.url.appendingPathComponent("stored.zip")
+        creator.destinationHandler = { save, _ in
+            save.levelPopup.selectItem(at: 0)
+            save.changeLevel(save.levelPopup)
+            return destination
+        }
+        let result = try await creator.create(sources: [source])
+        XCTAssertEqual(result, destination)
+        let entry = try XCTUnwrap(ArchiveReader.open(url: destination).entries.first)
+        XCTAssertEqual(entry.compressedSize, UInt64(bytes.count))
+        XCTAssertEqual(store.preferences.zipMethod, .deflate)
+        XCTAssertEqual(store.preferences.zipLevel, 6)
+    }
+
     private final class Preferences {
         let name = "KaitoFinder-CreationTests-" + UUID().uuidString
         let defaults: UserDefaults

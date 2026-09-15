@@ -40,6 +40,10 @@ nonisolated final class ArchiveUndoStack: Sendable {
         storage.withLock { !$0.closed && $0.cloningSupported && maximumCount > 0 }
     }
 
+    func emptyCopy() -> ArchiveUndoStack {
+        ArchiveUndoStack(maximumCount: maximumCount, maximumBytes: maximumBytes, clone: clone)
+    }
+
     static func cloneFile(from source: URL, to destination: URL) -> Int32 {
         // copyItem は非 APFS で全量コピーに落ちるため、ここでは使えない。
         clonefile(source.path, destination.path, UInt32(CLONE_NOFOLLOW)) == 0 ? 0 : errno

@@ -3,6 +3,37 @@ import KaitoKit
 @testable import KaitoFinder
 
 nonisolated final class EntryTreeTests: XCTestCase {
+    func testHiddenNameUsesLastComponentAndIncludesMetadataNames() {
+        for name in [".DS_Store", "nested/.gitignore", "__MACOSX", "nested/__MACOSX/", "._photo.jpg"] {
+            XCTAssertTrue(EntryNode.isHiddenName(name), name)
+        }
+        for name in ["", "photo.jpg", "__MACOSX-other", ".git/config", "folder/visible"] {
+            XCTAssertFalse(EntryNode.isHiddenName(name), name)
+        }
+    }
+
+    @MainActor func testHiddenFilterPrunesSubtreesAndComposesWithMatchingAncestors() throws {
+        let root = EntryNode.tree(from: [entry("docs/public.txt", index: 0), entry("docs/.secret/inside.txt", index: 1),
+            entry("docs/.DS_Store", index: 2), entry("__MACOSX/._docs", index: 3), entry(".gitignore", index: 4)])
+        let docs = try child("docs", in: root), secret = try child(".secret", in: docs)
+        XCTAssertTrue(try child("inside.txt", in: secret).isHidden)
+        for query in ["", "docs"] {
+            let filter = EntryTreeFilter(root: root, query: query, showsHiddenFiles: false)
+            XCTAssertEqual(filter.children(of: root), [docs])
+            XCTAssertEqual(filter.children(of: docs).map(\.name), ["public.txt"])
+            XCTAssertFalse(filter.contains(secret))
+            XCTAssertTrue(filter.children(of: secret).isEmpty)
+        }
+        XCTAssertTrue(EntryTreeFilter(root: root, query: "inside", showsHiddenFiles: false).children(of: root).isEmpty)
+        let shown = EntryTreeFilter(root: root, query: "inside", showsHiddenFiles: true)
+        XCTAssertEqual(shown.children(of: docs), [secret])
+        XCTAssertEqual(shown.children(of: secret).map(\.name), ["inside.txt"])
+        XCTAssertEqual(EntryTreeFilter(root: root, query: "", showsHiddenFiles: true).children(of: root), root.children)
+        // 表示されたフォルダは同じ実体。ドラッグ・展開・削除はいずれも隠し子孫を保持する。
+        XCTAssertEqual(ExtractionSelection(nodes: [docs]).entries.map(\.index), [0, 1, 2])
+        XCTAssertEqual(ArchiveEditSelection(docs).entries.map(\.index), [0, 1, 2])
+    }
+
     @MainActor
     private func entry(_ path: String, index: Int = 0, kind: EntryKind = .file,
                        size: UInt64? = 2, compressed: UInt64? = 1) -> ArchiveEntry {

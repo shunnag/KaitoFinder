@@ -15,14 +15,17 @@ nonisolated struct ArchiveCreationPlan: Sendable {
     let format: GyoshukuKit.ArchiveFormat
     let options: WriterOptions
     let existing: Existing?
+    let importOptions: ArchiveImportPlan.Options
 
     init(sources: [URL], destination: URL, format: GyoshukuKit.ArchiveFormat,
-         options: WriterOptions = WriterOptions(), existing: Existing? = nil) {
+         options: WriterOptions = WriterOptions(), existing: Existing? = nil,
+         importOptions: ArchiveImportPlan.Options = .init()) {
         self.sources = sources
         self.destination = destination
         self.format = format
         self.options = options
         self.existing = existing
+        self.importOptions = importOptions
     }
 
     static func filenameExtension(for format: GyoshukuKit.ArchiveFormat) -> String {

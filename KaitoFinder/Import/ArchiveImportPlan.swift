@@ -3,6 +3,15 @@ import Foundation
 import KaitoKit
 
 nonisolated struct ArchiveImportPlan: Sendable {
+    struct Options: Sendable, Equatable {
+        var excludesDSStore = true
+        var excludesHiddenFiles = false
+
+        func excludes(_ url: URL) -> Bool {
+            (excludesDSStore && url.lastPathComponent == ".DS_Store")
+                || (excludesHiddenFiles && EntryNode.isHiddenName(url.lastPathComponent))
+        }
+    }
     struct Item: Sendable {
         let url: URL
         let path: String
@@ -25,7 +34,8 @@ nonisolated struct ArchiveImportPlan: Sendable {
         return raw.precomposedStringWithCanonicalMapping
     }
 
-    static func build(urls: [URL], folder: String, existing: [ArchiveEntry], progress: Progress) throws -> Self {
+    static func build(urls: [URL], folder: String, existing: [ArchiveEntry], progress: Progress,
+                      options: Options = Options()) throws -> Self {
         let target = folder.isEmpty ? "" : try path(folder)
         var occupied = Set<String>(), files = Set<String>()
         for entry in existing {
@@ -46,6 +56,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
         var plan = Self()
         for url in urls {
             try checkCancellation(progress)
+            if options.excludes(url) { continue }
             do {
                 guard url.isFileURL else { throw ExtractionFailure.refused(String(localized: "追加元はfile URLが必要です。")) }
                 let leaf = try path(url.lastPathComponent)
@@ -71,6 +82,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
                     // リンクを再帰しない。writer が lstat でリンク自体を保存する。
                     if kind == S_IFDIR {
                         let children = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+                            .filter { !options.excludes($0) }
                             .sorted { $0.lastPathComponent < $1.lastPathComponent }
                         pending.append(contentsOf: children.reversed().map { ($0, key + "/" + $0.lastPathComponent) })
                     }

@@ -15,6 +15,13 @@ final class EntryNode: NSObject {
     private(set) var compressedSize: UInt64?
 
     var isVirtual: Bool { isDirectory && entry == nil }
+    private(set) var isHidden = false
+
+    nonisolated static func isHiddenName(_ name: String) -> Bool {
+        let leaf = name.split(separator: "/").last ?? ""
+        // AppleDouble (._*) もドットで始まる名前として含める。
+        return leaf.hasPrefix(".") || leaf == "__MACOSX"
+    }
 
     private init(name: String, isDirectory: Bool, entry: ArchiveEntry? = nil) {
         self.name = name
@@ -47,6 +54,7 @@ final class EntryNode: NSObject {
                 // 同名ファイルや、ファイルとフォルダの衝突も消さずに表示する。
                 let node = EntryNode(name: leaf, isDirectory: false, entry: entry)
                 node.path = parent.path.isEmpty ? leaf : parent.path + "/" + leaf
+                node.isHidden = parent.isHidden || Self.isHiddenName(leaf)
                 parent.children.append(node)
                 nodes.append(node)
             }
@@ -63,6 +71,7 @@ final class EntryNode: NSObject {
         if let existing = directories[name] { return existing }
         let node = EntryNode(name: name, isDirectory: true)
         node.path = path.isEmpty ? name : path + "/" + name
+        node.isHidden = isHidden || Self.isHiddenName(name)
         directories[name] = node
         children.append(node)
         nodes.append(node)
@@ -83,17 +92,15 @@ final class EntryNode: NSObject {
 
 /// 表示する子だけを選ぶ。元の node と children は削除・改名・取り出しで共有する。
 struct EntryTreeFilter {
-    private let query: String
     private var visible: Set<ObjectIdentifier> = []
 
-    init(root: EntryNode, query: String) {
-        self.query = query
-        guard !query.isEmpty else { return }
+    init(root: EntryNode, query: String, showsHiddenFiles: Bool = false) {
         var pending = [(root, false)]
         var visited: [EntryNode] = []
         while let (node, matchedAncestor) = pending.popLast() {
+            guard showsHiddenFiles || !node.isHidden else { continue }
             // 日本語の書庫では半角カナや全角数字が混在するため、文字幅も明示的に同一視する。
-            let matches = matchedAncestor || node.name.range(of: query,
+            let matches = query.isEmpty || matchedAncestor || node.name.range(of: query,
                 options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) != nil
             if matches { visible.insert(ObjectIdentifier(node)) }
             visited.append(node)
@@ -106,7 +113,7 @@ struct EntryTreeFilter {
     }
 
     func contains(_ node: EntryNode) -> Bool {
-        query.isEmpty || visible.contains(ObjectIdentifier(node))
+        visible.contains(ObjectIdentifier(node))
     }
 
     func children(of node: EntryNode) -> [EntryNode] {

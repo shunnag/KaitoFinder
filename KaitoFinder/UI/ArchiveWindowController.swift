@@ -41,6 +41,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
     QLPreviewPanelDataSource, QLPreviewPanelDelegate {
     private let bundle: Bundle
+    private let preferencesStore: ArchivePreferencesStore
+    private var showsHiddenFiles: Bool
+    // 非表示になったフォルダの展開状態も、再表示まで保持する。
+    private var hiddenExpandedPaths: Set<String> = []
     private var hasPositionedWindow = false
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
@@ -98,14 +102,18 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return formatter
     }()
 
-    init(bundle: Bundle = .main) {
+    init(bundle: Bundle = .main, preferencesStore: ArchivePreferencesStore = .shared) {
         self.bundle = bundle
+        self.preferencesStore = preferencesStore
+        showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         unlockButton = NSButton(title: String(localized: "ロックを解除…", bundle: bundle), target: nil, action: nil)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 600),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
         super.init(window: window)
+        NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
+                                               name: ArchivePreferencesStore.didChange, object: preferencesStore)
         window.minSize = NSSize(width: 600, height: 300)
         window.center()
         window.setFrameAutosaveName("ArchiveWindow")
@@ -353,13 +361,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return enabled
     }
 
+    static func cascadeReferenceWindow(excluding window: NSWindow) -> NSWindow? {
+        NSApp.orderedWindows.first(where: {
+            $0.windowController is ArchiveWindowController && $0.isVisible && $0 !== window
+                && !($0.tabGroup?.windows.contains { $0 === window } ?? false)
+        })
+    }
+
     override func showWindow(_ sender: Any?) {
         if let window, !window.isVisible, !hasPositionedWindow {
             hasPositionedWindow = true
-            if let reference = NSApp.orderedWindows.first(where: {
-                $0.windowController is ArchiveWindowController && $0.isVisible && $0 !== window
-                    && !($0.tabGroup?.windows.contains { $0 === window } ?? false)
-            }) {
+            if let reference = Self.cascadeReferenceWindow(excluding: window) {
                 let next = reference.cascadeTopLeft(from: .zero)
                 window.cascadeTopLeft(from: next)
             }
@@ -581,7 +593,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             let sum = total.addingReportingOverflow(bytes)
             size = sum.overflow ? nil : sum.partialValue
         }
-        statusBar.stringValue = ArchiveStatusBarText.text(totalCount: nodes.count, totalSize: root.size,
+        let visibleCount = nodes.filter { showsHiddenFiles || !$0.isHidden }.count
+        statusBar.stringValue = ArchiveStatusBarText.text(totalCount: visibleCount, totalSize: root.size,
             filteredCount: filterQuery.isEmpty ? nil : nodes.filter { entryFilter?.contains($0) != false }.count,
             selectedCount: selected.count, selectedSize: size, bundle: bundle)
     }
@@ -606,6 +619,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     @objc func filterEntries(_ sender: NSSearchField) { setFilterQuery(sender.stringValue) }
 
+    @objc private func preferencesDidChange(_ notification: Notification) {
+        let showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
+        guard self.showsHiddenFiles != showsHiddenFiles else { return }
+        let state = captureViewState()
+        self.showsHiddenFiles = showsHiddenFiles
+        outlineView.cancelRenaming()
+        closePreview()
+        reloadFilteredEntries(restoring: state, expandsMatches: false)
+    }
+
     func setFilterQuery(_ query: String) {
         guard query != filterQuery else { return }
         // 未確定の不正な名前を reload で捨てない。ソートと同じ確定規則を使う。
@@ -620,13 +643,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         reloadFilteredEntries(restoring: restored)
     }
 
-    private func reloadFilteredEntries(restoring state: ArchiveViewState) {
-        entryFilter = EntryTreeFilter(root: root, query: filterQuery)
+    private func reloadFilteredEntries(restoring state: ArchiveViewState, expandsMatches: Bool = true) {
+        entryFilter = EntryTreeFilter(root: root, query: filterQuery, showsHiddenFiles: showsHiddenFiles)
         sortedChildren.removeAll()
         outlineView.reloadData()
         // 同じ node を使う reload は展開状態を保持するため、検索中の自動展開も明示的に戻す。
         outlineView.collapseItem(nil, collapseChildren: true)
-        if !filterQuery.isEmpty { outlineView.expandItem(nil, expandChildren: true) }
+        if expandsMatches, !filterQuery.isEmpty { outlineView.expandItem(nil, expandChildren: true) }
         restoreViewState(state)
     }
 
@@ -670,6 +693,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(saveArchiveAs(_:)):
+            return archiveSession != nil && !isLocked && document is ArchiveDocument && !operationInFlight
         case #selector(newFolder(_:)):
             menuItem.toolTip = editRefusal
             return archiveSession != nil && document is ArchiveDocument && editRefusal == nil && !outlineView.isRenaming
@@ -702,7 +727,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     var operationInFlight: Bool {
-        extractionTask != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
+        extractionTask != nil || creationController != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
     }
 
@@ -765,7 +790,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let target = ArchiveViewState(selectedPaths: [path], expandedPaths: [], topPath: nil).resolve(in: root).selected.first
         guard let target else { return }
         // 新しい名前が検索に一致しなくても、作成した場所で直ちに改名できるようにする。
-        if entryFilter?.contains(target) == false { setFilterQuery("") }
+        if !filterQuery.isEmpty, entryFilter?.contains(target) == false { setFilterQuery("") }
         var state = captureViewState()
         state.selectedPaths = [path]
         let parents = path.split(separator: "/").dropLast()
@@ -895,7 +920,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 let result = try await document.move(nodes, to: folder, progress: progress)
                 if result.published, let self {
                     // 親の名前だけが検索に一致していた場合も、移動した項目を選択できるようにする。
-                    if state.resolve(in: self.root).selected.contains(where: { self.entryFilter?.contains($0) == false }) {
+                    if !self.filterQuery.isEmpty,
+                       state.resolve(in: self.root).selected.contains(where: { self.entryFilter?.contains($0) == false }) {
                         self.setFilterQuery("")
                     }
                     self.restoreViewState(state)
@@ -1021,11 +1047,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func captureViewState() -> ArchiveViewState {
         let visible = outlineView.rows(in: outlineView.visibleRect)
         let top = visible.location < outlineView.numberOfRows ? outlineView.item(atRow: visible.location) as? EntryNode : nil
-        var expanded = Set<String>()
+        var expanded = showsHiddenFiles ? [] : hiddenExpandedPaths
         var pending = root.children
         while let node = pending.popLast() {
             if node.isDirectory, outlineView.isItemExpanded(node) { expanded.insert(node.path) }
             pending.append(contentsOf: node.children)
+        }
+        if showsHiddenFiles {
+            hiddenExpandedPaths = Set(expanded.filter { path in
+                path.split(separator: "/").contains { EntryNode.isHiddenName(String($0)) }
+            })
         }
         return ArchiveViewState(selectedPaths: Set(selectedNodes.map(\.path)), expandedPaths: expanded, topPath: top?.path)
     }
@@ -1185,7 +1216,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let window, !operationInFlight else { return }
         let progress = Progress(totalUnitCount: 0)
         extractionProgress = progress
-        let creator = ArchiveCreationController()
+        let creator = ArchiveCreationController(store: preferencesStore)
         creationController = creator
         extractionTask = Task { [weak self] in
             defer {
@@ -1199,19 +1230,55 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             do {
                 // パスワードの入力と全 entry の検証を、保存パネルや圧縮の前に済ませる。
-                let password = try await session.preparedPassword()
-                let snapshot = await session.snapshot()
-                try ArchiveImportPlan.checkCancellation(progress)
+                let existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
                 let sources: [URL]
                 if let incoming { sources = try await incoming.receive(progress: progress) }
                 else { sources = urls }
-                let existing = ArchiveCreationPlan.Existing(url: session.sourceURL, password: password, entries: snapshot.entries)
                 try await creator.createAndOpen(sources: sources, existing: existing, on: window, progress: progress)
             } catch {
                 if !(error is CancellationError), !Task.isCancelled { ArchiveCreationController.presentFailure(error) }
             }
         }
         extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+    }
+
+    @objc func saveArchiveAs(_ sender: Any?) {
+        guard canPerformEdit(#selector(saveArchiveAs(_:))), outlineView.commitRenaming() else { return }
+        let progress = Progress(totalUnitCount: 0)
+        extractionTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                extractionTask = nil
+                extractionCancellation?.cancel()
+                extractionCancellation = nil
+            }
+            do { try await saveArchiveAs(using: ArchiveCreationController(store: preferencesStore), progress: progress) }
+            catch {
+                if !(error is CancellationError), !Task.isCancelled { ArchiveCreationController.presentFailure(error) }
+            }
+        }
+        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+    }
+
+    // 実際の保存・文書切り替えを共有し、テストでは保存先の選択だけを差し替える。
+    func saveArchiveAs(using creator: ArchiveCreationController, progress: Progress = Progress()) async throws {
+        guard let window, let session = archiveSession, let document = document as? ArchiveDocument,
+              !isLocked, creationController == nil else { throw CancellationError() }
+        closePreview()
+        materialization?.cancel()
+        creationController = creator
+        extractionProgress = progress
+        defer { creationController = nil; extractionProgress = nil }
+        let existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
+        guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress) else { return }
+        try await document.switchBackingFile(to: destination)
+    }
+
+    func prepareForBackingFileSwitch() {
+        closePreview()
+        materialization?.cancel()
+        thumbnailProvider?.cancelAll()
+        thumbnailProvider = nil
     }
 
     private func reportImportFailure(_ reason: String, added: Bool = false) {

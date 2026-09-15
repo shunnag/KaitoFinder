@@ -20,6 +20,13 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var folderPolicy: FolderPolicy = .whenMultipleTopLevelItems
     var trashesArchiveAfterExtraction = false
     var revealsExtractedItemsInFinder = false
+    var showsHiddenFiles = false
+    var excludesDSStore = true
+    var excludesHiddenFiles = false
+
+    var importOptions: ArchiveImportPlan.Options {
+        .init(excludesDSStore: excludesDSStore, excludesHiddenFiles: excludesHiddenFiles)
+    }
 
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
         switch format {
@@ -56,6 +63,9 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let folderPolicy = "ArchiveFolderPolicy"
         static let trashesArchiveAfterExtraction = "ArchiveTrashesArchiveAfterExtraction"
         static let revealsExtractedItemsInFinder = "ArchiveRevealsExtractedItems"
+        static let showsHiddenFiles = "ArchiveShowsHiddenFiles"
+        static let excludesDSStore = "ArchiveExcludesDSStore"
+        static let excludesHiddenFiles = "ArchiveExcludesHiddenFiles"
     }
 
     private let defaults: UserDefaults
@@ -83,6 +93,9 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                                                          fallback: value.trashesArchiveAfterExtraction)
             value.revealsExtractedItemsInFinder = boolean(forKey: Key.revealsExtractedItemsInFinder,
                                                         fallback: value.revealsExtractedItemsInFinder)
+            value.showsHiddenFiles = boolean(forKey: Key.showsHiddenFiles, fallback: value.showsHiddenFiles)
+            value.excludesDSStore = boolean(forKey: Key.excludesDSStore, fallback: value.excludesDSStore)
+            value.excludesHiddenFiles = boolean(forKey: Key.excludesHiddenFiles, fallback: value.excludesHiddenFiles)
             return value
         }
         set {
@@ -96,6 +109,9 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.folderPolicy.rawValue, forKey: Key.folderPolicy)
             defaults.set(newValue.trashesArchiveAfterExtraction, forKey: Key.trashesArchiveAfterExtraction)
             defaults.set(newValue.revealsExtractedItemsInFinder, forKey: Key.revealsExtractedItemsInFinder)
+            defaults.set(newValue.showsHiddenFiles, forKey: Key.showsHiddenFiles)
+            defaults.set(newValue.excludesDSStore, forKey: Key.excludesDSStore)
+            defaults.set(newValue.excludesHiddenFiles, forKey: Key.excludesHiddenFiles)
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。
             NotificationCenter.default.post(name: Self.didChange, object: self)
         }

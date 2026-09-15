@@ -33,6 +33,11 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testEnglishDevelopmentFallbackKeepsAllTenLocalizations() {
+        XCTAssertEqual(Bundle.main.infoDictionary?["CFBundleDevelopmentRegion"] as? String, "en")
+        XCTAssertTrue(Set(LocalizationAcceptance.languages).isSubset(of: Set(Bundle.main.localizations)))
+    }
+
     private func texts(_ language: String) throws -> [(key: String, value: String)] {
         try LocalizationAcceptance.catalog().strings.sorted { $0.key < $1.key }.map { key, entry in
             (key, try XCTUnwrap(entry.localizations[language], "\(language): \(key)").stringUnit.value)
@@ -78,7 +83,10 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertFalse(text.contains("書庫"), key)
             XCTAssertFalse(text.contains("／"), key)
             XCTAssertFalse(text.contains("「%@」"), key)
-            XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)
+            // Wave A の指定ラベルは、形式名・ファイル名を区切る空白も仕様どおりに保つ。
+            if ![".DS_Store を含めない", "7z と LHA の圧縮レベルは固定です"].contains(key) {
+                XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)
+            }
         }
         try checkNameQuotes("ja", opening: "“", closing: "”")
     }
@@ -280,7 +288,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             }
             let submenus = menu.items.compactMap(\.submenu)
             XCTAssertEqual(submenus.map { LocalizationAcceptance.normalizedTitle($0.title) },
-                           ["KaitoFinder", title("ファイル"), title("編集"), title("ウインドウ"), title("ヘルプ")])
+                           ["KaitoFinder", title("ファイル"), title("編集"), title("表示"), title("ウインドウ"), title("ヘルプ")])
             let app = try XCTUnwrap(submenus.first)
             XCTAssertEqual(app.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
                            [title("KaitoFinderについて"), "", title("設定…"), "", title("サービス"), "",

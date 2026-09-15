@@ -8,7 +8,8 @@ nonisolated enum ArchiveCreationTransaction {
     static func run(plan: ArchiveCreationPlan, progress: Progress,
                     willPublish: (@Sendable () throws -> Void)? = nil) throws -> URL {
         let imported = try ArchiveImportPlan.build(urls: plan.sources, folder: "",
-                                                  existing: plan.existing?.entries ?? [], progress: progress)
+                                                  existing: plan.existing?.entries ?? [], progress: progress,
+                                                  options: plan.importOptions)
         guard imported.failures.isEmpty else {
             throw ExtractionFailure.refused(imported.failures.map { "\($0.name): \($0.reason)" }.joined(separator: "\n"))
         }

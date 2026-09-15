@@ -32,6 +32,9 @@ final class PreferencesViewModel {
     func changeZipSkipsCompressedTypes(to enabled: Bool) { store.preferences.zipSkipsCompressedTypes = enabled }
     func changeTarGzipLevel(to level: Int) { store.preferences.tarGzipLevel = ArchivePreferences.clampedLevel(level) }
     func changeTarPreservesOwnerIDs(to enabled: Bool) { store.preferences.tarPreservesOwnerIDs = enabled }
+    func changeShowsHiddenFiles(to enabled: Bool) { store.preferences.showsHiddenFiles = enabled }
+    func changeExcludesDSStore(to enabled: Bool) { store.preferences.excludesDSStore = enabled }
+    func changeExcludesHiddenFiles(to enabled: Bool) { store.preferences.excludesHiddenFiles = enabled }
 
     func selectExtractionDestination(at index: Int) {
         guard Self.extractionDestinations.indices.contains(index) else { return }
@@ -67,9 +70,18 @@ final class PreferencesWindowController: NSWindowController {
     let folderPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let afterExpansionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let revealsExtractedItemsInFinderCheckbox: NSButton
+    let showsHiddenFilesCheckbox: NSButton
+    let excludesDSStoreCheckbox: NSButton
+    let excludesHiddenFilesCheckbox: NSButton
 
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main) {
         self.bundle = bundle
+        showsHiddenFilesCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "隠しファイルを表示", bundle: bundle), target: nil, action: nil)
+        excludesDSStoreCheckbox = NSButton(
+            checkboxWithTitle: String(localized: ".DS_Store を含めない", bundle: bundle), target: nil, action: nil)
+        excludesHiddenFilesCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "隠しファイル(名前が . で始まる)を含めない", bundle: bundle), target: nil, action: nil)
         zipSkipsCompressedTypesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納", bundle: bundle), target: nil, action: nil)
         tarPreservesOwnerIDsCheckbox = NSButton(
@@ -88,13 +100,16 @@ final class PreferencesWindowController: NSWindowController {
         tabController.tabStyle = .toolbar
         configureControls()
         addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", rows: [
-            row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup)
+            row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
+            [NSGridCell.emptyContentView, wrappingCheckbox(showsHiddenFilesCheckbox, width: 352)]
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-で固定です。", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
         footnote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         footnote.preferredMaxLayoutWidth = 504
         addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", rows: [
+            [wrappingCheckbox(excludesDSStoreCheckbox, width: 504), NSGridCell.emptyContentView],
+            [wrappingCheckbox(excludesHiddenFilesCheckbox, width: 504), NSGridCell.emptyContentView],
             [section(String(localized: "ZIP", bundle: bundle)), NSGridCell.emptyContentView],
             row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
             row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
@@ -104,7 +119,7 @@ final class PreferencesWindowController: NSWindowController {
             [section(String(localized: "tar", bundle: bundle)), NSGridCell.emptyContentView],
             [NSGridCell.emptyContentView, wrappingCheckbox(tarPreservesOwnerIDsCheckbox, width: 352)],
             [footnote, NSGridCell.emptyContentView]
-        ], spanningRows: [0, 4, 6, 8])
+        ], spanningRows: [0, 1, 2, 6, 8, 10])
         addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", rows: [
             row(String(localized: "展開したファイルの保存場所:", bundle: bundle), control: extractionDestinationPopup),
             row(String(localized: "展開後:", bundle: bundle), control: afterExpansionPopup),
@@ -144,6 +159,9 @@ final class PreferencesWindowController: NSWindowController {
         folderPolicyPopup.addItems(withTitles: [String(localized: "常に", bundle: bundle), String(localized: "複数の項目があるとき", bundle: bundle),
                                               String(localized: "作らない", bundle: bundle)])
         let actions: [(NSControl, Selector)] = [
+            (showsHiddenFilesCheckbox, #selector(changeShowsHiddenFiles(_:))),
+            (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
+            (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
@@ -247,6 +265,9 @@ final class PreferencesWindowController: NSWindowController {
 
     private func refreshControls() {
         let preferences = viewModel.preferences
+        showsHiddenFilesCheckbox.state = preferences.showsHiddenFiles ? .on : .off
+        excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
+        excludesHiddenFilesCheckbox.state = preferences.excludesHiddenFiles ? .on : .off
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.integerValue = preferences.zipLevel
@@ -263,6 +284,9 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
+    @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
+    @objc private func changeExcludesDSStore(_ sender: NSButton) { viewModel.changeExcludesDSStore(to: sender.state == .on) }
+    @objc private func changeExcludesHiddenFiles(_ sender: NSButton) { viewModel.changeExcludesHiddenFiles(to: sender.state == .on) }
     @objc private func changeZipMethod(_ sender: NSPopUpButton) { viewModel.selectZipMethod(at: sender.indexOfSelectedItem) }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }

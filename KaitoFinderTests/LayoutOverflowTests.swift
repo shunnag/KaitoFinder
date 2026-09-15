@@ -112,7 +112,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                 let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
                 XCTAssertEqual(grid.numberOfColumns, 2)
                 XCTAssertEqual(grid.rowSpacing, 12)
-                XCTAssertEqual(grid.numberOfRows, [1, 9, 4][index])
+                XCTAssertEqual(grid.numberOfRows, [2, 11, 4][index])
                 XCTAssertLessThanOrEqual(ceil(grid.fittingSize.width) + 48, contentSize.width + 0.5, language)
                 XCTAssertLessThanOrEqual(ceil(grid.fittingSize.height) + 48, contentSize.height + 0.5, language)
                 XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, contentSize, language)
@@ -132,7 +132,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                 }
                 if index == 1 {
-                    for row in [0, 4, 6] {
+                    for row in [0, 1, 2, 6, 8] {
                         XCTAssertTrue(grid.cell(atColumnIndex: 0, rowIndex: row) === grid.cell(atColumnIndex: 1, rowIndex: row))
                     }
                     for (slider, label) in [(controller.zipLevelSlider, controller.zipLevelLabel),
@@ -226,13 +226,18 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         }
     }
 
-    @MainActor func testSavePanelAccessoryInJapaneseAndEnglish() throws {
-        try forEachLanguage { language, bundle in
+    @MainActor func testSavePanelAccessoryInEveryLanguageAndFormat() throws {
+        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
             let suite = try ArchivePreferencesTestDefaults()
             let save = ArchiveSavePanel(sources: [URL(fileURLWithPath: "/tmp/写真.jpg")], defaults: suite.defaults, bundle: bundle)
             let accessory = try XCTUnwrap(save.panel.accessoryView)
             // 保存パネル本体を開かず、実際に渡されたアクセサリを監査する。
-            try snapshot(accessory, name: "\(language)-save-panel-accessory")
+            for (index, format) in ArchiveSavePanelController.formats.enumerated() {
+                save.formatPopup.selectItem(at: index)
+                XCTAssertTrue(save.formatPopup.sendAction(save.formatPopup.action, to: save.formatPopup.target))
+                try snapshot(accessory, name: "\(language)-save-panel-\(ArchiveCreationPlan.filenameExtension(for: format))")
+                XCTAssertEqual(accessory.bounds.width, 360, accuracy: 0.5, language)
+            }
         }
     }
 
