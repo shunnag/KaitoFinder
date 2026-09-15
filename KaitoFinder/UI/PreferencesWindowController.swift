@@ -47,52 +47,57 @@ final class PreferencesViewModel {
 
 final class PreferencesWindowController: NSWindowController {
     let viewModel: PreferencesViewModel
+    private let bundle: Bundle
     let tabController = NSTabViewController()
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
-    let zipSkipsCompressedTypesCheckbox = NSButton(
-        checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納"), target: nil, action: nil)
+    let zipSkipsCompressedTypesCheckbox: NSButton
     let tarGzipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let tarGzipLevelLabel = NSTextField(labelWithString: "")
-    let tarPreservesOwnerIDsCheckbox = NSButton(
-        checkboxWithTitle: String(localized: "所有者ID(uid / gid)を保存"), target: nil, action: nil)
+    let tarPreservesOwnerIDsCheckbox: NSButton
     let extractionDestinationPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let folderPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    let trashesArchiveAfterExtractionCheckbox = NSButton(
-        checkboxWithTitle: String(localized: "展開後にアーカイブをゴミ箱に入れる"), target: nil, action: nil)
+    let trashesArchiveAfterExtractionCheckbox: NSButton
 
-    init(store: ArchivePreferencesStore = .shared) {
+    init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main) {
+        self.bundle = bundle
+        zipSkipsCompressedTypesCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納", bundle: bundle), target: nil, action: nil)
+        tarPreservesOwnerIDsCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
+        trashesArchiveAfterExtractionCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "展開後にアーカイブをゴミ箱に入れる", bundle: bundle), target: nil, action: nil)
         viewModel = PreferencesViewModel(store: store)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 660, height: 420),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
-        window.title = String(localized: "設定")
+        window.title = String(localized: "設定", bundle: bundle)
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         window.center()
         window.setFrameAutosaveName("Preferences")
         tabController.tabStyle = .toolbar
         configureControls()
-        addTab(title: String(localized: "一般"), symbol: "gearshape", views: [
-            row(String(localized: "新規アーカイブの既定形式"), control: defaultFormatPopup)
+        addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", views: [
+            row(String(localized: "新規アーカイブの既定形式", bundle: bundle), control: defaultFormatPopup)
         ])
-        addTab(title: String(localized: "圧縮"), symbol: "archivebox", views: [
-            group(title: String(localized: "ZIP"), views: [
-                row(String(localized: "圧縮方式"), control: zipMethodPopup),
-                row(String(localized: "圧縮レベル"), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
+        addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", views: [
+            group(title: String(localized: "ZIP", bundle: bundle), views: [
+                row(String(localized: "圧縮方式", bundle: bundle), control: zipMethodPopup),
+                row(String(localized: "圧縮レベル", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
                 zipSkipsCompressedTypesCheckbox
             ]),
-            group(title: String(localized: "tar.gz"), views: [
-                row(String(localized: "gzipレベル"), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel))
+            group(title: String(localized: "tar.gz", bundle: bundle), views: [
+                row(String(localized: "gzipレベル", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel))
             ]),
-            group(title: String(localized: "tar"), views: [tarPreservesOwnerIDsCheckbox]),
-            NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-固定です"))
+            group(title: String(localized: "tar", bundle: bundle), views: [tarPreservesOwnerIDsCheckbox]),
+            NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-固定です", bundle: bundle))
         ])
-        addTab(title: String(localized: "展開"), symbol: "tray.and.arrow.down", views: [
-            row(String(localized: "展開先"), control: extractionDestinationPopup),
-            row(String(localized: "フォルダを作成"), control: folderPolicyPopup),
+        addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", views: [
+            row(String(localized: "展開先", bundle: bundle), control: extractionDestinationPopup),
+            row(String(localized: "フォルダを作成", bundle: bundle), control: folderPolicyPopup),
             trashesArchiveAfterExtractionCheckbox
         ])
         window.contentViewController = tabController
@@ -109,11 +114,11 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func configureControls() {
-        defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map(ArchiveSavePanelController.title))
-        zipMethodPopup.addItems(withTitles: [String(localized: "Deflate"), String(localized: "無圧縮")])
-        extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じフォルダ"), String(localized: "毎回選ぶ")])
-        folderPolicyPopup.addItems(withTitles: [String(localized: "常に"), String(localized: "複数の項目があるとき"),
-                                              String(localized: "作らない")])
+        defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
+        zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle)])
+        extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じフォルダ", bundle: bundle), String(localized: "毎回選ぶ", bundle: bundle)])
+        folderPolicyPopup.addItems(withTitles: [String(localized: "常に", bundle: bundle), String(localized: "複数の項目があるとき", bundle: bundle),
+                                              String(localized: "作らない", bundle: bundle)])
         let actions: [(NSControl, Selector)] = [
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
@@ -126,8 +131,8 @@ final class PreferencesWindowController: NSWindowController {
             (trashesArchiveAfterExtractionCheckbox, #selector(changeTrashesArchiveAfterExtraction(_:)))
         ]
         for (control, action) in actions { control.target = self; control.action = action }
-        zipLevelSlider.setAccessibilityLabel(String(localized: "圧縮レベル"))
-        tarGzipLevelSlider.setAccessibilityLabel(String(localized: "gzipレベル"))
+        zipLevelSlider.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
+        tarGzipLevelSlider.setAccessibilityLabel(String(localized: "gzipレベル", bundle: bundle))
     }
 
     private func levelControl(_ slider: NSSlider, label: NSTextField) -> NSView {
@@ -139,6 +144,8 @@ final class PreferencesWindowController: NSWindowController {
         label.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
         label.alignment = .right
         let stack = NSStackView(views: [slider, label])
+        // ラベルの整列矩形からはみ出す左右2ポイントを確保する。
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
         stack.spacing = 12
         stack.alignment = .centerY
         return stack
@@ -149,6 +156,7 @@ final class PreferencesWindowController: NSWindowController {
         label.widthAnchor.constraint(equalToConstant: 180).isActive = true
         control.setAccessibilityLabel(title)
         let stack = NSStackView(views: [label, control])
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
         stack.spacing = 12
         stack.alignment = .centerY
         return stack
@@ -158,6 +166,7 @@ final class PreferencesWindowController: NSWindowController {
         let label = NSTextField(labelWithString: title)
         label.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         let stack = NSStackView(views: [label] + views)
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -170,6 +179,7 @@ final class PreferencesWindowController: NSWindowController {
         controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 660, height: 420))
         controller.preferredContentSize = controller.view.frame.size
         let stack = NSStackView(views: views)
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 20

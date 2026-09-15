@@ -19,13 +19,13 @@ final class ArchiveSavePanelController {
     var selectedIndex: Int { Self.formats.firstIndex(of: format)! }
     var allowedContentTypes: [UTType] { [Self.contentType(for: format)] }
 
-    static func title(for format: GyoshukuKit.ArchiveFormat) -> String {
+    static func title(for format: GyoshukuKit.ArchiveFormat, bundle: Bundle = .main) -> String {
         switch format {
-        case .zip: String(localized: "ZIP")
-        case .tar: String(localized: "tar")
-        case .tarGzip: String(localized: "tar.gz")
-        case .sevenZip: String(localized: "7z")
-        case .lha: String(localized: "LHA")
+        case .zip: String(localized: "ZIP", bundle: bundle)
+        case .tar: String(localized: "tar", bundle: bundle)
+        case .tarGzip: String(localized: "tar.gz", bundle: bundle)
+        case .sevenZip: String(localized: "7z", bundle: bundle)
+        case .lha: String(localized: "LHA", bundle: bundle)
         }
     }
 
@@ -62,11 +62,11 @@ final class ArchiveSavePanel: NSObject {
     let controller: ArchiveSavePanelController
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
 
-    convenience init(sources: [URL], existingURL: URL? = nil, defaults: UserDefaults) {
-        self.init(sources: sources, existingURL: existingURL, store: ArchivePreferencesStore(defaults: defaults))
+    convenience init(sources: [URL], existingURL: URL? = nil, defaults: UserDefaults, bundle: Bundle = .main) {
+        self.init(sources: sources, existingURL: existingURL, store: ArchivePreferencesStore(defaults: defaults), bundle: bundle)
     }
 
-    init(sources: [URL], existingURL: URL? = nil, store: ArchivePreferencesStore = .shared) {
+    init(sources: [URL], existingURL: URL? = nil, store: ArchivePreferencesStore = .shared, bundle: Bundle = .main) {
         controller = ArchiveSavePanelController(store: store)
         super.init()
         panel.directoryURL = sources.first?.deletingLastPathComponent()
@@ -75,21 +75,29 @@ final class ArchiveSavePanel: NSObject {
         panel.allowedContentTypes = controller.allowedContentTypes
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
-        formatPopup.addItems(withTitles: ArchiveSavePanelController.formats.map(ArchiveSavePanelController.title))
+        formatPopup.addItems(withTitles: ArchiveSavePanelController.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         formatPopup.selectItem(at: controller.selectedIndex)
         formatPopup.target = self
         formatPopup.action = #selector(changeFormat(_:))
-        formatPopup.setAccessibilityLabel(String(localized: "フォーマット"))
-        let row = NSStackView(views: [NSTextField(labelWithString: String(localized: "フォーマット")), formatPopup])
+        panel.accessoryView = Self.makeAccessoryView(formatPopup: formatPopup, bundle: bundle)
+    }
+
+    // 保存パネルの外部サービスに接続せず、同じアクセサリを構築できる。
+    static func makeAccessoryView(formatPopup: NSPopUpButton, bundle: Bundle = .main) -> NSView {
+        formatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
+        let row = NSStackView(views: [NSTextField(labelWithString: String(localized: "フォーマット", bundle: bundle)), formatPopup])
         row.spacing = 12
-        let note = NSTextField(labelWithString: String(localized: "暗号化はできません"))
+        row.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        let note = NSTextField(labelWithString: String(localized: "暗号化はできません", bundle: bundle))
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         let accessory = NSStackView(views: [row, note])
         accessory.orientation = .vertical
         accessory.alignment = .leading
         accessory.spacing = 8
-        panel.accessoryView = accessory
+        accessory.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        accessory.setFrameSize(accessory.fittingSize)
+        return accessory
     }
 
     @objc func changeFormat(_ sender: NSPopUpButton) {

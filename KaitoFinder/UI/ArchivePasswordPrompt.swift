@@ -35,7 +35,10 @@ final class ArchivePasswordPrompt {
         accessory.orientation = .vertical
         accessory.alignment = .leading
         accessory.spacing = 8
-        field.widthAnchor.constraint(equalToConstant: 300).isActive = true
+        field.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
+        field.widthAnchor.constraint(equalTo: accessory.widthAnchor).isActive = true
+        // NSAlertはアクセサリの初期フレームで領域を確保する。
+        accessory.setFrameSize(accessory.fittingSize)
         alert.accessoryView = accessory
     }
 }
@@ -46,6 +49,7 @@ final class ArchivePasswordPrompt {
     private var didAccept: (() -> Void)?
 
     func response(to challenge: ArchivePasswordChallenge, on window: NSWindow, archiveName: String? = nil,
+                  bundle: Bundle = .main,
                   nextResponder: NSResponder? = nil, willPresent: () -> Void = {},
                   didAccept: @escaping () -> Void = {}) async throws -> ArchivePasswordResponse {
         try Task.checkCancellation()
@@ -60,7 +64,7 @@ final class ArchivePasswordPrompt {
                     prompt.waiters[id] = continuation
                     return
                 }
-                let prompt = ArchivePasswordPrompt(challenge: challenge, archiveName: archiveName)
+                let prompt = ArchivePasswordPrompt(challenge: challenge, archiveName: archiveName, bundle: bundle)
                 self.prompt = prompt
                 self.didAccept = didAccept
                 prompt.waiters[id] = continuation

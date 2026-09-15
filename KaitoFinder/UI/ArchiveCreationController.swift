@@ -66,6 +66,17 @@ nonisolated struct ArchiveConversionNotice {
         informativeText = detail
     }
 
+    @MainActor static func makeAlert(formatName: String, entries: [ArchiveEntry], bundle: Bundle = .main) -> NSAlert {
+        let notice = ArchiveConversionNotice(formatName: formatName, entries: entries, bundle: bundle)
+        let alert = NSAlert()
+        alert.messageText = notice.messageText
+        alert.informativeText = notice.informativeText
+        alert.addButton(withTitle: String(localized: "新規アーカイブを作成…", bundle: bundle))
+        alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
+        alert.buttons.last?.keyEquivalent = "\u{1b}"
+        return alert
+    }
+
     static func formatName(for session: ArchiveSession) -> String {
         switch session.capabilities.refusal {
         case .format(let name): return name
