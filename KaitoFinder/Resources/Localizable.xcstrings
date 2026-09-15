@@ -3953,7 +3953,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "आर्काइव वाली डायरेक्टरी में"
+            "value" : "आर्काइव वाली डाइरेक्टरी में"
           }
         },
         "ru" : {
@@ -11198,7 +11198,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KaitoFinder छोड़ें"
+            "value" : "KaitoFinder बंद करें"
           }
         },
         "ru" : {
@@ -18442,7 +18442,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस डिलीट को पहले जैसा नहीं किया जा सकता।"
+            "value" : "डिलीट करने की यह कार्रवाई पहले जैसी नहीं की जा सकती।"
           }
         },
         "ru" : {
@@ -22533,7 +22533,7 @@
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desproteger"
+            "value" : "Desbloquear"
           }
         }
       }
@@ -24882,7 +24882,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "डायरेक्टरी की विशेषताएँ : %@।"
+            "value" : "डाइरेक्टरी की विशेषताएँ : %@।"
           }
         },
         "ru" : {
@@ -26492,7 +26492,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अस्थायी डायरेक्टरी एक फ़ाइल URL होनी चाहिए।"
+            "value" : "अस्थायी डाइरेक्टरी एक फ़ाइल URL होनी चाहिए।"
           }
         },
         "ru" : {
@@ -26653,7 +26653,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अस्थायी डायरेक्टरी वास्तविक होनी चाहिए और केवल मौजूदा यूज़र की पहुँच में होनी चाहिए।"
+            "value" : "अस्थायी डाइरेक्टरी वास्तविक होनी चाहिए और केवल मौजूदा यूज़र की पहुँच में होनी चाहिए।"
           }
         },
         "ru" : {
@@ -26975,7 +26975,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पथ में पैरेंट डायरेक्टरी का घटक है।"
+            "value" : "पथ में पैरेंट डाइरेक्टरी का घटक है।"
           }
         },
         "ru" : {
@@ -28102,7 +28102,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "वादा की गई फ़ाइल अस्थायी डायरेक्टरी के बाहर है।"
+            "value" : "जिस फ़ाइल का वादा किया गया है, वह अस्थायी डाइरेक्टरी के बाहर है।"
           }
         },
         "ru" : {
@@ -30517,7 +30517,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस ZIP आर्काइव की केंद्रीय डायरेक्टरी का ऑफ़सेट अमान्य है। ऐसा ZIP64 के बिना 4 GiB से बड़े आइटम संग्रहित करने पर हो सकता है। इसे सुरक्षित रूप से नहीं बदला जा सकता। %@"
+            "value" : "इस ZIP आर्काइव की केंद्रीय डाइरेक्टरी का ऑफ़सेट अमान्य है। ऐसा ZIP64 के बिना 4 GiB से बड़े आइटम संग्रहित करने पर हो सकता है। इसे सुरक्षित रूप से नहीं बदला जा सकता। %@"
           }
         },
         "ru" : {
@@ -34447,7 +34447,7 @@
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Desproteger…"
+            "value" : "Desbloquear…"
           }
         }
       }
@@ -40372,7 +40372,7 @@
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nenhuma"
+            "value" : "Sem compressão"
           }
         }
       }
@@ -45426,7 +45426,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "नए आर्काइव को सहेजते समय उसकी एंक्रिप्शन सेटिंग्ज़ बदली जा सकती हैं।"
+            "value" : "नए आर्काइव को सहेजते समय उसकी एंक्रिप्शन सेटिंग में बदलाव किया जा सकता है।"
           }
         },
         "ru" : {
@@ -45771,7 +45771,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KaitoFinder’e Hoş Geldiniz"
+            "value" : "KaitoFinder’a Hoş Geldiniz"
           }
         },
         "sv" : {
@@ -46922,7 +46922,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Näytä tervetuloikkuna käynnistettäessä"
+            "value" : "Näytä Tervetuloa-ikkuna käynnistettäessä"
           }
         },
         "uk" : {
