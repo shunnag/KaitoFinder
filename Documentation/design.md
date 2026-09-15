@@ -787,6 +787,8 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 | **M5** | tar writer、7z writer、LHA writer、全面書き直しによる更新、形式変換 | 書ける形式が増える | **完了** — GyoshukuKit に tar + gzip `efba3cc`、7z `d0138b9`、LHA `2a9663a`。`ArchiveRewriter` `0c1ee85`(§7.7、検証 `2026-09-14-archive-rewriter.md`)。KaitoFinder の再圧縮モード編集 `846ceed`(検証 `2026-09-14-rewrite-mode.md`)。形式変換は M6 `1491bce` で実装 |
 | **M6** | 新規書庫の作成 — ⌘N、Finder のサービスメニュー、読み取り専用書庫からの変換。作成元に quarantine があれば書庫へ伝播 | ファイルを圧縮できる | **完了** `1491bce`(検証 `2026-09-15-archive-creation.md`)。保存パネル・サービス・変換ダイアログの実挙動は `manual-verification.md` §4-5 / §6 |
 
+| **M7** | ユーザー要望(2026-09-15): 同一ウインドウ内ドラッグの移動、ブランク領域の右クリック、ツールバー、設定ウインドウ(圧縮 / 展開)、一括展開、文言の macOS 化(書庫→アーカイブ、取り出す→展開、標準メニュー) | Finder の作法と日常のアーカイブ操作 | **完了** — 移動 `906c0e1`、右クリックとツールバー `5d8df1b`、設定 `236b4f1`、文言 `5719cb9`、一括展開 `cdcce75`。クラッシュ修正 `4135e04` / `2d05b22` / `d8e9d72`(いずれも @MainActor の ObjC 面を AppKit / QL がバックグラウンドから呼ぶ型) |
+
 M1 が read-only のまま**全形式で有用**なのが要点。ここで sandbox 周りと
 promise 周りの実地確認を済ませてから書き込みへ進む。
 
