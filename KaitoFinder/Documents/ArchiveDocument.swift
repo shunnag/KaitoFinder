@@ -83,6 +83,13 @@ import Synchronization
 
     var canUndoNextMutation: Bool { archiveUndoStack.canUndoNextMutation }
 
+    var hasWorkInFlight: Bool {
+        mutationTask != nil || undoTask != nil || switchingBackingFile
+            || windowControllers.contains { ($0 as? ArchiveWindowController)?.hasWorkInFlight == true }
+    }
+
+    var needsTerminationCleanup: Bool { hasWorkInFlight || !archiveUndoStack.slots.isEmpty }
+
     override func updateChangeCount(_ change: NSDocument.ChangeType) {
         // 書き換えは即ディスクへ公開済み。保存不能な文書に未保存状態を作らない。
     }
@@ -513,6 +520,27 @@ import Synchronization
             controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
                                materializationController: materializationController())
         }
+    }
+
+    /// 進行中の仕事を取り消し、後始末と一時コピー・undo スロットの破棄を待つ。
+    /// 文書は閉じず、状態復元を含む通常の終了処理は AppKit に任せる。
+    func prepareForTermination() async {
+        let controllers = windowControllers.compactMap { $0 as? ArchiveWindowController }
+        // 完了時に controller が nil に戻すので、取消し前に Task を保持する。
+        let extractions = controllers.compactMap(\.extractionTask)
+        mutationProgress?.cancel()
+        cancelMutation?()
+        undoTask?.cancel()
+        for controller in controllers { controller.cancelExtraction() }
+
+        await mutationTask?.value
+        await undoTask?.value
+        // 別名で保存・変換・パスワード変更と switchingBackingFile は extractionTask 内で完了する。
+        for extraction in extractions { await extraction.value }
+        disposeUndoStack()
+        await undoCleanup?.value
+        disposeMaterialization()
+        await materializationCleanup?.value
     }
 
     override func close() {

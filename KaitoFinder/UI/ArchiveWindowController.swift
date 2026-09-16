@@ -742,6 +742,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
+    /// 終了時に残骸を作り得る仕事だけ。パスワード入力や確認シートは含めない。
+    var hasWorkInFlight: Bool { extractionTask != nil || creationController != nil }
+
     var operationInFlight: Bool {
         extractionTask != nil || creationController != nil || passwordEditor != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true

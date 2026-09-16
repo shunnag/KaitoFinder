@@ -959,6 +959,22 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   ZIP64 無しで mod 2^32 で書く(実測:5 GiB が 1 GiB)。
 - 破損書庫の救済(`recoverDamagedArchives`)で得た byte は認証されていない。
   UI 上で明示する。
+- **操作中の終了(2026-09-16)**: AppKit の quit は、非 dirty の文書では
+  `reviewUnsavedDocuments` も `canClose(withDelegate:)` も呼ばず、`terminate:` →
+  `_closeForTermination` → `ArchiveDocument.close()` → `exit` と進む(lldb で実測)。
+  `close()` は取消しと後始末を非同期 Task に投げるだけなので、そのままでは途中まで書いた
+  展開物、アーカイブの隣の `.KaitoFinder-add-*` / `.KaitoFinder-new-*`、undo スロット
+  (`TemporaryItems/NSIRD_KaitoFinder_*` のアーカイブ全体の clone)が残る。
+  `applicationShouldTerminate` が唯一の終了前フックなので、そこで
+  (1) 展開・公開・作成・一括展開が進行中なら「KaitoFinderを終了してもよろしいですか？」で
+  確認し、(2) 終了なら全てを取り消して `.terminateLater` を返し、各文書の
+  `prepareForTermination()`(取消し → Task の完了待ち → undo スロットの破棄)と
+  app レベルの Task を待ってから `reply(toApplicationShouldTerminate: true)` する。
+  (3) 進行中の仕事が無くても undo スロットがあれば確認なしで同じ待ちをする。
+  (4) 何も無ければ `.terminateNow`(状態復元の経路に触れない)。待ちは 10 秒で打ち切る —
+  ネットワークボリュームで止まった後始末が終了を阻むより、残骸を許す方を選ぶ。
+  ⌘W は確認しない: 長い操作は全て進捗シートを窓に付けるので、閉じるボタンも ⌘W も
+  シートが塞ぐ。記録は `verification/2026-09-16-quit-during-work.md`。
 
 ## 10. マイルストーン
 
@@ -1095,6 +1111,14 @@ O(トップレベルのフォルダ数 × 全 entry 数) だったのを線形�
    `-1` を共有するため ZIP を直列に落とす(0.99x)。正しい規則と数値は
    `Documentation/verification/2026-09-10-parallel-extraction.md`。
    現状の `ExtractionService` は一要求一 reader の直列で、この伸びしろは未取得。
+
+5. **クラッシュ・強制終了の残骸。** `.KaitoFinder-add-*`(公開の作業コピー)と
+   `.KaitoFinder-new-*`(作成の仮出力)はアーカイブ・保存先と同じフォルダに作るため、
+   起動時の一括 sweep ができない(展開の一時コピーは自前の一時ディレクトリなので
+   `startLaunchSweep` が掃く)。⌘Q は 2026-09-16 の `applicationShouldTerminate` で
+   後始末を待つようにしたが、kill -9 やクラッシュでは残る。対策案: 作業ディレクトリの
+   パスを Application Support の台帳に記録してから作り、成功・失敗で消し、次回起動時に
+   台帳に残ったものだけを削除する。未着手。
 
 > **Open questions.** One of the original four remains, and it needs the real app
 > rather than a guess: whether Finder actually fulfills a directory promise (the

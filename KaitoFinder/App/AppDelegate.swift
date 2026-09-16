@@ -15,6 +15,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var batchExtractionController: ArchiveBatchExtractionController?
     // Servicesの入力経路をパネルなしで検証するための実行境界。
     var batchExtractionHandler: (([URL]) async -> Void)?
+    // 終了の確認と返答を、実際のアラートやプロセス終了なしで検証するための境界。
+    var terminationDocuments: (() -> [ArchiveDocument])?
+    var quitConfirmation: (() -> Bool)?
+    var terminationReply: ((Bool) -> Void)?
+    var terminationGracePeriod: Duration = .seconds(10)
+    private(set) var terminationTask: Task<Void, Never>?
+    private var terminationDeadline: Task<Void, Never>?
+    private var terminationReplied = false
 
     override convenience init() { self.init(passwordVault: .shared) }
 
@@ -100,6 +108,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let documents = terminationDocuments?()
+            ?? NSDocumentController.shared.documents.compactMap { $0 as? ArchiveDocument }
+        let busy = documents.contains(where: \.hasWorkInFlight) || archiveCreationTask != nil
+            || (batchExtractionTask != nil && batchExtractionController?.destinationPanel == nil)
+        if busy, !(quitConfirmation ?? Self.confirmQuit)() { return .terminateCancel }
+        let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup)
+        guard needsCleanup else { return .terminateNow }
+
+        archiveCreationTask?.cancel()
+        batchExtractionTask?.cancel()
+        let creation = archiveCreationTask, batch = batchExtractionTask
+        terminationReplied = false
+        // Task group は取消しに反応しない後始末も暗黙に待つため、独立した Task で上限を設ける。
+        terminationTask = Task { @MainActor [weak self] in
+            for document in documents { await document.prepareForTermination() }
+            await creation?.value
+            await batch?.value
+            self?.finishTermination()
+        }
+        terminationDeadline = Task { @MainActor [weak self, grace = terminationGracePeriod] in
+            try? await Task.sleep(for: grace)
+            self?.finishTermination()
+        }
+        return .terminateLater
+    }
+
+    private func finishTermination() {
+        guard !terminationReplied else { return }
+        terminationReplied = true
+        terminationDeadline?.cancel()
+        (terminationReply ?? { NSApp.reply(toApplicationShouldTerminate: $0) })(true)
+    }
+
+    @MainActor static func confirmQuit() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "KaitoFinderを終了してもよろしいですか？")
+        alert.informativeText = ArchiveAlertText.informativeText(String(localized:
+            "操作が進行中です。終了すると進行中の展開や変更は取り消され、途中まで書き出した項目は削除されます。"))
+        alert.addButton(withTitle: String(localized: "終了"))
+        alert.addButton(withTitle: String(localized: "キャンセル")).keyEquivalent = "\u{1b}"
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
 
     @objc func newArchive(_ sender: Any?) {
         guard archiveCreationTask == nil, creationOpenPanel == nil else { return }
