@@ -104,6 +104,13 @@ Finder 風のリスト表示に、パスバー、タブ、ツールバーの検�
 追加・新規作成時の **`.DS_Store` の除外は既定でオン、隠しファイル全体の除外は既定でオフ**。
 これらの除外設定は、既存の項目の展開や形式変換には適用しない。
 
+## 終了と後始末
+
+展開・追加・作成などが進行中に終了(⌘Q)すると確認を求め、「終了」を選ぶと操作を取り消し、
+途中まで書き出した項目・作業コピー・取り消し用の退避を片付けてから終了する。強制終了や
+クラッシュで残った作業ディレクトリ(`.KaitoFinder-add-*` / `.KaitoFinder-new-*`)は
+`~/Library/Application Support/KaitoFinder/pending-work.json` の台帳に基づいて次回起動時に回収する。
+
 ## 言語
 
 次の 26 言語に対応し、未対応言語では英語を表示する。
@@ -249,6 +256,15 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > successful extraction. When adding files or creating archives, excluding `.DS_Store`
 > is on by default; excluding all hidden files is off. These exclusions do not apply
 > to extracting or converting existing entries.
+>
+> ## Quitting and Cleanup
+>
+> Quitting (⌘Q) while an extraction, addition, or creation is in progress asks for
+> confirmation; choosing Quit cancels the operation and removes partially written
+> items, working copies, and undo backups before the app exits. Working directories
+> left behind by a force quit or a crash (`.KaitoFinder-add-*` / `.KaitoFinder-new-*`)
+> are recovered at the next launch from the ledger at
+> `~/Library/Application Support/KaitoFinder/pending-work.json`.
 >
 > ## Languages
 >
