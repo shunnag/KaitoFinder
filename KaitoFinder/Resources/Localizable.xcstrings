@@ -8371,6 +8371,166 @@
         }
       }
     },
+    "作成元の項目とは別の保存先を選んでください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a destination other than the items being archived."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作成元の項目とは別の保存先を選んでください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle einen anderen Speicherort als die Objekte, aus denen das Archiv erstellt wird."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez une destination différente des éléments à archiver."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige un destino distinto de los ítems que se van a comprimir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scegli una destinazione diversa dagli elementi da archiviare."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um destino diferente dos itens que estão sendo compactados."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请选择与要归档的项目不同的保存位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇與要封存的項目不同的儲存位置。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아카이브할 항목과 다른 저장 위치를 선택하십시오."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เลือกปลายทางที่ต่างจากรายการที่กำลังจัดเก็บ"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn đích khác với các mục đang được lưu trữ."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pilih tujuan yang berbeda dari item yang diarsipkan."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pilih destinasi yang berbeza daripada item yang diarkibkan."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "आर्काइव किए जा रहे आइटम से अलग गंतव्य चुनें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите место сохранения, отличное от архивируемых объектов."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies een andere bestemming dan de onderdelen die worden gearchiveerd."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybierz miejsce docelowe inne niż archiwizowane rzeczy."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arşivlenen öğelerden farklı bir hedef seçin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Välj en annan plats än objekten som arkiveras."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vælg en anden placering end de emner, der komprimeres."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Velg et annet mål enn objektene som arkiveres."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valitse eri kohde kuin arkistoitavat kohteet."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Виберіть місце збереження, відмінне від елементів, що архівуються."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zvolte jiné cílové umístění než položky, z nichž se archiv vytváří."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um destino diferente dos elementos a arquivar."
+          }
+        }
+      }
+    },
     "元のアーカイブとは別の保存先を選んでください。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -44374,6 +44534,166 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "tar e LHA não podem ser cifrados"
+          }
+        }
+      }
+    },
+    "この形式のファイル名は次の拡張子で終わる必要があります: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この形式のファイル名は次の拡張子で終わる必要があります: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file name for this format must end with one of these extensions: %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Dateiname für dieses Format muss mit einer dieser Endungen enden: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le nom de fichier pour ce format doit se terminer par l’une de ces extensions : %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El nombre de archivo para este formato debe terminar con una de estas extensiones: %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il nome del file per questo formato deve terminare con una di queste estensioni: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O nome do arquivo para este formato deve terminar com uma destas extensões: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此格式的文件名必须以下列扩展名之一结尾：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此格式的檔案名稱必須以下列副檔名之一結尾：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 포맷의 파일 이름은 다음 확장자 중 하나로 끝나야 합니다: %@"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ชื่อไฟล์สำหรับรูปแบบนี้ต้องลงท้ายด้วยนามสกุลใดนามสกุลหนึ่งต่อไปนี้: %@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tên tệp cho định dạng này phải kết thúc bằng một trong các phần mở rộng sau: %@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nama file untuk format ini harus diakhiri dengan salah satu ekstensi berikut: %@"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nama fail untuk format ini mesti berakhir dengan salah satu sambungan berikut: %@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस फ़ॉर्मैट के फ़ाइल नाम का अंत इनमें से किसी एक एक्सटेंशन से होना चाहिए : %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Имя файла для этого формата должно оканчиваться одним из этих расширений: %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De bestandsnaam voor deze structuur moet eindigen op een van deze extensies: %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nazwa pliku w tym formacie musi kończyć się jednym z tych rozszerzeń: %@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu biçimin dosya adı şu uzantılardan biriyle bitmelidir: %@"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filnamnet för det här formatet måste sluta med ett av dessa filnamnstillägg: %@"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filnavnet for dette format skal slutte med en af disse endelser: %@"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filnavnet for dette formatet må slutte med en av disse filendelsene: %@"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämän muodon tiedostonimen on päätyttävä johonkin näistä päätteistä: %@"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Назва файлу для цього формату має закінчуватися одним із цих розширень: %@"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Název souboru tohoto formátu musí končit jednou z těchto přípon: %@"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O nome do ficheiro para este formato tem de terminar com uma destas extensões: %@"
           }
         }
       }

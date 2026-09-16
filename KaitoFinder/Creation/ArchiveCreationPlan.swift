@@ -8,6 +8,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         let url: URL
         let password: String?
         let entries: [ArchiveEntry]
+        var identity: [Int64]? = nil
         var encryption: ArchiveEncryptionSettings? = nil
     }
 
@@ -37,6 +38,21 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         case .sevenZip: "7z"
         case .lha: "lzh"
         }
+    }
+
+    static func acceptedExtensions(for format: GyoshukuKit.ArchiveFormat) -> [String] {
+        switch format {
+        case .zip: ["zip"]
+        case .tar: ["tar"]
+        case .tarGzip: ["tar.gz", "tgz"]
+        case .sevenZip: ["7z"]
+        case .lha: ["lzh", "lha"]
+        }
+    }
+
+    static func hasAcceptedExtension(_ url: URL, for format: GyoshukuKit.ArchiveFormat) -> Bool {
+        let name = url.lastPathComponent.lowercased()
+        return acceptedExtensions(for: format).contains { name.hasSuffix("." + $0) }
     }
 
     static func defaultName(for sources: [URL], format: GyoshukuKit.ArchiveFormat) -> String {

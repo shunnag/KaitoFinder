@@ -7,6 +7,16 @@ import KaitoKit
 nonisolated enum ArchiveCreationTransaction {
     static func run(plan: ArchiveCreationPlan, progress: Progress,
                     willPublish: (@Sendable () throws -> Void)? = nil) throws -> URL {
+        for source in plan.sources {
+            try ArchiveImportPlan.checkCancellation(progress)
+            if isSameFile(source, plan.destination) {
+                throw ExtractionFailure.refused(String(localized: "作成元の項目とは別の保存先を選んでください。"))
+            }
+        }
+        guard ArchiveCreationPlan.hasAcceptedExtension(plan.destination, for: plan.format) else {
+            let list = ArchiveCreationPlan.acceptedExtensions(for: plan.format).map { "." + $0 }.joined(separator: ", ")
+            throw ExtractionFailure.refused(String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)"))
+        }
         let imported = try ArchiveImportPlan.build(urls: plan.sources, folder: "",
                                                   existing: plan.existing?.entries ?? [], progress: progress,
                                                   options: plan.importOptions)
@@ -31,6 +41,11 @@ nonisolated enum ArchiveCreationTransaction {
         let output = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: plan.format))
         do {
             if let existing = plan.existing {
+                if let identity = existing.identity {
+                    guard try ArchiveImportTransaction.identity(existing.url) == identity else {
+                        throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
+                    }
+                }
                 let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
                                                         output: output, format: plan.format, options: plan.options)
                 try add(imported.items, progress: progress, directory: rewriter.addDirectory,
@@ -52,10 +67,14 @@ nonisolated enum ArchiveCreationTransaction {
             throw plan.existing?.password == nil ? KaitoError.passwordRequired : KaitoError.wrongPassword
         }
         var quarantine: Data?
-        for source in plan.sources + (plan.existing.map { [$0.url] } ?? []) {
+        let quarantineSources = plan.sources + (plan.existing.map { [$0.url] } ?? [])
+            + imported.items.filter { !$0.isDirectory }.map(\.url)
+        for source in quarantineSources {
             try ArchiveImportPlan.checkCancellation(progress)
-            let value = try ExtractionQuarantine.read(from: source)
-            if quarantine == nil { quarantine = value }
+            if let value = try ExtractionQuarantine.read(from: source) {
+                quarantine = value
+                break
+            }
         }
         try ExtractionQuarantine.apply(quarantine, to: output)
         _ = try ArchiveReader.open(url: output, options: ReaderOptions(password: plan.options.password))

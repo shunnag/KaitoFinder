@@ -203,6 +203,12 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     }
 
     func panel(_ sender: Any, validate url: URL) throws {
+        guard ArchiveCreationPlan.hasAcceptedExtension(url, for: controller.format) else {
+            let list = ArchiveCreationPlan.acceptedExtensions(for: controller.format).map { "." + $0 }.joined(separator: ", ")
+            throw NSError(domain: "com.shunnag.KaitoFinder.creation", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)", bundle: bundle)
+            ])
+        }
         if encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on { try passwordFields.validate() }
     }
 

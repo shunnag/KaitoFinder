@@ -223,6 +223,46 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         }
     }
 
+    @MainActor func testSaveAsRefusesArchiveReplacedWhileChoosingDestination() async throws {
+        let (directory, document, controller, store) = try await interface()
+        _ = try await document.createFolder(in: "", baseName: "undo-kept", progress: Progress())
+        let source = try XCTUnwrap(document.fileURL), session = try XCTUnwrap(document.session)
+        let stack = document.archiveUndoStack, history = stack.slots.map(\.id)
+        let undoManager = try XCTUnwrap(document.undoManager)
+        XCTAssertTrue(undoManager.canUndo)
+        let destination = directory.url.appendingPathComponent("saved.zip")
+        let replacement = directory.url.appendingPathComponent("replacement.zip")
+        let creator = ArchiveCreationController(store: store)
+        creator.destinationHandler = { _, _ in
+            let writer = try ArchiveWriter.create(url: replacement, format: .zip)
+            try writer.add(data: Data("replacement contents".utf8), as: "folder/file.txt")
+            try writer.add(data: Data("replacement hidden contents".utf8), as: "folder/.hidden")
+            try writer.addDirectory("undo-kept")
+            try writer.finish()
+            guard rename(replacement.path, source.path) == 0 else { throw ExtractionFailure.system(errno) }
+            return destination
+        }
+        do {
+            try await controller.saveArchiveAs(using: creator)
+            XCTFail("Saving a replaced archive must be refused")
+        } catch {
+            guard case ExtractionFailure.refused(let reason) = error else { return XCTFail("Unexpected error: \(error)") }
+            XCTAssertEqual(reason, String(localized: "処理中にアーカイブが別の操作で変更されました。"))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        XCTAssertEqual(document.fileURL, source)
+        XCTAssertTrue(document.session === session)
+        XCTAssertTrue(document.archiveUndoStack === stack)
+        XCTAssertEqual(stack.slots.map(\.id), history)
+        XCTAssertTrue(undoManager.canUndo)
+        XCTAssertFalse(undoManager.canRedo)
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: directory.url.path)
+            .contains { $0.hasPrefix(".KaitoFinder-new-") || $0.hasPrefix(".gyoshuku-rewrite-") })
+        XCTAssertNil(creator.savePanel)
+        XCTAssertNil(creator.progressSheet)
+        XCTAssertNil(controller.creationController)
+    }
+
     @MainActor func testCancellingSavePanelLeavesDocumentAndOriginalUnchanged() async throws {
         let (_, document, controller, store) = try await interface()
         let source = try XCTUnwrap(document.fileURL), before = try Data(contentsOf: source), session = document.session

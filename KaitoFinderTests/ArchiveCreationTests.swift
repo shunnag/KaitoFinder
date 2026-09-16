@@ -176,6 +176,40 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         }
     }
 
+    func testAcceptedExtensionsMatchEachFormatIgnoringCase() {
+        let formats: [(GyoshukuKit.ArchiveFormat, [String])] = [
+            (.zip, ["zip"]), (.tar, ["tar"]), (.tarGzip, ["tar.gz", "tgz"]),
+            (.sevenZip, ["7z"]), (.lha, ["lzh", "lha"])
+        ]
+        for (format, accepted) in formats {
+            XCTAssertEqual(ArchiveCreationPlan.acceptedExtensions(for: format), accepted)
+            for suffix in ["zip", "tar", "tar.gz", "tgz", "7z", "lzh", "lha", "gz", "tar.bz2"] {
+                for name in ["result." + suffix, "result." + suffix.uppercased()] {
+                    XCTAssertEqual(ArchiveCreationPlan.hasAcceptedExtension(URL(fileURLWithPath: "/tmp/" + name), for: format),
+                                   accepted.contains(suffix), "\(format): \(name)")
+                }
+            }
+            for name in ["result", "resulttar.gz", "result.", "result.tar.gz.bak"] {
+                XCTAssertFalse(ArchiveCreationPlan.hasAcceptedExtension(URL(fileURLWithPath: "/tmp/" + name), for: format),
+                               "\(format): \(name)")
+            }
+        }
+    }
+
+    func testTarGzipCreationRefusesPlainGzipDestinationBeforeImport() throws {
+        let fixture = try Fixture(), destination = fixture.directory.url.appendingPathComponent("result.gz")
+        let list = ".tar.gz, .tgz"
+        for sources in [fixture.sources, [fixture.directory.url.appendingPathComponent("missing.txt")]] {
+            XCTAssertThrowsError(try ArchiveCreationTransaction.run(
+                plan: .init(sources: sources, destination: destination, format: .tarGzip), progress: Progress())) {
+                guard case ExtractionFailure.refused(let reason) = $0 else { return XCTFail("Unexpected error: \($0)") }
+                XCTAssertEqual(reason, String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)"))
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+            try assertNoWorkDirectory(fixture.directory.url)
+        }
+    }
+
     func testUnquarantinedSourcesRemoveEvenTheReplacedDestinationsQuarantine() throws {
         let fixture = try Fixture(), output = fixture.output()
         for source in fixture.sources { try ExtractionQuarantine.apply(nil, to: source) }
@@ -193,6 +227,19 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         try ExtractionQuarantine.apply(Data("0081;87654321;LaterSource;".utf8), to: fixture.sources[2])
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: fixture.sources, destination: output, format: .zip), progress: Progress())
         XCTAssertEqual(try ExtractionQuarantine.read(from: output), expected)
+    }
+
+    func testNestedFileQuarantinePropagatesFromAnUnquarantinedFolder() throws {
+        for quarantine in [Data("0081;12345678;Probe;".utf8), nil] as [Data?] {
+            let fixture = try Fixture(), output = fixture.output(), folder = fixture.sources[2]
+            let file = folder.appendingPathComponent("Sub/note.txt")
+            try ExtractionQuarantine.apply(nil, to: folder)
+            try ExtractionQuarantine.apply(quarantine, to: file)
+            XCTAssertNil(try ExtractionQuarantine.read(from: folder))
+            _ = try ArchiveCreationTransaction.run(
+                plan: .init(sources: [folder], destination: output, format: .zip), progress: Progress())
+            XCTAssertEqual(try ExtractionQuarantine.read(from: output), quarantine)
+        }
     }
 
     func testSourceQuarantineReadDoesNotFollowSymlinks() throws {
@@ -413,6 +460,25 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
         try assertNoWorkDirectory(fixture.directory.url)
+    }
+
+    func testCreationCannotReplaceAnySourceThroughItsPathOrHardLink() throws {
+        let fixture = try Fixture(), source = fixture.directory.url.appendingPathComponent("original.zip")
+        let hardLink = fixture.directory.url.appendingPathComponent("hard-link.zip")
+        try Data("original source contents".utf8).write(to: source)
+        try FileManager.default.linkItem(at: source, to: hardLink)
+        let before = try digest(source)
+        for destination in [source, hardLink] {
+            XCTAssertThrowsError(try ArchiveCreationTransaction.run(
+                plan: .init(sources: [fixture.sources[0], source], destination: destination, format: .zip, existing: nil),
+                progress: Progress())) {
+                guard case ExtractionFailure.refused(let reason) = $0 else { return XCTFail("Unexpected error: \($0)") }
+                XCTAssertEqual(reason, String(localized: "作成元の項目とは別の保存先を選んでください。"))
+            }
+            XCTAssertEqual(try digest(source), before)
+            XCTAssertEqual(try digest(hardLink), before)
+            try assertNoWorkDirectory(fixture.directory.url)
+        }
     }
 
     func testConversionCannotReplaceOriginalThroughItsPathOrFileAliases() throws {

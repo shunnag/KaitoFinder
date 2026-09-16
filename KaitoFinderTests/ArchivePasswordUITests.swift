@@ -50,7 +50,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
             XCTAssertEqual(accessory.frame.height, initialHeight, accuracy: 0.5)
             if !supported {
                 save.passwordFields.verifyField.stringValue = "mismatch"
-                XCTAssertNoThrow(try save.panel(save.panel, validate: URL(fileURLWithPath: "/tmp/output")))
+                XCTAssertNoThrow(try save.panel(save.panel, validate: URL(fileURLWithPath: "/tmp/output." + ArchiveCreationPlan.filenameExtension(for: format))))
                 save.passwordFields.verifyField.stringValue = "kept"
             }
         }

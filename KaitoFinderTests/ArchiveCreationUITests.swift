@@ -139,6 +139,19 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         XCTAssertEqual(save.formatPopup.itemTitles, ["ZIP", "tar", "tar.gz", "7z", "LHA"])
     }
 
+    @MainActor func testSavePanelValidatesTarGzipFilenameExtensions() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.defaultFormat = .tarGzip
+        let save = ArchiveSavePanel(sources: [], store: store), list = ".tar.gz, .tgz"
+        XCTAssertThrowsError(try save.panel(save.panel, validate: URL(fileURLWithPath: "/tmp/result.gz"))) {
+            XCTAssertEqual(($0 as NSError).userInfo[NSLocalizedDescriptionKey] as? String,
+                           String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)"))
+        }
+        for name in ["result.tar.gz", "result.tgz", "result.TAR.GZ", "result.TGZ"] {
+            XCTAssertNoThrow(try save.panel(save.panel, validate: URL(fileURLWithPath: "/tmp/" + name)))
+        }
+    }
+
     @MainActor func testSavePanelRemembersEveryFormatInAnIsolatedDefaultsSuite() throws {
         let preferences = try Preferences()
         let suffixes = ["zip", "tar", "tar.gz", "7z", "lzh"]
