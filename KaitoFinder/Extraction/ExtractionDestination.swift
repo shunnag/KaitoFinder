@@ -4,6 +4,7 @@ import KaitoKit
 
 /// root を呼出側が排他的に所有する間だけ使う、同期 worker 専用の出力先。
 /// パスの実体検査に加え、各成分を descriptor 相対・NOFOLLOW で開く。
+/// キャッシュは「1 インスタンス = 1 つの同期 worker」に依存する（§12-4 の並列展開では worker ごとに作る）。
 nonisolated final class ExtractionDestination {
     private let root: URL
     private let descriptor: Int32
@@ -14,6 +15,8 @@ nonisolated final class ExtractionDestination {
     private(set) var createdDirectories: [URL] = []
     private var createdDirectoryPaths = Set<String>()
     private var identities: [String: (dev_t, ino_t)] = [:]
+    private var cachedParent: (components: [String], descriptor: Int32)?
+    private var cachedValidatedParent: [String]?
     private static let directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
 
     init(url: URL, quarantine: Data?, readOnly: Bool = false,
@@ -33,25 +36,55 @@ nonisolated final class ExtractionDestination {
         permissionMask = ExtractionPermissions.processMask
     }
 
-    deinit { Darwin.close(descriptor) }
+    deinit {
+        if let cachedParent { Darwin.close(cachedParent.descriptor) }
+        Darwin.close(descriptor)
+    }
 
     func url(_ components: [String]) -> URL {
-        components.reduce(root) { $0.appendingPathComponent($1) }
+        root.appendingPathComponent(components.joined(separator: "/"))
     }
 
     func validate(_ components: [String]) throws {
+        let candidate = url(components)
         // containment検査のENOENT以外の失敗を「外側のパス」と誤報しない。
         // どの親も作る前に、終端NULを含むPATH_MAXと各成分のNAME_MAXを確認する。
         guard components.allSatisfy({ $0.utf8.count <= Int(NAME_MAX) }),
-              url(components).path.utf8.count < Int(PATH_MAX) else {
+              candidate.path.utf8.count < Int(PATH_MAX) else {
             throw ExtractionFailure.system(ENAMETOOLONG)
         }
         guard !components.isEmpty,
               components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." &&
-                  !$0.utf8.contains(0) && !$0.utf8.contains(47) && !$0.utf8.contains(92) }),
-              ExtractionPath.isInside(url(components), root: root) else {
+                  !$0.utf8.contains(0) && !$0.utf8.contains(47) && !$0.utf8.contains(92) }) else {
             throw ExtractionFailure.refused(String(localized: "出力先の外へ解決されるパスです。"))
         }
+        let parent = Array(components.dropLast())
+        if parent != cachedValidatedParent {
+            // root は init で検証済み。連続する兄弟では親の実体検査を共有する。
+            guard parent.isEmpty || ExtractionPath.isInside(url(parent), root: root) else {
+                // root 自身へ戻る親リンク等は従来の葉までの検査を保ち、NOFOLLOW の拒否理由を変えない。
+                guard ExtractionPath.isInside(candidate, root: root) else {
+                    throw ExtractionFailure.refused(String(localized: "出力先の外へ解決されるパスです。"))
+                }
+                return
+            }
+            cachedValidatedParent = parent
+        }
+        var info = stat()
+        let exists = lstat(candidate.path, &info) == 0
+        // 既存 symlink の葉と、ENOENT 以外の検査失敗は従来と同じ理由で拒否する。
+        guard exists ? ExtractionPath.isInside(candidate, root: root) : errno == ENOENT else {
+            throw ExtractionFailure.refused(String(localized: "出力先の外へ解決されるパスです。"))
+        }
+    }
+
+    private func parentDescriptor(for components: [String]) throws -> Int32 {
+        if let cachedParent, cachedParent.components == components { return cachedParent.descriptor }
+        if let cachedParent { close(cachedParent.descriptor) }
+        cachedParent = nil
+        let parent = try openDirectory(components, create: true)
+        cachedParent = (components, parent)
+        return parent
     }
 
     private func openDirectory(_ components: [String], create: Bool) throws -> Int32 {
@@ -103,10 +136,9 @@ nonisolated final class ExtractionDestination {
         close(directory)
     }
 
-    func file(_ components: [String], entry: ArchiveEntry, stream: EntryStream,
+    func file(_ components: [String], entry: ArchiveEntry, stream: EntryStream, buffer: inout [UInt8],
               checkCancellation: () throws -> Void) throws {
-        let parent = try openDirectory(Array(components.dropLast()), create: true)
-        defer { close(parent) }
+        let parent = try parentDescriptor(for: Array(components.dropLast()))
         let leaf = components.last!
         // 同名の既存ファイル、symlink、別 entry は絶対に上書きしない。
         let file = openat(parent, leaf, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
@@ -118,7 +150,7 @@ nonisolated final class ExtractionDestination {
         }
         // 属性設定失敗時も未検証 payload を公開しない。宣言サイズで read を止めない。
         try ExtractionQuarantine.apply(quarantine, toDescriptor: file)
-        try ExtractionService.consume(stream, checkCancellation: checkCancellation) { bytes in
+        try ExtractionService.consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { bytes in
             var offset = 0
             while offset < bytes.count {
                 try checkCancellation()
@@ -147,8 +179,7 @@ nonisolated final class ExtractionDestination {
             throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが空またはNULを含みます。"))
         }
         let parentComponents = Array(components.dropLast())
-        let parent = try openDirectory(parentComponents, create: true)
-        defer { close(parent) }
+        let parent = try parentDescriptor(for: parentComponents)
         // target の .. は先に潰さず、既存リンクの解決後に実ディレクトリを辿る。
         // 未作成の a/.. は拒否するため、後続 entry でも解釈を変更できない。
         let targetPath = target.hasPrefix("/") ? target : url(parentComponents).path + "/" + target
@@ -187,8 +218,7 @@ nonisolated final class ExtractionDestination {
               info.st_dev == identity.0, info.st_ino == identity.1 else {
             throw ExtractionFailure.refused(String(localized: "hard link targetのinodeが展開時と一致しません。"))
         }
-        let parent = try openDirectory(Array(components.dropLast()), create: true)
-        defer { close(parent) }
+        let parent = try parentDescriptor(for: Array(components.dropLast()))
         guard linkat(source, target.last!, parent, components.last!, 0) == 0 else {
             throw ExtractionFailure.system(errno)
         }

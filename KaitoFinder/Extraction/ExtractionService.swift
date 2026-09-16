@@ -164,6 +164,7 @@ nonisolated enum ExtractionService {
         readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?
     ) throws -> ExtractionResult {
         let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, didWrite: didWrite)
+        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
         var result = ExtractionResult()
         var claimed = Set<String>()
         var directories: [(ArchiveEntry, [String])] = []
@@ -190,21 +191,21 @@ nonisolated enum ExtractionService {
                 } else { try output.validate(components) }
                 switch entry.kind {
                 case .directory:
-                    try drain(reader.stream(entry), checkCancellation: checkCancellation)
+                    try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
                     if !components.isEmpty { try output.directory(components, explicit: true) }
                     directories.append((entry, components))
                 case .file:
-                    try output.file(components, entry: entry, stream: reader.stream(entry),
+                    try output.file(components, entry: entry, stream: reader.stream(entry), buffer: &buffer,
                                     checkCancellation: checkCancellation)
                     materialized[entry.index] = components
                 case .symlink:
                     let target: String
                     if let retained = entry.formatSpecific["linkPath"] {
-                        try drain(reader.stream(entry), checkCancellation: checkCancellation)
+                        try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
                         target = retained
                     } else if entry.formatSpecific["linkTargetStoredAsData"] == "true" {
                         var data = Data()
-                        try consume(reader.stream(entry), checkCancellation: checkCancellation) { bytes in
+                        try consume(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation) { bytes in
                             guard data.count + bytes.count <= 16_384 else {
                                 throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが長すぎます。"))
                             }
@@ -221,7 +222,7 @@ nonisolated enum ExtractionService {
                 case .hardlink:
                     // 本体付き hard link は既存 inode の内容を書き換えず、独立ファイルにする。
                     if (entry.compressedSize ?? entry.uncompressedSize ?? 0) > 0 {
-                        try output.file(components, entry: entry, stream: reader.stream(entry),
+                        try output.file(components, entry: entry, stream: reader.stream(entry), buffer: &buffer,
                                         checkCancellation: checkCancellation)
                     } else {
                         guard let index = entry.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
@@ -230,7 +231,7 @@ nonisolated enum ExtractionService {
                               try mapping.components(targetName) == target else {
                             throw ExtractionFailure.refused(String(localized: "同じreaderとrootで先に展開したhard link targetがありません。"))
                         }
-                        try drain(reader.stream(entry), checkCancellation: checkCancellation)
+                        try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
                         try output.hardlink(components, target: target)
                     }
                     materialized[entry.index] = components
@@ -270,6 +271,11 @@ nonisolated enum ExtractionService {
     static func consume(_ stream: EntryStream, checkCancellation: () throws -> Void,
                         body: (UnsafeRawBufferPointer) throws -> Void) throws {
         var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+        try consume(stream, buffer: &buffer, checkCancellation: checkCancellation, body: body)
+    }
+
+    static func consume(_ stream: EntryStream, buffer: inout [UInt8], checkCancellation: () throws -> Void,
+                        body: (UnsafeRawBufferPointer) throws -> Void) throws {
         while true {
             try checkCancellation()
             let count = try buffer.withUnsafeMutableBytes { try stream.read(into: $0) }
@@ -279,7 +285,7 @@ nonisolated enum ExtractionService {
         try checkCancellation()
     }
 
-    private static func drain(_ stream: EntryStream, checkCancellation: () throws -> Void) throws {
-        try consume(stream, checkCancellation: checkCancellation) { _ in }
+    private static func drain(_ stream: EntryStream, buffer: inout [UInt8], checkCancellation: () throws -> Void) throws {
+        try consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { _ in }
     }
 }

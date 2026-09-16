@@ -140,6 +140,154 @@ nonisolated final class ExtractionTests: XCTestCase {
         XCTAssertEqual(result.written.map(\.entryIndex), [1])
     }
 
+    func testSiblingFilesRetainContentsAndAttributesAcrossParentCacheSwitches() async throws {
+        let fixture = try Fixture("""
+        with tarfile.open(p, 'w', format=tarfile.USTAR_FORMAT) as t:
+            for name, byte, count, mode, timestamp in [
+                ('a/b/first', b'A', 131089, 0o640, 1000000000),
+                ('a/b/second', b'B', 3, 0o600, 1000000020),
+                ('other/interruption', b'C', 0, 0o644, 1000000040),
+                ('a/b/third', b'D', 257, 0o750, 1000000060)
+            ]:
+                i = tarfile.TarInfo(name)
+                i.size = count
+                i.mode = mode
+                i.mtime = timestamp
+                t.addfile(i, io.BytesIO(byte * count))
+        """, suffix: "tar")
+        let quarantine = Data("0081;66df0000;KaitoFinderTests;".utf8)
+        try ExtractionQuarantine.apply(quarantine, to: fixture.archive)
+        let result = try await fixture.extract()
+        XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
+        XCTAssertEqual(result.written.compactMap(\.entryIndex), [0, 1, 2, 3])
+        for (name, byte, count, mode, timestamp) in [
+            ("a/b/first", UInt8(65), 131089, mode_t(0o640), 1000000000),
+            ("a/b/second", UInt8(66), 3, mode_t(0o600), 1000000020),
+            ("other/interruption", UInt8(67), 0, mode_t(0o644), 1000000040),
+            ("a/b/third", UInt8(68), 257, mode_t(0o750), 1000000060)
+        ] {
+            let url = fixture.destination.appendingPathComponent(name)
+            XCTAssertEqual(try Data(contentsOf: url), Data(repeating: byte, count: count), name)
+            var info = stat()
+            XCTAssertEqual(lstat(url.path, &info), 0, name)
+            XCTAssertEqual(info.st_mode & 0o777, mode & ~ExtractionPermissions.processMask, name)
+            XCTAssertEqual(info.st_mtimespec.tv_sec, timestamp, name)
+            XCTAssertEqual(try ExtractionQuarantine.read(from: url), quarantine, name)
+        }
+    }
+
+    func testArchiveSymlinkParentIsRefusedAfterCachedSiblingsAndCacheRecovers() async throws {
+        let fixture = try Fixture("""
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('a/b/x.txt', 'first')
+            i = zipfile.ZipInfo('a/c')
+            i.create_system = 3
+            i.external_attr = (stat.S_IFLNK | 0o777) << 16
+            z.writestr(i, 'b')
+            z.writestr('a/c/y.txt', 'must not follow')
+            z.writestr('a/b/z.txt', 'last')
+        """)
+        let result = try await fixture.extract()
+        XCTAssertEqual(result.failures.map(\.name), ["a/c/y.txt"])
+        XCTAssertEqual(result.failures.first?.reason, ExtractionFailure.system(ENOTDIR).description)
+        XCTAssertEqual(result.written.compactMap(\.entryIndex), [0, 1, 3])
+        XCTAssertEqual(try fixture.text("a/b/x.txt"), "first")
+        XCTAssertEqual(try fixture.text("a/b/z.txt"), "last")
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath:
+            fixture.destination.appendingPathComponent("a/c").path), "b")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.appendingPathComponent("a/b/y.txt").path))
+    }
+
+    func testCachedParentsPreserveOutsideSymlinkLeafAndIntermediateRefusalReasons() async throws {
+        let fixture = try Fixture("""
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('a/b/x.txt', 'first')
+            z.writestr('a/b/leaf', 'must not replace')
+            i = zipfile.ZipInfo('a/c')
+            i.create_system = 3
+            i.external_attr = (stat.S_IFLNK | 0o777) << 16
+            z.writestr(i, '/tmp')
+            z.writestr('a/c/y.txt', 'must not escape')
+            z.writestr('a/b/z.txt', 'last')
+        """)
+        let outside = fixture.parent.appendingPathComponent("outside", isDirectory: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: false)
+        let victim = outside.appendingPathComponent("victim")
+        try Data("original".utf8).write(to: victim)
+        try FileManager.default.createDirectory(at: fixture.destination.appendingPathComponent("a/b"),
+                                               withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: fixture.destination.appendingPathComponent("a/b/leaf"),
+                                                   withDestinationURL: victim)
+        try FileManager.default.createSymbolicLink(at: fixture.destination.appendingPathComponent("a/c"),
+                                                   withDestinationURL: outside)
+        let result = try await fixture.extract()
+        XCTAssertEqual(result.failures.map(\.name), ["a/b/leaf", "a/c", "a/c/y.txt"])
+        XCTAssertEqual(result.failures.map(\.reason), Array(repeating:
+            String(localized: "出力先の外へ解決されるパスです。"), count: 3))
+        XCTAssertEqual(try fixture.text("a/b/x.txt"), "first")
+        XCTAssertEqual(try fixture.text("a/b/z.txt"), "last")
+        XCTAssertEqual(try Data(contentsOf: victim), Data("original".utf8))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outside.path), ["victim"])
+    }
+
+    func testSymlinkParentResolvingToRootKeepsNOFOLLOWRefusalReason() async throws {
+        let fixture = try Fixture("""
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('before', 'first')
+            i = zipfile.ZipInfo('root-alias')
+            i.create_system = 3
+            i.external_attr = (stat.S_IFLNK | 0o777) << 16
+            z.writestr(i, '.')
+            z.writestr('root-alias/child', 'must not follow')
+            z.writestr('after', 'last')
+        """)
+        let result = try await fixture.extract()
+        XCTAssertEqual(result.failures.map(\.name), ["root-alias/child"])
+        XCTAssertEqual(result.failures.first?.reason, ExtractionFailure.system(ENOTDIR).description)
+        XCTAssertEqual(try fixture.text("before"), "first")
+        XCTAssertEqual(try fixture.text("after"), "last")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.destination.appendingPathComponent("child").path))
+    }
+
+    func testWrittenURLsMatchComponentByComponentPathsForCombiningMarksSpacesAndPercent() async throws {
+        let fixture = try Fixture(#"""
+        with zipfile.ZipFile(p, 'w') as z:
+            for name in ['cafe\u0301 dir/100% ready/\u0301leaf %.txt',
+                         'cafe\u0301 dir/100% ready/second file.txt', 'root % name.txt']:
+                z.writestr(name, 'payload')
+        """#)
+        let session = try ArchiveSession(url: fixture.archive)
+        let entries = await session.entries()
+        let result = try await ExtractionService.extract(ExtractionSelection(entries: entries),
+                                                        from: session, to: fixture.destination)
+        XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
+        XCTAssertEqual(result.written.compactMap(\.entryIndex), entries.map(\.index))
+        let root = URL(fileURLWithPath: try XCTUnwrap(ExtractionPath.resolvedPath(fixture.destination.path)), isDirectory: true)
+        for item in result.written {
+            let components: [String]
+            if let index = item.entryIndex {
+                components = try ExtractionPath.components(entries[index].name)
+                XCTAssertEqual(try Data(contentsOf: item.url), Data("payload".utf8))
+            } else {
+                let relative = String(item.url.path.dropFirst(root.path.count + 1))
+                components = try ExtractionPath.components(relative)
+            }
+            let previous = components.reduce(root) { $0.appendingPathComponent($1) }
+            XCTAssertEqual(Array(item.url.path.utf8), Array(previous.path.utf8))
+        }
+    }
+
+    func testValidationPreservesRefusalForAFileUsedAsParent() throws {
+        let fixture = try Fixture("with zipfile.ZipFile(p, 'w'): pass")
+        try Data("existing".utf8).write(to: fixture.destination.appendingPathComponent("file"))
+        let destination = try ExtractionDestination(url: fixture.destination, quarantine: nil)
+        for components in [["file", "first"], ["file", "second"]] {
+            XCTAssertThrowsError(try destination.validate(components)) {
+                XCTAssertEqual(ArchiveErrorText.describe($0), String(localized: "出力先の外へ解決されるパスです。"))
+            }
+        }
+    }
+
     func testDuplicateNamesFirstArchiveEntryWinsIncludingNormalization() async throws {
         let fixture = try Fixture("""
         import warnings
@@ -437,7 +585,8 @@ nonisolated final class ExtractionTests: XCTestCase {
         let entry = try XCTUnwrap(reader.entries.first)
         let destination = try ExtractionDestination(url: fixture.destination, quarantine: nil)
         var checks = 0
-        XCTAssertThrowsError(try destination.file(["large"], entry: entry, stream: reader.stream(entry)) {
+        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+        XCTAssertThrowsError(try destination.file(["large"], entry: entry, stream: reader.stream(entry), buffer: &buffer) {
             checks += 1
             if checks == 4 { throw CancellationError() }
         }) { XCTAssertTrue($0 is CancellationError) }
