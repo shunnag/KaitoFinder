@@ -25,7 +25,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
             (KaitoError.passwordRequired, "パスワードが必要です"),
             (KaitoError.wrongPassword, "パスワードが正しくありません"),
             (KaitoError.checksumMismatch(entry: 3), "項目 3 のチェックサムが一致しません"),
-            (KaitoError.limitExceeded("entry count"), "読み込みの上限を超えました: entry count"),
+            (KaitoError.limitExceeded("entry count"), "アーカイブが大きすぎるか複雑すぎるため、読み込みの上限を超えました(entry count)"),
             (KaitoError.io(EACCES), String(cString: strerror(EACCES))),
             (KaitoError.notFound("note.txt"), "見つかりません: note.txt")
         ])

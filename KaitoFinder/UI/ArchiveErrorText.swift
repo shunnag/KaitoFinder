@@ -17,7 +17,7 @@ nonisolated enum ArchiveErrorText {
             case .passwordRequired: return String(localized: "パスワードが必要です", bundle: bundle)
             case .wrongPassword: return String(localized: "パスワードが正しくありません", bundle: bundle)
             case .checksumMismatch(let index): return String(localized: "項目 \(String(index)) のチェックサムが一致しません", bundle: bundle)
-            case .limitExceeded(let reason): return String(localized: "読み込みの上限を超えました: \(reason)", bundle: bundle)
+            case .limitExceeded(let reason): return String(localized: "アーカイブが大きすぎるか複雑すぎるため、読み込みの上限を超えました(\(reason))", bundle: bundle)
             case .io(let code): return posix(code)
             case .notFound(let name): return String(localized: "見つかりません: \(name)", bundle: bundle)
             }
