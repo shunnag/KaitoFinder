@@ -211,6 +211,113 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(try names(fixture), ["a.txt", "focus.txt", "c.txt"])
     }
 
+    @MainActor private final class RenameCommitWindow: NSWindow {
+        var didMakeFirstResponder: (() -> Void)?
+        var requestedSheets: [NSWindow] = []
+
+        override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+            let result = super.makeFirstResponder(responder)
+            didMakeFirstResponder?()
+            return result
+        }
+
+        override func beginSheet(_ sheetWindow: NSWindow,
+                                 completionHandler handler: ((NSApplication.ModalResponse) -> Void)? = nil) {
+            // 進捗も含めてシートは表示せず、要求されたシートだけを記録する。
+            requestedSheets.append(sheetWindow)
+        }
+    }
+
+    @MainActor private func scenarioDocument(_ fixture: ScenarioFixture, stack: ArchiveUndoStack) async throws
+        -> (ArchiveDocument, ArchiveWindowController, RenameCommitWindow) {
+        preserveArchiveWindowFrame()
+        let document = ArchiveDocument(undoStack: stack)
+        try document.read(from: fixture.archive, ofType: "public.zip-archive")
+        document.fileURL = fixture.archive
+        let controller = ArchiveWindowController()
+        let originalWindow = try XCTUnwrap(controller.window)
+        let window = RenameCommitWindow(contentRect: originalWindow.contentRect(forFrameRect: originalWindow.frame),
+                                       styleMask: originalWindow.styleMask, backing: .buffered, defer: false)
+        window.contentView = originalWindow.contentView
+        window.delegate = originalWindow.delegate
+        controller.window = window
+        document.addWindowController(controller)
+        let session = try XCTUnwrap(document.session), snapshot = await session.snapshot()
+        controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
+        window.contentView?.layoutSubtreeIfNeeded()
+        XCTAssertTrue(window.makeFirstResponder(controller.outlineView))
+        addTeardownBlock { @MainActor in
+            document.close()
+            await controller.extractionTask?.value
+            await document.undoCleanup?.value
+            await document.materializationCleanup?.value
+            await document.sessionCleanup?.value
+            withExtendedLifetime(fixture) {}
+        }
+        return (document, controller, window)
+    }
+
+    @MainActor private func assertRenameSurvivesFollowingOperation(password: Bool) async throws {
+        let fixture = try ScenarioFixture(), gate = ScenarioGate()
+        defer { gate.release() }
+        let stack = ArchiveUndoStack(clone: { source, destination in
+            gate.pauseOnce()
+            return ArchiveUndoStack.cloneFile(from: source, to: destination)
+        })
+        let (document, controller, window) = try await scenarioDocument(fixture, stack: stack)
+        let action = password ? #selector(ArchiveWindowController.setArchivePassword(_:))
+            : #selector(ArchiveWindowController.saveArchiveAs(_:))
+        XCTAssertTrue(controller.validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: "")))
+        try select(["original.txt"], in: controller)
+        let (_, editor) = try editor(controller, text: "renamed.txt")
+        XCTAssertEqual(editor.string, "renamed.txt")
+        var renameTask: Task<Void, Never>?
+        window.didMakeFirstResponder = {
+            if !controller.outlineView.isRenaming { renameTask = controller.extractionTask }
+        }
+        if password { controller.setArchivePassword(nil) }
+        else { controller.saveArchiveAs(nil) }
+        window.didMakeFirstResponder = nil
+
+        let committedTask = try XCTUnwrap(renameTask)
+        let retainedTask = try XCTUnwrap(controller.extractionTask)
+        XCTAssertEqual(retainedTask, committedTask, "確定した改名 Task を後続の操作で上書きしない")
+        // 退行時も、上書きした Task が実際のパネルを開く前に同期的に取り消す。
+        if retainedTask != committedTask { retainedTask.cancel() }
+        XCTAssertFalse(controller.outlineView.isRenaming)
+        XCTAssertNil(controller.creationController)
+        XCTAssertNil(controller.creationController?.savePanel)
+        XCTAssertNil(controller.passwordEditor)
+        XCTAssertEqual(window.requestedSheets.count, 1)
+        XCTAssertTrue(window.requestedSheets.first === controller.editProgressSheet?.window)
+        XCTAssertNil(window.attachedSheet)
+
+        try await scenarioWait { gate.isEntered }
+        XCTAssertEqual(document.generation, 0)
+        XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), ["original.txt": Data("original".utf8)])
+        XCTAssertEqual(controller.extractionTask, committedTask)
+        XCTAssertNil(controller.creationController)
+        XCTAssertNil(controller.passwordEditor)
+        gate.release()
+        await committedTask.value
+        if retainedTask != committedTask { await retainedTask.value }
+        XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), ["renamed.txt": Data("original".utf8)])
+        XCTAssertEqual(document.generation, 1)
+        XCTAssertNil(controller.extractionTask)
+        XCTAssertNil(controller.creationController)
+        XCTAssertNil(controller.passwordEditor)
+        XCTAssertEqual(window.requestedSheets.count, 1)
+        XCTAssertNil(window.attachedSheet)
+    }
+
+    @MainActor func testSaveAsAfterInlineRenameKeepsRenameTaskAndDoesNotOpenSavePanel() async throws {
+        try await assertRenameSurvivesFollowingOperation(password: false)
+    }
+
+    @MainActor func testPasswordAfterInlineRenameKeepsRenameTaskAndDoesNotOpenPasswordEditor() async throws {
+        try await assertRenameSurvivesFollowingOperation(password: true)
+    }
+
     @MainActor private func assertRejected(_ name: String, focusLoss: Bool = false) async throws {
         let fixture = try Fixture(), (document, controller) = try await interface(fixture)
         let before = try digest(fixture)

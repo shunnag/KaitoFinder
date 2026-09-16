@@ -46,16 +46,25 @@ nonisolated enum ArchiveDropTarget {
 }
 
 nonisolated struct ArchiveViewState: Sendable {
-    var selectedPaths: Set<String>
+    var selectedPaths: Set<String> {
+        // 編集後など、パスで選び直す状態には以前のレコード番号を引き継がない。
+        didSet { selectedEntryIndices = nil }
+    }
     var expandedPaths: Set<String>
     var topPath: String?
+    var selectedEntryIndices: Set<Int>? = nil
+    var generation: UInt64? = nil
 
-    @MainActor func resolve(in root: EntryNode) -> (selected: [EntryNode], expanded: [EntryNode], top: EntryNode?) {
+    @MainActor func resolve(in root: EntryNode, currentGeneration: UInt64? = nil)
+        -> (selected: [EntryNode], expanded: [EntryNode], top: EntryNode?) {
+        let indices = currentGeneration != nil && generation == currentGeneration ? selectedEntryIndices : nil
         var pending = [root]
         var selected: [EntryNode] = [], expanded: [EntryNode] = []
         var top: EntryNode?
         while let node = pending.popLast() {
-            if selectedPaths.contains(node.path) { selected.append(node) }
+            if let entry = node.entry, let indices {
+                if indices.contains(entry.index) { selected.append(node) }
+            } else if selectedPaths.contains(node.path) { selected.append(node) }
             if expandedPaths.contains(node.path), node.isDirectory { expanded.append(node) }
             if topPath == node.path { top = node }
             pending.append(contentsOf: node.children.reversed())

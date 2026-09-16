@@ -1077,11 +1077,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 path.split(separator: "/").contains { EntryNode.isHiddenName(String($0)) }
             })
         }
-        return ArchiveViewState(selectedPaths: Set(selectedNodes.map(\.path)), expandedPaths: expanded, topPath: top?.path)
+        return ArchiveViewState(selectedPaths: Set(selectedNodes.map(\.path)), expandedPaths: expanded, topPath: top?.path,
+                                selectedEntryIndices: Set(selectedNodes.compactMap { $0.entry?.index }), generation: generation)
     }
 
     private func restoreViewState(_ state: ArchiveViewState) {
-        let resolved = state.resolve(in: root)
+        let resolved = state.resolve(in: root, currentGeneration: generation)
         for node in resolved.expanded where entryFilter?.contains(node) != false { outlineView.expandItem(node) }
         outlineView.selectRowIndexes(IndexSet(resolved.selected.map { outlineView.row(forItem: $0) }.filter { $0 >= 0 }), byExtendingSelection: false)
         if let top = resolved.top {
@@ -1262,7 +1263,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     @objc func saveArchiveAs(_ sender: Any?) {
-        guard canPerformEdit(#selector(saveArchiveAs(_:))), outlineView.commitRenaming() else { return }
+        guard outlineView.commitRenaming(), canPerformEdit(#selector(saveArchiveAs(_:))) else { return }
         let progress = Progress(totalUnitCount: 0)
         extractionTask = Task { [weak self] in
             guard let self else { return }
@@ -1284,7 +1285,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     @objc func removeArchivePassword(_ sender: Any?) { presentPasswordEditor(.remove, selector: #selector(removeArchivePassword(_:))) }
 
     private func presentPasswordEditor(_ action: ArchivePasswordAction, selector: Selector) {
-        guard canPerformEdit(selector), outlineView.commitRenaming(), let session = archiveSession,
+        guard outlineView.commitRenaming(), canPerformEdit(selector), let session = archiveSession,
               let format = session.passwordFormat, let window, let document = document as? ArchiveDocument else { return }
         closePreview()
         materialization?.cancel()

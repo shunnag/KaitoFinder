@@ -36,6 +36,52 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         try XCTUnwrap(parent.children.first { $0.name == name })
     }
 
+    @MainActor func testDuplicateRecordSelectionSurvivesSortAndDisplayButFallsBackAfterMutation() async throws {
+        let fixture = try ScenarioFixture(script: """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('dup.txt', b'first')
+            z.writestr('dup.txt', b'second')
+        """)
+        let (document, controller) = try await scenarioDocument(fixture)
+        let session = try XCTUnwrap(document.session), snapshot = await session.snapshot()
+        let view = controller.outlineView
+        view.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        let duplicates = (0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }
+            .filter { $0.path == "dup.txt" }
+        XCTAssertEqual(duplicates.count, 2)
+        let first = try XCTUnwrap(duplicates.first), index = try XCTUnwrap(first.entry?.index)
+        view.selectRowIndexes(IndexSet(integer: view.row(forItem: first)), byExtendingSelection: false)
+        XCTAssertEqual(controller.selectedNodes.count, 1)
+        XCTAssertEqual(controller.selectedNodes.first?.entry?.index, index)
+
+        view.sortDescriptors = [NSSortDescriptor(key: "name", ascending: false)]
+        XCTAssertEqual(controller.selectedNodes.count, 1)
+        XCTAssertEqual(controller.selectedNodes.first?.entry?.index, index)
+
+        let root = EntryNode.tree(from: snapshot.entries)
+        controller.display(root, session: session, generation: snapshot.generation)
+        XCTAssertEqual(controller.selectedNodes.count, 1)
+        XCTAssertEqual(controller.selectedNodes.first?.entry?.index, index)
+
+        // 検索の開始で captureViewState を保存し、公開後の検索解除で古い状態を restoreViewState に渡す。
+        controller.setFilterQuery("dup")
+        let result = try await document.createFolder(in: "", baseName: "added", progress: Progress())
+        XCTAssertEqual(result.addedPaths, ["added/"])
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertNil(result.reloadFailure)
+        XCTAssertEqual(document.generation, snapshot.generation + 1)
+        view.deselectAll(nil)
+        controller.setFilterQuery("")
+        XCTAssertEqual(controller.selectedNodes.count, 2)
+        XCTAssertEqual(Set(controller.selectedNodes.map(\.path)), ["dup.txt"])
+        XCTAssertEqual(Set(controller.selectedNodes.compactMap { $0.entry?.index }),
+                       Set(duplicates.compactMap { $0.entry?.index }))
+
+        // 世代や index を持たない既存のパス指定も、同名レコードをすべて解決する。
+        let pathOnly = ArchiveViewState(selectedPaths: ["dup.txt"], expandedPaths: [], topPath: nil)
+        XCTAssertEqual(pathOnly.resolve(in: root).selected.count, 2)
+    }
+
     @MainActor func testToolbarSearchFieldPreservesFilterConfigurationAndAction() async throws {
         let (_, controller, _) = try await interface()
         let window = try XCTUnwrap(controller.window), toolbar = try XCTUnwrap(window.toolbar)
