@@ -19,6 +19,6 @@ GyoshukuKit の writer を含む全経路)。
 ## 位置づけ
 
 Swift 6 の strict concurrency は主にコンパイル時の保証で、`nonisolated(unsafe)`・`Mutex`・Darwin
-呼び出し・unsafe pointer の誤りは実行時にしか出ない。本日の 16 コミット(descriptor キャッシュ、
+呼び出し・unsafe pointer の誤りは実行時にしか出ない。本日のコミット(descriptor キャッシュ、
 台帳、promise の待ち合わせ、終了時の後始末)を含む状態で、両 sanitizer が沈黙したことを記録する。
 `git status` は両実行の前後で変化なし。
