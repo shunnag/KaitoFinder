@@ -34287,6 +34287,166 @@
         }
       }
     },
+    "展開中にアーカイブが変更されたため、ゴミ箱に入れませんでした。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The archive changed while it was being extracted, so it was not moved to the Trash."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開中にアーカイブが変更されたため、ゴミ箱に入れませんでした。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Archiv wurde während des Entpackens geändert und deshalb nicht in den Papierkorb bewegt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’archive a été modifiée pendant la décompression, elle n’a donc pas été placée dans la corbeille."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo comprimido ha cambiado durante la descompresión, por lo que no se ha trasladado a la papelera."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’archivio è stato modificato durante l’espansione, quindi non è stato spostato nel Cestino."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arquivo comprimido foi alterado durante a expansão, por isso não foi movido para o Lixo."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "归档在解压缩期间被更改，因此未移到废纸篓。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封存檔在解壓縮期間已被更改，因此未移到垃圾桶。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "압축 해제 중에 아카이브가 변경되어 휴지통으로 이동하지 않았습니다."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ที่เก็บถาวรถูกเปลี่ยนแปลงระหว่างการขยาย จึงไม่ได้ย้ายไปยังถังขยะ"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp lưu trữ đã thay đổi trong khi giải nén nên không được chuyển vào Thùng rác."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arsip berubah saat diperluas, sehingga tidak dipindahkan ke Tong Sampah."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkib berubah semasa pengembangan, jadi ia tidak dipindahkan ke Sampah."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "विस्तार के दौरान आर्काइव बदल गया, इसलिए इसे रद्दी में नहीं डाला गया।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Архив был изменён во время разархивирования, поэтому он не перемещён в Корзину."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het archief is gewijzigd tijdens het uitpakken en is daarom niet naar de prullenmand verplaatst."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archiwum zmieniło się podczas rozpakowywania, więc nie zostało przeniesione do Kosza."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arşiv çıkarma sırasında değiştiği için Çöp Sepeti’ne taşınmadı."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkivet ändrades under expanderingen, så det flyttades inte till papperskorgen."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det komprimerede arkiv blev ændret under dekomprimeringen, så det blev ikke flyttet til papirkurven."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkivet ble endret under utpakkingen, så det ble ikke flyttet til papirkurven."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkisto muuttui purkamisen aikana, joten sitä ei siirretty roskakoriin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Архів було змінено під час розпакування, тому його не переміщено в Смітник."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archiv byl během rozbalování změněn, proto nebyl přesunut do koše."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arquivo foi alterado durante a descompressão, pelo que não foi movido para o Lixo."
+          }
+        }
+      }
+    },
     "展開後:" : {
       "extractionState" : "manual",
       "localizations" : {

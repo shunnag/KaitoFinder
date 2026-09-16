@@ -151,7 +151,7 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                 extracted.append(archive)
                 if preferences.trashesArchiveAfterExtraction {
                     try Self.checkCancellation(progress)
-                    try await Self.trashArchive(archive, using: trash)
+                    try await Self.trashArchive(archive, expectedIdentity: opened.sourceIdentity, using: trash)
                 }
             } catch {
                 await session?.close()
@@ -217,8 +217,12 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         guard mkdir(url.path, 0o755) == 0 else { throw ExtractionFailure.system(errno) }
     }
 
-    @concurrent private static func trashArchive(_ url: URL, using trash: @Sendable (URL) throws -> Void) async throws {
+    @concurrent private static func trashArchive(_ url: URL, expectedIdentity: [Int64],
+                                                using trash: @Sendable (URL) throws -> Void) async throws {
         try Task.checkCancellation()
+        guard try ArchiveImportTransaction.identity(url) == expectedIdentity else {
+            throw ExtractionFailure.refused(String(localized: "展開中にアーカイブが変更されたため、ゴミ箱に入れませんでした。"))
+        }
         try trash(url)
     }
 
@@ -228,22 +232,27 @@ nonisolated struct ArchiveBatchPlan: Sendable {
     }
 
     @concurrent private static func removeCancelledOutput(_ written: [ExtractionResult.WrittenItem]) async -> String? {
-        let urls = Set(written.map(\.url)).sorted { $0.pathComponents.count < $1.pathComponents.count }
+        let items = Dictionary(written.map { ($0.url, $0) }, uniquingKeysWith: { first, _ in first }).values
+            .sorted { $0.url.pathComponents.count < $1.url.pathComponents.count }
         var reasons: [String] = []
         // 親から属性を戻す。アーカイブが指定した読み取り専用フォルダも回収できる。
-        for url in urls {
+        for item in items {
+            let url = item.url
             var info = stat()
-            if lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+            if lstat(url.path, &info) == 0, item.matches(info), info.st_mode & S_IFMT == S_IFDIR,
                fchmodat(AT_FDCWD, url.path, 0o700, AT_SYMLINK_NOFOLLOW) != 0 {
                 reasons.append(ExtractionFailure.system(errno).description)
             }
         }
-        for url in urls.reversed() {
+        for item in items.reversed() {
+            let url = item.url
             var info = stat()
             guard lstat(url.path, &info) == 0 else {
                 if errno != ENOENT { reasons.append(ExtractionFailure.system(errno).description) }
                 continue
             }
+            // 途中の親が差し替わっていても、展開時と異なる inode は削除しない。
+            guard item.matches(info) else { continue }
             let status = info.st_mode & S_IFMT == S_IFDIR ? rmdir(url.path) : unlink(url.path)
             if status != 0, errno != ENOENT { reasons.append(ExtractionFailure.system(errno).description) }
         }

@@ -56,7 +56,7 @@ actor ArchiveSession {
         }
     }
     private var encryptsSevenZipHeaders = false
-    private var sourceIdentity: [Int64]
+    private(set) var sourceIdentity: [Int64]
     nonisolated let writerOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
     nonisolated private let importOptions: @Sendable () -> ArchiveImportPlan.Options
     private(set) var quarantine: Data?

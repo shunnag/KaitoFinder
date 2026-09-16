@@ -23,8 +23,29 @@ nonisolated struct ExtractionSelection: Sendable {
 
 nonisolated struct ExtractionResult: Sendable {
     struct WrittenItem: Sendable {
+        struct Identity: Equatable, Sendable {
+            let device: UInt64
+            let inode: UInt64
+
+            init(_ info: stat) {
+                device = UInt64(bitPattern: Int64(info.st_dev))
+                inode = UInt64(info.st_ino)
+            }
+        }
+
         let entryIndex: Int?
         let url: URL
+        let identity: Identity?
+
+        init(entryIndex: Int?, url: URL, identity: Identity? = nil) {
+            self.entryIndex = entryIndex
+            self.url = url
+            self.identity = identity
+        }
+
+        func matches(_ info: stat) -> Bool {
+            identity == nil || identity == Identity(info)
+        }
     }
     struct Failure: Sendable {
         let entryIndex: Int
@@ -216,7 +237,10 @@ nonisolated enum ExtractionService {
                 case .other:
                     throw ExtractionFailure.refused(String(localized: "このentryの種類は展開できません。"))
                 }
-                result.written.append(.init(entryIndex: entry.index, url: output.url(components)))
+                let url = output.url(components)
+                var info = stat()
+                guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
+                result.written.append(.init(entryIndex: entry.index, url: url, identity: .init(info)))
             } catch is CancellationError {
                 result.cancelled = true
                 break

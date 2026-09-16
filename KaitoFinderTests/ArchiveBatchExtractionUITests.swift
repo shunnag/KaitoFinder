@@ -188,6 +188,79 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.url.appendingPathComponent("locked").path))
     }
 
+    @MainActor func testIncorrectRememberedBatchPasswordIsRemovedBeforePromptAndReplacedOnlyWhenRequested() async throws {
+        for remember in [false, true] {
+            let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
+            let bytes = Data("secret contents".utf8), password = "batch-password"
+            let source = directory.url.appendingPathComponent("secret.txt")
+            let archive = directory.url.appendingPathComponent("locked.zip")
+            try bytes.write(to: source)
+            try directory.run("/usr/bin/zip", ["-q", "-P", password, archive.path, "secret.txt"])
+            let store = ArchivePreferencesStore(defaults: suite.defaults)
+            store.preferences.folderPolicy = .always
+            let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),
+                                             directory: directory.url.appendingPathComponent("vault"))
+            let saved = await vault.save("incorrect remembered value", for: .file(archive))
+            XCTAssertTrue(saved)
+            let controller = ArchiveBatchExtractionController(store: store, passwordVault: vault, reveal: { _ in })
+            var challenges: [ArchivePasswordChallenge] = []
+            let report = await controller.extract(archives: [archive], base: nil, preferences: store.preferences, progress: Progress(),
+                passwordPrompt: { url, challenge in
+                    XCTAssertEqual(url, archive)
+                    challenges.append(challenge)
+                    let stored = await vault.password(for: .file(archive))
+                    XCTAssertNil(stored, "失効した記憶値は入力を求める前に削除する")
+                    return ArchivePasswordResponse(password: password, remember: remember)
+                })
+            XCTAssertEqual(challenges, [.incorrect])
+            XCTAssertEqual(report.extracted, [archive])
+            XCTAssertTrue(report.failures.isEmpty)
+            XCTAssertFalse(report.cancelled)
+            XCTAssertEqual(try Data(contentsOf: directory.url.appendingPathComponent("locked/secret.txt")), bytes)
+            let stored = await vault.password(for: .file(archive))
+            XCTAssertEqual(stored, remember ? password : nil)
+            XCTAssertNil(controller.destinationPanel)
+            XCTAssertNil(controller.progressSheet)
+            XCTAssertNil(controller.passwordPrompt)
+        }
+    }
+
+    @MainActor func testIncorrectRememberedBatchPasswordIsInvalidatedOnlyOnce() async throws {
+        let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
+        let source = directory.url.appendingPathComponent("secret.txt")
+        let archive = directory.url.appendingPathComponent("locked.zip")
+        try Data("secret contents".utf8).write(to: source)
+        try directory.run("/usr/bin/zip", ["-q", "-P", "batch-password", archive.path, "secret.txt"])
+        let store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.folderPolicy = .always
+        let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),
+                                         directory: directory.url.appendingPathComponent("vault"))
+        let oldPassword = "incorrect remembered value"
+        let saved = await vault.save(oldPassword, for: .file(archive))
+        XCTAssertTrue(saved)
+        let controller = ArchiveBatchExtractionController(store: store, passwordVault: vault, reveal: { _ in })
+        var challenges: [ArchivePasswordChallenge] = []
+        let report = await controller.extract(archives: [archive], base: nil, preferences: store.preferences, progress: Progress(),
+            passwordPrompt: { _, challenge in
+                challenges.append(challenge)
+                let stored = await vault.password(for: .file(archive))
+                if challenges.count == 1 {
+                    XCTAssertNil(stored)
+                    // 同じ値が別の操作で再保存されても、二度目の再入力では削除しない。
+                    let savedAgain = await vault.save(oldPassword, for: .file(archive))
+                    XCTAssertTrue(savedAgain)
+                    return ArchivePasswordResponse(password: "another incorrect value", remember: false)
+                }
+                XCTAssertEqual(stored, oldPassword)
+                return ArchivePasswordResponse(password: "batch-password", remember: false)
+            })
+        XCTAssertEqual(challenges, [.incorrect, .incorrect])
+        XCTAssertEqual(report.extracted, [archive])
+        XCTAssertTrue(report.failures.isEmpty)
+        let stored = await vault.password(for: .file(archive))
+        XCTAssertEqual(stored, oldPassword)
+    }
+
     @MainActor func testBatchAlertsProgressAndPasswordNamesAreLocalizedWithCorrectPunctuation() throws {
         let app = Bundle(for: ArchiveDocument.self)
         let failures = [ArchiveBatchExtractor.Failure(archive: URL(fileURLWithPath: "/tmp/first.zip"), reason: "First reason"),

@@ -339,6 +339,41 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         try assertContents(fixture.directory.url, ["first/a": bytes, "next/b": bytes])
     }
 
+    @MainActor func testTrashChecksArchiveIdentityAfterExtraction() async throws {
+        for replacesArchive in [false, true] {
+            let fixture = try Fixture(), bytes = Data("original contents".utf8)
+            let archive = try fixture.archive("original.zip", files: ["a.txt": bytes, "b.txt": bytes])
+            let replacement = try fixture.archive("replacement.zip", files: ["replacement.txt": Data("new contents".utf8)])
+            let replacementBytes = try Data(contentsOf: replacement)
+            let base = try fixture.folder("out"), firstOutput = base.appendingPathComponent("original/a.txt")
+            let gate = ScenarioGate(), progress = Progress(), trashed = Mutex<[URL]>([])
+            let observation = progress.observe(\.fractionCompleted, options: [.new]) { _, _ in
+                if FileManager.default.fileExists(atPath: firstOutput.path) { gate.pauseOnce() }
+            }
+            defer { gate.release(); observation.invalidate() }
+            let engine = ArchiveBatchExtractor(
+                preferences: ArchivePreferences(folderPolicy: .always, trashesArchiveAfterExtraction: true),
+                passwordPrompt: { _, _ in XCTFail("入力は不要"); throw CancellationError() },
+                trash: { url in trashed.withLock { $0.append(url) } })
+            let task = Task { await engine.run(archives: [archive], base: base, progress: progress) }
+            addTeardownBlock { task.cancel(); gate.release(); _ = await task.value }
+            try await scenarioWait { gate.isEntered }
+            if replacesArchive { XCTAssertEqual(rename(replacement.path, archive.path), 0) }
+            gate.release()
+            let report = await task.value
+            XCTAssertFalse(report.cancelled)
+            XCTAssertEqual(report.extracted, [archive])
+            XCTAssertEqual(trashed.withLock { $0 }, replacesArchive ? [] : [archive])
+            if replacesArchive {
+                XCTAssertEqual(report.failures.map(\.archive), [archive])
+                XCTAssertEqual(report.failures.map(\.reason),
+                    [String(localized: "展開中にアーカイブが変更されたため、ゴミ箱に入れませんでした。")])
+                XCTAssertEqual(try Data(contentsOf: archive), replacementBytes)
+            } else { XCTAssertTrue(report.failures.isEmpty) }
+            try assertContents(base, ["original/a.txt": bytes, "original/b.txt": bytes])
+        }
+    }
+
     @MainActor func testCancelProgressFromSecondPasswordPromptStopsBatchWithoutPartialOutput() async throws {
         let fixture = try Fixture(), bytes = Data("first complete".utf8)
         let first = try fixture.archive("first.zip", files: ["a": bytes]), second = try fixture.encryptedArchive(publicEntry: true)
@@ -386,6 +421,38 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
             XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: base.path)),
                            [policy == .always ? "first" : "first.txt", "sentinel"])
         }
+    }
+
+    @MainActor func testCancellationPreservesFilesOutsideReplacedOutputParent() async throws {
+        let fixture = try Fixture(), bytes = Data("extracted contents".utf8)
+        let archive = try fixture.archive("original.zip", files: ["sub/a.txt": bytes, "z.txt": bytes])
+        let base = try fixture.folder("out"), outside = try fixture.folder("outside")
+        let outsideBytes = Data("existing outside contents".utf8), outsideFile = outside.appendingPathComponent("a.txt")
+        try outsideBytes.write(to: outsideFile)
+        let sub = base.appendingPathComponent("sub"), firstOutput = sub.appendingPathComponent("a.txt")
+        let retained = fixture.directory.url.appendingPathComponent("retained-sub")
+        let gate = ScenarioGate(), progress = Progress()
+        let observation = progress.observe(\.fractionCompleted, options: [.new]) { _, _ in
+            if FileManager.default.fileExists(atPath: firstOutput.path) { gate.pauseOnce() }
+        }
+        defer { gate.release(); observation.invalidate() }
+        let engine = extractor(.never)
+        let task = Task { await engine.run(archives: [archive], base: base, progress: progress) }
+        addTeardownBlock { task.cancel(); gate.release(); _ = await task.value }
+        try await scenarioWait { gate.isEntered }
+        XCTAssertEqual(try Data(contentsOf: firstOutput), bytes)
+        try FileManager.default.moveItem(at: sub, to: retained)
+        try FileManager.default.createSymbolicLink(at: sub, withDestinationURL: outside)
+        progress.cancel()
+        gate.release()
+        let report = await task.value
+        XCTAssertTrue(report.cancelled)
+        XCTAssertTrue(report.extracted.isEmpty)
+        XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: outsideFile), outsideBytes)
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: sub.path), outside.path)
+        XCTAssertEqual(try Data(contentsOf: retained.appendingPathComponent("a.txt")), bytes)
+        assertAbsent(base.appendingPathComponent("z.txt"))
     }
 
     @MainActor func testEmptyBatchAndPrecancelledProgressDoNotPromptOrTrash() async throws {

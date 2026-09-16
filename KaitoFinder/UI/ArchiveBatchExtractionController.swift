@@ -80,29 +80,47 @@ import UniformTypeIdentifiers
             progressSheet = nil
         }
         sheet.beginStandalone()
+        let report = await extract(archives: archives, base: base, preferences: preferences, progress: progress,
+            passwordPrompt: { [self] archive, challenge in
+                guard let window = sheet.window else { throw CancellationError() }
+                return try await passwordPresenter.response(to: challenge, on: window,
+                                                            archiveName: archive.lastPathComponent)
+            }, currentArchive: { archive in
+                sheet.detail = archive?.lastPathComponent ?? ""
+            })
+        sheet.finish()
+        if let alert = Self.failureAlert(for: report) { alert.runModal() }
+        return report
+    }
+
+    // パネルを介さず入力応答を注入し、同じ保管庫・展開経路を検証できる。
+    func extract(archives: [URL], base: URL?, preferences: ArchivePreferences, progress: Progress,
+                 passwordPrompt: @escaping @MainActor (URL, ArchivePasswordChallenge) async throws -> ArchivePasswordResponse,
+                 currentArchive: @escaping @MainActor (URL?) -> Void = { _ in }) async -> ArchiveBatchExtractor.Report {
         // 採用候補は展開成功後だけ保存する。誤入力や入力待ち中の「すべて削除」を上書きしない。
         var responses: [URL: (response: ArchivePasswordResponse, generation: UInt64)] = [:]
+        var rememberedPasswords: [URL: String] = [:]
         let vault = passwordVault
-        let extractor = ArchiveBatchExtractor(preferences: preferences, passwordPrompt: { [self] archive, challenge in
-            guard let window = sheet.window else { throw CancellationError() }
+        let extractor = ArchiveBatchExtractor(preferences: preferences, passwordPrompt: { archive, challenge in
+            if challenge == .incorrect, let stored = rememberedPasswords.removeValue(forKey: archive) {
+                // 自動投入した旧値だけを一度消し、並行して保存された別の値は残す。
+                await vault.remove(for: .file(archive), matching: stored)
+            }
             let generation = await vault.generation()
-            let response = try await passwordPresenter.response(to: challenge, on: window,
-                                                                archiveName: archive.lastPathComponent)
+            let response = try await passwordPrompt(archive, challenge)
             responses[archive] = (response, generation)
             return response.password
-        }, rememberedPassword: { archive in
-            await vault.password(for: .file(archive))
-        }, reveal: reveal, currentArchive: { archive in
-            sheet.detail = archive?.lastPathComponent ?? ""
-        })
+        }, rememberedPassword: { @MainActor archive in
+            let stored = await vault.password(for: .file(archive))
+            rememberedPasswords[archive] = stored
+            return stored
+        }, reveal: reveal, currentArchive: currentArchive)
         let report = await extractor.run(archives: archives, base: base, progress: progress)
         for archive in report.extracted {
             if let candidate = responses[archive], candidate.response.remember {
                 await vault.save(candidate.response.password, for: .file(archive), generation: candidate.generation)
             }
         }
-        sheet.finish()
-        if let alert = Self.failureAlert(for: report) { alert.runModal() }
         return report
     }
 
