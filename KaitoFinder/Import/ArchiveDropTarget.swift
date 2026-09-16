@@ -54,21 +54,24 @@ nonisolated struct ArchiveViewState: Sendable {
     var topPath: String?
     var selectedEntryIndices: Set<Int>? = nil
     var generation: UInt64? = nil
+    var scrollX: CGFloat = 0
+    var collapsedPaths: Set<String> = []
 
     @MainActor func resolve(in root: EntryNode, currentGeneration: UInt64? = nil)
-        -> (selected: [EntryNode], expanded: [EntryNode], top: EntryNode?) {
+        -> (selected: [EntryNode], expanded: [EntryNode], collapsed: [EntryNode], top: EntryNode?) {
         let indices = currentGeneration != nil && generation == currentGeneration ? selectedEntryIndices : nil
         var pending = [root]
-        var selected: [EntryNode] = [], expanded: [EntryNode] = []
+        var selected: [EntryNode] = [], expanded: [EntryNode] = [], collapsed: [EntryNode] = []
         var top: EntryNode?
         while let node = pending.popLast() {
             if let entry = node.entry, let indices {
                 if indices.contains(entry.index) { selected.append(node) }
             } else if selectedPaths.contains(node.path) { selected.append(node) }
             if expandedPaths.contains(node.path), node.isDirectory { expanded.append(node) }
+            if collapsedPaths.contains(node.path), node.isDirectory { collapsed.append(node) }
             if topPath == node.path { top = node }
             pending.append(contentsOf: node.children.reversed())
         }
-        return (selected, expanded, top)
+        return (selected, expanded, collapsed, top)
     }
 }

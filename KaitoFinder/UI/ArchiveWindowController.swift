@@ -64,6 +64,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var isLocked = false
     let statusBar = NSTextField(wrappingLabelWithString: "")
     private(set) var deletionConfirmation: NSAlert?
+    private(set) var failureAlert: NSAlert?
     private(set) var conversionConfirmation: NSAlert?
     private(set) var creationController: ArchiveCreationController?
     private(set) var passwordEditor: ArchivePasswordEditor?
@@ -644,7 +645,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if filterQuery.isEmpty { unfilteredViewState = state }
         filterQuery = query
         searchField.stringValue = query
-        let restored = query.isEmpty ? (unfilteredViewState ?? state) : state
+        var restored = query.isEmpty ? (unfilteredViewState ?? state) : state
+        // 検索語を変えたときは、新しい一致をすべて展開する。
+        restored.collapsedPaths.removeAll()
         if query.isEmpty { unfilteredViewState = nil }
         closePreview()
         reloadFilteredEntries(restoring: restored)
@@ -872,7 +875,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             guard let self, self.generation == expectedGeneration,
                   self.archiveSession?.generation == expectedGeneration else { return }
             if node.name.utf8.elementsEqual(name.utf8) { return }
-            self.startEdit([node], name: name, state: self.viewStateAfterRenaming(node, to: name))
+            self.startEdit([node], name: name,
+                           state: self.viewStateAfterRenaming(self.captureViewState(), node: node, to: name))
         })
     }
 
@@ -902,7 +906,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 } else {
                     result = try await document.remove(nodes, progress: progress)
                 }
-                if result.published { self?.restoreViewState(state) }
+                if result.published, let self {
+                    if let name, let node = nodes.first, let unfiltered = self.unfilteredViewState {
+                        self.unfilteredViewState = self.viewStateAfterRenaming(unfiltered, node: node, to: name)
+                    }
+                    self.restoreViewState(state)
+                }
                 if let reason = result.reloadFailure {
                     sheet.finish()
                     self?.reportEditFailure(reason, published: true)
@@ -919,7 +928,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func startMove(nodes: [EntryNode], to folder: String) -> Bool {
         guard let window, let document = document as? ArchiveDocument, !nodes.isEmpty,
               archiveSession?.capabilities.canAppend == true, !operationInFlight else { return false }
-        let state = viewStateAfterMoving(nodes, to: folder)
+        var state = captureViewState()
+        state.selectedPaths = Set(nodes.map(\.path))
+        state = viewStateAfterMoving(state, nodes: nodes, to: folder)
+        let parts = folder.split(separator: "/")
+        for count in 1..<(parts.count + 1) {
+            state.expandedPaths.insert(parts.prefix(count).joined(separator: "/"))
+        }
         closePreview()
         materialization?.cancel()
         let progress = Progress(totalUnitCount: 0)
@@ -938,6 +953,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             do {
                 let result = try await document.move(nodes, to: folder, progress: progress)
                 if result.published, let self {
+                    if let unfiltered = self.unfilteredViewState {
+                        self.unfilteredViewState = self.viewStateAfterMoving(unfiltered, nodes: nodes, to: folder)
+                    }
                     // 親の名前だけが検索に一致していた場合も、移動した項目を選択できるようにする。
                     if !self.filterQuery.isEmpty,
                        state.resolve(in: self.root).selected.contains(where: { self.entryFilter?.contains($0) == false }) {
@@ -1025,8 +1043,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return state
     }
 
-    private func viewStateAfterRenaming(_ node: EntryNode, to name: String) -> ArchiveViewState {
-        var state = captureViewState()
+    private func viewStateAfterRenaming(_ original: ArchiveViewState, node: EntryNode, to name: String) -> ArchiveViewState {
+        var state = original
         let parent = node.path.split(separator: "/").dropLast().joined(separator: "/")
         let path = (parent.isEmpty ? name : parent + "/" + name).precomposedStringWithCanonicalMapping
         func renamed(_ old: String) -> String {
@@ -1034,14 +1052,15 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             if old.hasPrefix(node.path + "/") { return path + old.dropFirst(node.path.count) }
             return old
         }
-        state.selectedPaths = [path]
+        state.selectedPaths = Set(state.selectedPaths.map(renamed))
         state.expandedPaths = Set(state.expandedPaths.map(renamed))
+        state.collapsedPaths = Set(state.collapsedPaths.map(renamed))
         state.topPath = state.topPath.map(renamed)
         return state
     }
 
-    private func viewStateAfterMoving(_ nodes: [EntryNode], to folder: String) -> ArchiveViewState {
-        var state = captureViewState()
+    private func viewStateAfterMoving(_ original: ArchiveViewState, nodes: [EntryNode], to folder: String) -> ArchiveViewState {
+        var state = original
         let moves = nodes.map { node in
             (source: node.path, destination: (folder.isEmpty ? node.name : folder + "/" + node.name)
                 .precomposedStringWithCanonicalMapping)
@@ -1053,13 +1072,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             return old
         }
-        state.selectedPaths = Set(moves.map(\.destination))
+        state.selectedPaths = Set(state.selectedPaths.map(moved))
         state.expandedPaths = Set(state.expandedPaths.map(moved))
+        state.collapsedPaths = Set(state.collapsedPaths.map(moved))
         state.topPath = state.topPath.map(moved)
-        let parts = folder.split(separator: "/")
-        for count in 1..<(parts.count + 1) {
-            state.expandedPaths.insert(parts.prefix(count).joined(separator: "/"))
-        }
         return state
     }
 
@@ -1067,9 +1083,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let visible = outlineView.rows(in: outlineView.visibleRect)
         let top = visible.location < outlineView.numberOfRows ? outlineView.item(atRow: visible.location) as? EntryNode : nil
         var expanded = showsHiddenFiles ? [] : hiddenExpandedPaths
+        var collapsed: Set<String> = []
         var pending = root.children
         while let node = pending.popLast() {
-            if node.isDirectory, outlineView.isItemExpanded(node) { expanded.insert(node.path) }
+            if node.isDirectory {
+                if outlineView.isItemExpanded(node) { expanded.insert(node.path) }
+                else if !filterQuery.isEmpty, outlineView.row(forItem: node) >= 0 { collapsed.insert(node.path) }
+            }
             pending.append(contentsOf: node.children)
         }
         if showsHiddenFiles {
@@ -1078,16 +1098,26 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             })
         }
         return ArchiveViewState(selectedPaths: Set(selectedNodes.map(\.path)), expandedPaths: expanded, topPath: top?.path,
-                                selectedEntryIndices: Set(selectedNodes.compactMap { $0.entry?.index }), generation: generation)
+                                selectedEntryIndices: Set(selectedNodes.compactMap { $0.entry?.index }), generation: generation,
+                                scrollX: outlineView.enclosingScrollView?.contentView.bounds.origin.x ?? 0, collapsedPaths: collapsed)
     }
 
     private func restoreViewState(_ state: ArchiveViewState) {
         let resolved = state.resolve(in: root, currentGeneration: generation)
         for node in resolved.expanded where entryFilter?.contains(node) != false { outlineView.expandItem(node) }
+        for node in resolved.selected where entryFilter?.contains(node) != false {
+            for ancestor in pathNodes(to: node).dropLast() where entryFilter?.contains(ancestor) != false {
+                outlineView.expandItem(ancestor)
+            }
+        }
+        let selectedAncestors = Set(resolved.selected.flatMap { pathNodes(to: $0).dropLast() }.map(ObjectIdentifier.init))
+        for node in resolved.collapsed where !selectedAncestors.contains(ObjectIdentifier(node)) {
+            outlineView.collapseItem(node)
+        }
         outlineView.selectRowIndexes(IndexSet(resolved.selected.map { outlineView.row(forItem: $0) }.filter { $0 >= 0 }), byExtendingSelection: false)
         if let top = resolved.top {
             let row = outlineView.row(forItem: top)
-            if row >= 0 { outlineView.scroll(NSPoint(x: 0, y: outlineView.rect(ofRow: row).minY)) }
+            if row >= 0 { outlineView.scroll(NSPoint(x: state.scrollX, y: outlineView.rect(ofRow: row).minY)) }
         }
         // 行番号の集合が同じでも、ソート後は先頭の選択項目が変わり得る。
         updatePathControl()
@@ -1475,15 +1505,18 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         creationController?.progressSheet?.finish()
     }
 
-    private func reportFailure(_ reason: String) {
+    private func reportFailure(_ reason: String, title: String? = nil) {
         guard let window else { return }
-        let alert = Self.makeFailureAlert(reason, bundle: bundle)
-        alert.beginSheetModal(for: window, completionHandler: nil)
+        let alert = Self.makeFailureAlert(reason, title: title, bundle: bundle)
+        failureAlert = alert
+        alert.beginSheetModal(for: window) { [weak self] _ in
+            if self?.failureAlert === alert { self?.failureAlert = nil }
+        }
     }
 
-    static func makeFailureAlert(_ reason: String, bundle: Bundle = .main) -> NSAlert {
+    static func makeFailureAlert(_ reason: String, title: String? = nil, bundle: Bundle = .main) -> NSAlert {
         let alert = NSAlert()
-        alert.messageText = String(localized: "項目を展開できませんでした", bundle: bundle)
+        alert.messageText = title ?? String(localized: "項目を展開できませんでした", bundle: bundle)
         alert.informativeText = ArchiveAlertText.informativeText(reason, bundle: bundle)
         return alert
     }
@@ -1543,17 +1576,23 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 NSWorkspace.shared.open([url], withApplicationAt: application, configuration: .init()) { [weak self, bundle = self.bundle] _, error in
                     if let error {
                         let reason = ArchiveErrorText.describe(error, bundle: bundle)
-                        Task { @MainActor [weak self] in self?.reportFailure(reason) }
+                        Task { @MainActor [weak self] in
+                            self?.reportFailure(reason, title: String(localized: "項目を開けませんでした", bundle: bundle))
+                        }
                     }
                 }
             } else if let type = UTType(filenameExtension: url.pathExtension),
                       ArchiveBatchExtractionController.archiveContentTypes().contains(where: { type.conforms(to: $0) }) {
                 // 書庫内の書庫は同じアプリで開き、一時コピーの変更不可理由を表示する。
                 NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { [weak self] _, _, error in
-                    if let error { self?.reportFailure(error.localizedDescription) }
+                    if let error, let self {
+                        self.reportFailure(error.localizedDescription,
+                                           title: String(localized: "項目を開けませんでした", bundle: self.bundle))
+                    }
                 }
             } else if !NSWorkspace.shared.open(url) {
-                self.reportFailure(String(localized: "この項目を開くアプリケーションが見つからないか、起動できませんでした。", bundle: self.bundle))
+                self.reportFailure(String(localized: "この項目を開くアプリケーションが見つからないか、起動できませんでした。", bundle: self.bundle),
+                                   title: String(localized: "項目を開けませんでした", bundle: self.bundle))
             }
             self.openNext(index: index + 1, application: application)
         }

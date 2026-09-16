@@ -15,6 +15,7 @@ final class WelcomeDropZoneView: NSView {
     let headingLabel: NSTextField
     let captionLabel: NSTextField
     let symbolView: NSImageView = WelcomeSymbolView()
+    var canAcceptDrop: () -> Bool = { true }
     private let archiveTypes: [UTType]
     private let clickAction: () -> Void
     private let dropAction: ([URL]) -> Void
@@ -228,7 +229,7 @@ final class WelcomeDropZoneView: NSView {
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
         isReceivingDrag = true
-        let accepted = acceptedURLs(from: sender) != nil
+        let accepted = canAcceptDrop() && acceptedURLs(from: sender) != nil
         setDragHighlight(accepted)
         return accepted ? .copy : []
     }
@@ -239,12 +240,12 @@ final class WelcomeDropZoneView: NSView {
     override func draggingEnded(_ sender: any NSDraggingInfo) { finishDrag() }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        acceptedURLs(from: sender) != nil
+        canAcceptDrop() && acceptedURLs(from: sender) != nil
     }
 
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
         defer { finishDrag() }
-        guard let urls = acceptedURLs(from: sender) else { return false }
+        guard canAcceptDrop(), let urls = acceptedURLs(from: sender) else { return false }
         dropAction(urls)
         return true
     }

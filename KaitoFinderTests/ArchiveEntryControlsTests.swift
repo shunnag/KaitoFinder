@@ -879,6 +879,102 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
     }
 
+    @MainActor func testClearingFilterAfterRenameRestoresRenamedFolderSelectionAndExpansion() async throws {
+        let fixture = try ScenarioFixture(script: """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('folder/show.txt', b'show')
+            z.writestr('folder/deep/hidden.txt', b'hidden')
+        """)
+        let (document, controller) = try await scenarioDocument(fixture), view = controller.outlineView
+        view.expandItem(nil, expandChildren: true)
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
+        controller.window?.makeFirstResponder(view)
+        try select(["folder"], in: controller)
+        controller.setFilterQuery("show")
+        let (field, editor) = try editor(controller, text: "renamed")
+        commit(controller, field: field, editor: editor)
+        let task = try XCTUnwrap(controller.extractionTask)
+        await task.value
+        XCTAssertEqual(document.generation, 1)
+        XCTAssertEqual(controller.filterQuery, "show")
+
+        controller.setFilterQuery("")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["renamed"])
+        XCTAssertTrue(view.isItemExpanded(try node("renamed", in: controller)))
+        XCTAssertTrue(view.isItemExpanded(try node("renamed/deep", in: controller)))
+    }
+
+    @MainActor func testClearingFilterAfterMoveRestoresMovedDescendantAndExpandsItsNewAncestors() async throws {
+        let fixture = try ScenarioFixture(script: """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('folder/show.txt', b'show')
+            z.writestr('destination/show.txt', b'keep')
+        """)
+        let (document, controller) = try await scenarioDocument(fixture), view = controller.outlineView
+        view.expandItem(try node("folder", in: controller))
+        try select(["folder/show.txt"], in: controller)
+        XCTAssertFalse(view.isItemExpanded(try node("destination", in: controller)))
+        controller.setFilterQuery("show")
+        try select(["folder"], in: controller)
+        let (_, info) = moveDrag(controller.selectedNodes, in: controller)
+        let target = try node("destination", in: controller)
+        XCTAssertTrue(controller.outlineView(view, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        let task = try XCTUnwrap(controller.extractionTask)
+        await task.value
+        XCTAssertEqual(document.generation, 1)
+        XCTAssertEqual(controller.filterQuery, "show")
+
+        controller.setFilterQuery("")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["destination/folder/show.txt"])
+        XCTAssertTrue(view.isItemExpanded(try node("destination", in: controller)))
+        XCTAssertTrue(view.isItemExpanded(try node("destination/folder", in: controller)))
+    }
+
+    @MainActor func testFailureAlertUsesOpenTitleOverrideAndKeepsExtractionTitleByDefault() throws {
+        let bundle = try LocalizationAcceptance.bundle("ja")
+        let title = String(localized: "項目を開けませんでした", bundle: bundle)
+        let alert = ArchiveWindowController.makeFailureAlert("x", title: title, bundle: bundle)
+        XCTAssertEqual(alert.messageText, "項目を開けませんでした")
+        XCTAssertEqual(alert.informativeText, "x。")
+        XCTAssertEqual(ArchiveWindowController.makeFailureAlert("x", bundle: bundle).messageText, "項目を展開できませんでした")
+        let translations = try XCTUnwrap(LocalizationAcceptance.catalog().strings["項目を開けませんでした"]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            XCTAssertEqual(translations[language]?.stringUnit.state, "translated")
+        }
+    }
+
+    @MainActor func testOpeningBrokenNestedArchiveReportsOpenFailureAfterSuccessfulExtraction() async throws {
+        let fixture = try ScenarioFixture(script: #"""
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('broken.zip', b'PK\x03\x04garbage')
+        """#)
+        let (document, _) = try await scenarioDocument(fixture)
+        // 実行環境の言語によらず、シナリオでも日本語の見出しそのものを確認する。
+        let controller = ArchiveWindowController(bundle: try LocalizationAcceptance.bundle("ja"))
+        document.addWindowController(controller)
+        let session = try XCTUnwrap(document.session)
+        let materialization = try XCTUnwrap(document.materializationController())
+        controller.display(EntryNode.tree(from: await session.entries()), session: session,
+                           materializationController: materialization)
+        let window = try XCTUnwrap(controller.window)
+        defer {
+            if let alert = controller.failureAlert {
+                window.endSheet(alert.window)
+                alert.window.orderOut(nil)
+            }
+        }
+        try select(["broken.zip"], in: controller)
+        controller.openEntry(nil)
+        try await scenarioWait {
+            guard let alert = controller.failureAlert else { return false }
+            return window.attachedSheet === alert.window
+        }
+        let extracted = try XCTUnwrap(materialization.item(at: 0)?.previewItemURL)
+        XCTAssertEqual(try Data(contentsOf: extracted), Data([0x50, 0x4b, 0x03, 0x04]) + Data("garbage".utf8))
+        XCTAssertEqual(try XCTUnwrap(controller.failureAlert).messageText, "項目を開けませんでした")
+    }
+
     @MainActor func testFilterChangePreservesInvalidInlineRenameUntilCorrected() async throws {
         let fixture = try Fixture(), (_, controller) = try await interface(fixture)
         controller.setFilterQuery(".txt")

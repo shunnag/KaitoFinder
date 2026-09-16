@@ -107,6 +107,80 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(window.contentView).subviews.contains { $0 === search })
     }
 
+    @MainActor func testAppendPreservesCollapsedMatchingFolderAndSearchQuery() async throws {
+        let fixture = try ScenarioFixture(script: """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('first/show.txt', b'first')
+            z.writestr('second/show.txt', b'second')
+        """)
+        let (document, controller) = try await scenarioDocument(fixture), view = controller.outlineView
+        controller.setFilterQuery("show")
+        func folder(_ path: String) throws -> EntryNode {
+            try XCTUnwrap((0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }
+                .first { $0.path == path })
+        }
+        let first = try folder("first")
+        XCTAssertTrue(view.isItemExpanded(first))
+        XCTAssertTrue(view.isItemExpanded(try folder("second")))
+        view.collapseItem(first)
+        XCTAssertFalse(view.isItemExpanded(first))
+        let source = try fixture.file("third/show.txt").deletingLastPathComponent()
+        let result = try await document.append(urls: [source], to: "", progress: Progress())
+        XCTAssertEqual(result.addedPaths, ["third", "third/show.txt"])
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertNil(result.reloadFailure)
+
+        XCTAssertEqual(controller.filterQuery, "show")
+        XCTAssertEqual(controller.searchField.stringValue, "show")
+        XCTAssertFalse(view.isItemExpanded(try folder("first")))
+        XCTAssertTrue(view.isItemExpanded(try folder("second")))
+        XCTAssertTrue(view.isItemExpanded(try folder("third")))
+        XCTAssertTrue((0..<view.numberOfRows).contains { (view.item(atRow: $0) as? EntryNode)?.path == "third/show.txt" })
+
+        document.undo(nil)
+        let undo = try XCTUnwrap(document.undoTask)
+        await undo.value
+        XCTAssertNil(document.undoFailure)
+        XCTAssertFalse(view.isItemExpanded(try folder("first")))
+        XCTAssertFalse((0..<view.numberOfRows).contains { (view.item(atRow: $0) as? EntryNode)?.path == "third" })
+
+        document.redo(nil)
+        let redo = try XCTUnwrap(document.undoTask)
+        await redo.value
+        XCTAssertNil(document.undoFailure)
+        XCTAssertEqual(controller.filterQuery, "show")
+        XCTAssertEqual(controller.searchField.stringValue, "show")
+        XCTAssertFalse(view.isItemExpanded(try folder("first")))
+        XCTAssertTrue(view.isItemExpanded(try folder("second")))
+        XCTAssertTrue(view.isItemExpanded(try folder("third")))
+        XCTAssertTrue((0..<view.numberOfRows).contains { (view.item(atRow: $0) as? EntryNode)?.path == "third/show.txt" })
+
+        // 検索語の変更では、従来どおり新しい一致をすべて展開する。
+        controller.setFilterQuery("txt")
+        XCTAssertTrue(view.isItemExpanded(try folder("first")))
+    }
+
+    @MainActor func testAppendPreservesHorizontalScrollPosition() async throws {
+        let fixture = try ScenarioFixture()
+        let (document, controller) = try await scenarioDocument(fixture), view = controller.outlineView
+        let window = try XCTUnwrap(controller.window), scroll = try XCTUnwrap(view.enclosingScrollView)
+        window.setContentSize(NSSize(width: 600, height: 300))
+        // 保存済みの列幅に依存せず、必ず横スクロールできるようにする。
+        view.autosaveTableColumns = false
+        for column in view.tableColumns { column.width = 200 }
+        window.contentView?.layoutSubtreeIfNeeded()
+        XCTAssertGreaterThan(view.bounds.width, scroll.contentView.bounds.width + 100)
+        scroll.contentView.scroll(to: NSPoint(x: 100, y: 0))
+        scroll.reflectScrolledClipView(scroll.contentView)
+        let scrollX = scroll.contentView.bounds.origin.x
+        XCTAssertGreaterThan(scrollX, 0)
+        let result = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: Progress())
+        XCTAssertEqual(result.addedPaths, ["added.txt"])
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertNil(result.reloadFailure)
+        XCTAssertEqual(scroll.contentView.bounds.origin.x, scrollX, accuracy: 0.5)
+    }
+
     @MainActor func testToolbarItemsExposeLabelsActionsAndCustomization() async throws {
         let (_, controller, _) = try await interface()
         let toolbar = try XCTUnwrap(controller.window?.toolbar)

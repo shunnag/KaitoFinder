@@ -139,6 +139,28 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         XCTAssertFalse(window.isVisible)
     }
 
+    @MainActor func testArchiveMainWindowKeepsWelcomeOpenUntilAttachedProgressSheetFinishes() async throws {
+        let controller = try controller()
+        controller.showWindow(nil)
+        let window = try XCTUnwrap(controller.window)
+        let sheet = ExtractionProgressSheet(progress: Progress(totalUnitCount: 1))
+        defer { sheet.finish() }
+        sheet.begin(on: window)
+        XCTAssertTrue(window.attachedSheet === sheet.window)
+        let autosave = ArchiveWindowFrameAutosave()
+        defer { autosave.restore() }
+        let archive = ArchiveWindowController()
+        defer { archive.close() }
+
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: archive.window)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertTrue(window.attachedSheet === sheet.window)
+        sheet.finish()
+        try await scenarioWait { window.attachedSheet == nil }
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: archive.window)
+        XCTAssertFalse(window.isVisible)
+    }
+
     @MainActor private func fixtureURLs() throws -> (archive: URL, otherArchive: URL, folder: URL, text: URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-Welcome-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -248,6 +270,43 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         XCTAssertTrue(parent === controller.window)
         // 保存が取り消された場合も文書の表示通知はなく、そのまま操作を続けられる。
         XCTAssertEqual(controller.window?.isVisible, true)
+    }
+
+    @MainActor func testCreateDropRechecksCanCreateAtEveryDragStage() throws {
+        let suite = try ArchivePreferencesTestDefaults(), urls = try fixtureURLs()
+        var canCreate = false, received: [[URL]] = []
+        let controller = WelcomeWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+            createAction: {}, canCreate: { canCreate }, createDropAction: { sources, _ in received.append(sources) })
+        defer { controller.close() }
+        let zone = controller.createDropZone, info = try dragging([urls.folder, urls.text])
+
+        XCTAssertEqual(zone.draggingEntered(info), [])
+        XCTAssertEqual(zone.draggingUpdated(info), [])
+        XCTAssertFalse(zone.isDragHighlighted)
+        XCTAssertFalse(zone.prepareForDragOperation(info))
+        XCTAssertFalse(zone.performDragOperation(info))
+        XCTAssertTrue(received.isEmpty)
+
+        canCreate = true
+        XCTAssertEqual(zone.draggingEntered(info), .copy)
+        XCTAssertTrue(zone.isDragHighlighted)
+        canCreate = false
+        XCTAssertEqual(zone.draggingUpdated(info), [])
+        XCTAssertFalse(zone.isDragHighlighted)
+        canCreate = true
+        XCTAssertTrue(zone.prepareForDragOperation(info))
+        canCreate = false
+        XCTAssertFalse(zone.performDragOperation(info))
+        XCTAssertTrue(received.isEmpty)
+        XCTAssertFalse(zone.isDragHighlighted)
+
+        canCreate = true
+        XCTAssertEqual(zone.draggingEntered(info), .copy)
+        XCTAssertEqual(zone.draggingUpdated(info), .copy)
+        XCTAssertTrue(zone.prepareForDragOperation(info))
+        XCTAssertTrue(zone.performDragOperation(info))
+        XCTAssertEqual(received, [[urls.folder, urls.text]])
+        XCTAssertFalse(zone.isDragHighlighted)
     }
 
     @MainActor func testFileTypeValidationWithRealFilesWithoutPasteboardService() throws {

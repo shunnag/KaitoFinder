@@ -14,6 +14,7 @@ final class WelcomeWindowController: NSWindowController {
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main,
          openAction: @escaping () -> Void = { NSDocumentController.shared.openDocument(nil) },
          createAction: @escaping () -> Void,
+         canCreate: @escaping () -> Bool = { true },
          openDropAction: @escaping ([URL]) -> Void = { WelcomeWindowController.openArchives($0) },
          createDropAction: @escaping ([URL], NSWindow?) -> Void) {
         self.store = store
@@ -22,6 +23,7 @@ final class WelcomeWindowController: NSWindowController {
         openDropZone = WelcomeDropZoneView(kind: .open, bundle: bundle, clickAction: openAction, dropAction: openDropAction)
         createDropZone = WelcomeDropZoneView(kind: .create, bundle: bundle, clickAction: createAction,
                                             dropAction: { [weak window] in createDropAction($0, window) })
+        createDropZone.canAcceptDrop = canCreate
         showsWelcomeWindowAtLaunchCheckbox = NSButton(
             checkboxWithTitle: String(localized: "KaitoFinderの起動時にこのウインドウを表示", bundle: bundle),
             target: nil, action: nil)
@@ -116,7 +118,7 @@ final class WelcomeWindowController: NSWindowController {
     }
 
     @objc private func archiveWindowBecameMain(_ notification: Notification) {
-        guard let archiveWindow = notification.object as? NSWindow,
+        guard window?.attachedSheet == nil, let archiveWindow = notification.object as? NSWindow,
               archiveWindow.windowController is ArchiveWindowController else { return }
         close()
     }

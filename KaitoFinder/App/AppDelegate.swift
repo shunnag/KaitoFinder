@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if welcomeWindowController == nil {
             welcomeWindowController = WelcomeWindowController(store: preferencesStore,
                 createAction: { [weak self] in self?.newArchive(nil) },
+                canCreate: { [weak self] in self.map { $0.archiveCreationTask == nil && $0.creationOpenPanel == nil } ?? false },
                 createDropAction: { [weak self] sources, parent in
                     guard let self, self.creationOpenPanel == nil else { return }
                     self.startArchiveCreation(sources: sources, on: parent)
