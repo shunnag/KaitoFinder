@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
     nonisolated let payload: ArchiveEntryPayload
     nonisolated let session: ArchiveSession
     nonisolated let progress: Progress
+    nonisolated let didWrite: (@Sendable (Int) -> Void)?
     nonisolated private let finished: @Sendable () -> Void
     nonisolated private let state = Mutex(false)
     nonisolated var isWriting: Bool { state.withLock { $0 } }
@@ -19,10 +20,12 @@ import UniformTypeIdentifiers
     }()
 
     init(payload: ArchiveEntryPayload, session: ArchiveSession,
-         progress: Progress = Progress(totalUnitCount: 0), finished: @escaping @Sendable () -> Void = {}) {
+         progress: Progress = Progress(totalUnitCount: 0), didWrite: (@Sendable (Int) -> Void)? = nil,
+         finished: @escaping @Sendable () -> Void = {}) {
         self.payload = payload
         self.session = session
         self.progress = progress
+        self.didWrite = didWrite
         self.finished = finished
     }
 
@@ -62,12 +65,12 @@ import UniformTypeIdentifiers
         state.withLock { $0 = true }
         // AppKit が渡す completion は非 Sendable。専用の一回限りの箱へ移す。
         let completion = PromiseCompletion(completionHandler)
-        let payload = payload, session = session, progress = progress, finished = finished
+        let payload = payload, session = session, progress = progress, didWrite = didWrite, finished = finished
         Task.detached {
             var failure: (any Error)?
             do {
                 let result = try await ExtractionService.extract([payload], from: session, to: url,
-                    progress: progress, promisedItem: payload)
+                    progress: progress, promisedItem: payload, didWrite: didWrite)
                 try ArchiveCopyOut.check(result)
             } catch { failure = error }
             completion.call(failure)
@@ -107,6 +110,7 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
     let gracePeriod: TimeInterval = 60
     var count: Int { records.count }
     var sessionCount: Int { sessions.count }
+    var hasActiveWrites: Bool { records.values.contains { $0.delegate.isWriting } }
 
     init(automaticallySweeps: Bool = false) {
         if automaticallySweeps {
@@ -122,11 +126,12 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
 
     deinit { sweepTask?.cancel() }
 
-    func register(payload: ArchiveEntryPayload, session: ArchiveSession, owner: UUID? = nil, now: Date = Date()) throws
+    func register(payload: ArchiveEntryPayload, session: ArchiveSession, owner: UUID? = nil, now: Date = Date(),
+                  didWrite: (@Sendable (Int) -> Void)? = nil) throws
         -> (id: UUID, provider: NSFilePromiseProvider) {
         sweep(now: now)
         let id = UUID()
-        let delegate = ArchiveFilePromise(payload: payload, session: session) { [weak self] in
+        let delegate = ArchiveFilePromise(payload: payload, session: session, didWrite: didWrite) { [weak self] in
             Task { @MainActor in self?.remove(id) }
         }
         let provider = try delegate.makeProvider()
@@ -163,6 +168,20 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
 
     func hasPromises(for session: ArchiveSession) -> Bool {
         records.values.contains { $0.delegate.session === session }
+    }
+
+    func cancelActiveWrites() {
+        for record in records.values where record.delegate.isWriting {
+            record.delegate.progress.cancel()
+        }
+    }
+
+    func waitUntilNoActiveWrites() async {
+        let deadline = ContinuousClock.now + .seconds(10)
+        while hasActiveWrites, ContinuousClock.now < deadline, !Task.isCancelled {
+            do { try await Task.sleep(for: .milliseconds(50)) }
+            catch { return }
+        }
     }
 
     func waitUntilNoPromises(for session: ArchiveSession) async {

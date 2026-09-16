@@ -26,7 +26,7 @@ payload で index を一度だけ作り、以降の payload はそれを引く�
   約 190 秒で 50 万ファイルを書き終えた(CPU は 1 スレッドで約 100%、RSS 1.8〜2.2 GB)。
   参考: 同じアーカイブを `unzip -q` は 38 s(ほぼ全て sys)、`ditto -x -k` は 73 s。
 
-## 残る伸びしろ(未着手)
+## 残る伸びしろ(同日に着手 — [直列展開のファイルごとの固定費](2026-09-16-extract-throughput.md) で親 descriptor と path 検査の使い回しを実装し、CPU 時間 327 s → 137〜151 s)
 
 Release の書き込み中の `sample`(5 秒)では、worker の時間の内訳が
 `ExtractionDestination.validate`(`isInside` の成分ごとの `lstat`)19%、親ディレクトリの

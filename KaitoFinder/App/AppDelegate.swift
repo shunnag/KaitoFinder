@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var batchExtractionHandler: (([URL]) async -> Void)?
     // 終了の確認と返答を、実際のアラートやプロセス終了なしで検証するための境界。
     var terminationDocuments: (() -> [ArchiveDocument])?
+    var terminationPromiseRegistry: FilePromiseRegistry = .shared
     var quitConfirmation: (() -> Bool)?
     var terminationReply: ((Bool) -> Void)?
     var terminationGracePeriod: Duration = .seconds(10)
@@ -113,14 +114,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let documents = terminationDocuments?()
             ?? NSDocumentController.shared.documents.compactMap { $0 as? ArchiveDocument }
+        let promises = terminationPromiseRegistry
         let busy = documents.contains(where: \.hasWorkInFlight) || archiveCreationTask != nil
             || (batchExtractionTask != nil && batchExtractionController?.destinationPanel == nil)
+            || promises.hasActiveWrites
         if busy, !(quitConfirmation ?? Self.confirmQuit)() { return .terminateCancel }
         let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup)
         guard needsCleanup else { return .terminateNow }
 
         archiveCreationTask?.cancel()
         batchExtractionTask?.cancel()
+        promises.cancelActiveWrites()
         let creation = archiveCreationTask, batch = batchExtractionTask
         terminationReplied = false
         // Task group は取消しに反応しない後始末も暗黙に待つため、独立した Task で上限を設ける。
@@ -128,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             for document in documents { await document.prepareForTermination() }
             await creation?.value
             await batch?.value
+            await promises.waitUntilNoActiveWrites()
             self?.finishTermination()
         }
         terminationDeadline = Task { @MainActor [weak self, grace = terminationGracePeriod] in

@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import GyoshukuKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -38,6 +39,145 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         let output = out.appendingPathComponent("large.bin")
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
         return (document, controller, output, gate, task)
+    }
+
+    @MainActor private func pausedPromiseWrite(completionHandler: @escaping @Sendable (Error?) -> Void) async throws
+        -> (ArchiveDocument, FilePromiseRegistry, ArchiveFilePromise, URL, ScenarioGate) {
+        let fixture = try ScenarioFixture(script:
+            "with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z: z.writestr('large.bin', b'x' * (4 * 1024 * 1024))")
+        let (document, controller) = try await scenarioDocument(fixture)
+        let session = try XCTUnwrap(document.session), out = try fixture.folder("out"), gate = ScenarioGate()
+        let registry = FilePromiseRegistry(automaticallySweeps: false)
+        let payload = ArchiveEntryPayload(archiveURL: fixture.archive, generation: session.generation,
+            entryIndex: 0, path: "large.bin", isDirectory: false)
+        let promise = try registry.register(payload: payload, session: session, didWrite: { _ in gate.pauseOnce() })
+        let writer = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+        let output = out.appendingPathComponent("large.bin")
+        addTeardownBlock { @MainActor in
+            writer.progress.cancel()
+            gate.release()
+            try await self.scenarioWait { !writer.isWriting }
+            registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1))
+        }
+        writer.filePromiseProvider(promise.provider, writePromiseTo: output, completionHandler: completionHandler)
+        try await scenarioWait { gate.isEntered }
+        XCTAssertTrue(registry.hasActiveWrites)
+        XCTAssertFalse(document.hasWorkInFlight)
+        XCTAssertFalse(controller.hasWorkInFlight)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertLessThan(try Data(contentsOf: output).count, 4 * 1024 * 1024)
+        return (document, registry, writer, output, gate)
+    }
+
+    // J-3a: drag promise だけが書き込み中でも、取消しと partial の回収後に一度だけ返答する。
+    @MainActor func testConfirmedQuitWaitsForPromiseCancellationAndRemovesPartialFile() async throws {
+        let completion = Mutex<(calls: Int, error: (any Error)?)>((0, nil))
+        let (document, registry, writer, output, gate) = try await pausedPromiseWrite { error in
+            completion.withLock { $0.calls += 1; $0.error = error }
+        }
+        let delegate = try delegate(documents: [document])
+        delegate.terminationPromiseRegistry = registry
+        var confirmations = 0, replies: [Bool] = []
+        let replied = expectation(description: "promise の取消しと後始末後に終了へ返答")
+        replied.assertForOverFulfill = true
+        delegate.quitConfirmation = { confirmations += 1; return true }
+        delegate.terminationReply = { answer in
+            XCTAssertTrue(Thread.isMainThread)
+            XCTAssertFalse(registry.hasActiveWrites)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+            XCTAssertEqual(completion.withLock { $0.calls }, 1)
+            XCTAssertTrue(completion.withLock { $0.error is CancellationError })
+            replies.append(answer)
+            replied.fulfill()
+        }
+        addTeardownBlock { @MainActor in gate.release(); await delegate.terminationTask?.value }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateLater)
+        XCTAssertEqual(confirmations, 1)
+        XCTAssertTrue(writer.progress.isCancelled)
+        XCTAssertTrue(registry.hasActiveWrites)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
+        // main actor に後始末を開始させても、gate が閉じている間は終了へ返答しない。
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertTrue(replies.isEmpty)
+        gate.release()
+        await fulfillment(of: [replied], timeout: 5)
+        await delegate.terminationTask?.value
+        try await scenarioWait { !registry.hasActiveWrites }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertEqual(completion.withLock { $0.calls }, 1)
+        XCTAssertTrue(completion.withLock { $0.error is CancellationError })
+        XCTAssertEqual(replies, [true])
+    }
+
+    // J-3a: 終了を断った場合は promise を取り消さず、4 MiB すべてを渡す。
+    @MainActor func testDecliningQuitLetsPromiseWriteFinishWithAllBytes() async throws {
+        let completion = Mutex<(calls: Int, error: (any Error)?)>((0, nil))
+        let (document, registry, writer, output, gate) = try await pausedPromiseWrite { error in
+            completion.withLock { $0.calls += 1; $0.error = error }
+        }
+        let delegate = try delegate(documents: [document])
+        delegate.terminationPromiseRegistry = registry
+        var confirmations = 0
+        delegate.quitConfirmation = { confirmations += 1; return false }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateCancel)
+        XCTAssertEqual(confirmations, 1)
+        XCTAssertNil(delegate.terminationTask)
+        XCTAssertFalse(writer.progress.isCancelled)
+        XCTAssertTrue(registry.hasActiveWrites)
+        gate.release()
+        try await scenarioWait { !registry.hasActiveWrites }
+        XCTAssertEqual(completion.withLock { $0.calls }, 1)
+        XCTAssertNil(completion.withLock { $0.error })
+        XCTAssertEqual(try Data(contentsOf: output), Data(repeating: 0x78, count: 4 * 1024 * 1024))
+    }
+
+    // J-3b: 別名で保存前の未要求 promise は終了を遅らせず、close で旧 session も閉じる。
+    @MainActor func testQuitAfterSaveAsClosesOldSessionWithUnstartedPromiseWithinTwoSeconds() async throws {
+        let fixture = try ScenarioFixture(), (document, _) = try await scenarioDocument(fixture)
+        let oldSession = try XCTUnwrap(document.session), registry = FilePromiseRegistry.shared
+        let original = try Data(contentsOf: fixture.archive)
+        let payload = ArchiveEntryPayload(archiveURL: fixture.archive, generation: oldSession.generation,
+            entryIndex: 0, path: "original.txt", isDirectory: false)
+        let promise = try registry.register(payload: payload, session: oldSession)
+        defer { registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1)) }
+        let writer = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+        let destination = fixture.root.appendingPathComponent("saved.7z")
+        let archiveWriter = try ArchiveWriter.create(url: destination, format: .sevenZip)
+        try archiveWriter.add(data: Data("original".utf8), as: payload.path)
+        try archiveWriter.finish()
+        try await document.switchBackingFile(to: destination)
+        let newSession = try XCTUnwrap(document.session)
+        XCTAssertFalse(newSession === oldSession)
+        XCTAssertEqual(newSession.format, .sevenZip)
+        XCTAssertEqual(document.fileURL, destination)
+        let retained = await oldSession.entries()
+        XCTAssertFalse(retained.isEmpty)
+        XCTAssertTrue(registry.hasPromises(for: oldSession))
+        XCTAssertFalse(writer.isWriting)
+        XCTAssertFalse(document.hasWorkInFlight)
+        XCTAssertFalse(document.needsTerminationCleanup)
+        XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+        let delegate = try delegate(documents: [document])
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateNow)
+        XCTAssertNil(delegate.terminationTask)
+
+        let started = ContinuousClock.now
+        document.close()
+        let cleanup = try XCTUnwrap(document.sessionCleanup)
+        let cleaned = expectation(description: "旧 session の後始末は promise の保持期限を待たない")
+        var finished = false
+        let wait = Task { await cleanup.value; finished = true; cleaned.fulfill() }
+        await fulfillment(of: [cleaned], timeout: 2)
+        XCTAssertTrue(finished)
+        XCTAssertLessThan(started.duration(to: .now), .seconds(2))
+        // 回帰時にも期限切れを進め、fixture の後始末を長時間待たせない。
+        registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1))
+        await wait.value
+        let oldEntries = await oldSession.entries(), newEntries = await newSession.entries()
+        XCTAssertTrue(oldEntries.isEmpty)
+        XCTAssertTrue(newEntries.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), original)
+        XCTAssertEqual(try ScenarioFixture.contents(destination), [payload.path: Data("original".utf8)])
     }
 
     // T1: 後始末のない通常の終了は、確認も非同期の返答も挟まない。

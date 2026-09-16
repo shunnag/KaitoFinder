@@ -18,6 +18,14 @@ pasteboard)、QuickLook と一時コピー(materialization、起動時 sweep)、
 | 1-A | 別名で保存すると、受理済みの遅い drag promise が原本が残っているのに失敗する | 旧 session を即 close | promise が無くなるまで旧 session の close を待つ(保持期間の上限あり) | `testSaveAsKeepsAcceptedPromiseAliveUntilDelayedWriteCompletes` / `testDocumentCloseAfterSaveAsCancelsRetainedPromiseWithoutWaitingForExpiry` / `testRegistryWaitTracksOnlyItsSession…` |
 | 5-A | 異なるパスワードの項目をまとめて選ぶと、正しい鍵でも再入力を繰り返す | reader は 1 つの鍵しか持てず、一部成功を区別しない | 一部が成功し一部が wrongPassword なら「選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。」で止める(26 言語) | `testMixedPasswordsRefuseCombinedExtractionAndAllowEachEntrySeparately`(修正前に失敗を確認。fixture は `zip -P` を 2 回) |
 
+## 同日の 2 つの変更の組み合わせ(J-3)
+
+- ⌘Q の busy 判定に drag promise の書き込み(`FilePromiseRegistry.hasActiveWrites`)を加え、確認後は
+  `progress.cancel()` で取り消して完了を待つ。Finder が大きな項目を受け取っている最中の ⌘Q で
+  受信側に途中のファイルが残らない(`testConfirmedQuitCancelsActivePromiseWrite…`、修正前に失敗を確認)。
+- 別名で保存の直後の ⌘Q は `.terminateNow` のまま、文書の close で旧 session の promise 待ちが
+  打ち切られて閉じる(既存コードで成立。テストだけ追加)。
+
 ## 明示にとどめた項目
 
 - 4-A: 同じ inode・同じサイズで上書きし更新日時も戻す変更は検出できない(`identity` は ctime と
