@@ -33,5 +33,6 @@ Services の宣言・file URL のフィルタ・パネル表示中の再呼び�
 ## 検証
 
 全件 `xcodebuild test` 661 件・失敗 0・skip 1(QuickLook の前面化)。回帰テスト 10 件のうち
-4 件は修正前に失敗することを Codex が直接実行で確認(K-2 の pasteboard テストは sandbox では
+4 件は修正前に失敗することを Codex の直接実行で確認(オーケストレータの stash による再確認は、全件の
+ビルドと重なるため今回は行っていない)(K-2 の pasteboard テストは sandbox では
 スキップ、こちらの実行で通過)。起動スモーク(Debug、fixture を引数に起動 → ウインドウ 1 → 正常終了)。
