@@ -52,7 +52,9 @@ ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号�
 
 編集は ⌘Z で取り消し、⇧⌘Z でやり直せる。
 編集前の原本を同じボリュームの一時領域へ `clonefile` で退避し、取り消し時に戻す。
-開いた後に原本が外部で変更されていた場合は、編集を拒否する。
+開いた後に原本が外部で変更されていた場合は、編集も取り消しも拒否する。
+変更の検出はファイルの実体(デバイス・inode)・サイズ・更新日時に基づく。同じ inode を
+同じサイズのまま上書きし更新日時も戻すような変更は検出できない。
 
 ## 作成と変換
 
@@ -197,8 +199,10 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > Drag or paste files into writable archives. Delete, rename, create folders, and
 > drag items between folders in the same window; hold ⌥ to copy instead of move.
 > Undo with ⌘Z and redo with ⇧⌘Z. Before an edit, `clonefile` preserves the original
-> in temporary storage on the same volume for undo. Editing is refused if the original
-> has changed externally since it was opened.
+> in temporary storage on the same volume for undo. Editing and undo are refused if the
+> original has changed externally since it was opened. Change detection is based on the
+> file identity (device and inode), size, and modification time; an in-place overwrite
+> that keeps the same inode and size and restores the modification time is not detected.
 >
 > ## Create and Convert
 >

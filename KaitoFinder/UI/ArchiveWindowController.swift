@@ -1740,7 +1740,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func windowWillClose(_ notification: Notification) {
         if let closingWindow = notification.object as? NSWindow, closingWindow === window { cancelExtraction() }
-        if let panel = notification.object as? QLPreviewPanel, previewPanel === panel { materialization?.close() }
+        if let panel = notification.object as? QLPreviewPanel, previewPanel === panel {
+            materialization?.cancel()
+            materialization?.setSelection([])
+        }
     }
 
     func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {

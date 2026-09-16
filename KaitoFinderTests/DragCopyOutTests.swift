@@ -228,6 +228,34 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         XCTAssertEqual(registry.count, 0)
     }
 
+    @MainActor func testRegistryWaitTracksOnlyItsSessionAndFinishesAfterSweep() async throws {
+        let fixture = try Fixture()
+        let session = try ArchiveSession(url: fixture.archive)
+        let other = try ArchiveSession(url: fixture.archive)
+        let registry = FilePromiseRegistry(), now = Date()
+        _ = try registry.register(payload: fixture.payload("folder/a.txt", session: session, index: 0),
+                                  session: session, now: now)
+        let pending = try registry.register(payload: fixture.payload("other.txt", session: other, index: 2),
+                                            session: other, now: now)
+        registry.began(sessionID: 1, promises: [pending.id])
+        var finished = false
+        let wait = Task {
+            await registry.waitUntilNoPromises(for: session)
+            finished = true
+        }
+        await Task.yield()
+        XCTAssertFalse(finished)
+        registry.sweep(now: now.addingTimeInterval(registry.gracePeriod + 1))
+        try await scenarioWait { finished }
+        await wait.value
+        XCTAssertEqual(registry.count, 1, "他の session の進行中の drag は待たない")
+        await registry.waitUntilNoPromises(for: session)
+        registry.ended(sessionID: 1, now: now)
+        registry.sweep(now: now.addingTimeInterval(registry.gracePeriod + 1))
+        await session.close()
+        await other.close()
+    }
+
     @MainActor func testInvalidPromiseTypeFallsBackToData() {
         // item は data/directory のどちらにも準拠しない。url は data に準拠するため使わない。
         // この三つの期待値は LaunchServices が利用できない環境でも変わらない。

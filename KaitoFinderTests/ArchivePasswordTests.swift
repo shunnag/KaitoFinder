@@ -201,6 +201,55 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         try await wrongThenCorrect(.pkware)
     }
 
+    @MainActor func testMixedPasswordsRefuseCombinedExtractionAndAllowEachEntrySeparately() async throws {
+        let fixture = try Fixture(.pkware)
+        let secondPassword = "different-fixture-password-2026"
+        let secondBytes = Data("second encrypted entry".utf8)
+        try secondBytes.write(to: fixture.directory.url.appendingPathComponent("second.bin"))
+        try fixture.directory.run("/usr/bin/zip", ["-q", "-P", secondPassword, fixture.archive.path, "second.bin"])
+        let original = try Data(contentsOf: fixture.archive)
+        // 正しい entry が検証順の先・後のどちらでも、部分成功を認識する。
+        for password in [fixture.password, secondPassword] {
+            let session = try ArchiveSession(url: fixture.archive)
+            let entries = await session.entries()
+            XCTAssertEqual(entries.count, 2)
+            XCTAssertTrue(entries.allSatisfy(\.isEncrypted))
+            var prompts = 0
+            session.setPasswordPrompt { _ in
+                prompts += 1
+                // 修正前の無限再入力を有限の失敗にする。
+                guard prompts <= 2 else { throw CancellationError() }
+                return password
+            }
+            let destination = try fixture.destination()
+            do {
+                _ = try await ExtractionService.extract(await payloads(session), from: session,
+                                                        to: destination, progress: Progress())
+                XCTFail("Mixed passwords must be refused before writing")
+            } catch {
+                if case ExtractionFailure.refused(let reason) = error {
+                    XCTAssertEqual(reason, String(localized: "選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。"))
+                } else { XCTFail("Expected mixed-password refusal, got \(error)") }
+            }
+            XCTAssertEqual(prompts, 1)
+            XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: destination.path).isEmpty)
+            await assertPassword(session, equals: nil)
+
+            for (name, key, bytes) in [("secret.bin", fixture.password, fixture.original),
+                                       ("second.bin", secondPassword, secondBytes)] {
+                session.setPasswordPrompt { _ in key }
+                let output = try fixture.destination()
+                let result = try await ExtractionService.extract(await payloads(session, named: name),
+                    from: session, to: output, progress: Progress())
+                XCTAssertTrue(result.failures.isEmpty)
+                XCTAssertEqual(result.written.count, 1)
+                XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent(name)), bytes)
+            }
+            await session.close()
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), original)
+    }
+
     @MainActor func testWinZipAES256WrongThenCorrectPasswordExtractsExactBytes() async throws {
         try await wrongThenCorrect(.aes)
     }

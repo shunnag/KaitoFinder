@@ -161,6 +161,21 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
         for id in expired { remove(id) }
     }
 
+    func hasPromises(for session: ArchiveSession) -> Bool {
+        records.values.contains { $0.delegate.session === session }
+    }
+
+    func waitUntilNoPromises(for session: ArchiveSession) async {
+        let deadline = ContinuousClock.now + .seconds(gracePeriod + 15)
+        while hasPromises(for: session) {
+            sweep()
+            guard hasPromises(for: session), ContinuousClock.now < deadline, !Task.isCancelled else { return }
+            // 自動 sweep がない registry でも期限を回収し、完了 callback の除去も待つ。
+            do { try await Task.sleep(for: .milliseconds(50)) }
+            catch { return }
+        }
+    }
+
     private func remove(_ id: UUID) {
         guard let record = records.removeValue(forKey: id), let sessionID = record.sessionID else { return }
         sessions[sessionID]?.remove(id)

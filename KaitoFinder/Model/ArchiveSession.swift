@@ -123,8 +123,8 @@ actor ArchiveSession {
         while true {
             try checkReadRequest(generation: expectedGeneration)
             do {
-                try verify(encrypted.filter { !verifiedEntries.contains($0.index) }, using: requireCurrentReader())
-                verifiedEntries.formUnion(encrypted.map(\.index))
+                verifiedEntries.formUnion(try verify(encrypted.filter { !verifiedEntries.contains($0.index) },
+                                                     using: requireCurrentReader()))
                 return
             } catch {
                 guard var challenge = ArchivePasswordChallenge(error), let prompt = promptStorage.withLock({ $0 }) else {
@@ -141,13 +141,13 @@ actor ArchiveSession {
                         guard replacement.entries == (try requireCurrentReader().entries) else {
                             throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
                         }
-                        try verify(encrypted, using: replacement)
+                        let verified = try verify(encrypted, using: replacement)
                         try checkReadRequest(generation: expectedGeneration)
                         // 間違った候補は保持しない。採用は検証が最後まで成功した時だけ。
                         reader = replacement
                         password = candidate
                         passwordRevision &+= 1
-                        verifiedEntries = Set(encrypted.map(\.index))
+                        verifiedEntries = verified
                         refreshCapabilities()
                         return
                     } catch {
@@ -167,12 +167,26 @@ actor ArchiveSession {
         }
     }
 
-    private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader) throws {
+    @discardableResult private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader) throws -> Set<Int> {
+        var verified: Set<Int> = []
+        var wrongPassword = false
         for entry in entries {
             // ZipCrypto の短い照合値だけでは誤った鍵を除外できない。CRC / HMAC まで読む。
             // 同じ鍵・世代で成功済みの entry は呼出側が除き、再度の検証を省く。
-            try ExtractionService.consume(reader.stream(entry), checkCancellation: { try Task.checkCancellation() }) { _ in }
+            do {
+                try ExtractionService.consume(reader.stream(entry), checkCancellation: { try Task.checkCancellation() }) { _ in }
+                verified.insert(entry.index)
+            } catch KaitoError.wrongPassword {
+                wrongPassword = true
+            }
         }
+        if wrongPassword {
+            guard verified.isEmpty else {
+                throw ExtractionFailure.refused(String(localized: "選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。"))
+            }
+            throw KaitoError.wrongPassword
+        }
+        return verified
     }
 
     func close() {

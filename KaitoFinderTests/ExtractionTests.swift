@@ -357,6 +357,36 @@ nonisolated final class ExtractionTests: XCTestCase {
         XCTAssertThrowsError(try ExtractionTemporaryDirectory(root: redirect).sweepOnLaunch())
         XCTAssertThrowsError(try ExtractionDestination(url: redirect, quarantine: nil))
     }
+    func testLaunchSweepPreservesOtherLiveProcessesAndRemovesDeadAndLegacyAreas() async throws {
+        let fixture = try Fixture("with zipfile.ZipFile(p, 'w'): pass")
+        let temporary = ExtractionTemporaryDirectory(root: fixture.parent.appendingPathComponent("owned"))
+        let current = try temporary.create()
+        let deadPID = pid_t.max
+        XCTAssertEqual(kill(deadPID, 0), -1)
+        XCTAssertEqual(errno, ESRCH, "死んだ pid を使うこと")
+        let live = temporary.root.appendingPathComponent("\(getpid())-\(UUID())-\(UUID())")
+        let dead = temporary.root.appendingPathComponent("\(deadPID)-\(UUID())-\(UUID())")
+        // 旧 UUID の先頭が偶然、生きた pid と同じ数字でも旧形式として削除する。
+        let legacyUUID = String(format: "%08d-0000-0000-0000-000000000000", getpid())
+        let legacy = temporary.root.appendingPathComponent("\(legacyUUID)-\(UUID())")
+        for area in [live, dead, legacy] {
+            try FileManager.default.createDirectory(at: area, withIntermediateDirectories: false)
+            try Data("copy".utf8).write(to: area.appendingPathComponent("copy.txt"))
+        }
+        let sentinel = fixture.parent.appendingPathComponent("sentinel")
+        try Data("keep".utf8).write(to: sentinel)
+        try FileManager.default.createSymbolicLink(at: dead.appendingPathComponent("outside"),
+                                                   withDestinationURL: fixture.parent)
+
+        await temporary.startLaunchSweep().value
+
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: temporary.root.path)),
+                       Set([current.lastPathComponent, live.lastPathComponent]))
+        XCTAssertTrue(current.lastPathComponent.hasPrefix("\(getpid())-"))
+        XCTAssertEqual(try Data(contentsOf: live.appendingPathComponent("copy.txt")), Data("copy".utf8))
+        XCTAssertEqual(try Data(contentsOf: sentinel), Data("keep".utf8))
+    }
+
     func testSolidGroupStaysInArchiveOrderAndConcurrentRequestsUseIndependentReaders() async throws {
         let fixture = try Fixture("""
         import binascii

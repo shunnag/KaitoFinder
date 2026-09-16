@@ -30101,6 +30101,167 @@
         }
       }
     },
+    "選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected items have different passwords. Extract items that share a password separately."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ausgewählten Objekte haben unterschiedliche Passwörter. Entpacke Objekte mit demselben Passwort getrennt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les éléments sélectionnés ont des mots de passe différents. Décompressez séparément les éléments qui partagent un mot de passe."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los ítems seleccionados tienen contraseñas distintas. Descomprime por separado los ítems que comparten contraseña."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gli elementi selezionati hanno password diverse. Espandi separatamente gli elementi con la stessa password."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os itens selecionados têm senhas diferentes. Expanda separadamente os itens que compartilham a mesma senha."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所选项目的密码不同。请分别解压缩使用相同密码的项目。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所選項目的密碼不同。請分別解壓縮使用相同密碼的項目。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 항목의 암호가 서로 다릅니다. 같은 암호를 사용하는 항목끼리 따로 압축 해제하십시오."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "รายการที่เลือกมีรหัสผ่านต่างกัน โปรดขยายรายการที่ใช้รหัสผ่านเดียวกันแยกกัน"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Các mục đã chọn có mật khẩu khác nhau. Hãy giải nén riêng các mục dùng chung mật khẩu."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Item yang dipilih memiliki kata sandi yang berbeda. Perluas item dengan kata sandi yang sama secara terpisah."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Item yang dipilih mempunyai kata laluan yang berbeza. Kembangkan item dengan kata laluan yang sama secara berasingan."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "चुने गए आइटम के पासवर्ड अलग-अलग हैं। एक ही पासवर्ड वाले आइटम को अलग से विस्तारित करें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У выбранных объектов разные пароли. Разархивируйте объекты с одинаковым паролем по отдельности."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De geselecteerde onderdelen hebben verschillende wachtwoorden. Pak onderdelen met hetzelfde wachtwoord afzonderlijk uit."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaznaczone rzeczy mają różne hasła. Rozpakuj osobno rzeczy z tym samym hasłem."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seçilen öğelerin parolaları farklı. Aynı parolayı paylaşan öğeleri ayrı ayrı çıkarın."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De markerade objekten har olika lösenord. Expandera objekt med samma lösenord var för sig."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De valgte emner har forskellige adgangskoder. Dekomprimer emner med samme adgangskode hver for sig."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De markerte objektene har forskjellige passord. Pakk ut objekter med samme passord hver for seg."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valituilla kohteilla on eri salasanat. Pura samaa salasanaa käyttävät kohteet erikseen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вибрані елементи мають різні паролі. Розпаковуйте елементи з однаковим паролем окремо."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vybrané položky mají různá hesla. Rozbalte položky se stejným heslem samostatně."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os elementos selecionados têm palavras‑passe diferentes. Descomprima separadamente os elementos com a mesma palavra‑passe."
+          }
+        }
+      }
+    },
     "選択した項目のアーカイブが一致しません。" : {
       "extractionState" : "manual",
       "localizations" : {

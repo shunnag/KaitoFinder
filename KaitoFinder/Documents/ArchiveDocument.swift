@@ -508,12 +508,25 @@ import Synchronization
         fileType = ArchiveSavePanelController.contentType(for: format).identifier
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         let previous = sessionCleanup
-        let cleanup = Task {
+        let hasPromises = FilePromiseRegistry.shared.hasPromises(for: oldSession)
+        let cleanup = Task { [weak self] in
             await previous?.value
+            let promiseWait = Task { await FilePromiseRegistry.shared.waitUntilNoPromises(for: oldSession) }
+            // 文書の close はこの cleanup を待つため、終了時には保持期間を待たずに解放する。
+            let closeMonitor = Task { [weak self] in
+                while self?.closed == false {
+                    do { try await Task.sleep(for: .milliseconds(50)) }
+                    catch { return }
+                }
+                promiseWait.cancel()
+            }
+            await promiseWait.value
+            closeMonitor.cancel()
             await oldSession.close()
         }
         sessionCleanup = cleanup
-        await cleanup.value
+        // 受信側は別名で保存が終わってから要求できる。promise がある時の後始末は待たない。
+        if !hasPromises { await cleanup.value }
         await undoCleanup?.value
         guard !closed, session === opened else { return }
         await displayAfterMutation()

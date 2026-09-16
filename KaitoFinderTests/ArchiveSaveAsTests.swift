@@ -2,6 +2,7 @@ import AppKit
 import Darwin
 import GyoshukuKit
 import KaitoKit
+import Synchronization
 import XCTest
 @testable import KaitoFinder
 
@@ -132,6 +133,81 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
 
     @MainActor func testTGZToZIPSwitchesBackingFileAndKeepsOriginalBytes() async throws {
         try await assertConversion(gzip: true, format: .zip)
+    }
+
+    @MainActor func testSaveAsKeepsAcceptedPromiseAliveUntilDelayedWriteCompletes() async throws {
+        let (directory, document, _, _) = try await interface()
+        let oldSession = try XCTUnwrap(document.session)
+        let original = try Data(contentsOf: oldSession.sourceURL)
+        let entries = await oldSession.entries()
+        let entry = try XCTUnwrap(entries.first { $0.name == "folder/file.txt" })
+        let payload = ArchiveEntryPayload(archiveURL: oldSession.sourceURL, generation: oldSession.generation,
+            entryIndex: entry.index, path: entry.name, isDirectory: false)
+        let registry = FilePromiseRegistry.shared
+        let promise = try registry.register(payload: payload, session: oldSession)
+        registry.began(sessionID: 902, promises: [promise.id])
+        registry.ended(sessionID: 902)
+        defer { registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1)) }
+        let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+        let destination = directory.url.appendingPathComponent("saved.7z")
+        let writer = try ArchiveWriter.create(url: destination, format: .sevenZip)
+        try writer.add(data: Data("original contents".utf8), as: entry.name)
+        try writer.finish()
+
+        try await document.switchBackingFile(to: destination)
+        XCTAssertFalse(document.session === oldSession)
+        XCTAssertEqual(document.session?.format, .sevenZip)
+        let retained = await oldSession.snapshot()
+        XCTAssertFalse(retained.entries.isEmpty)
+        let output = directory.url.appendingPathComponent("promised.txt")
+        let calls = Mutex(0), failure = Mutex<(any Error)?>(nil)
+        delegate.filePromiseProvider(promise.provider, writePromiseTo: output) { @Sendable error in
+            failure.withLock { $0 = error }
+            calls.withLock { $0 += 1 }
+        }
+        try await scenarioWait { calls.withLock { $0 } == 1 }
+        await document.sessionCleanup?.value
+        XCTAssertNil(failure.withLock { $0 })
+        XCTAssertEqual(calls.withLock { $0 }, 1)
+        XCTAssertEqual(try Data(contentsOf: output), Data("original contents".utf8))
+        let closed = await oldSession.snapshot()
+        XCTAssertTrue(closed.entries.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: oldSession.sourceURL), original)
+    }
+
+    @MainActor func testDocumentCloseAfterSaveAsCancelsRetainedPromiseWithoutWaitingForExpiry() async throws {
+        let (directory, document, _, _) = try await interface()
+        let oldSession = try XCTUnwrap(document.session)
+        let payload = ArchiveEntryPayload(archiveURL: oldSession.sourceURL, generation: oldSession.generation,
+            entryIndex: nil, path: "folder/file.txt", isDirectory: false)
+        let registry = FilePromiseRegistry.shared
+        let promise = try registry.register(payload: payload, session: oldSession)
+        defer { registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1)) }
+        let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+        let destination = directory.url.appendingPathComponent("saved.7z")
+        let writer = try ArchiveWriter.create(url: destination, format: .sevenZip)
+        try writer.add(data: Data("original contents".utf8), as: payload.path)
+        try writer.finish()
+        try await document.switchBackingFile(to: destination)
+        let newSession = try XCTUnwrap(document.session)
+        document.close()
+        let cleanup = document.sessionCleanup
+        var finished = false
+        let wait = Task { await cleanup?.value; finished = true }
+        try await scenarioWait { finished }
+        await wait.value
+        let oldSnapshot = await oldSession.snapshot(), newSnapshot = await newSession.snapshot()
+        XCTAssertTrue(oldSnapshot.entries.isEmpty)
+        XCTAssertTrue(newSnapshot.entries.isEmpty)
+        let output = directory.url.appendingPathComponent("cancelled.txt")
+        let calls = Mutex(0), failure = Mutex<(any Error)?>(nil)
+        delegate.filePromiseProvider(promise.provider, writePromiseTo: output) { @Sendable error in
+            failure.withLock { $0 = error }
+            calls.withLock { $0 += 1 }
+        }
+        try await scenarioWait { calls.withLock { $0 } == 1 }
+        XCTAssertTrue(failure.withLock { $0 } is CancellationError)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
     }
 
     @MainActor func testEncryptedZIPCanExplicitlyDisableProtectionInSaveAs() async throws {

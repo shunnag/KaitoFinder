@@ -6,7 +6,7 @@ import Foundation
 nonisolated struct ExtractionTemporaryDirectory {
     let root: URL
     // 起動時の掃除と、新しい drag/copy/preview の作成を競合させない。
-    private static let processPrefix = UUID().uuidString + "-"
+    private static let processPrefix = "\(getpid())-\(UUID())-"
 
     init(root: URL = FileManager.default.temporaryDirectory
         .appendingPathComponent("com.shunnag.KaitoFinder.Extraction", isDirectory: true)) {
@@ -34,7 +34,7 @@ nonisolated struct ExtractionTemporaryDirectory {
             do {
                 let directory = try openRoot()
                 defer { close(directory) }
-                try removeChildren(directory, preservingPrefix: Self.processPrefix)
+                try removeChildren(directory, preservingLiveProcesses: true)
             } catch { NSLog("一時展開領域の掃除に失敗しました: %@", String(describing: error)) }
         }
     }
@@ -52,7 +52,7 @@ nonisolated struct ExtractionTemporaryDirectory {
         return directory
     }
 
-    private func removeChildren(_ directory: Int32, preservingPrefix: String? = nil) throws {
+    private func removeChildren(_ directory: Int32, preservingLiveProcesses: Bool = false) throws {
         // fd を深さ分保持せず、root 相対の成分と訪問状態だけを積む。
         // 各処理の fd は次のディレクトリへ進む前に必ず閉じる。
         var pending: [(components: [String], remove: Bool)] = [([], false)]
@@ -81,7 +81,12 @@ nonisolated struct ExtractionTemporaryDirectory {
                     $0.withMemoryRebound(to: CChar.self, capacity: Int(item.pointee.d_namlen) + 1) { String(cString: $0) }
                 }
                 if name == "." || name == ".." { continue }
-                if step.components.isEmpty, let preservingPrefix, name.hasPrefix(preservingPrefix) { continue }
+                if step.components.isEmpty, preservingLiveProcesses {
+                    let parts = name.split(separator: "-", omittingEmptySubsequences: false)
+                    // pid + UUID + UUID。旧 UUID の先頭が数字だけでも pid と解釈しない。
+                    if parts.count == 11, let pid = pid_t(parts[0]), pid > 0,
+                       kill(pid, 0) == 0 || errno == EPERM { continue }
+                }
                 var info = stat()
                 guard fstatat(current, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
                     throw ExtractionFailure.system(errno)
