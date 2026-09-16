@@ -81,7 +81,14 @@ import Synchronization
         preferencesSnapshot.value.withLock { $0 = preferences }
     }
 
-    var canUndoNextMutation: Bool { archiveUndoStack.canUndoNextMutation }
+    var canUndoNextMutation: Bool {
+        guard let sourceURL = session?.sourceURL,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+              let size = attributes[.size] as? NSNumber else {
+            return archiveUndoStack.canUndoNextMutation
+        }
+        return archiveUndoStack.canUndoNextMutation(archiveSize: size.uint64Value)
+    }
 
     var hasWorkInFlight: Bool {
         mutationTask != nil || undoTask != nil || switchingBackingFile

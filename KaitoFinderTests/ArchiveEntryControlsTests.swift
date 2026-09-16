@@ -419,6 +419,52 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
     }
 
+    @MainActor func testDeleteOverUndoByteLimitRequiresConfirmationWithoutChangingArchive() async throws {
+        let fixture = try ScenarioFixture(), stack = ArchiveUndoStack(maximumBytes: 16)
+        let (document, controller, window) = try await scenarioDocument(fixture, stack: stack)
+        addTeardownBlock { @MainActor in
+            for sheet in window.requestedSheets { window.endSheet(sheet, returnCode: .cancel) }
+        }
+        let before = try ScenarioFixture.digest(fixture.archive)
+        XCTAssertGreaterThan(UInt64(try Data(contentsOf: fixture.archive).count), stack.maximumBytes)
+        XCTAssertFalse(document.canUndoNextMutation)
+        try select(["original.txt"], in: controller)
+
+        controller.deleteEntries(nil)
+
+        XCTAssertNotNil(controller.deletionConfirmation)
+        XCTAssertNil(controller.extractionTask)
+        XCTAssertNil(window.attachedSheet)
+        // 退行時に始まった削除も完了させ、原本の変更を検出する。
+        await controller.extractionTask?.value
+        XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), before)
+        XCTAssertEqual(document.generation, 0)
+        XCTAssertTrue(stack.slots.isEmpty)
+        XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+    }
+
+    @MainActor func testDeleteAtUndoByteLimitStartsWithoutConfirmation() async throws {
+        let fixture = try ScenarioFixture()
+        let stack = ArchiveUndoStack(maximumBytes: UInt64(try Data(contentsOf: fixture.archive).count))
+        let (document, controller, window) = try await scenarioDocument(fixture, stack: stack)
+        addTeardownBlock { @MainActor in
+            for sheet in window.requestedSheets { window.endSheet(sheet, returnCode: .cancel) }
+        }
+        XCTAssertTrue(document.canUndoNextMutation)
+        try select(["original.txt"], in: controller)
+
+        controller.deleteEntries(nil)
+
+        XCTAssertNil(controller.deletionConfirmation)
+        XCTAssertNil(window.attachedSheet)
+        let task = try XCTUnwrap(controller.extractionTask)
+        await task.value
+        XCTAssertTrue(try ScenarioFixture.contents(fixture.archive).isEmpty)
+        XCTAssertEqual(document.generation, 1)
+        XCTAssertEqual(stack.slots.count, 1)
+        XCTAssertTrue(try XCTUnwrap(document.undoManager).canUndo)
+    }
+
     @MainActor func testNonUndoableDeleteRequiresOneConfirmationAndHonorsBothResponses() async throws {
         // 文書のフラグを保持件数から false にする。ボリューム判定は偽装しない。
         let fixture = try Fixture(), stack = ArchiveUndoStack(maximumCount: 0)

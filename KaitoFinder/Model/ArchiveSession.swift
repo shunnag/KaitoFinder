@@ -367,6 +367,14 @@ actor ArchiveSession {
 
     // append と同じ actor で置換と fresh open を連続させ、旧 inode の reader を渡さない。
     func restoreUndoSlot(_ id: UUID, from stack: ArchiveUndoStack) throws {
+        // Finder の情報パネルによる権限変更は内容を変えず、mode は swap 自身が読み直すため比較から除く。
+        func contentIdentity(_ identity: [Int64]) -> [Int64] {
+            var identity = identity
+            identity.remove(at: 3)
+            return identity
+        }
+        guard try contentIdentity(ArchiveImportTransaction.identity(sourceURL)) == contentIdentity(sourceIdentity)
+        else { throw ArchiveEditError.archiveChanged }
         guard let slot = stack.slots.first(where: { $0.id == id }) else { throw ArchiveUndoStack.Failure.missingSlot }
         let restorationFailure = try stack.swap(id, archive: sourceURL, encryption: encryptionSettings())
         password = slot.encryption.password

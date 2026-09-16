@@ -41,6 +41,10 @@ nonisolated final class ArchiveUndoStack: Sendable {
         storage.withLock { !$0.closed && $0.cloningSupported && maximumCount > 0 }
     }
 
+    func canUndoNextMutation(archiveSize: UInt64) -> Bool {
+        canUndoNextMutation && archiveSize <= maximumBytes
+    }
+
     func emptyCopy() -> ArchiveUndoStack {
         ArchiveUndoStack(maximumCount: maximumCount, maximumBytes: maximumBytes, clone: clone)
     }

@@ -83,6 +83,61 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
         }
     }
 
+    @MainActor private func assertReplacementRefusesRestore(redo: Bool) async throws {
+        let fixture = try ScenarioFixture(), (document, controller) = try await scenarioDocument(fixture)
+        let result = try await document.createFolder(in: "", baseName: "added", progress: Progress())
+        XCTAssertEqual(result.addedPaths, ["added/"])
+        XCTAssertNil(result.reloadFailure)
+        let manager = try XCTUnwrap(document.undoManager)
+        XCTAssertTrue(manager.canUndo)
+        XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
+        // 失敗は undoFailure で検証し、NSDocument のエラーシートは表示しない。
+        document.removeWindowController(controller)
+        defer { document.addWindowController(controller) }
+        if redo {
+            document.undo(nil)
+            let task = try XCTUnwrap(document.undoTask)
+            await task.value
+            XCTAssertNil(document.undoFailure)
+            XCTAssertTrue(manager.canRedo)
+        }
+        let generation = document.generation, slots = document.archiveUndoStack.slots
+        let slotDigests = try slots.map { try ScenarioFixture.digest($0.url) }
+        let identity = try ArchiveImportTransaction.identity(fixture.archive)
+        let replacement = try fixture.pythonArchive("replacement.zip", script:
+            "with zipfile.ZipFile(p, 'w') as z: z.writestr('external.txt', b'external replacement')")
+        XCTAssertEqual(Darwin.rename(replacement.path, fixture.archive.path), 0)
+        XCTAssertNotEqual(try ArchiveImportTransaction.identity(fixture.archive)[1], identity[1])
+        let externalDigest = try ScenarioFixture.digest(fixture.archive)
+
+        if redo { document.redo(nil) } else { document.undo(nil) }
+        let task = try XCTUnwrap(document.undoTask)
+        await task.value
+
+        XCTAssertEqual(document.undoFailure as? ArchiveEditError, .archiveChanged)
+        let message = String(localized: "アーカイブが変更されています。開き直してください。")
+        XCTAssertEqual(document.undoFailure?.localizedDescription, message)
+        XCTAssertEqual(document.undoFailure.map { ArchiveErrorText.describe($0) }, message)
+        XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), externalDigest)
+        XCTAssertEqual(document.generation, generation)
+        let retained = document.archiveUndoStack.slots
+        XCTAssertEqual(retained.count, slots.count)
+        XCTAssertEqual(retained.map(\.id), slots.map(\.id))
+        XCTAssertEqual(retained.map(\.url), slots.map(\.url))
+        XCTAssertEqual(retained.map(\.isRedo), slots.map(\.isRedo))
+        XCTAssertEqual(try retained.map { try ScenarioFixture.digest($0.url) }, slotDigests)
+        XCTAssertEqual(manager.canUndo, !redo)
+        XCTAssertEqual(manager.canRedo, redo)
+    }
+
+    @MainActor func testUndoRefusesExternalReplacementAndPreservesHistory() async throws {
+        try await assertReplacementRefusesRestore(redo: false)
+    }
+
+    @MainActor func testRedoRefusesExternalReplacementAndPreservesHistory() async throws {
+        try await assertReplacementRefusesRestore(redo: true)
+    }
+
     @MainActor func testDeletedSourceRefusesExtractionAndEditAndWindowCanReload() async throws {
         let fixture = try ScenarioFixture(), (document, controller) = try await scenarioDocument(fixture)
         let session = try XCTUnwrap(document.session), out = try fixture.folder("out")
