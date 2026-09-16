@@ -386,12 +386,16 @@ actor ArchiveSession {
         -> sending (reader: ArchiveReader, selection: ExtractionSelection, quarantine: Data?) {
         let reader = try requireCurrentReader()
         let expectedGeneration = generation
+        var subtrees: ArchiveEntryPayload.SubtreeIndex?
         var selected: [Int: ArchiveEntry] = [:]
         for payload in payloads {
             guard payload.archiveURL == sourceURL else {
                 throw ExtractionFailure.refused(String(localized: "選択した項目のアーカイブが一致しません。"))
             }
-            for entry in try payload.resolve(in: reader.entries, generation: generation) {
+            if payload.isDirectory, subtrees == nil {
+                subtrees = ArchiveEntryPayload.SubtreeIndex(entries: reader.entries)
+            }
+            for entry in try payload.resolve(in: reader.entries, generation: expectedGeneration, subtrees: subtrees) {
                 selected[entry.index] = entry
             }
         }

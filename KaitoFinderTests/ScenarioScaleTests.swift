@@ -49,6 +49,36 @@ nonisolated final class ScenarioScaleTests: XCTestCase {
         XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), before)
     }
 
+    @MainActor func testFiveThousandFolderPayloadsResolveAllEntriesWithinFiveSeconds() async throws {
+        let fixture = try ScenarioFixture(script: #"""
+        with zipfile.ZipFile(p, 'w') as z:
+            for folder in range(5000):
+                for file in range(4):
+                    z.writestr('folder%04d/file%02d.txt' % (folder, file), b'payload')
+        """#)
+        let session = try ArchiveSession(url: fixture.archive)
+        let entries = await session.entries(), tree = EntryNode.tree(from: entries)
+        let payloads = ArchiveEntryPayload.payloads(for: tree.children, archiveURL: fixture.archive,
+                                                  generation: session.generation)
+        XCTAssertEqual(entries.count, 20_000)
+        XCTAssertEqual(payloads.count, 5_000)
+        XCTAssertTrue(payloads.allSatisfy(\.isDirectory))
+        let start = ContinuousClock.now
+        let selection = try await session.resolveForExtraction(payloads).selection
+        let elapsed = start.duration(to: .now)
+        XCTAssertEqual(selection.entries.count, 20_000)
+        XCTAssertEqual(Set(selection.entries.map(\.index)), Set(entries.map(\.index)))
+        XCTAssertLessThan(elapsed, .seconds(5))
+
+        let folder = try XCTUnwrap(payloads.first { $0.path == "folder0042" })
+        let subtree = try await session.resolveForExtraction([folder]).selection
+        XCTAssertEqual(subtree.entries.count, 4)
+        XCTAssertEqual(Set(subtree.entries.map(\.name)),
+                       Set((0..<4).map { String(format: "folder0042/file%02d.txt", $0) }))
+        XCTAssertEqual(Set(subtree.entries.map(\.index)),
+                       Set(entries.filter { $0.name.hasPrefix("folder0042/") }.map(\.index)))
+    }
+
     func testStatusBarGroupsTotalFilteredAndSelectedCountsInEnglishJapaneseAndGerman() throws {
         for (language, locale, number) in [("en", "en_US", "10,000"), ("ja", "ja_JP", "10,000"), ("de", "de_DE", "10.000")] {
             let bundle = try LocalizationAcceptance.bundle(language), locale = Locale(identifier: locale)

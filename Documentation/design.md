@@ -1023,6 +1023,11 @@ KaitoKit の作法を引き継ぐ。
 50 万件で約 4.2 s / 924 MB。100 万件は KaitoKit の保持メタデータの合計上限
 `maxTotalMetadataSize`(256 MiB)で拒否された。約 25 万件を超える読み込みは
 KaitoKit PR #28(`fix/zip-first-candidate-budget`)の修正に依存する。
+同日、50 万件の一括展開が書き始めないことから、フォルダ選択の解決が
+O(トップレベルのフォルダ数 × 全 entry 数) だったのを線形に直した
+([記録](verification/2026-09-16-subtree-resolution.md)。5,000 フォルダ × 20,000 entry で
+231 s → 1 s 未満)。Release の 50 万件の一括展開は約 190 s で、`unzip` の 38 s に対する差は
+ファイルごとの親ディレクトリの開き直しと path 検査に集中している(同記録の「残る伸びしろ」)。
 
 **テストプロセスではウインドウの自動アニメーションを無効にする。** 表示されないテスト用
 ウインドウでもシート表示・文書の close が `_NSWindowTransformAnimation` を開始し、

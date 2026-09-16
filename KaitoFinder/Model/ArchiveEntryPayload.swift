@@ -27,15 +27,11 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
         self.isDirectory = isDirectory
     }
 
-    func resolve(in entries: [ArchiveEntry], generation current: UInt64) throws -> [ArchiveEntry] {
+    func resolve(in entries: [ArchiveEntry], generation current: UInt64,
+                 subtrees: SubtreeIndex? = nil) throws -> [ArchiveEntry] {
         let components = try ExtractionPath.components(path)
         if isDirectory {
-            let subtree = entries.filter {
-                // 不正な子パスも選択に含め、展開層で失敗として報告する。黙って除外しない。
-                let parts = (try? ExtractionPath.components($0.name)) ??
-                    Array($0.pathComponents.drop(while: { $0 == "." }))
-                return parts.starts(with: components) && (parts.count > components.count || $0.kind == .directory)
-            }
+            let subtree = (subtrees ?? SubtreeIndex(entries: entries)).subtree(for: components)
             guard !subtree.isEmpty else { throw ExtractionFailure.refused(String(localized: "選択したフォルダが見つかりません: \(path)。")) }
             return subtree
         }
@@ -48,5 +44,47 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
             throw ExtractionFailure.refused(String(localized: "選択した項目が見つからないか、同名の項目があります: \(path)。"))
         }
         return matches
+    }
+
+    // 複数フォルダの解決でパスの分解と全件走査を繰り返さない。
+    nonisolated struct SubtreeIndex: Sendable {
+        private struct Node: Sendable {
+            var children: [String: Int] = [:]
+            var entryOffsets: [Int] = []
+        }
+
+        private let entries: [ArchiveEntry]
+        private var nodes = [Node()]
+
+        init(entries: [ArchiveEntry]) {
+            self.entries = entries
+            for (offset, entry) in entries.enumerated() {
+                // 不正な子パスも選択に含め、展開層で失敗として報告する。黙って除外しない。
+                let parts = (try? ExtractionPath.components(entry.name)) ??
+                    Array(entry.pathComponents.drop(while: { $0 == "." }))
+                var node = 0
+                // 同じパスのファイルは、そのフォルダ自身として選択しない。
+                for part in parts.dropLast(entry.kind == .directory ? 0 : 1) {
+                    if let child = nodes[node].children[part] {
+                        node = child
+                    } else {
+                        let child = nodes.count
+                        nodes[node].children[part] = child
+                        nodes.append(Node())
+                        node = child
+                    }
+                    nodes[node].entryOffsets.append(offset)
+                }
+            }
+        }
+
+        func subtree(for components: [String]) -> [ArchiveEntry] {
+            var node = 0
+            for component in components {
+                guard let child = nodes[node].children[component] else { return [] }
+                node = child
+            }
+            return nodes[node].entryOffsets.map { entries[$0] }
+        }
     }
 }
