@@ -8,6 +8,56 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveCreationTests: XCTestCase {
+    @MainActor func testPendingRegistryTracksCreationUntilSuccessOrFailure() async throws {
+        enum Failure: Error { case injected }
+        for fail in [false, true] {
+            let fixture = try Fixture(), output = fixture.output(), file = fixture.directory.url.appendingPathComponent("pending.json")
+            try Data("[]".utf8).write(to: file)
+            let registry = PendingWorkRegistry(fileURL: file), gate = ScenarioGate()
+            let plan = ArchiveCreationPlan(sources: fixture.sources, destination: output, format: .zip)
+            defer { gate.release() }
+            let task = Task.detached {
+                try ArchiveCreationTransaction.run(plan: plan, progress: Progress(), willPublish: {
+                    gate.pauseOnce()
+                    if fail { throw Failure.injected }
+                }, registry: registry)
+            }
+            try await scenarioWait { gate.isEntered }
+            let entries = try PendingWorkRegistryTests.entries(in: file)
+            XCTAssertEqual(entries.count, 1)
+            let work = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: fixture.directory.url, includingPropertiesForKeys: nil)
+                .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-new-") })
+            XCTAssertEqual((entries.first?["path"] as? String).map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path },
+                           work.resolvingSymlinksInPath().path)
+            XCTAssertNotNil(entries.first?["device"])
+            XCTAssertNotNil(entries.first?["inode"])
+            gate.release()
+            do {
+                let result = try await task.value
+                XCTAssertEqual(result, output)
+                XCTAssertFalse(fail)
+                try assertContents(output, Fixture.contents)
+            } catch {
+                XCTAssertTrue(fail)
+                guard case Failure.injected = error else { return XCTFail("Unexpected error: \(error)") }
+                XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: work.path))
+            XCTAssertTrue(try PendingWorkRegistryTests.entries(in: file).isEmpty)
+        }
+    }
+
+    func testRegistryWriteFailureDoesNotPreventCreation() throws {
+        let fixture = try Fixture(), output = fixture.output(), blocker = fixture.directory.url.appendingPathComponent("registry-parent")
+        try Data("not a directory".utf8).write(to: blocker)
+        let registry = PendingWorkRegistry(fileURL: blocker.appendingPathComponent("pending.json"))
+        XCTAssertThrowsError(try registry.register(fixture.directory.url.appendingPathComponent(".KaitoFinder-new-probe")))
+        _ = try ArchiveCreationTransaction.run(plan: .init(sources: fixture.sources, destination: output, format: .zip),
+                                               progress: Progress(), registry: registry)
+        try assertContents(output, Fixture.contents)
+        try assertNoWorkDirectory(fixture.directory.url)
+    }
+
     private enum ExpectedEntry: Equatable {
         case file(Data), directory
     }

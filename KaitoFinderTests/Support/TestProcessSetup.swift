@@ -1,8 +1,12 @@
 import Foundation
+@testable import KaitoFinder
 
 nonisolated final class TestProcessSetup: NSObject {
     override init() {
         super.init()
+        PendingWorkRegistry.shared = PendingWorkRegistry(fileURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("KaitoFinderTests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+            .appendingPathComponent("pending-work.json"))
         // テストで表示されないウインドウでも、シート表示・文書のcloseは
         // _NSWindowTransformAnimationを開始する。_runBlockingが完了せず、
         // GCDワーカーを占有したまま残る（全件実行でtask_threadsが9→96、うち80が待機）。

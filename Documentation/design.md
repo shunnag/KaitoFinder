@@ -1142,13 +1142,12 @@ undo できない削除の確認、QuickLook パネルを閉じても一時コ�
    `Documentation/verification/2026-09-10-parallel-extraction.md`。
    現状の `ExtractionService` は一要求一 reader の直列で、この伸びしろは未取得。
 
-5. **クラッシュ・強制終了の残骸。** `.KaitoFinder-add-*`(公開の作業コピー)と
-   `.KaitoFinder-new-*`(作成の仮出力)はアーカイブ・保存先と同じフォルダに作るため、
-   起動時の一括 sweep ができない(展開の一時コピーは自前の一時ディレクトリなので
-   `startLaunchSweep` が掃く)。⌘Q は 2026-09-16 の `applicationShouldTerminate` で
-   後始末を待つようにしたが、kill -9 やクラッシュでは残る。対策案: 作業ディレクトリの
-   パスを Application Support の台帳に記録してから作り、成功・失敗で消し、次回起動時に
-   台帳に残ったものだけを削除する。未着手。
+5. ~~**クラッシュ・強制終了の残骸。**~~ **解決(2026-09-16、Wave L)。** `.KaitoFinder-add-*`
+   (公開の作業コピー)と `.KaitoFinder-new-*`(作成の仮出力)はアーカイブ・保存先と同じフォルダに
+   作るため起動時の一括 sweep ができない。`PendingWorkRegistry`(Application Support の台帳)に
+   作る前に記録し、作った後に dev/ino を記録し、完了で外す。次回起動時に台帳に残った項目のうち
+   自分の命名規則・ディレクトリ・dev/ino 一致のものだけを回収する。記録は
+   `verification/2026-09-16-pending-work-registry.md`。
 
 > **Open questions.** One of the original four remains, and it needs the real app
 > rather than a guess: whether Finder actually fulfills a directory promise (the

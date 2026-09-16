@@ -6,7 +6,8 @@ import KaitoKit
 /// 原本を更新する publish とは別の境界。最後の rename が成功するまで保存先に触れない。
 nonisolated enum ArchiveCreationTransaction {
     static func run(plan: ArchiveCreationPlan, progress: Progress,
-                    willPublish: (@Sendable () throws -> Void)? = nil) throws -> URL {
+                    willPublish: (@Sendable () throws -> Void)? = nil,
+                    registry: PendingWorkRegistry = .shared) throws -> URL {
         for source in plan.sources {
             try ArchiveImportPlan.checkCancellation(progress)
             if isSameFile(source, plan.destination) {
@@ -34,9 +35,21 @@ nonisolated enum ArchiveCreationTransaction {
         progress.completedUnitCount = 0
         let directory = plan.destination.deletingLastPathComponent()
             .appendingPathComponent(".KaitoFinder-new-" + UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
-                                               attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: directory) }
+        do { try registry.register(directory) }
+        catch { NSLog("台帳への記録に失敗しました: %@", String(describing: error)) }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                                                   attributes: [.posixPermissions: 0o700])
+        } catch {
+            registry.unregister(directory)
+            throw error
+        }
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            registry.unregister(directory)
+        }
+        do { try registry.recordIdentity(directory) }
+        catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
         // KaitoKit は gzip の中身が tar かどうかを名前でも判定する。仮出力にも本当の拡張子を付ける。
         let output = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: plan.format))
         do {

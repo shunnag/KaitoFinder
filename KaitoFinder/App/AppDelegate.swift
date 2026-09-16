@@ -18,6 +18,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // 終了の確認と返答を、実際のアラートやプロセス終了なしで検証するための境界。
     var terminationDocuments: (() -> [ArchiveDocument])?
     var terminationPromiseRegistry: FilePromiseRegistry = .shared
+    var pendingWorkRegistry: PendingWorkRegistry = .shared
+    // テストホストでは台帳の注入前に実ユーザーの作業領域を回収しない。
+    var sweepsPendingWorkAtLaunch: Bool = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+        && ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil
     var quitConfirmation: (() -> Bool)?
     var terminationReply: ((Bool) -> Void)?
     var terminationGracePeriod: Duration = .seconds(10)
@@ -103,10 +107,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
-        ExtractionTemporaryDirectory().startLaunchSweep()
+        startLaunchSweeps()
         documentController = NSDocumentController.shared
         NSApp.servicesProvider = self
         NSApp.mainMenu = makeMenu()
+    }
+
+    @discardableResult func startLaunchSweeps() -> Task<Void, Never> {
+        let extractionSweep = ExtractionTemporaryDirectory().startLaunchSweep()
+        guard sweepsPendingWorkAtLaunch else { return extractionSweep }
+        return pendingWorkRegistry.startLaunchSweep()
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }

@@ -338,6 +338,9 @@ nonisolated enum ArchiveEditTransaction {
 
 /// session の actor 内だけで実行する。書庫の原本へ書くのは最後の rename 一回だけ。
 nonisolated enum ArchiveImportTransaction {
+    // 文書・session の公開 API を変えず、append の子 Task にも注入を引き継ぐ。
+    static let pendingWorkRegistry = TaskLocal<PendingWorkRegistry>(wrappedValue: .shared)
+
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
@@ -365,7 +368,7 @@ nonisolated enum ArchiveImportTransaction {
         progress.totalUnitCount = Int64(plan.items.count + 1)
         progress.completedUnitCount = 0
         try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: willPublish,
-                    expectedIdentity: expectedIdentity) { updater in
+                    expectedIdentity: expectedIdentity, registry: pendingWorkRegistry.get()) { updater in
             for (index, item) in plan.items.enumerated() {
                 try ArchiveImportPlan.checkCancellation(progress)
                 // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
@@ -386,14 +389,27 @@ nonisolated enum ArchiveImportTransaction {
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: [Int64]? = nil,
+                        registry: PendingWorkRegistry = .shared,
                         mutate: (any ArchiveEditing) throws -> Void) throws {
         try ArchiveImportPlan.checkCancellation(progress)
         let original = try identity(archive)
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
         let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
-                                               attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: directory) }
+        do { try registry.register(directory) }
+        catch { NSLog("台帳への記録に失敗しました: %@", String(describing: error)) }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                                                   attributes: [.posixPermissions: 0o700])
+        } catch {
+            registry.unregister(directory)
+            throw error
+        }
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            registry.unregister(directory)
+        }
+        do { try registry.recordIdentity(directory) }
+        catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
         let work: URL
         switch mode {
         case .inPlace:
