@@ -11470,7 +11470,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Voulez-vous vraiment quitter KaitoFinder ?"
+            "value" : "Voulez-vous vraiment quitter KaitoFinder ?"
           }
         },
         "hi" : {
@@ -30149,13 +30149,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所选项目的密码不同。请分别解压缩使用相同密码的项目。"
+            "value" : "所选项目的密码不同。请按密码将项目分组，再逐组解压缩。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所選項目的密碼不同。請分別解壓縮使用相同密碼的項目。"
+            "value" : "所選項目的密碼不同。請依密碼將項目分組，再逐組解壓縮。"
           }
         },
         "ko" : {
@@ -30197,7 +30197,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "У выбранных объектов разные пароли. Разархивируйте объекты с одинаковым паролем по отдельности."
+            "value" : "У выбранных объектов разные пароли. Сгруппируйте объекты по паролю и разархивируйте каждую группу отдельно."
           }
         },
         "nl" : {
@@ -30215,25 +30215,25 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Seçilen öğelerin parolaları farklı. Aynı parolayı paylaşan öğeleri ayrı ayrı çıkarın."
+            "value" : "Seçilen öğelerin parolaları farklı. Öğeleri parolalarına göre gruplandırın ve her grubu ayrı ayrı çıkarın."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De markerade objekten har olika lösenord. Expandera objekt med samma lösenord var för sig."
+            "value" : "De markerade objekten har olika lösenord. Gruppera objekten efter lösenord och expandera en grupp i taget."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De valgte emner har forskellige adgangskoder. Dekomprimer emner med samme adgangskode hver for sig."
+            "value" : "De valgte emner har forskellige adgangskoder. Gruppér emnerne efter adgangskode, og dekomprimer én gruppe ad gangen."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "De markerte objektene har forskjellige passord. Pakk ut objekter med samme passord hver for seg."
+            "value" : "De markerte objektene har forskjellige passord. Grupper objektene etter passord, og pakk ut én gruppe om gangen."
           }
         },
         "fi" : {
@@ -36863,7 +36863,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The archive is too large or too complex to read (%@)"
+            "value" : "The archive exceeds the loading limit because it is too large or too complex (%@)"
           }
         },
         "ja" : {
@@ -36875,145 +36875,145 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das Archiv ist zu groß oder zu komplex zum Lesen (%@)"
+            "value" : "Das Archiv ist zu groß oder zu komplex, sodass die Grenze für das Einlesen überschritten wurde (%@)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’archive est trop volumineuse ou trop complexe pour être lue (%@)"
+            "value" : "La limite de lecture a été dépassée, car l’archive est trop volumineuse ou trop complexe (%@)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El archivo comprimido es demasiado grande o demasiado complejo para leerlo (%@)"
+            "value" : "El archivo comprimido es demasiado grande o complejo, por lo que se ha superado el límite de lectura (%@)"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’archivio è troppo grande o troppo complesso per essere letto (%@)"
+            "value" : "È stato superato il limite di lettura perché l’archivio è troppo grande o troppo complesso (%@)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O arquivo comprimido é grande ou complexo demais para ser lido (%@)"
+            "value" : "O limite de leitura foi excedido porque o arquivo comprimido é grande ou complexo demais (%@)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "归档太大或太复杂，无法读取（%@）"
+            "value" : "归档太大或太复杂，已超出读取上限（%@）"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "封存檔太大或太複雜，無法讀取（%@）"
+            "value" : "封存檔太大或太複雜，已超過讀取上限（%@）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아카이브가 너무 크거나 복잡하여 읽을 수 없습니다(%@)"
+            "value" : "아카이브가 너무 크거나 복잡하여 읽기 한도를 초과했습니다(%@)"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ที่เก็บถาวรใหญ่หรือซับซ้อนเกินกว่าจะอ่านได้ (%@)"
+            "value" : "ที่เก็บถาวรมีขนาดใหญ่หรือซับซ้อนเกินไป ทำให้เกินขีดจำกัดในการอ่าน (%@)"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tệp lưu trữ quá lớn hoặc quá phức tạp để đọc (%@)"
+            "value" : "Đã vượt quá giới hạn đọc vì tệp lưu trữ quá lớn hoặc quá phức tạp (%@)"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arsip terlalu besar atau terlalu rumit untuk dibaca (%@)"
+            "value" : "Batas pembacaan terlampaui karena arsip terlalu besar atau terlalu rumit (%@)"
           }
         },
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkib terlalu besar atau terlalu rumit untuk dibaca (%@)"
+            "value" : "Had pembacaan telah dilampaui kerana arkib terlalu besar atau terlalu rumit (%@)"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "आर्काइव पढ़ने के लिए बहुत बड़ा या बहुत जटिल है (%@)"
+            "value" : "आर्काइव बहुत बड़ा या बहुत जटिल है, इसलिए पढ़ने की सीमा पार हो गई है (%@)"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Архив слишком большой или слишком сложный для чтения (%@)"
+            "value" : "Превышен лимит чтения, поскольку архив слишком большой или слишком сложный (%@)"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Het archief is te groot of te complex om te lezen (%@)"
+            "value" : "De leeslimiet is overschreden omdat het archief te groot of te complex is (%@)"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Archiwum jest zbyt duże lub zbyt złożone, aby je odczytać (%@)"
+            "value" : "Przekroczono limit odczytu, ponieważ archiwum jest zbyt duże lub zbyt złożone (%@)"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arşiv okunamayacak kadar büyük veya karmaşık (%@)"
+            "value" : "Arşiv çok büyük veya çok karmaşık olduğu için okuma sınırı aşıldı (%@)"
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkivet är för stort eller för komplext för att läsas (%@)"
+            "value" : "Gränsen för inläsning har överskridits eftersom arkivet är för stort eller för komplext (%@)"
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det komprimerede arkiv er for stort eller for komplekst til at kunne læses (%@)"
+            "value" : "Det komprimerede arkiv er for stort eller for komplekst, så grænsen for indlæsning er overskredet (%@)"
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkivet er for stort eller for komplekst til å kunne leses (%@)"
+            "value" : "Grensen for innlesing er overskredet fordi arkivet er for stort eller for komplekst (%@)"
           }
         },
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkisto on liian suuri tai liian monimutkainen luettavaksi (%@)"
+            "value" : "Arkisto on liian suuri tai liian monimutkainen ja ylittää lukemiselle asetetun rajan (%@)"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Архів завеликий або занадто складний для читання (%@)"
+            "value" : "Перевищено обмеження на читання, оскільки архів завеликий або занадто складний (%@)"
           }
         },
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Archiv je příliš velký nebo příliš složitý na čtení (%@)"
+            "value" : "Byl překročen limit pro načítání, protože archiv je příliš velký nebo příliš složitý (%@)"
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O arquivo é demasiado grande ou complexo para ser lido (%@)"
+            "value" : "O limite de leitura foi excedido porque o arquivo é demasiado grande ou complexo (%@)"
           }
         }
       }
