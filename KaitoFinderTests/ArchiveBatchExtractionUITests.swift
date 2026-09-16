@@ -79,6 +79,33 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         XCTAssertEqual(AppDelegate.archivesToExtract(from: pasteboard), [first, second, directory.url])
     }
 
+    @MainActor func testFinderExtractionRemovesDuplicateURLsPreservingOrder() throws {
+        let directory = try ArchiveTestDirectory(), pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        guard pasteboard.setString("probe", forType: .string) else { throw XCTSkip("名前付きペーストボードを利用できない") }
+        let first = directory.url.appendingPathComponent("first.zip"), second = directory.url.appendingPathComponent("second.7z")
+        try Data().write(to: first)
+        try Data().write(to: second)
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([first as NSURL, second as NSURL, first as NSURL]))
+        XCTAssertEqual(AppDelegate.archivesToExtract(from: pasteboard), [first, second])
+    }
+
+    @MainActor func testFinderExtractionDeduplicatesStandardizedSymlinkPathsKeepingFirstURL() throws {
+        let directory = try ArchiveTestDirectory(), pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        guard pasteboard.setString("probe", forType: .string) else { throw XCTSkip("名前付きペーストボードを利用できない") }
+        let archive = directory.url.appendingPathComponent("archive.zip"), link = directory.url.appendingPathComponent("link.zip")
+        let second = directory.url.appendingPathComponent("second.7z")
+        try Data().write(to: archive)
+        try Data().write(to: second)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: archive)
+        let normalized = directory.url.appendingPathComponent("./archive.zip")
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([link as NSURL, second as NSURL, archive as NSURL, normalized as NSURL]))
+        XCTAssertEqual(AppDelegate.archivesToExtract(from: pasteboard), [link, second])
+    }
+
     @MainActor func testSecondBatchServiceRequestIsRejectedAndMenuIsIgnoredWhileChoosingDestination() async throws {
         let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
         let store = ArchivePreferencesStore(defaults: suite.defaults)

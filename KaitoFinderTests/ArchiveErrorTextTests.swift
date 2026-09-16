@@ -153,12 +153,13 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         let sources = [
             "UI/ArchiveCreationController.swift", "UI/ArchiveWindowController.swift", "Model/ArchiveCapabilities.swift",
             "Model/ArchiveMaterializationController.swift", "Import/ArchiveIncomingFiles.swift", "Extraction/ExtractionService.swift",
-            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift"
+            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift", "Creation/ArchiveCreationTransaction.swift"
         ]
         for path in sources {
             let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/" + path), encoding: .utf8)
             for line in source.split(separator: "\n") where !line.contains("NSLog(") {
                 XCTAssertFalse(line.contains("String(describing: error)"), "\(path): \(line)")
+                XCTAssertFalse(line.contains(#"\(error)"#), "\(path): \(line)")
             }
         }
     }

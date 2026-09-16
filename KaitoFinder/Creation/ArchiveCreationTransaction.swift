@@ -106,7 +106,7 @@ nonisolated enum ArchiveCreationTransaction {
                 else { try file(item.url, item.path) }
             } catch is CancellationError { throw CancellationError() }
             catch let error as RewriterError { throw error }
-            catch { throw ExtractionFailure.refused("\(item.path): \(error)") }
+            catch { throw ExtractionFailure.refused("\(item.path): \(ArchiveErrorText.describe(error))") }
             progress.completedUnitCount += 1
         }
     }

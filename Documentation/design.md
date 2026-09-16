@@ -1070,6 +1070,11 @@ undo できない削除の確認、QuickLook パネルを閉じても一時コ�
 完了させる、異なるパスワードの項目をまとめて選んだときの案内。外部変更の検出の限界
 (同 inode・同サイズ・同 mtime の上書き)は README に明記した。
 
+同日の Wave K は Services の入口・設定・最近使った項目・app レベルのエラー表示・起動引数を
+同じ方法でレビューし、4 件を直した([記録](verification/2026-09-16-entry-points-review.md)):
+作成失敗の enum 露出、Services の重複入力、開けない文書の文言(`ArchiveDocument.read` が
+翻訳済みの NSError に包む)、存在しない起動引数の報告。候補数は 8 → 7 → 9 → 4 と減っている。
+
 **テストプロセスではウインドウの自動アニメーションを無効にする。** 表示されないテスト用
 ウインドウでもシート表示・文書の close が `_NSWindowTransformAnimation` を開始し、
 `_runBlocking` が GCD ワーカーを占有したまま残る。ユーザーの調査では全件実行中に

@@ -107,6 +107,21 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
     func testCreateSevenZipRoundTripsAndSevenZipLists() throws { try assertCreation(.sevenZip) }
     func testCreateLHARoundTripsEveryEntryAndContent() throws { try assertCreation(.lha) }
 
+    func testLHASymlinkFailureUsesLocalizedWriterDescription() throws {
+        let fixture = try Fixture(), folder = fixture.sources[2], destination = fixture.output(.lha)
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("link").path,
+                                                   withDestinationPath: "Sub/note.txt")
+        XCTAssertThrowsError(try ArchiveCreationTransaction.run(
+            plan: .init(sources: [folder], destination: destination, format: .lha), progress: Progress())) { error in
+            let reason = ArchiveErrorText.describe(error)
+            XCTAssertFalse(reason.contains("unsupportedFileType("), reason)
+            XCTAssertTrue(reason.contains(ArchiveErrorText.describe(WriterError.unsupportedFileType("Docs/link"))), reason)
+            XCTAssertTrue(reason.hasPrefix("Docs/link: "), reason)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+        try assertNoWorkDirectory(fixture.directory.url)
+    }
+
     @MainActor func testCreationStoredZIPPreferencesStoreEveryEntryWithoutCompression() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.zipMethod = .stored

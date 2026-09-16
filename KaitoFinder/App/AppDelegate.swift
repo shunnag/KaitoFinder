@@ -177,8 +177,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     static func filesToCompress(from pasteboard: NSPasteboard) -> [URL] {
+        uniqueFileURLs(from: pasteboard)
+    }
+
+    private static func uniqueFileURLs(from pasteboard: NSPasteboard) -> [URL] {
         let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
-        return urls.filter(\.isFileURL)
+        var seen = Set<String>()
+        return urls.filter { url in
+            url.isFileURL && seen.insert(url.standardizedFileURL.resolvingSymlinksInPath().path).inserted
+        }
     }
 
     @objc func compressFiles(_ pboard: NSPasteboard, userData: String,
@@ -219,8 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     static func archivesToExtract(from pasteboard: NSPasteboard) -> [URL] {
-        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
-        return urls.filter(\.isFileURL)
+        uniqueFileURLs(from: pasteboard)
     }
 
     @objc func extractArchives(_ pboard: NSPasteboard, userData: String,
@@ -257,16 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // 実行ファイルへ直接渡したパスも、通常の文書オープン経路へ流す。
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
               ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
-        var argumentsHadFiles = false
-        for argument in CommandLine.arguments.dropFirst() where !argument.hasPrefix("-") {
-            let url = URL(fileURLWithPath: argument)
-            guard FileManager.default.fileExists(atPath: url.path) else { continue }
-            argumentsHadFiles = true
-            documentController.openDocument(withContentsOf: url, display: true) { _, _, error in
-                if let error { NSApp.presentError(error) }
-            }
-        }
-        let hadFiles = argumentsHadFiles
+        let hadFiles = openLaunchArguments(Array(CommandLine.arguments.dropFirst())) { NSApp.presentError($0) }
         // LaunchServices の起動時 open が文書を登録する機会を待ってから判断する。
         DispatchQueue.main.async { [weak self] in
             guard let self, Self.shouldShowWelcome(argumentsHadFiles: hadFiles,
@@ -274,6 +271,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                 preference: self.preferencesStore.preferences.showsWelcomeWindowAtLaunch) else { return }
             self.showWelcome(nil)
         }
+    }
+
+    func openLaunchArguments(_ arguments: [String], present: (NSError) -> Void) -> Bool {
+        var argumentsHadFiles = false
+        for argument in arguments where !argument.hasPrefix("-") {
+            let url = URL(fileURLWithPath: argument)
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                present(NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError,
+                                userInfo: [NSFilePathErrorKey: url.path, NSURLErrorKey: url]))
+                continue
+            }
+            argumentsHadFiles = true
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+                if let error { NSApp.presentError(error) }
+            }
+        }
+        return argumentsHadFiles
     }
 
     func makeMenu(bundle: Bundle = .main) -> NSMenu {

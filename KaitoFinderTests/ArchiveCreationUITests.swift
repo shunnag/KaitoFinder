@@ -254,6 +254,33 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         XCTAssertEqual(AppDelegate.filesToCompress(from: pasteboard), [file, folder])
     }
 
+    @MainActor func testFinderCompressionRemovesDuplicateURLsPreservingOrder() throws {
+        let directory = try ArchiveTestDirectory(), pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        guard pasteboard.setString("probe", forType: .string) else { throw XCTSkip("名前付きペーストボードを利用できない") }
+        let first = directory.url.appendingPathComponent("first.txt"), second = directory.url.appendingPathComponent("second.txt")
+        try Data().write(to: first)
+        try Data().write(to: second)
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([first as NSURL, second as NSURL, first as NSURL]))
+        XCTAssertEqual(AppDelegate.filesToCompress(from: pasteboard), [first, second])
+    }
+
+    @MainActor func testFinderCompressionDeduplicatesStandardizedSymlinkPathsKeepingFirstURL() throws {
+        let directory = try ArchiveTestDirectory(), pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        guard pasteboard.setString("probe", forType: .string) else { throw XCTSkip("名前付きペーストボードを利用できない") }
+        let file = directory.url.appendingPathComponent("file.txt"), link = directory.url.appendingPathComponent("link.txt")
+        let second = directory.url.appendingPathComponent("second.txt")
+        try Data().write(to: file)
+        try Data().write(to: second)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+        let normalized = directory.url.appendingPathComponent("./file.txt")
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([link as NSURL, second as NSURL, file as NSURL, normalized as NSURL]))
+        XCTAssertEqual(AppDelegate.filesToCompress(from: pasteboard), [link, second])
+    }
+
     private func entry(encrypted: Bool) -> ArchiveEntry {
         ArchiveEntry(index: 0, rawName: RawName(bytes: Array("file.txt".utf8)), name: "file.txt", pathComponents: ["file.txt"],
                      kind: .file, uncompressedSize: 1, compressedSize: 1, modificationDate: nil, posixPermissions: nil,

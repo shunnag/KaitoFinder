@@ -144,6 +144,13 @@ import Synchronization
         catch KaitoError.passwordRequired {
             // AppKit の並行 read では UI を出せない。URL だけを渡し、window 側で解除する。
             contents = .locked(url)
+        } catch let error as CancellationError { throw error }
+        catch {
+            throw NSError(domain: "com.shunnag.KaitoFinder.document", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: String(localized: "アーカイブを開けませんでした"),
+                NSLocalizedFailureReasonErrorKey: ArchiveAlertText.informativeText(ArchiveErrorText.describe(error)),
+                NSUnderlyingErrorKey: error as NSError
+            ])
         }
         let installed = contentsStorage.withLock { state in
             if case .closed = state { return false }
