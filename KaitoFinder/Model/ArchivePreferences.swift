@@ -7,6 +7,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum ZipMethod: String, Sendable { case deflate, stored }
     enum ExtractionDestination: String, Sendable { case sameFolder, ask }
     enum FolderPolicy: String, Sendable { case always, whenMultipleTopLevelItems, never }
+    enum OpeningBehavior: String, Sendable, CaseIterable { case system, newTab, newWindow }
 
     static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .sevenZip, .lha]
 
@@ -22,6 +23,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var revealsExtractedItemsInFinder = false
     var showsHiddenFiles = false
     var showsWelcomeWindowAtLaunch = true
+    var openingBehavior: OpeningBehavior = .system
     var excludesDSStore = true
     var excludesHiddenFiles = false
 
@@ -66,6 +68,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let revealsExtractedItemsInFinder = "ArchiveRevealsExtractedItems"
         static let showsHiddenFiles = "ArchiveShowsHiddenFiles"
         static let showsWelcomeWindowAtLaunch = "ArchiveShowsWelcomeAtLaunch"
+        static let openingBehavior = "ArchiveOpeningBehavior"
         static let excludesDSStore = "ArchiveExcludesDSStore"
         static let excludesHiddenFiles = "ArchiveExcludesHiddenFiles"
     }
@@ -98,6 +101,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.showsHiddenFiles = boolean(forKey: Key.showsHiddenFiles, fallback: value.showsHiddenFiles)
             value.showsWelcomeWindowAtLaunch = boolean(forKey: Key.showsWelcomeWindowAtLaunch,
                                                       fallback: value.showsWelcomeWindowAtLaunch)
+            value.openingBehavior = defaults.string(forKey: Key.openingBehavior)
+                .flatMap(ArchivePreferences.OpeningBehavior.init(rawValue:)) ?? value.openingBehavior
             value.excludesDSStore = boolean(forKey: Key.excludesDSStore, fallback: value.excludesDSStore)
             value.excludesHiddenFiles = boolean(forKey: Key.excludesHiddenFiles, fallback: value.excludesHiddenFiles)
             return value
@@ -115,6 +120,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.revealsExtractedItemsInFinder, forKey: Key.revealsExtractedItemsInFinder)
             defaults.set(newValue.showsHiddenFiles, forKey: Key.showsHiddenFiles)
             defaults.set(newValue.showsWelcomeWindowAtLaunch, forKey: Key.showsWelcomeWindowAtLaunch)
+            defaults.set(newValue.openingBehavior.rawValue, forKey: Key.openingBehavior)
             defaults.set(newValue.excludesDSStore, forKey: Key.excludesDSStore)
             defaults.set(newValue.excludesHiddenFiles, forKey: Key.excludesHiddenFiles)
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。

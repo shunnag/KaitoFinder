@@ -111,7 +111,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let files = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted()
         let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: reader.format)
         XCTAssertEqual(capability.mode, .rewrite(format.output), file: file, line: line)
-        XCTAssertTrue(capability.canAppend, file: file, line: line)
+        XCTAssertTrue(capability.canEdit, file: file, line: line)
         XCTAssertNil(capability.refusal, file: file, line: line)
         XCTAssertNil(capability.readOnlyReason, file: file, line: line)
         XCTAssertEqual(capability.rewriteNotice, String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
@@ -144,7 +144,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let capability = ArchiveCapabilities.inspect(url: archive, format: reader.format)
             XCTAssertEqual(capability.refusal, .format(name))
             XCTAssertNil(capability.mode)
-            XCTAssertFalse(capability.canAppend)
+            XCTAssertFalse(capability.canEdit)
             XCTAssertNil(capability.rewriteNotice)
             XCTAssertEqual(capability.readOnlyReason, String(localized: "\(name)アーカイブは変更できません。"))
         }
@@ -179,7 +179,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let capability = ArchiveCapabilities.inspect(url: archive, format: reader.format,
                                                       password: encrypted ? "rewrite-test-password" : nil)
         XCTAssertEqual(capability.mode, .inPlace)
-        XCTAssertTrue(capability.canAppend)
+        XCTAssertTrue(capability.canEdit)
         XCTAssertNil(capability.refusal)
         XCTAssertNil(capability.rewriteNotice)
         try assertNoWorkDirectory(directory.url)
@@ -202,7 +202,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let capability = ArchiveCapabilities.inspect(url: archive, format: .sevenZip)
         XCTAssertEqual(capability.refusal, .encrypted)
         XCTAssertNil(capability.mode)
-        XCTAssertFalse(capability.canAppend)
+        XCTAssertFalse(capability.canEdit)
         XCTAssertNil(capability.rewriteNotice)
         XCTAssertEqual(capability.readOnlyReason, String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。"))
         XCTAssertEqual(try digest(archive), original)
@@ -273,7 +273,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             guard case .unavailable(let reason) = capability.refusal else { return XCTFail("\(capability)") }
             XCTAssertEqual(reason, String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。"))
             XCTAssertNil(capability.mode)
-            XCTAssertFalse(capability.canAppend)
+            XCTAssertFalse(capability.canEdit)
         }
         for format in Format.allCases {
             let fixture = try Fixture(format)

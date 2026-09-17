@@ -95,11 +95,6 @@ final class WelcomeDropZoneView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
 
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        addCursorRect(bounds, cursor: .pointingHand)
-    }
-
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
@@ -156,7 +151,23 @@ final class WelcomeDropZoneView: NSView {
     }
 
     private var borderPath: NSBezierPath {
-        NSBezierPath(roundedRect: bounds.insetBy(dx: 3, dy: 3), xRadius: 16, yRadius: 16)
+        var radius: CGFloat = 16
+        if #available(macOS 27.0, *), let corners = effectiveCornerRadii {
+            radius = max(0, corners.topLeft - 3)
+        }
+        return NSBezierPath(roundedRect: bounds.insetBy(dx: 3, dy: 3), xRadius: radius, yRadius: radius)
+    }
+
+    @available(macOS 27.0, *)
+    override var cornerConfiguration: NSViewCornerConfiguration? {
+        .uniformCorners(radius: .containerConcentric(19))
+    }
+
+    @available(macOS 27.0, *)
+    override func viewDidChangeEffectiveCornerRadii() {
+        super.viewDidChangeEffectiveCornerRadii()
+        needsDisplay = true
+        noteFocusRingMaskChanged()
     }
 
     override var focusRingMaskBounds: NSRect { bounds }
@@ -165,13 +176,13 @@ final class WelcomeDropZoneView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let path = borderPath
         let hover = isHovered && !isReceivingDrag
-        let fill = isDragHighlighted ? NSColor.controlAccentColor.withAlphaComponent(0.12)
-            : NSColor.quaternaryLabelColor.withAlphaComponent(hover ? 0.12 : 0.06)
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let fill = isDragHighlighted || hover ? NSColor.controlAccentColor.withAlphaComponent(0.08)
+            : NSColor.controlBackgroundColor
         fill.setFill()
         path.fill()
-        (isDragHighlighted ? NSColor.controlAccentColor : NSColor.tertiaryLabelColor).setStroke()
-        path.lineWidth = 2
-        if !isDragHighlighted { path.setLineDash([6, 5], count: 2, phase: 0) }
+        (isDragHighlighted || hover ? NSColor.controlAccentColor : contrast ? NSColor.labelColor : NSColor.separatorColor).setStroke()
+        path.lineWidth = isDragHighlighted || contrast ? 2 : 1
         path.stroke()
     }
 

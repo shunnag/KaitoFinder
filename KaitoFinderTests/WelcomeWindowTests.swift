@@ -75,14 +75,17 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
     }
 
     @MainActor func testMenuActionReopensSameWindowWithLaunchPreferenceOff() throws {
+        preserveApplicationMenus()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.showsWelcomeWindowAtLaunch = false
         let delegate = AppDelegate(preferencesStore: store)
         defer { delegate.welcomeWindowController?.close() }
-        delegate.showWelcome(nil)
+        let menu = delegate.makeMenu()
+        let item = try menuItem(#selector(AppDelegate.showWelcome(_:)), in: menu)
+        try performMenuItem(item)
         let controller = try XCTUnwrap(delegate.welcomeWindowController)
         controller.close()
-        delegate.showWelcome(nil)
+        try performMenuItem(item)
         XCTAssertTrue(delegate.welcomeWindowController === controller)
         XCTAssertEqual(controller.window?.isVisible, true)
         XCTAssertFalse(store.preferences.showsWelcomeWindowAtLaunch)

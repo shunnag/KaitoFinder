@@ -25,10 +25,9 @@ nonisolated struct ArchiveImportPlan: Sendable {
     var failures: [Failure] = []
 
     static func path(_ raw: String) throws -> String {
-        let parts = raw.utf8.split(separator: 47, omittingEmptySubsequences: false)
-            .map { String(decoding: $0, as: UTF8.self) }
-        guard !parts.isEmpty, !parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." || $0.contains("\\") || $0.contains("\0") }),
-              !(parts.first?.contains(":") ?? false) else {
+        let parts = ArchivePath.components(raw, omittingEmptySubsequences: false)
+        guard !parts.isEmpty, !parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
+              !raw.utf8.contains(92), !raw.utf8.contains(0), !raw.utf8.contains(58) else {
             throw ExtractionFailure.refused(String(localized: "安全でない追加先パスです: \(raw)。"))
         }
         return raw.precomposedStringWithCanonicalMapping
@@ -43,11 +42,11 @@ nonisolated struct ArchiveImportPlan: Sendable {
             guard let key = try? path(raw) else { continue }
             occupied.insert(key)
             if entry.kind != .directory { files.insert(key) }
-            var parts = key.split(separator: "/")
+            var parts = ArchivePath.components(key)
             while parts.count > 1 { parts.removeLast(); occupied.insert(parts.joined(separator: "/")) }
         }
         if !target.isEmpty {
-            let parts = target.split(separator: "/")
+            let parts = ArchivePath.components(target)
             let ancestors = (1...parts.count).map { parts.prefix($0).joined(separator: "/") }
             guard occupied.contains(target), !ancestors.contains(where: files.contains) else {
                 throw ExtractionFailure.refused(String(localized: "追加先フォルダが見つからないか、ファイルと衝突しています: \(target)。"))

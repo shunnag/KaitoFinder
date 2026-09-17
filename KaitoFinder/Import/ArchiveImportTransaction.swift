@@ -100,7 +100,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
         if !moving.isEmpty {
             for entry in existing {
                 let path = key(entry.name)
-                let parts = path.split(separator: "/")
+                let parts = ArchivePath.components(path)
                 if entry.kind == .directory { folders.insert(path) }
                 else { files.insert(path) }
                 for count in 1..<max(1, parts.count) {
@@ -110,24 +110,35 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
         let moves = try moving.map { move in
             let source = key(move.selection.path), folder = key(move.folder)
-            let parent = source.split(separator: "/").dropLast().joined(separator: "/")
+            let parent = ArchivePath.components(source).dropLast().joined(separator: "/")
             guard parent != folder else { throw ArchiveEditError.sameLocation(move.selection.path) }
-            if move.selection.isDirectory, folder == source || folder.hasPrefix(source + "/") {
+            if move.selection.isDirectory, folder == source || ArchivePath.isDescendant(folder, of: source) {
                 throw ArchiveEditError.destinationInsideSource(move.selection.path)
             }
             if !folder.isEmpty {
-                let parts = folder.split(separator: "/")
+                let parts = ArchivePath.components(folder)
                 guard folders.contains(folder), !(1...max(1, parts.count)).contains(where: {
                     files.contains(parts.prefix($0).joined(separator: "/"))
                 }) else { throw ArchiveEditError.missingFolder(move.folder) }
             }
-            let leaf = source.split(separator: "/").last.map(String.init) ?? ""
+            let leaf = ArchivePath.components(source).last ?? ""
             return (selection: move.selection, destination: folder.isEmpty ? leaf : folder + "/" + leaf)
         }
+        let hasFolders = (selections + renaming.map(\.selection) + moving.map(\.selection)).contains { $0.isDirectory }
+        // 抽出と同じ索引を使うが、成分は EntryNode の表示と揃え、途中の . などを解決しない。
+        let selectionIndex = hasFolders ? ArchiveEntryPayload.SubtreeIndex(entries: existing, components: {
+            Array($0.pathComponents.drop(while: { $0 == "." }))
+        }) : nil
         var removed: [Int: Entry] = [:]
         for selection in selections {
-            try validate(selection, existing: existing)
+            try validate(selection, existing: existing, subtrees: selectionIndex)
             for entry in selection.entries { removed[entry.index] = Entry(entry) }
+        }
+        var occupied = ArchivePathOccupancy()
+        if !renaming.isEmpty || !moving.isEmpty {
+            for entry in existing where removed[entry.index] == nil {
+                occupied.insert(key(entry.name), directory: entry.kind == .directory)
+            }
         }
         var renamed: Set<Int> = [], destinations: Set<String> = [], changes: [Rename] = []
         // 改名と移動は同じ部分木変換。衝突・index 照合・正準等価の扱いを分岐させない。
@@ -139,24 +150,25 @@ nonisolated struct ArchiveEditPlan: Sendable {
             renamed.formUnion(indices)
             guard destinations.insert(key(destination)).inserted else { throw ArchiveEditError.collision(destination) }
             // 子だけを持つ仮想フォルダも占有済み。別のフォルダへの暗黙の併合を防ぐ。
-            for entry in existing where removed[entry.index] == nil && !indices.contains(entry.index) {
-                let components = key(entry.name).split(separator: "/", omittingEmptySubsequences: false)
-                for count in 1...max(1, components.count) {
-                    if components.prefix(count).joined(separator: "/") == key(destination) {
-                        throw ArchiveEditError.collision(destination)
-                    }
-                }
+            // この部分木だけを除き、他の改名は従来どおり元の場所も占有していると扱う。
+            for index in indices {
+                occupied.remove(key(existing[index].name), directory: existing[index].kind == .directory)
             }
+            let collision = occupied.containsSubtree(at: key(destination))
+            for index in indices {
+                occupied.insert(key(existing[index].name), directory: existing[index].kind == .directory)
+            }
+            guard !collision else { throw ArchiveEditError.collision(destination) }
             for entry in selection.entries {
                 let path: String
                 if selection.isDirectory {
-                    let prefix = selection.path + "/"
                     if key(entry.name) == key(selection.path) {
                         path = destination + (entry.kind == .directory ? "/" : "")
                     } else {
                         // tree が同じフォルダとして束ねる正準等価の接頭辞も、一緒に書き換える。
-                        guard entry.name.hasPrefix(prefix) else { throw ArchiveEditError.staleSelection }
-                        path = destination + "/" + entry.name.dropFirst(prefix.count)
+                        guard let renamed = ArchivePath.replacingPrefix(of: displayPath(entry.name),
+                            from: selection.path, to: destination) else { throw ArchiveEditError.staleSelection }
+                        path = renamed
                     }
                 } else { path = destination }
                 let normalized = try normalizedPath(path, directory: entry.kind == .directory)
@@ -167,13 +179,13 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
         for change in renaming {
             let selection = change.selection
-            try validate(selection, existing: existing)
+            try validate(selection, existing: existing, subtrees: selectionIndex)
             let leaf = try leafName(change.name)
-            let parent = selection.path.split(separator: "/").dropLast().joined(separator: "/")
+            let parent = ArchivePath.components(selection.path).dropLast().joined(separator: "/")
             try rename(selection, to: parent.isEmpty ? leaf : parent + "/" + leaf)
         }
         for move in moves {
-            try validate(move.selection, existing: existing)
+            try validate(move.selection, existing: existing, subtrees: selectionIndex)
             try rename(move.selection, to: move.destination)
         }
         let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing)
@@ -181,15 +193,13 @@ nonisolated struct ArchiveEditPlan: Sendable {
         return plan
     }
 
-    private static func validate(_ selection: ArchiveEditSelection, existing: [ArchiveEntry]) throws {
+    private static func validate(_ selection: ArchiveEditSelection, existing: [ArchiveEntry],
+                                 subtrees: ArchiveEntryPayload.SubtreeIndex?) throws {
         guard !selection.path.isEmpty, !selection.entries.isEmpty else { throw ArchiveEditError.staleSelection }
         for entry in selection.entries { try validate(Entry(entry), entries: existing) }
         if selection.isDirectory {
-            let components = selection.path.split(separator: "/").map(String.init)
-            let current = Set(existing.filter {
-                let parts = $0.pathComponents.drop(while: { $0 == "." })
-                return parts.starts(with: components) && (parts.count > components.count || $0.kind == .directory)
-            }.map(\.index))
+            let components = ArchivePath.components(selection.path)
+            let current = Set(subtrees?.subtree(for: components).map(\.index) ?? [])
             // 選択後に子が増えた場合も、古い部分木だけを削除して孤児を残さない。
             guard current == Set(selection.entries.map(\.index)) else { throw ArchiveEditError.staleSelection }
         }
@@ -210,7 +220,14 @@ nonisolated struct ArchiveEditPlan: Sendable {
 
     func validateChanges(entries: [ArchiveEntry]) throws {
         let removed = Set(removals.map(\.index))
+        guard !renames.isEmpty else { return }
+        var occupied = ArchivePathOccupancy()
         var names: [Int: String] = [:], renamed: Set<Int> = []
+        for entry in entries where !removed.contains(entry.index) {
+            let path = Self.key(entry.name)
+            names[entry.index] = path
+            occupied.insert(path, directory: entry.kind == .directory)
+        }
         for change in renames {
             guard !removed.contains(change.entry.index), renamed.insert(change.entry.index).inserted else {
                 throw ArchiveEditError.conflictingSelection
@@ -218,15 +235,14 @@ nonisolated struct ArchiveEditPlan: Sendable {
             let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory)
             let key = Self.key(path)
             // updater は予約順で衝突を調べる。最終形だけでなく途中の全予約も先に検証する。
-            for other in entries where other.index != change.entry.index && !removed.contains(other.index) {
-                let otherKey = Self.key(names[other.index] ?? other.name)
-                guard key != otherKey,
-                      !(!change.entry.isDirectory && otherKey.hasPrefix(key + "/")),
-                      !(other.kind != .directory && key.hasPrefix(otherKey + "/")) else {
-                    throw ArchiveEditError.collision(path)
-                }
+            if let previous = names[change.entry.index] {
+                occupied.remove(previous, directory: change.entry.isDirectory)
             }
-            names[change.entry.index] = path
+            guard !occupied.collides(key, directory: change.entry.isDirectory) else {
+                throw ArchiveEditError.collision(path)
+            }
+            names[change.entry.index] = key
+            occupied.insert(key, directory: change.entry.isDirectory)
         }
     }
 
@@ -249,11 +265,21 @@ nonisolated struct ArchiveEditPlan: Sendable {
     }
 
     fileprivate static func key(_ path: String) -> String {
-        (path.hasSuffix("/") ? String(path.dropLast()) : path).precomposedStringWithCanonicalMapping
+        let displayed = displayPath(path)
+        return (displayed.hasSuffix("/") ? String(displayed.dropLast()) : displayed).precomposedStringWithCanonicalMapping
+    }
+
+    private static func displayPath(_ path: String) -> String {
+        // EntryNode と rewriter と同じく先頭の ./ だけを外す。
+        // 途中の .、..、空成分は保存し、normalizedPath で改名全体を拒否する。
+        var bytes = path.utf8[...]
+        while bytes.starts(with: [46, 47]) { bytes = bytes.dropFirst(2) }
+        let displayed = String(decoding: bytes, as: UTF8.self)
+        return displayed == "." ? "" : displayed
     }
 
     fileprivate static func leafName(_ name: String) throws -> String {
-        guard !name.contains("/") else { throw ArchiveEditError.invalidName(name) }
+        guard !name.utf8.contains(47) else { throw ArchiveEditError.invalidName(name) }
         return try normalizedPath(name, directory: false)
     }
 
@@ -261,9 +287,9 @@ nonisolated struct ArchiveEditPlan: Sendable {
         var name = path.precomposedStringWithCanonicalMapping
         if directory && !name.hasSuffix("/") { name += "/" }
         let body = directory ? String(name.dropLast()) : name
-        let parts = body.split(separator: "/", omittingEmptySubsequences: false)
+        let parts = ArchivePath.components(body, omittingEmptySubsequences: false)
         // writer と同じ制約を公開前に説明する。長い親パスを含む子孫も例外にしない。
-        guard !body.isEmpty, !body.contains("\0"), !body.contains("\\"), !body.contains(":"),
+        guard !body.isEmpty, !body.utf8.contains(0), !body.utf8.contains(92), !body.utf8.contains(58),
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
               name.utf8.count <= Int(UInt16.max) else { throw ArchiveEditError.invalidName(path) }
         return name
@@ -279,7 +305,7 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
         let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false)
         var occupied: Set<String> = [], directories: Set<String> = [], files: Set<String> = []
         for entry in existing {
-            let parts = ArchiveEditPlan.key(entry.name).split(separator: "/", omittingEmptySubsequences: false)
+            let parts = ArchivePath.components(ArchiveEditPlan.key(entry.name), omittingEmptySubsequences: false)
             for count in 1...parts.count {
                 let path = parts.prefix(count).joined(separator: "/")
                 occupied.insert(path)
@@ -289,7 +315,7 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
         }
         if !parent.isEmpty {
             guard directories.contains(parent) else { throw ArchiveEditError.staleSelection }
-            let parts = parent.split(separator: "/")
+            let parts = ArchivePath.components(parent)
             for count in 1...parts.count {
                 let path = parts.prefix(count).joined(separator: "/")
                 guard !files.contains(path) else { throw ArchiveEditError.collision(path) }
@@ -367,8 +393,11 @@ nonisolated enum ArchiveImportTransaction {
         }
         progress.totalUnitCount = Int64(plan.items.count + 1)
         progress.completedUnitCount = 0
+        let quarantine = try ExtractionQuarantine.firstValue(from: plan.items.lazy.map(\.url)) {
+            try ArchiveImportPlan.checkCancellation(progress)
+        }
         try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: willPublish,
-                    expectedIdentity: expectedIdentity, registry: pendingWorkRegistry.get()) { updater in
+                    expectedIdentity: expectedIdentity, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get()) { updater in
             for (index, item) in plan.items.enumerated() {
                 try ArchiveImportPlan.checkCancellation(progress)
                 // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
@@ -389,6 +418,7 @@ nonisolated enum ArchiveImportTransaction {
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: [Int64]? = nil,
+                        additionalQuarantine: Data? = nil,
                         registry: PendingWorkRegistry = .shared,
                         mutate: (any ArchiveEditing) throws -> Void) throws {
         try ArchiveImportPlan.checkCancellation(progress)
@@ -438,6 +468,11 @@ nonisolated enum ArchiveImportTransaction {
                 try ArchiveImportPlan.checkCancellation(progress)
             }
             try preserveAttributes(from: archive, to: work)
+        }
+        if let additionalQuarantine {
+            // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
+            // 公開前の作業コピーだけに付け、取消しや検証失敗で原本の属性を変えない。
+            try ExtractionQuarantine.apply(try ExtractionQuarantine.read(from: work) ?? additionalQuarantine, to: work)
         }
         _ = try ArchiveReader.open(url: work, options: ReaderOptions(password: options.password))
         try willPublish?()

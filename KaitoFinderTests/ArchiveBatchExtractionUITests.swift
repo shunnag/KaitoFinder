@@ -35,6 +35,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
     }
 
     @MainActor func testFileMenuExtractionImmediatelyFollowsNewArchiveInBothLanguages() throws {
+        preserveApplicationMenus()
         let app = Bundle(for: ArchiveDocument.self)
         for (language, title) in [("ja", "アーカイブを展開…"), ("en", "Expand Archives…")] {
             let bundle = try XCTUnwrap(Bundle(url: XCTUnwrap(app.url(forResource: language, withExtension: "lproj"))))

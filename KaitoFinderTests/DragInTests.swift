@@ -49,10 +49,7 @@ nonisolated final class DragInTests: XCTestCase {
 
     func testAppendFilePreservesExistingBytesAndPassesUnzip() async throws {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
-        XCTAssertTrue(session.capabilities.canAppend)
-        XCTAssertFalse(session.capabilities.canDelete)
-        XCTAssertFalse(session.capabilities.canRename)
-        XCTAssertFalse(session.capabilities.canEditAttributes)
+        XCTAssertTrue(session.capabilities.canEdit)
         XCTAssertNil(session.capabilities.readOnlyReason)
         let result = try await session.append(urls: [fixture.file("new.txt")], to: "", progress: Progress())
         XCTAssertEqual(result.addedPaths, ["new.txt"])
@@ -268,7 +265,7 @@ nonisolated final class DragInTests: XCTestCase {
         ]
         for refusal in refusals {
             let capability = ArchiveCapabilities(refusal: refusal)
-            XCTAssertFalse(capability.canAppend)
+            XCTAssertFalse(capability.canEdit)
             XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: true, busy: false))
             XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: false, hasFiles: true, busy: false))
             XCTAssertFalse(ArchiveDropTarget.accepts(capabilities: capability, offersCopy: true, hasFiles: false, busy: false))

@@ -636,7 +636,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         ] {
             let fixture = try Fixture(filename: filename, script: script), session = try ArchiveSession(url: fixture.archive)
             let original = try digest(fixture.archive), opened = Mutex(0)
-            XCTAssertFalse(session.capabilities.canAppend)
+            XCTAssertFalse(session.capabilities.canEdit)
             XCTAssertNotNil(session.capabilities.refusal)
             XCTAssertNotNil(session.capabilities.readOnlyReason)
             let selected = ArchiveEditSelection(try await node("old", in: session))

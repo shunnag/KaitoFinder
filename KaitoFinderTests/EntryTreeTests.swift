@@ -19,19 +19,35 @@ nonisolated final class EntryTreeTests: XCTestCase {
         XCTAssertTrue(try child("inside.txt", in: secret).isHidden)
         for query in ["", "docs"] {
             let filter = EntryTreeFilter(root: root, query: query, showsHiddenFiles: false)
+            XCTAssertEqual(filter.totalCount, 2)
+            XCTAssertEqual(filter.matchingCount, 2)
             XCTAssertEqual(filter.children(of: root), [docs])
             XCTAssertEqual(filter.children(of: docs).map(\.name), ["public.txt"])
             XCTAssertFalse(filter.contains(secret))
             XCTAssertTrue(filter.children(of: secret).isEmpty)
         }
-        XCTAssertTrue(EntryTreeFilter(root: root, query: "inside", showsHiddenFiles: false).children(of: root).isEmpty)
+        let excluded = EntryTreeFilter(root: root, query: "inside", showsHiddenFiles: false)
+        XCTAssertTrue(excluded.children(of: root).isEmpty)
+        XCTAssertEqual(excluded.totalCount, 2)
+        XCTAssertEqual(excluded.matchingCount, 0)
         let shown = EntryTreeFilter(root: root, query: "inside", showsHiddenFiles: true)
+        XCTAssertEqual(shown.totalCount, 8)
+        XCTAssertEqual(shown.matchingCount, 3)
         XCTAssertEqual(shown.children(of: docs), [secret])
         XCTAssertEqual(shown.children(of: secret).map(\.name), ["inside.txt"])
         XCTAssertEqual(EntryTreeFilter(root: root, query: "", showsHiddenFiles: true).children(of: root), root.children)
         // 表示されたフォルダは同じ実体。ドラッグ・展開・削除はいずれも隠し子孫を保持する。
         XCTAssertEqual(ExtractionSelection(nodes: [docs]).entries.map(\.index), [0, 1, 2])
         XCTAssertEqual(ArchiveEditSelection(docs).entries.map(\.index), [0, 1, 2])
+    }
+
+    @MainActor func testEmptyTreeHasZeroStatusCountsWithAndWithoutAQuery() {
+        let root = EntryNode.tree(from: [])
+        for query in ["", "missing"] {
+            let filter = EntryTreeFilter(root: root, query: query)
+            XCTAssertEqual(filter.totalCount, 0)
+            XCTAssertEqual(filter.matchingCount, 0)
+        }
     }
 
     @MainActor

@@ -399,6 +399,37 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         XCTAssertEqual(registry.count, 0)
     }
 
+    @MainActor func testRegistryRetainsOverlappingWritesUntilEveryCompletion() async throws {
+        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let registry = FilePromiseRegistry(), gate = ScenarioGate()
+        defer { gate.release() }
+        let promise = try registry.register(payload: fixture.payload("folder/a.txt", session: session, index: 0),
+            session: session, didWrite: { _ in gate.pauseOnce() })
+        let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+        let completions = Mutex(0), errors = Mutex<[String]>([])
+        for name in ["first", "second"] {
+            delegate.filePromiseProvider(promise.provider, writePromiseTo: fixture.output.appendingPathComponent(name)) { @Sendable error in
+                if let error { errors.withLock { $0.append(String(describing: error)) } }
+                completions.withLock { $0 += 1 }
+            }
+        }
+        try await scenarioWait { gate.isEntered && completions.withLock { $0 } == 1 }
+        // completion は registry の main actor callback より先。callback が進む機会も与える。
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(delegate.isWriting)
+        XCTAssertTrue(registry.hasActiveWrites)
+        XCTAssertEqual(registry.count, 1)
+        registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1))
+        XCTAssertEqual(registry.count, 1)
+        gate.release()
+        try await scenarioWait { completions.withLock { $0 } == 2 && registry.count == 0 }
+        XCTAssertFalse(delegate.isWriting)
+        XCTAssertTrue(errors.withLock { $0.isEmpty })
+        for name in ["first", "second"] {
+            XCTAssertEqual(try Data(contentsOf: fixture.output.appendingPathComponent(name)), Data("hello".utf8))
+        }
+    }
+
     @MainActor func testFailedMutationReloadInvalidatesOldPromises() async throws {
         let fixture = try Fixture()
         let session = try ArchiveSession(url: fixture.archive)

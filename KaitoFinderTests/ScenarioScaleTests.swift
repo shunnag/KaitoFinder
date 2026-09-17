@@ -1,8 +1,37 @@
 import Foundation
+import KaitoKit
 import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ScenarioScaleTests: XCTestCase {
+    @MainActor func testRepeatedSelectionsInAHundredThousandEntryTreeStayResponsive() throws {
+        preserveArchiveWindowFrame()
+        let entries = (0..<100_000).map { index in
+            let path = "folder\(index % 100)/file\(index).txt"
+            return ArchiveEntry(index: index, rawName: RawName(bytes: Array(path.utf8)), name: path,
+                pathComponents: path.split(separator: "/").map(String.init), kind: .file,
+                uncompressedSize: 1, compressedSize: 1, modificationDate: nil, posixPermissions: nil,
+                isEncrypted: false, solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:])
+        }
+        let controller = ArchiveWindowController()
+        defer { controller.close() }
+        controller.display(EntryNode.tree(from: entries))
+        let view = controller.outlineView
+        XCTAssertEqual(view.numberOfRows, 100)
+        let start = ContinuousClock.now
+        for row in 0..<50 {
+            view.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+        let elapsed = start.duration(to: .now)
+        print("Selection benchmark: 100,000 entries, 50 changes, \(elapsed)")
+        XCTAssertEqual(controller.selectedNodes.count, 1)
+        XCTAssertEqual(controller.statusBar.stringValue, ArchiveStatusBarText.text(
+            totalCount: 100_100, totalSize: 100_000, selectedCount: 1, selectedSize: 1_000))
+        if ProcessInfo.processInfo.environment["CI"] == nil {
+            XCTAssertLessThan(elapsed, .seconds(1))
+        }
+    }
+
     @MainActor func testTenThousandEntriesOpenFilterSelectAllAndExtractExactBytes() async throws {
         let fixture = try ScenarioFixture(script: #"""
         with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z:

@@ -168,13 +168,16 @@ actor ArchiveSession {
     }
 
     @discardableResult private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader) throws -> Set<Int> {
+        guard !entries.isEmpty else { return [] }
+        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
         var verified: Set<Int> = []
         var wrongPassword = false
         for entry in entries {
             // ZipCrypto の短い照合値だけでは誤った鍵を除外できない。CRC / HMAC まで読む。
             // 同じ鍵・世代で成功済みの entry は呼出側が除き、再度の検証を省く。
             do {
-                try ExtractionService.consume(reader.stream(entry), checkCancellation: { try Task.checkCancellation() }) { _ in }
+                try ExtractionService.consume(reader.stream(entry), buffer: &buffer,
+                                              checkCancellation: { try Task.checkCancellation() }) { _ in }
                 verified.insert(entry.index)
             } catch KaitoError.wrongPassword {
                 wrongPassword = true
@@ -205,7 +208,7 @@ actor ArchiveSession {
                 didProcess: (@Sendable (Int) throws -> Void)? = nil,
                 willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
-        guard capabilities.canAppend else {
+        guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try verifyBeforeEditing()
@@ -232,7 +235,7 @@ actor ArchiveSession {
                       willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                       willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
-        guard capabilities.canAppend else {
+        guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
@@ -260,8 +263,8 @@ actor ArchiveSession {
               willOpenUpdater: (@Sendable () throws -> Void)? = nil,
               willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
         let reader = try requireCurrentReader()
-        // canAppend は編集の共通門番。拒否理由も追加と揃える。
-        guard capabilities.canAppend else {
+        // canEdit は編集の共通門番。拒否理由も追加と揃える。
+        guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
@@ -306,7 +309,7 @@ actor ArchiveSession {
     func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
                         progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchivePasswordEditResult {
         _ = try requireCurrentReader()
-        guard let format = passwordFormat, capabilities.canAppend,
+        guard let format = passwordFormat, capabilities.canEdit,
               action == .set ? !hasEncryptedEntries : hasEncryptedEntries && hasKnownPassword else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }

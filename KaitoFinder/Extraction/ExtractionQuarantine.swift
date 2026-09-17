@@ -4,6 +4,14 @@ import Foundation
 nonisolated enum ExtractionQuarantine {
     static let name = "com.apple.quarantine"
 
+    static func firstValue(from sources: some Sequence<URL>, checkCancellation: () throws -> Void) throws -> Data? {
+        for source in sources {
+            try checkCancellation()
+            if let value = try read(from: source) { return value }
+        }
+        return nil
+    }
+
     static func read(from url: URL) throws -> Data? {
         // サイズ取得と読み出しの間で属性が伸びた場合だけ、再取得する。
         for _ in 0..<3 {

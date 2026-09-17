@@ -257,8 +257,7 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
         let other = ArchivePasswordVault.Key.file(fixture.root.url.appendingPathComponent("other.zip"))
         let savedOther = await vault.save("other password", for: other)
         XCTAssertTrue(saved && savedOther)
-        let oldWindowMenu = NSApp.windowsMenu
-        defer { NSApp.windowsMenu = oldWindowMenu }
+        preserveApplicationMenus()
         let menu = delegate.makeMenu()
         let item = try XCTUnwrap(menu.items.flatMap { $0.submenu?.items ?? [] }
             .first { $0.action == #selector(AppDelegate.forgetArchivePasswords(_:)) })

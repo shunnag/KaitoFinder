@@ -174,9 +174,11 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         guard NSApp.isActive else {
             throw XCTSkip("テスト host が前面になれない環境では QuickLookUI の非同期読み込みを起こせない")
         }
-        controller.outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        let mainMenu = try XCTUnwrap(NSApp.mainMenu)
+        try performMenuItem(menuItem(#selector(NSText.selectAll(_:)), in: mainMenu))
         XCTAssertEqual(controller.outlineView.selectedRow, 0)
-        controller.togglePreviewPanel(nil)
+        let previewCommand = try menuItem(#selector(ArchiveWindowController.togglePreviewPanel(_:)), in: mainMenu)
+        try performMenuItem(previewCommand)
 
         // 前面時の QuickLookUI の非同期読み込みと、main actor での URL 公開を両方進める。
         let previewDeadline = Date().addingTimeInterval(1.5)
@@ -188,7 +190,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         let panel = try XCTUnwrap(QLPreviewPanel.shared())
         XCTAssertTrue(panel.currentController as AnyObject? === controller)
         XCTAssertNotNil(controller.previewPanel(panel, previewItemAt: 0)?.previewItemURL)
-        controller.togglePreviewPanel(nil)
+        try performMenuItem(previewCommand)
         let hideDeadline = Date().addingTimeInterval(2)
         while panel.isVisible, Date() < hideDeadline {
             runMainRunLoop(until: min(hideDeadline, Date().addingTimeInterval(0.01)))

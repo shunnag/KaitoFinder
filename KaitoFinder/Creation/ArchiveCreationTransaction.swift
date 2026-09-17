@@ -24,6 +24,17 @@ nonisolated enum ArchiveCreationTransaction {
         guard imported.failures.isEmpty else {
             throw ExtractionFailure.refused(imported.failures.map { "\($0.name): \($0.reason)" }.joined(separator: "\n"))
         }
+        // 選択フォルダの子も作成元。既存の保存先があるときだけ同一性を調べ、
+        // 新規保存では全 source の実パスをもう一度解決する固定費を避ける。
+        var destinationInfo = stat()
+        if lstat(plan.destination.path, &destinationInfo) == 0 {
+            for item in imported.items {
+                try ArchiveImportPlan.checkCancellation(progress)
+                if isSameFile(item.url, plan.destination) {
+                    throw ExtractionFailure.refused(String(localized: "作成元の項目とは別の保存先を選んでください。"))
+                }
+            }
+        }
         try ArchiveImportPlan.checkCancellation(progress)
         guard plan.destination.isFileURL, !plan.destination.path.contains("\0") else {
             throw WriterError.invalidPath(plan.destination.absoluteString)
@@ -79,15 +90,11 @@ nonisolated enum ArchiveCreationTransaction {
             // RewriterError は二種類の認証失敗をまとめる。入力した鍵の有無から UI の型へ戻す。
             throw plan.existing?.password == nil ? KaitoError.passwordRequired : KaitoError.wrongPassword
         }
-        var quarantine: Data?
         let quarantineSources = plan.sources + (plan.existing.map { [$0.url] } ?? [])
-            + imported.items.filter { !$0.isDirectory }.map(\.url)
-        for source in quarantineSources {
+            + imported.items.map(\.url)
+        // フォルダ自体にだけ印の付いた app や空フォルダも対象にする。
+        let quarantine = try ExtractionQuarantine.firstValue(from: quarantineSources) {
             try ArchiveImportPlan.checkCancellation(progress)
-            if let value = try ExtractionQuarantine.read(from: source) {
-                quarantine = value
-                break
-            }
         }
         try ExtractionQuarantine.apply(quarantine, to: output)
         _ = try ArchiveReader.open(url: output, options: ReaderOptions(password: plan.options.password))

@@ -9,8 +9,8 @@ import UniformTypeIdentifiers
     nonisolated let progress: Progress
     nonisolated let didWrite: (@Sendable (Int) -> Void)?
     nonisolated private let finished: @Sendable () -> Void
-    nonisolated private let state = Mutex(false)
-    nonisolated var isWriting: Bool { state.withLock { $0 } }
+    nonisolated private let activeWrites = Mutex(0)
+    nonisolated var isWriting: Bool { activeWrites.withLock { $0 > 0 } }
     nonisolated private let queue: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "com.shunnag.KaitoFinder.FilePromise"
@@ -62,7 +62,8 @@ import UniformTypeIdentifiers
 
     nonisolated func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider,
         writePromiseTo url: URL, completionHandler: @escaping (Error?) -> Void) {
-        state.withLock { $0 = true }
+        // OperationQueue は Task の完了を待たない。同じ provider の重なった要求も数える。
+        activeWrites.withLock { $0 += 1 }
         // AppKit が渡す completion は非 Sendable。専用の一回限りの箱へ移す。
         let completion = PromiseCompletion(completionHandler)
         let payload = payload, session = session, progress = progress, didWrite = didWrite, finished = finished
@@ -74,7 +75,7 @@ import UniformTypeIdentifiers
                 try ArchiveCopyOut.check(result)
             } catch { failure = error }
             completion.call(failure)
-            self.state.withLock { $0 = false }
+            self.activeWrites.withLock { $0 -= 1 }
             finished()
         }
     }
@@ -132,7 +133,7 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
         sweep(now: now)
         let id = UUID()
         let delegate = ArchiveFilePromise(payload: payload, session: session, didWrite: didWrite) { [weak self] in
-            Task { @MainActor in self?.remove(id) }
+            Task { @MainActor in self?.finishedWriting(id) }
         }
         let provider = try delegate.makeProvider()
         records[id] = Record(provider: provider, delegate: delegate, owner: owner, deadline: now.addingTimeInterval(gracePeriod))
@@ -199,5 +200,11 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
         guard let record = records.removeValue(forKey: id), let sessionID = record.sessionID else { return }
         sessions[sessionID]?.remove(id)
         if sessions[sessionID]?.isEmpty == true { sessions.removeValue(forKey: sessionID) }
+    }
+
+    private func finishedWriting(_ id: UUID) {
+        // 完了通知を待つ間に次の要求が始まった場合も、実行中の delegate を保持する。
+        guard let record = records[id], !record.delegate.isWriting else { return }
+        remove(id)
     }
 }

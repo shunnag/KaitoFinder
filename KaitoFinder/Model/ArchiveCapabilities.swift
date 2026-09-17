@@ -29,10 +29,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         self.refusal = refusal
     }
 
-    var canAppend: Bool { refusal == nil }
-    var canDelete: Bool { false }
-    var canRename: Bool { false }
-    var canEditAttributes: Bool { false }
+    var canEdit: Bool { refusal == nil }
     var rewriteNotice: String? {
         guard case .rewrite = mode else { return nil }
         return String(localized: "編集するとアーカイブ全体を再圧縮します")

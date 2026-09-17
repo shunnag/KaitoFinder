@@ -78,7 +78,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertEqual(controller.unlockButton.title, String(localized: "ロックを解除…", bundle: bundle))
             XCTAssertEqual(controller.unlockButton.keyEquivalent, "\r")
             XCTAssertTrue(window.defaultButtonCell === controller.unlockButton.cell)
-            for item in try XCTUnwrap(window.toolbar).items where item.itemIdentifier != .flexibleSpace {
+            for item in try XCTUnwrap(window.toolbar).items where item.itemIdentifier != .flexibleSpace && item.itemIdentifier != .space {
                 XCTAssertFalse(controller.validateToolbarItem(item), item.label)
                 XCTAssertFalse(item.isEnabled, item.label)
             }
@@ -102,47 +102,31 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertEqual(controller.tabController.tabViewItems.count, tabs.count)
             let window = try XCTUnwrap(controller.window)
             XCTAssertFalse(window.styleMask.contains(.resizable))
-            let contentSize = try XCTUnwrap(window.contentView).bounds.size
-            XCTAssertGreaterThanOrEqual(contentSize.width, 560)
+            if let visible = window.screen?.visibleFrame {
+                window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+            }
+            let initialSize = try XCTUnwrap(window.contentView).bounds.size
+            XCTAssertGreaterThanOrEqual(initialSize.width, 560)
+            var heights: [CGFloat] = []
             for (index, tab) in tabs.enumerated() {
+                let top = window.frame.maxY
                 controller.tabController.selectedTabViewItemIndex = index
                 controller.window?.layoutIfNeeded()
-                try snapshot(controller.tabController.view, name: "\(language)-settings-\(tab)")
-                let pane = try XCTUnwrap(controller.tabController.tabViewItems[index].viewController?.view)
-                let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
-                XCTAssertEqual(grid.numberOfColumns, 2)
-                XCTAssertEqual(grid.rowSpacing, 12)
-                XCTAssertEqual(grid.numberOfRows, [3, 11, 4][index])
-                XCTAssertLessThanOrEqual(ceil(grid.fittingSize.width) + 48, contentSize.width + 0.5, language)
-                XCTAssertLessThanOrEqual(ceil(grid.fittingSize.height) + 48, contentSize.height + 0.5, language)
-                XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, contentSize, language)
-                if index == 0 {
-                    let content = try XCTUnwrap(window.contentView)
-                    for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-                        content.appearance = try XCTUnwrap(NSAppearance(named: appearance))
-                        try snapshot(content, name: "\(language)-settings-general-\(name)")
-                    }
-                    content.appearance = nil
-                }
-                for row in 0..<grid.numberOfRows {
-                    if let label = grid.cell(atColumnIndex: 0, rowIndex: row).contentView as? NSTextField,
-                       label.stringValue.hasSuffix(":") || label.stringValue.hasSuffix("：") {
-                        XCTAssertEqual(label.alignment, .right)
-                        let singleLine = NSTextField(labelWithString: label.stringValue)
-                        if singleLine.intrinsicContentSize.width > 260 {
-                            XCTAssertEqual(label.maximumNumberOfLines, 2, language)
-                            XCTAssertEqual(label.preferredMaxLayoutWidth, 260, language)
-                            XCTAssertEqual(label.lineBreakMode, .byWordWrapping, language)
-                            let control = try XCTUnwrap(grid.cell(atColumnIndex: 1, rowIndex: row).contentView)
-                            XCTAssertEqual(label.alignmentRect(forFrame: label.frame).midY,
-                                           control.alignmentRect(forFrame: control.frame).midY, accuracy: 0.5, language)
-                        }
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[index].viewController)
+                let content = try XCTUnwrap(window.contentView)
+                XCTAssertEqual(content.bounds.width, initialSize.width, accuracy: 0.5, language)
+                XCTAssertEqual(content.bounds.height, pane.preferredContentSize.height, accuracy: 0.5, language)
+                XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5, language)
+                heights.append(content.bounds.height)
+                for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                    window.appearance = try XCTUnwrap(NSAppearance(named: appearance))
+                    try snapshot(content, name: "\(language)-settings-\(tab)-\(name)")
+                    if ["ja", "en"].contains(language), let frame = content.superview {
+                        try UISnapshot.render(frame, name: "\(language)-settings-\(tab)-\(name)-window")
                     }
                 }
+                window.appearance = nil
                 if index == 1 {
-                    for row in [0, 1, 2, 6, 8] {
-                        XCTAssertTrue(grid.cell(atColumnIndex: 0, rowIndex: row) === grid.cell(atColumnIndex: 1, rowIndex: row))
-                    }
                     for (slider, label) in [(controller.zipLevelSlider, controller.zipLevelLabel),
                                             (controller.tarGzipLevelSlider, controller.tarGzipLevelLabel)] {
                         let original = label.frame
@@ -158,8 +142,10 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                     try snapshot(controller.tabController.view, name: "\(language)-settings-compression-level-9")
                 }
-                if index == 2 {
-                    for popup in [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup] {
+                if index == 0 || index == 2 {
+                    let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup]
+                        : [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup]
+                    for popup in popups {
                         for item in 0..<popup.numberOfItems {
                             popup.selectItem(at: item)
                             XCTAssertTrue(popup.sendAction(popup.action, to: popup.target))
@@ -169,6 +155,11 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                 }
             }
+            XCTAssertGreaterThan(heights[1], heights[0], language)
+            XCTAssertGreaterThan(heights[1], heights[2], language)
+            controller.tabController.selectedTabViewItemIndex = 0
+            window.layoutIfNeeded()
+            XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, initialSize, language)
         }
     }
 
@@ -268,7 +259,10 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             for (index, format) in ArchiveSavePanelController.formats.enumerated() {
                 save.formatPopup.selectItem(at: index)
                 XCTAssertTrue(save.formatPopup.sendAction(save.formatPopup.action, to: save.formatPopup.target))
-                try snapshot(accessory, name: "\(language)-save-panel-\(ArchiveCreationPlan.filenameExtension(for: format))")
+                for (style, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                    accessory.appearance = try XCTUnwrap(NSAppearance(named: appearance))
+                    try snapshot(accessory, name: "\(language)-save-panel-\(ArchiveCreationPlan.filenameExtension(for: format))-\(style)")
+                }
                 XCTAssertGreaterThanOrEqual(accessory.bounds.width, 360, language)
             }
         }

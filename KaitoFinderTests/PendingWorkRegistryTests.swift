@@ -6,8 +6,65 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class PendingWorkRegistryTests: XCTestCase {
+    func testLaunchSweepPreservesWorkRegisteredByThisRunningProcess() async throws {
+        let fixture = try ArchiveTestDirectory(), file = fixture.url.appendingPathComponent("pending.json")
+        let directory = fixture.url.appendingPathComponent(".KaitoFinder-new-" + UUID().uuidString, isDirectory: true)
+        let registry = PendingWorkRegistry(fileURL: file)
+        // 起動時に utility Task が実行される前に、新しい作成処理が登録を済ませた順序。
+        try registry.register(directory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        let payload = directory.appendingPathComponent("archive.zip"), bytes = Data("work in progress".utf8)
+        try bytes.write(to: payload)
+        try registry.recordIdentity(directory)
+        await PendingWorkRegistry(fileURL: file).startLaunchSweep().value
+        XCTAssertTrue(FileManager.default.fileExists(atPath: payload.path))
+        XCTAssertEqual(try? Data(contentsOf: payload), bytes)
+        XCTAssertEqual(try Self.entries(in: file).compactMap { $0["path"] as? String }, [directory.path])
+        registry.unregister(directory)
+        XCTAssertTrue(try Self.entries(in: file).isEmpty)
+    }
+
+    func testLaunchSweepRetainsRegistrationBeforeDirectoryCreation() async throws {
+        let fixture = try ArchiveTestDirectory(), file = fixture.url.appendingPathComponent("pending.json")
+        let directory = fixture.url.appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString, isDirectory: true)
+        let registry = PendingWorkRegistry(fileURL: file)
+        try registry.register(directory)
+        await registry.startLaunchSweep().value
+        XCTAssertEqual(try Self.entries(in: file).compactMap { $0["path"] as? String }, [directory.path])
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        try registry.recordIdentity(directory)
+        XCTAssertNotNil(try Self.entries(in: file).first?["inode"])
+        registry.unregister(directory)
+    }
+
     static func entries(in file: URL) throws -> [[String: Any]] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [[String: Any]])
+    }
+
+    private static func simulateLegacyProcessExit(in file: URL) throws {
+        var entries = try entries(in: file)
+        for index in entries.indices { entries[index].removeValue(forKey: "processID") }
+        try JSONSerialization.data(withJSONObject: entries).write(to: file, options: .atomic)
+    }
+
+    func testLaunchSweepRecoversWorkOwnedByAnExitedProcess() async throws {
+        let fixture = try ArchiveTestDirectory(), file = fixture.url.appendingPathComponent("pending.json")
+        let directory = fixture.url.appendingPathComponent(".KaitoFinder-new-" + UUID().uuidString, isDirectory: true)
+        let registry = PendingWorkRegistry(fileURL: file)
+        try registry.register(directory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        try registry.recordIdentity(directory)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        var entries = try Self.entries(in: file)
+        entries[0]["processID"] = process.processIdentifier
+        try JSONSerialization.data(withJSONObject: entries).write(to: file, options: .atomic)
+        await registry.startLaunchSweep().value
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        XCTAssertTrue(try Self.entries(in: file).isEmpty)
     }
 
     func testCrashRecoveryRemovesRecordedWorkWithoutFollowingDescendantSymlinks() throws {
@@ -37,6 +94,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
             work.append(directory)
         }
         // A fresh instance sees the on-disk ledger left by a process that never ran defer.
+        try Self.simulateLegacyProcessExit(in: file)
         let removed = try PendingWorkRegistry(fileURL: file).sweep()
         XCTAssertEqual(Set(removed.map(\.path)), Set(work.map(\.path)))
         for directory in work { XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path)) }
@@ -93,6 +151,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         let device = try XCTUnwrap(entries[deviceIndex]["device"] as? NSNumber)
         entries[deviceIndex]["device"] = device.int64Value + 1
         try JSONSerialization.data(withJSONObject: entries).write(to: file, options: .atomic)
+        try Self.simulateLegacyProcessExit(in: file)
         XCTAssertTrue(try PendingWorkRegistry(fileURL: file).sweep().isEmpty)
         for directory in [ordinary, replaced, wrongDevice, untracked, moved] {
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("keep.txt")), bytes)
@@ -108,6 +167,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         let registry = PendingWorkRegistry(fileURL: file)
         try registry.register(directory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        try Self.simulateLegacyProcessExit(in: file)
         XCTAssertEqual(try registry.sweep().map(\.path), [directory.path])
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
         XCTAssertTrue(try Self.entries(in: file).isEmpty)
@@ -136,6 +196,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         try registry.register(directory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
         try registry.recordIdentity(directory)
+        try Self.simulateLegacyProcessExit(in: file)
         let delegate = AppDelegate()
         delegate.pendingWorkRegistry = registry
         delegate.sweepsPendingWorkAtLaunch = true

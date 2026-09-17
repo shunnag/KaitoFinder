@@ -19,26 +19,28 @@ nonisolated final class PendingWorkRegistry: Sendable {
         let path: String
         var device: Int64?
         var inode: UInt64?
+        var processID: Int32?
     }
 
     // 同じ台帳を開く別インスタンスも、読み込みから atomic 保存まで直列化する。
+    // Mutex はプロセス内、flock は別のアプリプロセスとの更新競合を防ぐ。
     private static let lock = Mutex(())
     private let fileURL: URL
 
     init(fileURL: URL) { self.fileURL = fileURL }
 
     func register(_ directory: URL) throws {
-        try Self.lock.withLock { _ in
+        try withExclusiveAccess {
             var entries = try read()
             if !entries.contains(where: { $0.path == directory.path }) {
-                entries.append(Entry(path: directory.path))
+                entries.append(Entry(path: directory.path, processID: getpid()))
             }
             try save(entries)
         }
     }
 
     func recordIdentity(_ directory: URL) throws {
-        try Self.lock.withLock { _ in
+        try withExclusiveAccess {
             var info = stat()
             guard lstat(directory.path, &info) == 0 else {
                 throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
@@ -56,7 +58,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
     }
 
     func unregister(_ directory: URL) {
-        try? Self.lock.withLock { _ in
+        try? withExclusiveAccess {
             var entries = try read()
             entries.removeAll { $0.path == directory.path }
             try save(entries)
@@ -64,10 +66,18 @@ nonisolated final class PendingWorkRegistry: Sendable {
     }
 
     func sweep() throws -> [URL] {
-        try Self.lock.withLock { _ in
+        try withExclusiveAccess {
             let entries = try read()
             var removed: [URL] = []
+            var retained: [Entry] = []
             for entry in entries {
+                // 起動時の utility Task より先に新しい作業が登録されることがある。
+                // 他の起動中インスタンスも含め、所有プロセスが生きている領域は回収しない。
+                // mkdir 前の登録も残し、以後の recordIdentity が台帳から脱落しないようにする。
+                if let pid = entry.processID, pid > 0, kill(pid, 0) == 0 || errno == EPERM {
+                    retained.append(entry)
+                    continue
+                }
                 let directory = URL(fileURLWithPath: entry.path)
                 let name = directory.lastPathComponent
                 guard name.hasPrefix(".KaitoFinder-add-") || name.hasPrefix(".KaitoFinder-new-") else { continue }
@@ -79,7 +89,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
                 try FileManager.default.removeItem(at: directory)
                 removed.append(directory)
             }
-            try save([])
+            try save(retained)
             return removed
         }
     }
@@ -99,8 +109,23 @@ nonisolated final class PendingWorkRegistry: Sendable {
         return (try? JSONDecoder().decode([Entry].self, from: data)) ?? []
     }
 
+    private func withExclusiveAccess<T>(_ body: () throws -> T) throws -> T {
+        try Self.lock.withLock { _ in
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            // atomic 保存で台帳の inode は変わるため、ロックは別の固定ファイルに持つ。
+            let descriptor = open(fileURL.appendingPathExtension("lock").path,
+                                  O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
+            guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            defer { close(descriptor) }
+            while flock(descriptor, LOCK_EX) != 0 {
+                if errno != EINTR { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            }
+            defer { _ = flock(descriptor, LOCK_UN) }
+            return try body()
+        }
+    }
+
     private func save(_ entries: [Entry]) throws {
-        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(entries).write(to: fileURL, options: .atomic)
     }
 }

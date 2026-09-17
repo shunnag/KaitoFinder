@@ -40,6 +40,7 @@ nonisolated final class ArchiveHiddenFilesTests: XCTestCase {
     }
 
     @MainActor func testMenuAndSettingsShareHiddenPreferenceAndShortcut() throws {
+        preserveApplicationMenus()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let app = AppDelegate(preferencesStore: store), menu = app.makeMenu()
         let settings = PreferencesWindowController(store: store)
@@ -52,7 +53,7 @@ nonisolated final class ArchiveHiddenFilesTests: XCTestCase {
         XCTAssertTrue(item.target === app)
         XCTAssertTrue(app.validateMenuItem(item))
         XCTAssertEqual(item.state, .off)
-        app.toggleHiddenFiles(item)
+        try performMenuItem(item)
         XCTAssertEqual(settings.showsHiddenFilesCheckbox.state, .on)
         XCTAssertTrue(app.validateMenuItem(item))
         XCTAssertEqual(item.state, .on)

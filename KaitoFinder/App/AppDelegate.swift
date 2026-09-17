@@ -76,8 +76,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @objc func toggleHiddenFiles(_ sender: Any?) { preferencesStore.preferences.showsHiddenFiles.toggle() }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        if menuItem.action == #selector(toggleHiddenFiles(_:)) {
+        switch menuItem.action {
+        case #selector(newArchive(_:)):
+            return archiveCreationTask == nil && creationOpenPanel == nil
+        case #selector(extractArchivesFromMenu(_:)):
+            return batchExtractionTask == nil && batchExtractionOpenPanel == nil
+        case #selector(forgetArchivePasswords(_:)):
+            return forgetPasswordsTask == nil
+        case #selector(toggleHiddenFiles(_:)):
             menuItem.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
+        default: break
         }
         return true
     }
@@ -300,6 +308,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         return argumentsHadFiles
     }
 
+    private func makeRecentDocumentsMenu(bundle: Bundle) -> NSMenu {
+        // タイトルと「メニューを消去」だけでは履歴メニューとして認識されない。
+        // Xcode 標準の recentDocuments 接続を nib から読み込み、履歴の更新・再オープンを
+        // NSDocumentController に任せる。リソースの所在と言語選択の bundle は分ける。
+        var objects: NSArray?
+        guard let nib = NSNib(nibNamed: "RecentDocumentsMenu", bundle: Bundle(for: AppDelegate.self)),
+              nib.instantiate(withOwner: nil, topLevelObjects: &objects),
+              let menu = objects?.compactMap({ $0 as? NSMenu }).first,
+              let clear = menu.items.first(where: { $0.action == #selector(NSDocumentController.clearRecentDocuments(_:)) }) else {
+            preconditionFailure("RecentDocumentsMenu.nib is missing or invalid")
+        }
+        menu.title = String(localized: "最近使った項目を開く", bundle: bundle)
+        clear.title = String(localized: "メニューを消去", bundle: bundle)
+        return menu
+    }
+
     func makeMenu(bundle: Bundle = .main) -> NSMenu {
         let menu = NSMenu()
         let appMenu = NSMenu(title: String(localized: "KaitoFinder", bundle: bundle))
@@ -336,10 +360,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                                    action: #selector(NSDocumentController.openDocument(_:)), keyEquivalent: "O")
         open.target = documentController
         let recent = fileMenu.addItem(withTitle: String(localized: "最近使った項目を開く", bundle: bundle), action: nil, keyEquivalent: "")
-        let recentMenu = NSMenu(title: recent.title)
-        recentMenu.addItem(withTitle: String(localized: "メニューを消去", bundle: bundle),
-                           action: #selector(NSDocumentController.clearRecentDocuments(_:)), keyEquivalent: "")
-        recent.submenu = recentMenu
+        recent.submenu = makeRecentDocumentsMenu(bundle: bundle)
         fileMenu.addItem(withTitle: String(localized: "開く", bundle: bundle),
                          action: #selector(ArchiveWindowController.openEntry(_:)), keyEquivalent: "o")
         fileMenu.addItem(withTitle: String(localized: "クイックルック", bundle: bundle),
@@ -405,6 +426,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let help = helpMenu.addItem(withTitle: String(localized: "KaitoFinderヘルプ", bundle: bundle),
                                     action: #selector(showHelp(_:)), keyEquivalent: "")
         help.target = self
+        ArchiveMenuSymbols.apply(to: fileMenu)
+        ArchiveMenuSymbols.apply(to: editMenu)
         for submenu in [appMenu, fileMenu, editMenu, viewMenu, windowMenu, helpMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu

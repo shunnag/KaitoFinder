@@ -37,6 +37,9 @@ final class ArchivePasswordPrompt {
         // NSAlertはアクセサリの初期フレームで領域を確保する。
         ArchivePasswordLayout.size(accessory)
         alert.accessoryView = accessory
+        alert.window.autorecalculatesKeyViewLoop = true
+        alert.window.initialFirstResponder = field
+        field.nextKeyView = rememberCheckbox
     }
 }
 

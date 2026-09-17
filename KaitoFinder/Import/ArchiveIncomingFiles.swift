@@ -70,7 +70,9 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
         // acceptDrop の同期呼出し中に要求を開始する。Task に移すと AppKit が拒否する。
         let directory = self.directory
         for receiver in receivers {
-            receiver.receivePromisedFiles(atDestination: directory, options: [:], operationQueue: queue) { [self] url, error in
+            // AppKit は指定した背景 queue で callback を呼ぶ。@Sendable を明示しないと
+            // init の MainActor を継承し、書庫間ドロップで実行時の隔離検査が trap する。
+            receiver.receivePromisedFiles(atDestination: directory, options: [:], operationQueue: queue) { @Sendable [self] url, error in
                 state.withLock {
                     if let error { $0.failures.append(ArchiveErrorText.describe(error)) }
                     else if ExtractionPath.isInside(url, root: directory) { $0.urls.append(url) }

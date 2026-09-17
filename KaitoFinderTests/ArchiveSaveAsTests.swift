@@ -96,7 +96,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         XCTAssertEqual(session.sourceURL, destination)
         XCTAssertEqual(session.format, format == .zip ? KaitoKit.ArchiveFormat.zip : .sevenZip)
         XCTAssertEqual(session.capabilities.mode, format == .zip ? .inPlace : .rewrite(.sevenZip))
-        XCTAssertTrue(session.capabilities.canAppend)
+        XCTAssertTrue(session.capabilities.canEdit)
         let oldSnapshot = await oldSession.snapshot()
         XCTAssertTrue(oldSnapshot.entries.isEmpty)
         let password = await session.password
@@ -235,7 +235,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let password = await document.session?.password
         XCTAssertNil(password)
         XCTAssertEqual(try Data(contentsOf: source), original)
-        XCTAssertTrue(try XCTUnwrap(document.session).capabilities.canAppend)
+        XCTAssertTrue(try XCTUnwrap(document.session).capabilities.canEdit)
     }
 
     @MainActor func testEncryptedSaveAsDefaultsToProtectedCopyAndReopensWithOutputPassword() async throws {
@@ -353,6 +353,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
     }
 
     @MainActor func testSaveAsMenuPlacementShortcutAndValidation() async throws {
+        preserveApplicationMenus()
         let (_, document, controller, _) = try await interface(readOnly: true)
         let menu = AppDelegate().makeMenu()
         let file = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })
@@ -362,7 +363,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .shift])
         XCTAssertNil(item.target)
         XCTAssertEqual(file.items[file.index(of: item) - 1].action, #selector(NSWindow.performClose(_:)))
-        XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canAppend)
+        XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
         XCTAssertTrue(controller.validateMenuItem(item))
         (document.undoManager as? ArchiveUndoManager)?.isSuspended = true
         XCTAssertFalse(controller.validateMenuItem(item))
@@ -378,7 +379,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
     @MainActor func testReadOnlyTarBzip2CanSaveAsEditableZIP() async throws {
         let (directory, document, controller, store) = try await interface(readOnly: true)
         let source = try XCTUnwrap(document.fileURL), before = try Data(contentsOf: source)
-        XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canAppend)
+        XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
         let destination = directory.url.appendingPathComponent("editable.zip")
         let creator = ArchiveCreationController(store: store)
         creator.destinationHandler = { _, _ in destination }

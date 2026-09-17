@@ -524,7 +524,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let fixture = try Fixture(tar: true), (document, controller) = try await interface(fixture)
         let before = try digest(fixture)
         try select(["a.txt"], in: controller)
-        XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canAppend)
+        XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
         for action in [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))] {
             let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
             XCTAssertFalse(controller.validateMenuItem(item))
@@ -619,7 +619,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertFalse(try XCTUnwrap(item.toolTip).isEmpty)
         }
         let toolbar = try XCTUnwrap(controller.window?.toolbar)
-        for item in toolbar.items where item.itemIdentifier != .flexibleSpace {
+        for item in toolbar.items where item.itemIdentifier != .flexibleSpace && item.itemIdentifier != .space {
             XCTAssertEqual(controller.validateToolbarItem(item), item.itemIdentifier.rawValue == "search", item.label)
         }
         controller.deleteEntries(nil)
@@ -818,6 +818,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testNewFolderMenusUseShiftCommandNAndExposeReadOnlyReason() async throws {
+        preserveApplicationMenus()
         let (_, controller) = try await interface(Fixture())
         let menu = AppDelegate().makeMenu()
         let fileMenu = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })

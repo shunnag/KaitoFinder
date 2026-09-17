@@ -551,6 +551,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
     }
 
     @MainActor func testJapaneseMenuCorrectionsAndNamedProgressTitle() throws {
+        preserveApplicationMenus()
         let bundle = try LocalizationAcceptance.bundle("ja")
         let menu = AppDelegate().makeMenu(bundle: bundle)
         let appMenu = try XCTUnwrap(menu.items.first?.submenu)

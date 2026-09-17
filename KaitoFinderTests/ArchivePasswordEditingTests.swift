@@ -254,6 +254,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
     }
 
     @MainActor func testMenuPlacementAndValidationForPlainKnownUnknownLockedTarAndRAR() async throws {
+        preserveApplicationMenus()
         let delegate = AppDelegate(), menu = delegate.makeMenu()
         let file = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })
         let start = try XCTUnwrap(file.items.firstIndex { $0.action == #selector(ArchiveWindowController.saveArchiveAs(_:)) })

@@ -18,9 +18,9 @@ final class EntryNode: NSObject {
     private(set) var isHidden = false
 
     nonisolated static func isHiddenName(_ name: String) -> Bool {
-        let leaf = name.split(separator: "/").last ?? ""
+        let leaf = ArchivePath.components(name).last ?? ""
         // AppleDouble (._*) もドットで始まる名前として含める。
-        return leaf.hasPrefix(".") || leaf == "__MACOSX"
+        return leaf.utf8.first == 46 || leaf == "__MACOSX"
     }
 
     private init(name: String, isDirectory: Bool, entry: ArchiveEntry? = nil) {
@@ -93,6 +93,8 @@ final class EntryNode: NSObject {
 /// 表示する子だけを選ぶ。元の node と children は削除・改名・取り出しで共有する。
 struct EntryTreeFilter {
     private var visible: Set<ObjectIdentifier> = []
+    private(set) var totalCount = 0
+    private(set) var matchingCount = 0
 
     init(root: EntryNode, query: String, showsHiddenFiles: Bool = false) {
         var pending = [(root, false)]
@@ -110,6 +112,9 @@ struct EntryTreeFilter {
         for node in visited.reversed() where node.children.contains(where: contains) {
             visible.insert(ObjectIdentifier(node))
         }
+        // 選択変更のたびに全項目を数え直さない。root 自身は表示上の件数に含めない。
+        totalCount = visited.count - 1
+        matchingCount = visible.count - (contains(root) ? 1 : 0)
     }
 
     func contains(_ node: EntryNode) -> Bool {

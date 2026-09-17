@@ -85,7 +85,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     @MainActor func testToolbarSearchFieldPreservesFilterConfigurationAndAction() async throws {
         let (_, controller, _) = try await interface()
         let window = try XCTUnwrap(controller.window), toolbar = try XCTUnwrap(window.toolbar)
-        XCTAssertEqual(toolbar.items.map(\.itemIdentifier.rawValue),
+        XCTAssertEqual(toolbar.items.filter { $0.itemIdentifier != .space }.map(\.itemIdentifier.rawValue),
                        ["extract", "addFiles", "newFolder", "delete", "quickLook", NSToolbarItem.Identifier.flexibleSpace.rawValue, "search"])
         let item = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "search" } as? NSSearchToolbarItem)
         XCTAssertTrue(controller.searchField === item.searchField)
@@ -213,6 +213,30 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertNil(controller.toolbar(toolbar, itemForItemIdentifier: .init("unknown"), willBeInsertedIntoToolbar: false))
     }
 
+    @MainActor func testWindowChromeAndFirstRowRemainReadableAtMinimumSizeInBothAppearances() async throws {
+        let (_, controller, _) = try await interface()
+        let window = try XCTUnwrap(controller.window)
+        window.setFrameAutosaveName("")
+        window.orderFront(nil)
+        let content = try XCTUnwrap(window.contentView)
+        for width: CGFloat in [1040, 600] {
+            window.setContentSize(NSSize(width: width, height: width == 600 ? 300 : 600))
+            for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                window.appearance = try XCTUnwrap(NSAppearance(named: appearance))
+                window.layoutIfNeeded()
+                // ツールバーのマテリアルとヘッダも外観変更後に描画させる。
+                try await Task.sleep(for: .milliseconds(60))
+                window.displayIfNeeded()
+                let firstRow = controller.outlineView.convert(controller.outlineView.rect(ofRow: 0), to: content)
+                XCTAssertLessThanOrEqual(firstRow.maxY, window.contentLayoutRect.maxY + 0.5)
+                XCTAssertGreaterThanOrEqual(firstRow.minY, controller.pathControl.frame.maxY)
+                let violations = UISnapshot.overflowViolations(in: content)
+                XCTAssertTrue(violations.isEmpty, violations.joined(separator: "\n"))
+                try UISnapshot.render(try XCTUnwrap(content.superview), name: "archive-window-\(Int(width))-\(name)")
+            }
+        }
+    }
+
     @MainActor func testContextMenuRoutesBlankAreaAndRowsAndPreservesMultipleSelection() async throws {
         let (_, controller, _) = try await interface(), view = controller.outlineView
         let blank = try XCTUnwrap(view.contextMenu(forRow: -1))
@@ -289,7 +313,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         let controller = ArchiveWindowController()
         defer { controller.close() }
         let toolbar = try XCTUnwrap(controller.window?.toolbar)
-        for item in toolbar.items where item.itemIdentifier != .flexibleSpace {
+        for item in toolbar.items where item.itemIdentifier != .flexibleSpace && item.itemIdentifier != .space {
             XCTAssertEqual(controller.validateToolbarItem(item), item.itemIdentifier.rawValue == "search", item.label)
         }
     }
@@ -362,11 +386,11 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertFalse(path.isEditable)
         XCTAssertEqual(path.pathItems.map(\.title), [String(localized: "アーカイブ")])
         XCTAssertNotNil(path.pathItems.first?.image)
-        XCTAssertEqual(path.frame.height, 22, accuracy: 0.5)
-        XCTAssertEqual(path.frame.minX, content.bounds.minX, accuracy: 0.5)
-        XCTAssertEqual(path.frame.width, content.bounds.width, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(path.frame.height, path.intrinsicContentSize.height)
+        XCTAssertGreaterThan(path.frame.minX, content.bounds.minX)
+        XCTAssertLessThan(path.frame.maxX, content.bounds.maxX)
         XCTAssertEqual(scroll.frame.maxY, content.bounds.maxY, accuracy: 0.5)
-        XCTAssertEqual(scroll.frame.minY, path.frame.maxY, accuracy: 0.5)
+        XCTAssertGreaterThan(scroll.frame.minY, path.frame.maxY)
         let footer = try XCTUnwrap(content.subviews.compactMap { $0 as? NSStackView }.first)
         XCTAssertEqual(path.frame.minY, footer.frame.maxY + 6, accuracy: 0.5)
     }

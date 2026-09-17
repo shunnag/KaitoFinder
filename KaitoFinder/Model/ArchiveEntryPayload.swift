@@ -56,12 +56,12 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
         private let entries: [ArchiveEntry]
         private var nodes = [Node()]
 
-        init(entries: [ArchiveEntry]) {
+        init(entries: [ArchiveEntry], components: ((ArchiveEntry) -> [String])? = nil) {
             self.entries = entries
             for (offset, entry) in entries.enumerated() {
                 // 不正な子パスも選択に含め、展開層で失敗として報告する。黙って除外しない。
-                let parts = (try? ExtractionPath.components(entry.name)) ??
-                    Array(entry.pathComponents.drop(while: { $0 == "." }))
+                let parts = components?(entry) ?? ((try? ExtractionPath.components(entry.name)) ??
+                    Array(entry.pathComponents.drop(while: { $0 == "." })))
                 var node = 0
                 // 同じパスのファイルは、そのフォルダ自身として選択しない。
                 for part in parts.dropLast(entry.kind == .directory ? 0 : 1) {

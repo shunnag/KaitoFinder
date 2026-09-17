@@ -215,6 +215,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     @MainActor func testFileMenuStartsWithCommandNAndDoesNotOpenUntitledDocuments() throws {
+        preserveApplicationMenus()
         let delegate = AppDelegate(), menu = delegate.makeMenu()
         let file = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })
         let first = try XCTUnwrap(file.items.first)

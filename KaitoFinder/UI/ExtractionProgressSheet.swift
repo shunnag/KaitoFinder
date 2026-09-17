@@ -40,6 +40,7 @@ final class ExtractionProgressSheet: NSWindowController {
                             styleMask: [.titled], backing: .buffered, defer: false)
         panel.title = title ?? ArchiveProgressOperation.expanding.title(bundle: bundle)
         panel.contentMinSize = NSSize(width: 420, height: 150)
+        panel.autorecalculatesKeyViewLoop = true
         super.init(window: panel)
         titleLabel.stringValue = panel.title
         titleLabel.font = .boldSystemFont(ofSize: NSFont.systemFontSize)

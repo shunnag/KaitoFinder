@@ -236,8 +236,10 @@ import Synchronization
             try Task.checkCancellation()
             let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
             guard reader.entries == entries, entries.contains(where: \.isEncrypted) else { return false }
+            var buffer = [UInt8](repeating: 0, count: 128 * 1024)
             for entry in entries where entry.isEncrypted {
-                try ExtractionService.consume(reader.stream(entry), checkCancellation: { try Task.checkCancellation() }) { _ in }
+                try ExtractionService.consume(reader.stream(entry), buffer: &buffer,
+                                              checkCancellation: { try Task.checkCancellation() }) { _ in }
             }
             return true
         } catch is CancellationError { throw CancellationError() }

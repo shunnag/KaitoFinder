@@ -26,5 +26,8 @@ xcuserdata/
 # macOS
 .DS_Store
 
+# Python verification tools
+__pycache__/
+
 # GitHub に載せないファイルのやり取りに使う作業用ディレクトリ
 /inbox/

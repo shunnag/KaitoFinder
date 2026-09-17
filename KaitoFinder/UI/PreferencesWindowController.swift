@@ -5,12 +5,14 @@ final class PreferencesViewModel {
     static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored]
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
+    static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
     private let store: ArchivePreferencesStore
 
     init(store: ArchivePreferencesStore = .shared) { self.store = store }
 
     var preferences: ArchivePreferences { store.preferences }
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
+    var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
     var zipMethodIndex: Int { Self.zipMethods.firstIndex(of: preferences.zipMethod)! }
     var extractionDestinationIndex: Int { Self.extractionDestinations.firstIndex(of: preferences.extractionDestination)! }
     var afterExpansionIndex: Int { preferences.trashesArchiveAfterExtraction ? 1 : 0 }
@@ -21,6 +23,11 @@ final class PreferencesViewModel {
     func selectDefaultFormat(at index: Int) {
         guard ArchivePreferences.formats.indices.contains(index) else { return }
         store.preferences.defaultFormat = ArchivePreferences.formats[index]
+    }
+
+    func selectOpeningBehavior(at index: Int) {
+        guard Self.openingBehaviors.indices.contains(index) else { return }
+        store.preferences.openingBehavior = Self.openingBehaviors[index]
     }
 
     func selectZipMethod(at index: Int) {
@@ -55,11 +62,31 @@ final class PreferencesViewModel {
     func changeRevealsExtractedItemsInFinder(to enabled: Bool) { store.preferences.revealsExtractedItemsInFinder = enabled }
 }
 
+/// 設定の切り替えでは上辺と幅を保ち、内容に必要な高さだけを変える。
+final class PreferencesTabViewController: NSTabViewController {
+    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: tabViewItem)
+        guard let size = tabViewItem?.viewController?.preferredContentSize, size.width > 0 else { return }
+        preferredContentSize = size
+        guard let window = view.window else { return }
+        let sizeWithTitlebar = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
+        var frame = NSRect(x: window.frame.minX, y: window.frame.maxY - sizeWithTitlebar.height,
+                           width: sizeWithTitlebar.width, height: sizeWithTitlebar.height)
+        if let visible = window.screen?.visibleFrame, frame.height <= visible.height {
+            // 画面下端に置いた一般タブを広げても、圧縮の設定が画面外へ落ちないようにする。
+            frame.origin.y = max(visible.minY, frame.minY)
+        }
+        window.setFrame(frame, display: true,
+                        animate: window.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+}
+
 final class PreferencesWindowController: NSWindowController {
     let viewModel: PreferencesViewModel
     private let bundle: Bundle
-    let tabController = NSTabViewController()
+    let tabController = PreferencesTabViewController()
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
@@ -93,56 +120,73 @@ final class PreferencesWindowController: NSWindowController {
         revealsExtractedItemsInFinderCheckbox = NSButton(
             checkboxWithTitle: String(localized: "展開した項目をFinderに表示", bundle: bundle), target: nil, action: nil)
         viewModel = PreferencesViewModel(store: store)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
         window.title = String(localized: "設定", bundle: bundle)
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
+        window.autorecalculatesKeyViewLoop = true
+        window.toolbarStyle = .preference
         window.center()
         window.setFrameAutosaveName("Preferences")
         tabController.tabStyle = .toolbar
+        tabController.canPropagateSelectedChildViewControllerTitle = false
         configureControls()
-        addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", rows: [
-            row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
-            [NSGridCell.emptyContentView, wrappingCheckbox(showsHiddenFilesCheckbox, width: 352)],
-            [NSGridCell.emptyContentView, wrappingCheckbox(showsWelcomeWindowAtLaunchCheckbox, width: 352)]
+        addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", sections: [
+            group(rows: [
+                row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
+                row(String(localized: "アーカイブを開くとき:", bundle: bundle), control: openingBehaviorPopup)
+            ]),
+            group(rows: [
+                checkboxRow(showsHiddenFilesCheckbox),
+                checkboxRow(showsWelcomeWindowAtLaunchCheckbox)
+            ], spanningRows: [0, 1])
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-で固定です。", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
         footnote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        footnote.preferredMaxLayoutWidth = 504
-        addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", rows: [
-            [wrappingCheckbox(excludesDSStoreCheckbox, width: 504), NSGridCell.emptyContentView],
-            [wrappingCheckbox(excludesHiddenFilesCheckbox, width: 504), NSGridCell.emptyContentView],
-            [section(String(localized: "ZIP", bundle: bundle)), NSGridCell.emptyContentView],
-            row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
-            row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
-            [NSGridCell.emptyContentView, wrappingCheckbox(zipSkipsCompressedTypesCheckbox, width: 352)],
-            [section(String(localized: "tar.gz", bundle: bundle)), NSGridCell.emptyContentView],
-            row(String(localized: "gzipレベル:", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel)),
-            [section(String(localized: "tar", bundle: bundle)), NSGridCell.emptyContentView],
-            [NSGridCell.emptyContentView, wrappingCheckbox(tarPreservesOwnerIDsCheckbox, width: 352)],
-            [footnote, NSGridCell.emptyContentView]
-        ], spanningRows: [0, 1, 2, 6, 8, 10])
-        addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", rows: [
-            row(String(localized: "展開したファイルの保存場所:", bundle: bundle), control: extractionDestinationPopup),
-            row(String(localized: "展開後:", bundle: bundle), control: afterExpansionPopup),
-            row(String(localized: "フォルダを作成:", bundle: bundle), control: folderPolicyPopup),
-            [NSGridCell.emptyContentView, wrappingCheckbox(revealsExtractedItemsInFinderCheckbox, width: 292)]
+        footnote.preferredMaxLayoutWidth = 520
+        addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", sections: [
+            group(rows: [checkboxRow(excludesDSStoreCheckbox), checkboxRow(excludesHiddenFilesCheckbox)], spanningRows: [0, 1]),
+            group(title: String(localized: "ZIP", bundle: bundle), rows: [
+                row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
+                row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
+                checkboxRow(zipSkipsCompressedTypesCheckbox)
+            ], spanningRows: [2]),
+            group(title: String(localized: "tar.gz", bundle: bundle), rows: [
+                row(String(localized: "gzipレベル:", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel))
+            ]),
+            group(title: String(localized: "tar", bundle: bundle), rows: [
+                checkboxRow(tarPreservesOwnerIDsCheckbox)
+            ], spanningRows: [0]),
+            footnote
         ])
-        // 最も広いタブに合わせ、切り替えてもすべての文言を表示できるサイズを保つ。
-        let contentSize = tabController.tabViewItems.reduce(NSSize(width: 560, height: 420)) { size, item in
-            let required = item.viewController?.preferredContentSize ?? .zero
-            return NSSize(width: max(size.width, required.width), height: max(size.height, required.height))
+        addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", sections: [
+            group(rows: [
+                row(String(localized: "展開したファイルの保存場所:", bundle: bundle), control: extractionDestinationPopup),
+                row(String(localized: "フォルダを作成:", bundle: bundle), control: folderPolicyPopup)
+            ]),
+            group(rows: [
+                row(String(localized: "展開後:", bundle: bundle), control: afterExpansionPopup),
+                checkboxRow(revealsExtractedItemsInFinderCheckbox)
+            ], spanningRows: [1])
+        ])
+        // 長い翻訳も省略しない共通の幅を選び、高さはタブの内容に合わせる。
+        let width = tabController.tabViewItems.reduce(CGFloat(600)) { width, item in
+            max(width, item.viewController?.preferredContentSize.width ?? 0)
         }
         for item in tabController.tabViewItems {
-            item.viewController?.preferredContentSize = contentSize
-            item.viewController?.view.setFrameSize(contentSize)
+            guard let pane = item.viewController else { continue }
+            pane.preferredContentSize.width = width
+            pane.view.setFrameSize(pane.preferredContentSize)
         }
+        let contentSize = tabController.tabViewItems[0].viewController!.preferredContentSize
         tabController.preferredContentSize = contentSize
         window.contentViewController = tabController
         window.setContentSize(contentSize)
+        window.toolbar?.displayMode = .iconAndLabel
+        window.toolbar?.allowsUserCustomization = false
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: store)
         refreshControls()
@@ -157,6 +201,9 @@ final class PreferencesWindowController: NSWindowController {
 
     private func configureControls() {
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
+        openingBehaviorPopup.addItems(withTitles: [String(localized: "macOSの設定に従う", bundle: bundle),
+                                                  String(localized: "新しいタブ", bundle: bundle),
+                                                  String(localized: "新しいウインドウ", bundle: bundle)])
         zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle)])
         extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じディレクトリ内", bundle: bundle), String(localized: "場所を選択…", bundle: bundle)])
         afterExpansionPopup.addItems(withTitles: [String(localized: "アーカイブをそのままにする", bundle: bundle),
@@ -169,6 +216,7 @@ final class PreferencesWindowController: NSWindowController {
             (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
             (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
+            (openingBehaviorPopup, #selector(changeOpeningBehavior(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
@@ -188,9 +236,10 @@ final class PreferencesWindowController: NSWindowController {
         slider.numberOfTickMarks = 9
         slider.allowsTickMarkValuesOnly = true
         slider.isContinuous = true
-        slider.widthAnchor.constraint(equalToConstant: 312).isActive = true
+        slider.widthAnchor.constraint(equalToConstant: 220).isActive = true
         label.widthAnchor.constraint(equalToConstant: 24).isActive = true
-        label.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+        label.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        label.textColor = .secondaryLabelColor
         label.alignment = .right
         let stack = NSStackView(views: [slider, label])
         // ラベルの整列矩形からはみ出す左右2ポイントを確保する。
@@ -202,7 +251,7 @@ final class PreferencesWindowController: NSWindowController {
 
     private func row(_ title: String, control: NSView) -> [NSView] {
         let label = NSTextField(labelWithString: title)
-        label.alignment = .right
+        label.alignment = .left
         if label.intrinsicContentSize.width > 260 {
             // 長い翻訳だけを二行まで折り返し、行のコントロールはグリッドで中央に揃える。
             label.usesSingleLineMode = false
@@ -215,50 +264,88 @@ final class PreferencesWindowController: NSWindowController {
         return [label, control]
     }
 
-    private func section(_ title: String) -> NSTextField {
-        let label = NSTextField(labelWithString: title)
-        label.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
-        return label
-    }
-
-    private func wrappingCheckbox(_ button: NSButton, width: CGFloat) -> NSButton {
+    private func checkboxRow(_ button: NSButton) -> [NSView] {
+        let width: CGFloat = 520
         button.cell?.wraps = true
         button.cell?.lineBreakMode = .byWordWrapping
         button.widthAnchor.constraint(equalToConstant: width).isActive = true
         // チェックの領域を差し引いた幅で、日英どちらの長い文言も折り返す。
         let size = button.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: 1000)) ?? .zero
         button.heightAnchor.constraint(equalToConstant: ceil(size.height)).isActive = true
-        return button
+        return [button, NSGridCell.emptyContentView]
     }
 
-    private func addTab(title: String, symbol: String, rows: [[NSView]], spanningRows: [Int] = []) {
-        let controller = NSViewController()
-        controller.title = title
-        controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 420))
+    private func group(title: String? = nil, rows: [[NSView]], spanningRows: [Int] = []) -> NSView {
         let grid = NSGridView(views: rows)
-        grid.identifier = NSUserInterfaceItemIdentifier("preferences.grid." + symbol)
-        grid.rowSpacing = 12
-        grid.columnSpacing = 12
+        grid.rowSpacing = 14
+        grid.columnSpacing = 20
         grid.yPlacement = .center
-        grid.column(at: 0).xPlacement = .trailing
+        grid.column(at: 0).xPlacement = .leading
         grid.column(at: 0).leadingPadding = 2
-        grid.column(at: 1).xPlacement = .leading
+        grid.column(at: 1).xPlacement = .trailing
         grid.column(at: 1).trailingPadding = 2
         for row in spanningRows {
             grid.mergeCells(inHorizontalRange: NSRange(location: 0, length: 2), verticalRange: NSRange(location: row, length: 1))
             grid.cell(atColumnIndex: 0, rowIndex: row).xPlacement = .leading
         }
-        // 親の幅を制約する前に、ラベルと選択肢が必要とする幅・高さを測る。
         let required = grid.fittingSize
-        controller.preferredContentSize = NSSize(width: max(560, ceil(required.width) + 48),
-                                                height: max(420, ceil(required.height) + 48))
+        let box = NSBox()
+        box.boxType = .custom
+        box.titlePosition = .noTitle
+        box.borderWidth = 0.5
+        box.cornerRadius = 8
+        box.borderColor = .separatorColor
+        box.fillColor = .controlBackgroundColor
+        box.contentViewMargins = .zero
+        let content = box.contentView!
         grid.translatesAutoresizingMaskIntoConstraints = false
-        controller.view.addSubview(grid)
+        content.addSubview(grid)
         NSLayoutConstraint.activate([
-            grid.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 24),
-            grid.topAnchor.constraint(equalTo: controller.view.topAnchor, constant: 24),
-            grid.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -24),
-            grid.bottomAnchor.constraint(lessThanOrEqualTo: controller.view.bottomAnchor, constant: -24)
+            // NSBox の contentView は枠線の内側にある。
+            box.widthAnchor.constraint(greaterThanOrEqualToConstant: ceil(required.width) + 32 + box.borderWidth * 2),
+            box.heightAnchor.constraint(equalToConstant: ceil(required.height) + 28 + box.borderWidth * 2),
+            grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+            grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 14),
+            grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+            grid.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -14)
+        ])
+        guard let title else { return box }
+        let heading = NSTextField(labelWithString: title)
+        heading.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        let header = NSStackView(views: [heading])
+        header.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        let section = NSStackView(views: [header, box])
+        section.orientation = .vertical
+        section.alignment = .leading
+        section.spacing = 8
+        box.widthAnchor.constraint(equalTo: section.widthAnchor).isActive = true
+        return section
+    }
+
+    private func addTab(title: String, symbol: String, sections: [NSView]) {
+        let controller = NSViewController()
+        controller.title = title
+        controller.view = NSView()
+        let stack = NSStackView(views: sections)
+        stack.identifier = NSUserInterfaceItemIdentifier("preferences.sections." + symbol)
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        stack.spacing = 20
+        for section in sections {
+            section.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4).isActive = true
+        }
+        let required = stack.fittingSize
+        controller.preferredContentSize = NSSize(width: max(600, ceil(required.width) + 48),
+                                                height: ceil(required.height) + 48)
+        controller.view.setFrameSize(controller.preferredContentSize)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        controller.view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 24),
+            stack.topAnchor.constraint(equalTo: controller.view.topAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -24),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: controller.view.bottomAnchor, constant: -24)
         ])
         let item = NSTabViewItem(viewController: controller)
         item.identifier = "preferences." + symbol
@@ -276,10 +363,12 @@ final class PreferencesWindowController: NSWindowController {
         excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
         excludesHiddenFilesCheckbox.state = preferences.excludesHiddenFiles ? .on : .off
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
+        openingBehaviorPopup.selectItem(at: viewModel.openingBehaviorIndex)
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.integerValue = preferences.zipLevel
         zipLevelLabel.stringValue = viewModel.zipLevelLabel
         zipLevelSlider.isEnabled = preferences.zipMethod == .deflate
+        zipLevelLabel.textColor = zipLevelSlider.isEnabled ? .secondaryLabelColor : .disabledControlTextColor
         zipSkipsCompressedTypesCheckbox.state = preferences.zipSkipsCompressedTypes ? .on : .off
         tarGzipLevelSlider.integerValue = preferences.tarGzipLevel
         tarGzipLevelLabel.stringValue = viewModel.tarGzipLevelLabel
@@ -291,6 +380,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
+    @objc private func changeOpeningBehavior(_ sender: NSPopUpButton) { viewModel.selectOpeningBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
     @objc private func changeShowsWelcomeWindowAtLaunch(_ sender: NSButton) {
         viewModel.changeShowsWelcomeWindowAtLaunch(to: sender.state == .on)

@@ -13,6 +13,12 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             expected.defaultFormat = format
             check()
         }
+        for (index, behavior) in PreferencesViewModel.openingBehaviors.enumerated() {
+            model.selectOpeningBehavior(at: index)
+            expected.openingBehavior = behavior
+            check()
+            XCTAssertEqual(model.openingBehaviorIndex, index)
+        }
         for (index, method) in PreferencesViewModel.zipMethods.enumerated() {
             model.selectZipMethod(at: index)
             expected.zipMethod = method
@@ -60,11 +66,12 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         let saved = ArchivePreferences(defaultFormat: .tarGzip, zipMethod: .stored, zipLevel: 8,
                                        zipSkipsCompressedTypes: false, tarGzipLevel: 2, tarPreservesOwnerIDs: true,
                                        extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true,
-                                       revealsExtractedItemsInFinder: true)
+                                       revealsExtractedItemsInFinder: true, openingBehavior: .newWindow)
         store.preferences = saved
         let model = PreferencesViewModel(store: ArchivePreferencesStore(defaults: suite.defaults))
         XCTAssertEqual(model.preferences, saved)
         XCTAssertEqual(model.defaultFormatIndex, 2)
+        XCTAssertEqual(model.openingBehaviorIndex, 2)
         XCTAssertEqual(model.zipMethodIndex, 1)
         XCTAssertEqual(model.extractionDestinationIndex, 1)
         XCTAssertEqual(model.folderPolicyIndex, 2)
@@ -84,6 +91,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         let before = store.preferences
         for index in [-1, 99] {
             model.selectDefaultFormat(at: index)
+            model.selectOpeningBehavior(at: index)
             model.selectZipMethod(at: index)
             model.selectExtractionDestination(at: index)
             model.selectFolderPolicy(at: index)
@@ -104,6 +112,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         controller.defaultFormatPopup.selectItem(at: 4)
         sendAction(controller.defaultFormatPopup)
         XCTAssertEqual(store.preferences.defaultFormat, .lha)
+        controller.openingBehaviorPopup.selectItem(at: 1)
+        sendAction(controller.openingBehaviorPopup)
+        XCTAssertEqual(store.preferences.openingBehavior, .newTab)
         controller.zipLevelSlider.integerValue = 9
         sendAction(controller.zipLevelSlider)
         XCTAssertEqual(store.preferences.zipLevel, 9)
@@ -137,6 +148,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         // 保存パネルなど、別の入口で保存した変更も開いたままの画面へ同期する。
         store.preferences = ArchivePreferences()
         XCTAssertEqual(controller.defaultFormatPopup.indexOfSelectedItem, 0)
+        XCTAssertEqual(controller.openingBehaviorPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.zipMethodPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.zipLevelSlider.integerValue, 6)
         XCTAssertEqual(controller.zipLevelLabel.stringValue, "6")
@@ -167,6 +179,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testSettingsMenuCommandCommaAndWindowControllerReuse() throws {
+        preserveApplicationMenus()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let delegate = AppDelegate(preferencesStore: store), menu = delegate.makeMenu()
         let appMenu = try XCTUnwrap(menu.items.first?.submenu)
@@ -179,7 +192,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(settings.action, #selector(AppDelegate.showPreferences(_:)))
         XCTAssertTrue(settings.target === delegate)
         XCTAssertNil(delegate.preferencesWindowController)
-        delegate.showPreferences(nil)
+        try performMenuItem(settings)
         let first = try XCTUnwrap(delegate.preferencesWindowController), window = try XCTUnwrap(first.window)
         defer { first.close() }
         XCTAssertTrue(window.isVisible)
@@ -190,7 +203,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(first.tabController.tabViewItems.map(\.label),
                        [String(localized: "一般"), String(localized: "圧縮"), String(localized: "展開")])
         first.close()
-        delegate.showPreferences(nil)
+        try performMenuItem(settings)
         XCTAssertTrue(delegate.preferencesWindowController === first)
         XCTAssertTrue(delegate.preferencesWindowController?.window === window)
         XCTAssertTrue(window.isVisible)
@@ -220,6 +233,32 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                 if key == "設定…", language == "en" { XCTAssertEqual(text, "Settings…") }
             }
         }
+    }
+
+    @MainActor func testToolbarSwitchesPanesWithoutMovingControlsOffScreen() throws {
+        let suite = try ArchivePreferencesTestDefaults()
+        let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        window.setFrameAutosaveName("")
+        controller.showWindow(nil)
+        let visible = try XCTUnwrap(window.screen).visibleFrame
+        window.setFrameOrigin(NSPoint(x: visible.minX + 20, y: visible.minY + 20))
+        let initialSize = try XCTUnwrap(window.contentView).bounds.size
+        let toolbar = try XCTUnwrap(window.toolbar)
+        for index in [1, 2, 0] {
+            let pane = controller.tabController.tabViewItems[index]
+            let identifier = try XCTUnwrap(pane.identifier as? String)
+            let item = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == identifier })
+            let action = try XCTUnwrap(item.action)
+            XCTAssertTrue(NSApp.sendAction(action, to: item.target, from: item))
+            window.layoutIfNeeded()
+            XCTAssertEqual(controller.tabController.selectedTabViewItemIndex, index)
+            XCTAssertTrue(visible.insetBy(dx: -0.5, dy: -0.5).contains(window.frame))
+            XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.width, initialSize.width, accuracy: 0.5)
+            XCTAssertTrue(UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView)).isEmpty)
+        }
+        XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, initialSize)
     }
 
     @MainActor func testExtractionSettingsUseArchiveUtilityLabelsInEveryLanguage() throws {
@@ -281,17 +320,20 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             let values = try XCTUnwrap(expected[language])
             controller.tabController.selectedTabViewItemIndex = 2
             let pane = try XCTUnwrap(controller.tabController.tabViewItems[2].viewController?.view)
-            let grid = try XCTUnwrap(pane.subviews.first as? NSGridView)
-            let labels = (0..<3).compactMap { (grid.cell(atColumnIndex: 0, rowIndex: $0).contentView as? NSTextField)?.stringValue }
-            XCTAssertEqual(labels.map(LocalizationAcceptance.normalizedTitle), values[0...2].map(LocalizationAcceptance.normalizedTitle), language)
+            func labels(in view: NSView) -> [String] {
+                (view as? NSTextField).map { [$0.stringValue] } ?? view.subviews.flatMap { labels(in: $0) }
+            }
+            let visibleLabels = labels(in: pane).map(LocalizationAcceptance.normalizedTitle)
+            for expected in values[0...2].map(LocalizationAcceptance.normalizedTitle) {
+                XCTAssertTrue(visibleLabels.contains(expected), "\(language): \(expected)")
+            }
             XCTAssertEqual(controller.extractionDestinationPopup.itemTitles.map(LocalizationAcceptance.normalizedTitle),
                            values[3...4].map(LocalizationAcceptance.normalizedTitle), language)
             XCTAssertEqual(controller.afterExpansionPopup.itemTitles.map(LocalizationAcceptance.normalizedTitle),
                            values[5...6].map(LocalizationAcceptance.normalizedTitle), language)
             XCTAssertEqual(LocalizationAcceptance.normalizedTitle(controller.revealsExtractedItemsInFinderCheckbox.title),
                            LocalizationAcceptance.normalizedTitle(values[7]), language)
-            XCTAssertNil(grid.cell(atColumnIndex: 0, rowIndex: 3).contentView)
-            XCTAssertTrue(grid.cell(atColumnIndex: 1, rowIndex: 3).contentView === controller.revealsExtractedItemsInFinderCheckbox)
+            XCTAssertTrue(controller.revealsExtractedItemsInFinderCheckbox.isDescendant(of: pane))
             XCTAssertFalse(store.preferences.revealsExtractedItemsInFinder)
             for enabled in [true, false] {
                 controller.revealsExtractedItemsInFinderCheckbox.state = enabled ? .on : .off
