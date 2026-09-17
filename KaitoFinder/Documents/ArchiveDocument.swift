@@ -272,10 +272,12 @@ import Synchronization
     }
 
     func append(urls: [URL], to folder: String, progress: Progress,
+                resolveConflict: ArchiveImportConflict.Resolver? = nil,
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
         try await mutate(progress: progress, actionName: "追加", willPublish: willPublish,
                          published: { !$0.addedPaths.isEmpty }) { session, publish in
-            try await session.append(urls: urls, to: folder, progress: progress, willPublish: publish)
+            try await session.append(urls: urls, to: folder, progress: progress,
+                                     resolveConflict: resolveConflict, willPublish: publish)
         }
     }
 
@@ -299,9 +301,14 @@ import Synchronization
     }
 
     func move(_ nodes: [EntryNode], to folder: String, progress: Progress,
+              resolveConflict: ArchiveImportConflict.Resolver? = nil,
               willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
-        try await edit(moving: nodes.map { ArchiveEditMove(selection: ArchiveEditSelection($0), folder: folder) },
-                       progress: progress, willPublish: willPublish)
+        let selections = nodes.map(ArchiveEditSelection.init)
+        return try await mutate(progress: progress, actionName: "移動", willPublish: willPublish,
+                                published: { $0.published }) { session, publish in
+            try await session.move(selections, to: folder, progress: progress,
+                                   resolveConflict: resolveConflict, willPublish: publish)
+        }
     }
 
     func edit(removing: [ArchiveEditSelection] = [], renaming: [ArchiveEditRename] = [],

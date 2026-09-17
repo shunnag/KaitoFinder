@@ -1284,26 +1284,46 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(try names(fixture), ["b/x.txt", "b/old-reference.txt"])
     }
 
-    @MainActor func testAcceptLocalMoveCollisionReportsReasonWithoutChangingArchiveOrUndo() async throws {
+    @MainActor func testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged() async throws {
         let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
         let (document, controller) = try await interface(fixture), before = try digest(fixture)
         try select(["a/x.txt", "a/y.txt"], in: controller)
         let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
         XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
+        try await scenarioWait { controller.conflictPrompt != nil }
+        let prompt = try XCTUnwrap(controller.conflictPrompt)
+        XCTAssertEqual(prompt.conflict.path, "b/x.txt")
+        prompt.alert.buttons[2].performClick(nil)
         await controller.extractionTask?.value
         XCTAssertEqual(try digest(fixture), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
         XCTAssertEqual(Set(controller.selectedNodes.map(\.path)), ["a/x.txt", "a/y.txt"])
-        let sheet = try XCTUnwrap(controller.window?.attachedSheet)
-        defer { controller.window?.endSheet(sheet); sheet.orderOut(nil) }
-        func labels(_ view: NSView) -> [String] {
-            (view as? NSTextField).map { [$0.stringValue] } ?? view.subviews.flatMap(labels)
+        XCTAssertNil(controller.conflictPrompt)
+        XCTAssertNil(controller.failureAlert)
+    }
+
+    @MainActor func testLocalMoveCanReplaceOrSkipConflictAndUndoTheWholeBatch() async throws {
+        for replace in [true, false] {
+            let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
+            let (document, controller) = try await interface(fixture), before = try digest(fixture)
+            try select(["a/x.txt", "a/y.txt"], in: controller)
+            let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
+            XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: -1))
+            try await scenarioWait { controller.conflictPrompt != nil }
+            let prompt = try XCTUnwrap(controller.conflictPrompt)
+            prompt.alert.buttons[replace ? 0 : 1].performClick(nil)
+            await controller.extractionTask?.value
+            XCTAssertNil(controller.failureAlert)
+            XCTAssertEqual(try names(fixture), replace ? ["b/x.txt", "b/y.txt"] : ["a/x.txt", "b/x.txt", "b/y.txt"])
+            XCTAssertEqual(Set(controller.selectedNodes.map(\.path)), replace ? ["b/x.txt", "b/y.txt"] : ["a/x.txt", "b/y.txt"])
+            XCTAssertEqual(document.generation, 1)
+            document.undo(nil)
+            await document.undoTask?.value
+            XCTAssertEqual(try digest(fixture), before)
+            XCTAssertFalse(document.undoManager?.canUndo == true)
         }
-        let text = labels(try XCTUnwrap(sheet.contentView))
-        XCTAssertTrue(text.contains(String(localized: "項目を変更できませんでした")), text.description)
-        XCTAssertTrue(text.contains(String(localized: "同じ名前の項目が既にあります。別の名前を入力してください。")), text.description)
     }
 
     @MainActor func testPendingMoveDisablesEditsAndDropsAndCancellationPreservesBytes() async throws {

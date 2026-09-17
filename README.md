@@ -93,12 +93,18 @@ Finder 風のリスト表示に、パスバー、タブ、ツールバーの検�
 Finder の関連付け、「開く…」、最近使った項目に共通で、変更は次に開く書庫から反映する。
 既に開いている書庫をもう一度開くと、その書庫のタブまたはウインドウを表示する。
 タブの切り替え・分離・ウインドウの結合は、macOS 標準のウインドウメニューから行える。
+ファイルをドラッグしたまま別のタブの上で約0.6秒待つと、そのタブへ切り替わる。
+そのまま一覧へドロップでき、タブ上を短く通過しただけでは切り替わらない。
 
 同じ書庫内のドラッグは移動、⌥ を押したドラッグはコピー。
 **別の書庫へのドラッグは、同じウインドウの別タブも含めてコピー**になり、元の書庫は変わらない。
 フォルダとその中身を一緒に選んでも、中身を重複して追加しない。
 フォルダ上へのドロップはそのフォルダへ、ファイル上ならその親へ、一覧の空白部分なら書庫の最上位へ追加する。
-複数項目はまとめて追加し、一回の「取り消す」で戻せる。同名の項目との衝突や受信失敗があれば、全体の追加を中止する。
+同名の項目があるときは、既存・追加元のサイズ、変更日、種類、場所を比較して「置き換える」「スキップ」「キャンセル」を選べる。
+「内容を比較…」では、双方のファイルをQuick Lookで左右に表示できる。
+複数ファイルでは「残りのファイルにも適用」を使える。フォルダや種類の異なる項目は別に確認し、フォルダは内容全体を置き換える。
+追加、貼り付け、別の書庫・タブからのコピー、同じ書庫内の移動で共通の確認を使う。
+すべての回答が揃ってからまとめて反映し、一回の「取り消す」で戻せる。キャンセルや受信・書き込みの失敗では全体の変更を中止する。
 
 ## ようこそウインドウ
 
@@ -221,6 +227,11 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Drag or paste files into writable archives. Delete, rename, create folders, and
 > drag items between folders in the same window; hold ⌥ to copy instead of move.
+> When names conflict, compare size, modification date, kind, and location before
+> choosing Replace or Skip. Compare Contents opens both files side by side in Quick Look.
+> Apply a choice to the remaining files in a batch; folders and type changes require
+> separate confirmation, and replacing a folder replaces its entire contents.
+> All accepted changes form one undoable operation. Cancel aborts the whole batch.
 > Undo with ⌘Z and redo with ⇧⌘Z. Before an edit, `clonefile` preserves the original
 > in temporary storage on the same volume for undo. Editing and undo are refused if the
 > original has changed externally since it was opened. Change detection is based on the
@@ -256,6 +267,8 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > Images have thumbnails; encrypted images and images larger than 8 MiB keep their
 > regular icons. Show Hidden Files (⇧⌘.) also affects search and status counts.
 > Hiding items from view does not exclude them from whole-folder extraction or editing.
+> During a file drag, hold over another tab for about 0.6 seconds to select it,
+> then drop into its list. Briefly passing over a tab does not select it.
 >
 > ## Welcome Window
 >

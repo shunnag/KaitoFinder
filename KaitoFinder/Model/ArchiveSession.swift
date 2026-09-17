@@ -203,17 +203,27 @@ actor ArchiveSession {
         encryptionStorage.withLock { $0.hasKnownPassword = false }
     }
 
-    // 追加と fresh open は await を挟まず直列化し、promise の解決を割り込ませない。
+    // 確認 UI を待つ間は書かず、回答後に世代と原本を再検証する。公開と再読込は直列。
     func append(urls: [URL], to folder: String, progress: Progress,
+                resolveConflict: ArchiveImportConflict.Resolver? = nil,
                 didProcess: (@Sendable (Int) throws -> Void)? = nil,
-                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
+                willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
         guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try verifyBeforeEditing()
-        let plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
+        let expectedGeneration = generation
+        let plan: ArchiveImportPlan
+        if let resolveConflict {
+            plan = try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: reader.entries,
+                archive: sourceURL, generation: expectedGeneration, progress: progress, options: importOptions(), resolver: resolveConflict)
+            _ = try requireCurrentReader()
+            guard generation == expectedGeneration else { throw ArchiveEditError.staleSelection }
+        } else {
+            plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
                                                progress: progress, options: importOptions())
+        }
         let mode = capabilities.mode!
         var result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                      options: options(for: mode), password: password, progress: progress,
@@ -224,6 +234,42 @@ actor ArchiveSession {
             catch { result.reloadFailure = Self.reloadFailureMessage }
         }
         return result
+    }
+
+    func move(_ selections: [ArchiveEditSelection], to folder: String, progress: Progress,
+              resolveConflict: ArchiveImportConflict.Resolver?,
+              willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
+        guard let resolveConflict else {
+            return try edit(moving: selections.map { .init(selection: $0, folder: folder) },
+                            progress: progress, willPublish: willPublish)
+        }
+        let entries = try requireCurrentReader().entries, expectedGeneration = generation
+        let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder)
+        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress)
+        var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
+        for selection in selections {
+            let source = try ArchiveImportPlan.path(selection.path)
+            if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
+            if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
+                throw ArchiveEditError.destinationInsideSource(source)
+            }
+            let leaf = ArchivePath.components(source).last!
+            let destination = target.isEmpty ? leaf : target + "/" + leaf
+            moving.append(selection)
+            candidates.append(.init(path: destination, info: .archived(selection.entries, path: source,
+                                                                         archive: sourceURL, generation: expectedGeneration)))
+        }
+        let resolution = try await ArchiveConflictResolution.resolve(candidates,
+            existing: ArchiveConflictResolution.existingGroups(entries, folder: target), archive: sourceURL,
+            generation: expectedGeneration, progress: progress, resolver: resolveConflict)
+        _ = try requireCurrentReader()
+        guard generation == expectedGeneration else { throw ArchiveEditError.staleSelection }
+        // 各 record の削除を指定し、同名の実体と仮想フォルダが混在する書庫も取りこぼさない。
+        let removals = resolution.replaced.map {
+            ArchiveEditSelection(path: $0.name, isDirectory: false, entries: [$0])
+        }
+        return try edit(removing: removals, moving: resolution.accepted.map { .init(selection: moving[$0], folder: target) },
+                        progress: progress, willPublish: willPublish)
     }
 
     func remove(_ selections: [ArchiveEditSelection], progress: Progress,

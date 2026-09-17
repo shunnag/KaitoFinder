@@ -29,7 +29,7 @@ import XCTest
 }
 
 /// OS が与える drag 情報だけを差し替え、pasteboard → acceptDrop → 文書更新は実物を使う。
-@MainActor private final class FileURLDragInfo: NSObject, NSDraggingInfo {
+@MainActor final class FileURLDragInfo: NSObject, NSDraggingInfo {
     let draggingPasteboard: NSPasteboard
     let draggingDestinationWindow: NSWindow?
     var draggingSource: Any?
@@ -165,7 +165,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         try await assertNativeCopy(tabbed: false, corruptSource: true)
     }
 
-    @MainActor private func assertNativeCopy(tabbed: Bool, corruptSource: Bool = false) async throws {
+    @MainActor private func assertNativeCopy(tabbed: Bool, corruptSource: Bool = false, replacing: Bool = false) async throws {
         NSApp.activate(ignoringOtherApps: true)
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:
@@ -183,75 +183,27 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
             open(p, 'wb').write(raw)
             """, fixture.archive.path])
         }
-        let target = try ScenarioFixture()
+        let target = try ScenarioFixture(script: replacing ? """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('original.txt', b'original')
+            z.writestr('tree/outdated.txt', b'outdated')
+            for i in range(100): z.writestr(f'file-{i:03}.txt', b'old')
+        """ : "with zipfile.ZipFile(p, 'w') as z: z.writestr('original.txt', b'original')")
         let (sourceDocument, source) = try await scenarioDocument(fixture)
         let (targetDocument, destination) = try await scenarioDocument(target)
-        let probe = ArchiveDropProbe(destination)
-        destination.outlineView.dataSource = probe
-        defer { destination.outlineView.dataSource = destination }
         let originalSource = try ScenarioFixture.digest(fixture.archive)
         let originalTarget = try ScenarioFixture.digest(target.archive)
-        let first = try XCTUnwrap(source.window), second = try XCTUnwrap(destination.window)
-        first.tabbingIdentifier = UUID().uuidString
-        second.tabbingIdentifier = UUID().uuidString
-        destination.showWindow(nil)
-        source.showWindow(nil)
-        first.setFrame(NSRect(x: 40, y: 240, width: 680, height: 500), display: true)
-        second.setFrame(NSRect(x: 750, y: 240, width: 680, height: 500), display: true)
-        second.makeKeyAndOrderFront(nil)
-        first.makeKeyAndOrderFront(nil)
-        first.makeMain()
-        if tabbed {
-            first.addTabbedWindow(second, ordered: .above)
-            first.makeKeyAndOrderFront(nil)
-            XCTAssertTrue(first.tabGroup === second.tabGroup)
-        }
-        source.outlineView.expandItem(nil, expandChildren: true)
-        source.outlineView.selectAll(nil)
-        first.contentView?.layoutSubtreeIfNeeded()
-        second.contentView?.layoutSubtreeIfNeeded()
-        try await scenarioWait { first.isKeyWindow }
-        let rect = source.outlineView.rect(ofRow: 0)
-        let start = first.convertPoint(toScreen: source.outlineView.convert(NSPoint(x: 120, y: rect.midY), to: nil))
-        let end = second.convertPoint(toScreen: destination.outlineView.convert(NSPoint(x: 120, y: 150), to: nil))
-        var switchedTab = false
-        func post(_ type: NSEvent.EventType, at point: NSPoint) throws {
-            let window = tabbed ? (switchedTab ? second : first) : (second.frame.contains(point) ? second : first)
-            let event = try XCTUnwrap(NSEvent.mouseEvent(with: type, location: window.convertPoint(fromScreen: point),
-                                                        modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                                                        windowNumber: window.windowNumber, context: nil, eventNumber: 0,
-                                                        clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1))
-            NSApp.postEvent(event, atStart: false)
-        }
-        try post(.mouseMoved, at: start)
-        try await Task.sleep(for: .milliseconds(50))
-        try post(.leftMouseDown, at: start)
-        try await Task.sleep(for: .milliseconds(80))
-        try post(.leftMouseDragged, at: NSPoint(x: start.x + 8, y: start.y))
-        try await scenarioWait { source.draggedNodes.count == 101 }
-        for step in 1...20 {
-            try await Task.sleep(for: .milliseconds(40))
-            if tabbed, step == 6 {
-                XCTAssertEqual(source.draggedNodes.count, 101)
-                // 実際のドラッグを継続したまま、別の文書タブを前面にする。
-                second.makeKeyAndOrderFront(nil)
-                switchedTab = true
-                XCTAssertTrue(first.tabGroup?.selectedWindow === second)
+        try await dragSelection(from: source, to: destination, tabbed: tabbed, expectedCount: 101)
+        if replacing {
+            var previous: ArchiveConflictPrompt?
+            for _ in 0..<2 {
+                try await scenarioWait { destination.conflictPrompt != nil && destination.conflictPrompt !== previous }
+                let prompt = try XCTUnwrap(destination.conflictPrompt)
+                previous = prompt
+                if prompt.conflict.allowsBatchChoice { prompt.applyToRemaining.performClick(nil) }
+                prompt.alert.buttons[0].performClick(nil)
             }
-            let fraction = CGFloat(step) / 20
-            try post(.leftMouseDragged, at: NSPoint(x: start.x + (end.x - start.x) * fraction,
-                                                   y: start.y + (end.y - start.y) * fraction))
         }
-        for _ in 0..<20 where probe.proposedOperation != .copy {
-            try await Task.sleep(for: .milliseconds(50))
-            try post(.leftMouseDragged, at: end)
-        }
-        XCTAssertEqual(probe.proposedOperation, .copy)
-        XCTAssertEqual(source.draggedNodes.count, 101, "子孫の二重送信を防ぎ、全ファイルを運ぶ")
-        try post(.leftMouseUp, at: end)
-        try await scenarioWait { destination.extractionTask != nil || targetDocument.session?.generation == 1
-            || second.attachedSheet != nil }
-        XCTAssertTrue(probe.accepted)
         await destination.extractionTask?.value
         XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), originalSource)
         XCTAssertFalse(sourceDocument.undoManager?.canUndo == true)
@@ -259,8 +211,8 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
             XCTAssertEqual(try ScenarioFixture.digest(target.archive), originalTarget)
             XCTAssertEqual(targetDocument.session?.generation, 0)
             XCTAssertFalse(targetDocument.undoManager?.canUndo == true)
-            try await scenarioWait { second.attachedSheet != nil }
-            if let sheet = second.attachedSheet { second.endSheet(sheet); sheet.orderOut(nil) }
+            try await scenarioWait { destination.window?.attachedSheet != nil }
+            if let sheet = destination.window?.attachedSheet { destination.window?.endSheet(sheet); sheet.orderOut(nil) }
             return
         }
         var expected = try ScenarioFixture.contents(fixture.archive)
@@ -273,4 +225,125 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         XCTAssertEqual(try ScenarioFixture.digest(target.archive), originalTarget)
         XCTAssertFalse(targetDocument.undoManager?.canUndo == true)
     }
+    @MainActor private func dragSelection(from source: ArchiveWindowController, to destination: ArchiveWindowController,
+                                         tabbed: Bool, expectedCount: Int, paths: Set<String>? = nil) async throws {
+        let probe = ArchiveDropProbe(destination)
+        destination.outlineView.dataSource = probe
+        defer { destination.outlineView.dataSource = destination }
+        let first = try XCTUnwrap(source.window), second = try XCTUnwrap(destination.window)
+        first.tabbingIdentifier = UUID().uuidString
+        second.tabbingIdentifier = UUID().uuidString
+        destination.showWindow(nil)
+        source.showWindow(nil)
+        first.setFrame(NSRect(x: 40, y: 240, width: 680, height: 500), display: true)
+        second.setFrame(NSRect(x: 750, y: 240, width: 680, height: 500), display: true)
+        second.makeKeyAndOrderFront(nil)
+        first.makeKeyAndOrderFront(nil)
+        first.makeMain()
+        if tabbed {
+            first.addTabbedWindow(second, ordered: .above)
+            first.tabGroup?.selectedWindow = first
+            first.makeKeyAndOrderFront(nil)
+            XCTAssertTrue(first.tabGroup === second.tabGroup)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        first.makeKeyAndOrderFront(nil)
+        first.orderFrontRegardless()
+        source.outlineView.expandItem(nil, expandChildren: true)
+        if let paths {
+            let view = source.outlineView
+            view.selectRowIndexes(IndexSet((0..<view.numberOfRows).filter { row in
+                (view.item(atRow: row) as? EntryNode).map { paths.contains($0.path) } == true
+            }), byExtendingSelection: false)
+        } else { source.outlineView.selectAll(nil) }
+        first.contentView?.layoutSubtreeIfNeeded()
+        second.contentView?.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(80))
+        let startRow = source.outlineView.selectedRowIndexes.first ?? 0
+        source.outlineView.scrollRowToVisible(startRow)
+        let rect = source.outlineView.rect(ofRow: startRow)
+        let start = first.convertPoint(toScreen: source.outlineView.convert(NSPoint(x: 120, y: rect.midY), to: nil))
+        let end = second.convertPoint(toScreen: destination.outlineView.convert(NSPoint(x: 120, y: 150), to: nil))
+        func post(_ type: NSEvent.EventType, at point: NSPoint) throws {
+            let window = tabbed ? (first.tabGroup?.selectedWindow ?? first) : (second.frame.contains(point) ? second : first)
+            try postNativeMouseEvent(type, at: point, in: window)
+        }
+        try post(.mouseMoved, at: start)
+        try await Task.sleep(for: .milliseconds(50))
+        var mouseIsDown = true
+        defer { if mouseIsDown { try? post(.leftMouseUp, at: start) } }
+        try post(.leftMouseDown, at: start)
+        try await Task.sleep(for: .milliseconds(80))
+        try post(.leftMouseDragged, at: NSPoint(x: start.x + 8, y: start.y))
+        try await scenarioWait { source.draggedNodes.count == expectedCount }
+        var travelStart = start
+        if tabbed {
+            let frame = try nativeTabFrame(for: second)
+            let hover = NSPoint(x: frame.midX, y: frame.midY)
+            for step in 1...8 {
+                try await Task.sleep(for: .milliseconds(40))
+                let fraction = CGFloat(step) / 8
+                try post(.leftMouseDragged, at: NSPoint(x: start.x + (hover.x - start.x) * fraction,
+                                                       y: start.y + (hover.y - start.y) * fraction))
+            }
+            // タブをコードから選ばず、実際にカーソルを保持して選択が変わることを確認する。
+            try await scenarioWait { first.tabGroup?.selectedWindow === second }
+            XCTAssertEqual(source.draggedNodes.count, expectedCount)
+            travelStart = hover
+        }
+        for step in 1...20 {
+            try await Task.sleep(for: .milliseconds(40))
+            let fraction = CGFloat(step) / 20
+            try post(.leftMouseDragged, at: NSPoint(x: travelStart.x + (end.x - travelStart.x) * fraction,
+                                                   y: travelStart.y + (end.y - travelStart.y) * fraction))
+        }
+        for _ in 0..<20 where probe.proposedOperation != .copy {
+            try await Task.sleep(for: .milliseconds(50))
+            try post(.leftMouseDragged, at: end)
+        }
+        XCTAssertEqual(probe.proposedOperation, .copy)
+        XCTAssertEqual(source.draggedNodes.count, expectedCount, "子孫の二重送信を防ぎ、全ファイルを運ぶ")
+        try post(.leftMouseUp, at: end)
+        mouseIsDown = false
+        try await scenarioWait { probe.accepted }
+        XCTAssertTrue(probe.accepted)
+    }
+
+    @MainActor func testNativeDragCanReplaceOneHundredFilesAndFolderInAnotherTab() async throws {
+        try await assertNativeCopy(tabbed: true, replacing: true)
+    }
+
+    @MainActor func testNativePromisesWithDuplicateNamesAreReceivedSeparatelyAndCompared() async throws {
+        NSApp.activate(ignoringOtherApps: true)
+        let fixture = try ScenarioFixture(script: """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('one/same.txt', b'first')
+            z.writestr('two/same.txt', b'second')
+        """)
+        let target = try ScenarioFixture()
+        let (_, source) = try await scenarioDocument(fixture)
+        let (document, destination) = try await scenarioDocument(target)
+        let before = try ScenarioFixture.digest(fixture.archive)
+        try await dragSelection(from: source, to: destination, tabbed: false, expectedCount: 2,
+                                paths: ["one/same.txt", "two/same.txt"])
+        try await scenarioWait { destination.conflictPrompt != nil || destination.failureAlert != nil || document.generation > 0 }
+        let receivedNames = try ScenarioFixture.contents(target.archive).keys.sorted()
+        let prompt = try XCTUnwrap(destination.conflictPrompt,
+            "generation=\(document.generation) files=\(receivedNames) failure=\(destination.failureAlert?.informativeText ?? "none")")
+        XCTAssertEqual(prompt.conflict.path, "same.txt")
+        XCTAssertEqual(prompt.conflict.existing.size, 5)
+        XCTAssertEqual(prompt.conflict.incoming.size, 6)
+        guard case .file(let first) = prompt.conflict.existing.source,
+              case .file(let second) = prompt.conflict.incoming.source else { return XCTFail("受信前に同名ファイルを失った") }
+        XCTAssertNotEqual(first.deletingLastPathComponent(), second.deletingLastPathComponent())
+        XCTAssertEqual(try Data(contentsOf: first), Data("first".utf8))
+        XCTAssertEqual(try Data(contentsOf: second), Data("second".utf8))
+        prompt.alert.buttons[0].performClick(nil)
+        await destination.extractionTask?.value
+        XCTAssertNil(destination.failureAlert)
+        XCTAssertEqual(document.generation, 1)
+        XCTAssertEqual(try ScenarioFixture.contents(target.archive), ["original.txt": Data("original".utf8), "same.txt": Data("second".utf8)])
+        XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), before)
+    }
+
 }

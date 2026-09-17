@@ -21,6 +21,9 @@ macOS のログイン済み GUI セッションと、通常のビルドと同じ
 `ArchiveTabTests` は表示後のタブ群、文書の再利用、実ウインドウメニューからの切り替え・分離・結合を検査する。
 `ArchiveDropIntegrationTests` はテストアプリ内へマウスイベントを送り、実際のドラッグ開始、
 コピー受け入れ判定、`NSFilePromiseReceiver` の背景 callback、文書の追加と undo までを通す。
+タブ間のケースは実際のタブ上へマウスを移して静止させ、コードからタブを選択せずに切り替えを待つ。
+`ArchiveTabSpringLoadingTests` は Finder と同じ file URL の実ドラッグで、同名の三つのタブ間の切り替え、
+短い通過、離脱、Escape での取消し、待機中のタブ終了、分離・結合後の通常クリックを検査する。
 他のアプリへ入力は送らず、画面収録権限やアクセシビリティ権限には依存しない。
 通常のドロップでは見えない callback のスレッド違反は、provider やモデルだけのテストでは検出できない。
 
@@ -106,3 +109,15 @@ caffeinate -d python3 Tools/verify_save_panel_animation.py
 
 AppKit の自動 validation と responder 解決の仕様は
 [Apple のメニュー有効化の説明](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MenuList/Articles/EnablingMenuItems.html)を参照。
+
+同名項目の比較は `ArchiveConflictUITests` を上記の結合検査に含める。実際のドロップから
+置き換え・スキップ・残りへの適用をクリックし、元データ、結果、undo、キャンセル、文書終了まで確認する。
+`ArchiveDropIntegrationTests` は100ファイルとフォルダの別タブへの置き換え、別フォルダから選んだ同名の
+file promise を追加し、AppKit による改名後も双方の内容を保持して確認に進むことを検査する。
+`ArchiveImportConflictTests` は1,000件、全書き込み形式、暗号化、正準等価パス、変更された入力・世代を検証する。
+
+比較の属性欄は26言語とライト／ダークで描画し、文字・ビューのはみ出しを調べる。
+Quick Look の XPC 描画は `cacheDisplay` に含まれないため、表示の目視検証ではテストアプリの比較ウインドウだけを
+ScreenCaptureKit で撮影する。`KAITOFINDER_CONFLICT_CAPTURE_DIRECTORY` を指定した場合だけ、比較テストは
+そのフォルダへ window ID と bundle ID の `request.json` を出し、撮影側の `complete` を待つ。
+通常のテスト実行には画面収録権限は不要。2026-09-17 の検証は `Documentation/verification/2026-09-17-import-conflicts.md` に記録する。

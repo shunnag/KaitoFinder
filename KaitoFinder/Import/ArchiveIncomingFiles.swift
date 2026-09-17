@@ -54,28 +54,40 @@ enum ArchiveIncomingPasteboard {
 
 /// callback が残る間は一時領域も保持する。取消しで供給元の書き込み先を先に消さない。
 nonisolated final class ArchiveIncomingFiles: Sendable {
+    private struct Received {
+        let url: URL
+        let index: Int
+        let originalPath: String?
+    }
     private struct State {
         var remaining = 0
-        var urls: [URL] = []
+        var files: [Received] = []
         var failures: [String] = []
+        var resolvedURLs: [URL]?
+        var originalPaths: [URL: String] = [:]
     }
     private let state = Mutex(State())
     private let directory: URL
     private let queue = OperationQueue()
 
-    @MainActor init(receivers: [NSFilePromiseReceiver]) throws {
+    @MainActor init(receivers: [NSFilePromiseReceiver], originalPaths: [String]? = nil) throws {
+        if let originalPaths, originalPaths.count != receivers.count { throw ArchiveEditError.staleSelection }
         directory = try ExtractionTemporaryDirectory().create()
         queue.name = "com.shunnag.KaitoFinder.receive"
         queue.qualityOfService = .userInitiated
         // acceptDrop の同期呼出し中に要求を開始する。Task に移すと AppKit が拒否する。
         let directory = self.directory
-        for receiver in receivers {
+        for (index, receiver) in receivers.enumerated() {
+            let originalPath = originalPaths?[index]
             // AppKit は指定した背景 queue で callback を呼ぶ。@Sendable を明示しないと
             // init の MainActor を継承し、書庫間ドロップで実行時の隔離検査が trap する。
+            // AppKit の契約上、一つの drag 内の全 receiver は同じ保存先を指定する。
             receiver.receivePromisedFiles(atDestination: directory, options: [:], operationQueue: queue) { @Sendable [self] url, error in
                 state.withLock {
                     if let error { $0.failures.append(ArchiveErrorText.describe(error)) }
-                    else if ExtractionPath.isInside(url, root: directory) { $0.urls.append(url) }
+                    else if ExtractionPath.isInside(url, root: directory) {
+                        $0.files.append(Received(url: url, index: index, originalPath: originalPath))
+                    }
                     else { $0.failures.append(String(localized: "promiseの出力が一時領域の外を指しています。")) }
                     $0.remaining -= 1
                 }
@@ -90,7 +102,9 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    func receive(progress: Progress) async throws -> [URL] {
+    func originalPath(for url: URL) -> String? { state.withLock { $0.originalPaths[url] } }
+
+    @concurrent func receive(progress: Progress) async throws -> [URL] {
         while state.withLock({ $0.remaining > 0 }) {
             try ArchiveImportPlan.checkCancellation(progress)
             try await Task.sleep(for: .milliseconds(50))
@@ -98,7 +112,25 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
         try ArchiveImportPlan.checkCancellation(progress)
         return try state.withLock {
             guard $0.failures.isEmpty else { throw ExtractionFailure.refused($0.failures.joined(separator: "\n")) }
-            return $0.urls.sorted { $0.path < $1.path }
+            if let urls = $0.resolvedURLs { return urls }
+            var urls: [URL] = []
+            let files = $0.files.sorted { $0.index == $1.index ? $0.url.path < $1.url.path : $0.index < $1.index }
+            for file in files {
+                try ArchiveImportPlan.checkCancellation(progress)
+                guard let path = file.originalPath, let name = ArchivePath.components(path).last else { urls.append(file.url); continue }
+                // AppKit は same.txt / same 2.txt と改名する。アプリ内では元の名前を
+                // 個別領域に復元し、追加側の比較・置き換えの選択を通す。
+                let leaf = try ArchiveImportPlan.path(name)
+                guard ArchivePath.components(leaf).count == 1 else { throw ArchiveEditError.invalidName(name) }
+                let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+                let url = folder.appendingPathComponent(leaf)
+                try FileManager.default.moveItem(at: file.url, to: url)
+                urls.append(url)
+                $0.originalPaths[url] = path
+            }
+            $0.resolvedURLs = urls
+            return urls
         }
     }
 }

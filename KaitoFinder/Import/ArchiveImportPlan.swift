@@ -23,6 +23,9 @@ nonisolated struct ArchiveImportPlan: Sendable {
     }
     var items: [Item] = []
     var failures: [Failure] = []
+    var replacingEntries: [Int] = []
+    var expectedEntries: [ArchiveEntry]? = nil
+    var sourceStamps: [ArchiveImportSourceStamp] = []
 
     static func path(_ raw: String) throws -> String {
         let parts = ArchivePath.components(raw, omittingEmptySubsequences: false)

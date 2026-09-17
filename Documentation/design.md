@@ -298,6 +298,12 @@ NSSplitViewController / NSToolbar / NSSearchField を使っている。column vi
 後からタブに結合できるようにする。設定変更自体では既存タブを分離・再配置しない。
 同じ URL の再オープンは `NSDocumentController` が既存文書を選び、そのタブを前面にする。
 タブの切り替え・分離・結合は AppKit がウインドウメニューへ追加する標準 action を使う。
+ドラッグ中は、別のタブの上で約0.6秒待つとそのタブを選択する。`NSWindowTab.accessoryView` の
+表示領域を持たないビューから、公開 accessibility role で標準タブを見つけ、ドラッグ専用の透明な
+ビューを重ねる。`hitTest` は通常のマウス操作を標準タブへ通し、クリック・並べ替え・閉じる操作を保つ。
+file URL と file promise を受け、静止中にも動く common run-loop mode のタイマーで選択する。
+タブからの離脱、ドラッグ終了、ビューの取り外しで待機を取り消し、発火時にも対象の所属・受信可否を確認する。
+タブ上では書庫を更新せず、切り替え後に一覧へドロップした時だけ既存の追加処理を実行する。
 
 **一括展開**: ファイル›「アーカイブを展開…」で複数のアーカイブを選ぶか、
 Finderのサービス「KaitoFinderで展開」から、文書を開かずに同じ`ArchiveBatchExtractor.run`を使う。
@@ -423,10 +429,32 @@ first responder を手放さない形にし、focus 喪失は拒否せず、終�
 待ってから一度だけ `document.append` へ渡す。一件でも受信に失敗したら書庫を書き換えない。
 受信 callback は AppKit が指定の `OperationQueue` で実行するため、明示的に `@Sendable` にする。
 MainActor の initializer から隔離を継承させると、実ドロップ時に Swift の executor 検査が trap する。
-同じ親フォルダ、自分自身や自分の子孫への移動は受け付けず、移動先の名前が
-一つでも衝突したら理由を示してドロップ全体を拒否する。複数項目とフォルダの
-全子孫は一括で公開し、「移動」一回で取り消せる。成功後は移動先を展開して
-移動した項目を選択する。モデルの検証はエラーを返し、確認 UI は持たない。
+同じ親フォルダ、自分自身や自分の子孫への移動は受け付けない。
+移動先の名前が衝突した場合は、追加・貼り付けと共通の比較シートで置き換え／スキップを選ぶ。
+複数項目とフォルダの全子孫は一括で公開し、「移動」一回で取り消せる。
+成功後は移動先を展開して選択を移し、スキップした項目は元の場所に残す。
+
+**同名項目の確認は書き込みの前に完了する。** `ArchiveConflictResolution` は正準等価のパスで
+既存の部分木と入力を束ね、選ばれた入力と削除する既存 record の一覧だけを返す。
+同じ追加操作に同名の入力が複数ある場合も比較し、後の入力を採用したときは前の入力を重ねて書かない。
+通常ファイルだけに「残りのファイルにも適用」を使い、フォルダ・型違い・同名 record の混在は個別に確認する。
+フォルダを置き換える場合は、仮想フォルダの子孫と明示 record をすべて削除してから追加し、暗黙に併合しない。
+resolver を渡さないモデル呼び出しは、従来どおり衝突を拒否する。
+
+`ArchiveSession.append` と `move` は回答待ちで actor を譲るが、その間は updater を開かない。
+回答後に世代と原本の identity を照合し、追加元は lstat の device / inode / mode / size / mtime / ctime を
+圧縮前後と公開前に照合する。updater 自身の entryNames も照合してから既存 record を削除する。
+削除と追加は一つの作業コピーで実行し、キャンセル・失敗・全件スキップでは公開も undo 登録も行わない。
+
+**file promise の改名を利用者の選択にすり替えない。** AppKit は複数の同名ファイルを `same.txt` /
+`same 2.txt` にする。また、一つの drag の全 receiver に同じ保存先を渡す必要がある。
+アプリ内では drop の同期呼び出しで元のパスを捕捉し、共通領域への受信完了後、各ファイルを個別領域へ
+元の名前で移す。入力順・元の場所・内容を保持したまま比較する。Finder の file URL は元の URL を直接使う。
+
+`ArchiveConflictPrompt` は NSAlert のシートに双方の属性を並べる。Return はスキップ、Escape は操作全体のキャンセル。
+`ArchiveConflictPreview` は QLPreviewView を左右に配置し、書庫側だけ EntryMaterializer で読み取り専用に展開する。
+比較画面を閉じると抽出を取り消して一時コピーを回収し、文書を閉じた場合も回答の continuation を一度だけ解放する。
+確認シートの間は進捗を点滅させず、全回答の後に圧縮が続く場合だけ進捗を再表示する。
 
 > **Editing inside an archive.** Confirmation is gated on reversibility, not on
 > danger: Finder does not ask before deleting because undo exists, so this app
@@ -681,7 +709,7 @@ promise は使えないので、⌘C で temp へ**展開してから**実 file 
   NSOutlineViewDropOnItemIndex)` で folder 行そのものを狙う。
 - paste の可否判定に `readObjects` を投機的に呼ばない。`pb.types` か
   `canReadObject(forClasses:options:)` を使う(pasteboard privacy 対策)。
-- spring-loaded は最初は入れない。`NSOutlineView` は drag 中に自動展開する。
+- `ArchiveTabSpringLoading` がタブ上の静止による切り替えを扱う。`NSOutlineView` は drag 中にフォルダを自動展開する。
 
 > **Moving items out and in.** The empirical spike settled copy & paste:
 > `receivePromisedFiles` is refused by AppKit outside a drag operation, so no

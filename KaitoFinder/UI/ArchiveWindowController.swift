@@ -57,6 +57,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var extractionCancellation: Task<Void, Never>?
     private(set) var extractionSheet: ExtractionProgressSheet?
     private let passwordPresenter = ArchivePasswordPresenter()
+    private let conflictPresenter = ArchiveConflictPresenter()
+    var conflictPrompt: ArchiveConflictPrompt? { conflictPresenter.prompt }
     var passwordPrompt: ArchivePasswordPrompt? { passwordPresenter.prompt }
     private(set) var unlockTask: Task<Void, Never>?
     let unlockButton: NSButton
@@ -125,6 +127,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         window.initialFirstResponder = outlineView
         window.tabbingIdentifier = "KaitoFinder.archive"
         window.tabbingMode = .automatic
+        window.tab.accessoryView = ArchiveTabSpringLoading(window: window)
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -951,14 +954,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func startMove(nodes: [EntryNode], to folder: String) -> Bool {
         guard let window, let document = document as? ArchiveDocument, !nodes.isEmpty,
-              archiveSession?.capabilities.canEdit == true, !operationInFlight else { return false }
-        var state = captureViewState()
-        state.selectedPaths = Set(nodes.map(\.path))
-        state = viewStateAfterMoving(state, nodes: nodes, to: folder)
-        let parts = ArchivePath.components(folder)
-        for count in 1..<(parts.count + 1) {
-            state.expandedPaths.insert(parts.prefix(count).joined(separator: "/"))
-        }
+              let session = archiveSession, session.capabilities.canEdit, !operationInFlight else { return false }
+        var originalState = captureViewState()
+        originalState.selectedPaths = Set(nodes.map(\.path))
         closePreview()
         materialization?.cancel()
         let progress = Progress(totalUnitCount: 0)
@@ -968,17 +966,33 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         editProgressSheet = sheet
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
+            let visibility = Self.resumeProgressAfterConflicts(sheet, on: window)
             defer {
+                visibility.cancel()
                 sheet.finish()
+                self?.extractionCancellation?.cancel()
+                self?.extractionCancellation = nil
                 self?.editProgressSheet = nil
                 self?.extractionProgress = nil
                 self?.extractionTask = nil
             }
             do {
-                let result = try await document.move(nodes, to: folder, progress: progress)
+                guard let resolver = self?.conflictResolver(on: window, session: session, sheet: sheet) else { throw CancellationError() }
+                let result = try await document.move(nodes, to: folder, progress: progress,
+                    resolveConflict: resolver)
                 if result.published, let self {
+                    let depth = ArchivePath.components(folder).count + 1
+                    let renamed = Set(result.renamedPaths.map { ArchivePath.components($0).prefix(depth).joined(separator: "/") })
+                    let moved = nodes.filter { node in
+                        let leaf = ArchivePath.components(node.path).last ?? ""
+                        let path = folder.isEmpty ? leaf : folder + "/" + leaf
+                        return renamed.contains(path)
+                    }
+                    var state = self.viewStateAfterMoving(originalState, nodes: moved, to: folder)
+                    let parts = ArchivePath.components(folder)
+                    for count in 1..<(parts.count + 1) { state.expandedPaths.insert(parts.prefix(count).joined(separator: "/")) }
                     if let unfiltered = self.unfilteredViewState {
-                        self.unfilteredViewState = self.viewStateAfterMoving(unfiltered, nodes: nodes, to: folder)
+                        self.unfilteredViewState = self.viewStateAfterMoving(unfiltered, nodes: moved, to: folder)
                     }
                     // 親の名前だけが検索に一致していた場合も、移動した項目を選択できるようにする。
                     if !self.filterQuery.isEmpty,
@@ -998,6 +1012,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 }
             }
         }
+        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
         return true
     }
 
@@ -1169,6 +1184,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         ArchiveDropTarget.folder(for: (item as? EntryNode).map(ArchiveDropTarget.Row.init))
     }
 
+    var canReceiveTabDrag: Bool { archiveSession != nil && !isLocked && !operationInFlight }
+
     // AppKit に返す操作とハイライト先を一緒に決める。別ウインドウは従来の promise copy。
     private func dropDecision(isLocal: Bool, draggedNodes: [EntryNode], hovered: EntryNode?, mask: NSDragOperation,
                               hasFiles: Bool) -> (operation: NSDragOperation, folder: EntryNode?) {
@@ -1217,8 +1234,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             switch ArchiveIncomingPasteboard.readDrop(AppKitArchivePasteboard(pasteboard: pasteboard)) {
             case .promises(let receivers):
                 guard !receivers.isEmpty else { return false }
-                let incoming = try ArchiveIncomingFiles(receivers: receivers)
-                startImport(urls: [], incoming: incoming, folder: dropFolder(item))
+                let source = (info.draggingSource as? NSView)?.window?.windowController as? ArchiveWindowController
+                let paths = source.map { $0.draggedNodes.map(\.path) }
+                let incoming = try ArchiveIncomingFiles(receivers: receivers, originalPaths: paths)
+                let sourceDocument = source?.document as? ArchiveDocument
+                startImport(urls: [], incoming: incoming, folder: dropFolder(item), incomingLocation: sourceDocument?.fileURL?.lastPathComponent)
             case .fileURLs(let urls):
                 guard !urls.isEmpty else { return false }
                 startImport(urls: urls, incoming: nil, folder: dropFolder(item))
@@ -1228,7 +1248,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         } catch { reportImportFailure(ArchiveErrorText.describe(error, bundle: bundle)); return false }
     }
 
-    private func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String) {
+    private func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String, incomingLocation: String? = nil) {
         guard let window, let session = archiveSession, !operationInFlight,
               incoming != nil || !urls.isEmpty else { return }
         if !session.capabilities.canEdit {
@@ -1244,11 +1264,24 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             detail: urls.count == 1 ? urls[0].lastPathComponent : "", bundle: bundle)
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
+            let visibility = Self.resumeProgressAfterConflicts(sheet, on: window)
+            defer {
+                withExtendedLifetime(incoming) {}
+                visibility.cancel()
+                sheet.finish()
+                self?.extractionCancellation?.cancel()
+                self?.extractionCancellation = nil
+                self?.extractionTask = nil
+                self?.extractionProgress = nil
+            }
             do {
                 let sources: [URL]
                 if let incoming { sources = try await incoming.receive(progress: progress) }
                 else { sources = urls }
-                let result = try await document.append(urls: sources, to: folder, progress: progress)
+                guard let resolver = self?.conflictResolver(on: window, session: session, sheet: sheet,
+                                                          incoming: incoming, incomingLocation: incomingLocation) else { throw CancellationError() }
+                let result = try await document.append(urls: sources, to: folder, progress: progress,
+                    resolveConflict: resolver)
                 // 非同期の圧縮が完了するまで、受信ファイルを保持する。
                 withExtendedLifetime(incoming) {}
                 sheet.finish()
@@ -1261,8 +1294,35 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 sheet.finish()
                 if !(error is CancellationError), let self { self.reportImportFailure(ArchiveErrorText.describe(error, bundle: self.bundle)) }
             }
-            self?.extractionTask = nil
-            self?.extractionProgress = nil
+        }
+        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+    }
+
+    private func conflictResolver(on window: NSWindow, session: ArchiveSession, sheet: ExtractionProgressSheet,
+                                  incoming: ArchiveIncomingFiles? = nil,
+                                  incomingLocation: String? = nil) -> ArchiveImportConflict.Resolver {
+        { [weak self] conflict in
+            guard let self else { throw CancellationError() }
+            sheet.finish()
+            func location(_ item: ArchiveConflictItem) -> String? {
+                guard case .file(let url) = item.source, let path = incoming?.originalPath(for: url) else { return nil }
+                return incomingLocation.map { $0 + "/" + path } ?? path
+            }
+            return try await self.conflictPresenter.response(to: conflict, on: window, session: session,
+                existingLocation: location(conflict.existing), incomingLocation: location(conflict.incoming), bundle: self.bundle)
+        }
+    }
+
+    private static func resumeProgressAfterConflicts(_ sheet: ExtractionProgressSheet, on window: NSWindow) -> Task<Void, Never> {
+        Task {
+            // 件数は全回答の後に確定する。複数の確認シートの間で進捗を点滅させない。
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
+                if sheet.progress.totalUnitCount > 0 {
+                    if sheet.window?.sheetParent == nil, !sheet.progress.isCancelled { sheet.begin(on: window) }
+                    return
+                }
+            }
         }
     }
 
@@ -1506,6 +1566,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.cancelRenaming()
         unlockTask?.cancel()
         passwordPresenter.cancel()
+        conflictPresenter.cancel()
         if let editor = passwordEditor, let parent = editor.alert.window.sheetParent {
             parent.endSheet(editor.alert.window, returnCode: .alertSecondButtonReturn)
         }

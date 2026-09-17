@@ -70,7 +70,7 @@ def main():
         run(command, output / (name + ".log"), passed, {item.split("/")[0] for item in selection})
 
     test("commands", ["ApplicationCommandIntegrationTests", "RecentDocumentsMenuTests",
-         "ArchiveTabTests", "ArchiveDropIntegrationTests",
+         "ArchiveTabTests", "ArchiveTabSpringLoadingTests", "ArchiveDropIntegrationTests", "ArchiveConflictUITests",
          "ArchivePasswordUITests/testPresentedSavePanelAnimatesEncryptionAndCancelsWithoutSaving",
          "ArchivePasswordUITests/testSavePanelSheetReversesAnimationAndCancelsDuringExpansion",
          "ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents",

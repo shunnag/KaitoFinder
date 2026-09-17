@@ -42,6 +42,12 @@ nonisolated struct ArchiveEditSelection: Sendable {
     let isDirectory: Bool
     let entries: [ArchiveEntry]
 
+    init(path: String, isDirectory: Bool, entries: [ArchiveEntry]) {
+        self.path = path
+        self.isDirectory = isDirectory
+        self.entries = entries
+    }
+
     @MainActor init(_ node: EntryNode) {
         path = node.path
         isDirectory = node.isDirectory
@@ -391,13 +397,26 @@ nonisolated enum ArchiveImportTransaction {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
-        progress.totalUnitCount = Int64(plan.items.count + 1)
+        guard plan.replacingEntries.isEmpty || plan.expectedEntries != nil else { throw ArchiveEditError.staleSelection }
+        for stamp in plan.sourceStamps {
+            try ArchiveImportPlan.checkCancellation(progress)
+            try stamp.verify()
+        }
+        progress.totalUnitCount = Int64(plan.items.count + plan.replacingEntries.count + 1)
         progress.completedUnitCount = 0
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.items.lazy.map(\.url)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
-        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: willPublish,
+        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: {
+            for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
+            try willPublish?()
+        },
                     expectedIdentity: expectedIdentity, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get()) { updater in
+            if let existing = plan.expectedEntries { try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing) }
+            if !plan.replacingEntries.isEmpty {
+                try updater.remove(entriesAt: plan.replacingEntries)
+                progress.completedUnitCount += Int64(plan.replacingEntries.count)
+            }
             for (index, item) in plan.items.enumerated() {
                 try ArchiveImportPlan.checkCancellation(progress)
                 // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
@@ -408,6 +427,10 @@ nonisolated enum ArchiveImportTransaction {
                 catch { throw ExtractionFailure.refused("\(item.path): \(error)") }
                 progress.completedUnitCount += 1
                 try didProcess?(index)
+            }
+            for stamp in plan.sourceStamps {
+                try ArchiveImportPlan.checkCancellation(progress)
+                try stamp.verify()
             }
         }
         return ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: [])
