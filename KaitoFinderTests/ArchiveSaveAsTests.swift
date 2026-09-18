@@ -12,10 +12,11 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         preserveArchiveWindowFrame()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let directory = try ArchiveTestDirectory()
-        let archive = directory.url.appendingPathComponent(readOnly ? "original.tar.bz2" : (gzip ? "original.tgz" : "original.zip"))
+        let archive = directory.url.appendingPathComponent(readOnly ? "original.tar.lzma" : (gzip ? "original.tgz" : "original.zip"))
         if readOnly {
             try Data("read-only contents".utf8).write(to: directory.url.appendingPathComponent("file.txt"))
-            try directory.run("/usr/bin/tar", ["-cjf", archive.path, "file.txt"])
+            try directory.run("/usr/bin/tar", ["-cf", archive.path, "file.txt"])
+            try directory.run("/usr/bin/python3", ["-c", "import sys; p=sys.argv[1]; import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", archive.path])
         } else if encrypted {
             try Data("decrypted contents".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
             try directory.run("/usr/bin/zip", ["-q", "-P", "known-password", archive.path, "secret.txt"])
@@ -31,7 +32,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
             catch { return EIO }
         })
         let document = ArchiveDocument(undoStack: stack, preferencesStore: store)
-        let type = readOnly ? "public.bzip2-archive" : (gzip ? "org.gnu.gnu-zip-archive" : "public.zip-archive")
+        let type = readOnly ? "public.data" : (gzip ? "org.gnu.gnu-zip-archive" : "public.zip-archive")
         try document.read(from: archive, ofType: type)
         document.fileURL = archive
         document.fileType = type
@@ -223,7 +224,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
             XCTAssertEqual(save.encryptionCheckbox.state, .on)
             XCTAssertTrue(save.passwordFields.passwordField.stringValue == "known-password")
             XCTAssertTrue(save.passwordFields.verifyField.stringValue == "known-password")
-            save.formatPopup.selectItem(at: 3)
+            save.formatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .sevenZip)))
             save.changeFormat(save.formatPopup)
             save.encryptionCheckbox.state = .off
             save.changeEncryption(save.encryptionCheckbox)
@@ -249,7 +250,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
             XCTAssertEqual(save.encryptionCheckbox.state, .on)
             XCTAssertTrue(save.passwordFields.passwordField.stringValue == "known-password")
             XCTAssertTrue(save.passwordFields.verifyField.stringValue == "known-password")
-            save.formatPopup.selectItem(at: 3)
+            save.formatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .sevenZip)))
             save.changeFormat(save.formatPopup)
             save.passwordFields.headersCheckbox.state = .on
             return destination

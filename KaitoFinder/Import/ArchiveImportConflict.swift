@@ -67,13 +67,23 @@ nonisolated struct ArchiveConflictItem: Sendable {
 
     static func descendantCount(_ paths: [String], below root: String) -> Int {
         let depth = ArchivePath.components(root).count
-        var descendants = Set<String>()
+        // 仮想フォルダも一つとして数える。各 entry の全接頭辞を join し直すと
+        // 深さの二乗に比例するため、共通成分を平坦な木へ一度だけ登録する。
+        // 再帰的な参照型を使わず、深いパスの解放でもスタックを消費しない。
+        var descendants: [[String: Int]] = [[:]]
         for path in paths {
-            let parts = ArchivePath.components(path)
-            guard parts.count > depth else { continue }
-            for count in (depth + 1)...parts.count { descendants.insert(parts.prefix(count).joined(separator: "/")) }
+            var parent = 0
+            for part in ArchivePath.components(path).dropFirst(depth) {
+                if let child = descendants[parent][part] { parent = child }
+                else {
+                    let child = descendants.count
+                    descendants.append([:])
+                    descendants[parent][part] = child
+                    parent = child
+                }
+            }
         }
-        return descendants.count
+        return descendants.count - 1
     }
 }
 

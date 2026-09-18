@@ -116,17 +116,17 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testUnsupportedTarWrapperAcceptsConversionDropButRefusesAppendWithFormatReason() async throws {
-        let fixture = try Fixture(filename: "archive.tar.bz2", script: "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))")
+        let fixture = try Fixture(filename: "archive.tar.lzma", script: "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))")
         let session = try ArchiveSession(url: fixture.archive)
-        XCTAssertEqual(session.capabilities.refusal, .format("tar.bz2"))
-        let formatName = "tar.bz2"
+        XCTAssertEqual(session.capabilities.refusal, .format("tar.lzma"))
+        let formatName = "tar.lzma"
         XCTAssertEqual(session.capabilities.readOnlyReason, String(localized: "\(formatName)アーカイブは変更できません。"))
         XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: true, hasFiles: true, busy: false))
         let before = try Data(contentsOf: fixture.archive)
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: Progress())
             XCTFail("未対応の tar 包装が変更できました")
-        } catch { XCTAssertTrue(String(describing: error).contains("tar.bz2")) }
+        } catch { XCTAssertTrue(String(describing: error).contains("tar.lzma")) }
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 

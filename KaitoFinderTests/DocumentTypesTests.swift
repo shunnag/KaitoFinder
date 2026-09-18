@@ -34,6 +34,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             .bzip2: ["public.bzip2-archive"],
             .xz: ["org.tukaani.xz-archive", "org.tukaani.tar-xz-archive"],
             .zstd: ["org.zstandard.zstd-archive"],
+            .lz4: ["com.shunnag.KaitoFinder.lz4-archive"],
             .lzma: ["org.tukaani.lzma-archive"],
             .compress: ["public.z-archive"]
         ]
@@ -56,6 +57,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
         let imports = try XCTUnwrap(declaration()["UTImportedTypeDeclarations"] as? [[String: Any]])
         let expected = [
             "org.zstandard.zstd-archive": ["zst", "tzst"],
+            "com.shunnag.KaitoFinder.lz4-archive": ["lz4"],
             "org.tukaani.tar-xz-archive": ["txz"],
             "com.winzip.zipx-archive": ["zipx"],
             "org.debian.deb-archive": ["deb"],
@@ -64,6 +66,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "com.microsoft.cab": ["cab"],
             "public.zip-archive": ["zip", "zipx", "cbz"],
             "org.tukaani.xz-archive": ["xz", "txz"],
+            "org.tukaani.lzma-archive": ["lzma", "tlz"],
             "com.shunnag.KaitoFinder.ar-archive": ["ar", "a", "deb"]
         ]
         for (identifier, extensions) in expected {
@@ -87,7 +90,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "ISO 9660": "Alternate", "xar": "Alternate", "Installer Package": "Alternate",
             "7-Zip": "Default", "RAR": "Default", "LHA": "Default", "ar": "Default",
             "CAB": "Default", "RPM": "Default", "LZMA": "Default", "StuffIt": "Default",
-            "StuffIt X": "Default", "Zstandard": "Default"
+            "StuffIt X": "Default", "Zstandard": "Default", "LZ4": "Default"
         ]
         let documents = try XCTUnwrap(declaration()["CFBundleDocumentTypes"] as? [[String: Any]])
         XCTAssertEqual(documents.count, expected.count)
@@ -105,11 +108,11 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             .zip: "ZIP", .rar: "RAR", .sevenZip: "7z", .lha: "LHA", .stuffIt: "StuffIt",
             .stuffItX: "StuffIt X", .tar: "tar", .cpio: "cpio", .ar: "ar", .iso: "ISO 9660",
             .cab: "CAB", .rpm: "RPM", .xar: "xar", .gzip: "gzip", .bzip2: "bzip2", .xz: "xz",
-            .zstd: "Zstandard", .lzma: "LZMA", .compress: "UNIX compress"
+            .zstd: "Zstandard", .lz4: "LZ4", .lzma: "LZMA", .compress: "UNIX compress"
         ]
         XCTAssertEqual(Set(expected.keys), Set(KaitoKit.ArchiveFormat.allCases))
         // 指定表記の LZMA も rawValue の大文字化と一致する。
-        let uppercaseNames: Set<KaitoKit.ArchiveFormat> = [.zip, .rar, .lha, .cab, .rpm, .lzma]
+        let uppercaseNames: Set<KaitoKit.ArchiveFormat> = [.zip, .rar, .lha, .cab, .rpm, .lzma, .lz4]
         for format in KaitoKit.ArchiveFormat.allCases {
             XCTAssertEqual(format.displayName, try XCTUnwrap(expected[format]), format.rawValue)
             XCTAssertFalse(format.displayName.isEmpty, format.rawValue)
@@ -126,7 +129,8 @@ nonisolated final class DocumentTypesTests: XCTestCase {
         let cases: [(String, String, KaitoKit.ArchiveFormat, String, String)] = [
             ("stuffit/testfile.stuffit7.win.sit.b64", "sit", .stuffIt, "com.stuffit.archive.sit", "StuffIt"),
             ("stuffit/testfile.stuffit_deluxe_2010.win.basic.sitx.b64", "sitx", .stuffItX, "com.stuffit.archive.sitx", "StuffIt X"),
-            ("zstd/one-l1.zst.b64", "zst", .zstd, "org.zstandard.zstd-archive", "Zstandard")
+            ("zstd/one-l1.zst.b64", "zst", .zstd, "org.zstandard.zstd-archive", "Zstandard"),
+            ("lz4-frame/tiny.lz4.b64", "lz4", .lz4, "com.shunnag.KaitoFinder.lz4-archive", "LZ4")
         ]
         for (fixture, fileExtension, format, identifier, name) in cases {
             let encoded = try Data(contentsOf: fixtures.appendingPathComponent(fixture))
@@ -156,4 +160,21 @@ nonisolated final class DocumentTypesTests: XCTestCase {
         let compress = ArchiveCapabilities.inspect(url: directory.url.appendingPathComponent("archive.Z"), format: .compress)
         XCTAssertEqual(compress.readOnlyReason(bundle: japanese), "UNIX compressアーカイブは変更できません。")
     }
+
+    func testSaveTypesDeclareCanonicalExtensionsBeforeAliases() throws {
+        let imports = try XCTUnwrap(declaration()["UTImportedTypeDeclarations"] as? [[String: Any]])
+        for (identifier, extensions, parent) in [
+            ("com.shunnag.KaitoFinder.save-tar-gzip", ["tar.gz", "tgz"], "org.gnu.gnu-zip-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-bzip2", ["tar.bz2", "tbz2", "tbz"], "public.bzip2-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-xz", ["tar.xz", "txz"], "org.tukaani.xz-archive"),
+            ("com.shunnag.KaitoFinder.save-tbz", ["tbz2", "tbz"], "public.bzip2-archive"),
+            ("com.shunnag.KaitoFinder.lzh-archive", ["lzh", "lha"], "public.lha-archive")
+        ] {
+            let type = try XCTUnwrap(imports.first { $0["UTTypeIdentifier"] as? String == identifier })
+            let tags = try XCTUnwrap(type["UTTypeTagSpecification"] as? [String: Any])
+            XCTAssertEqual(tags["public.filename-extension"] as? [String], extensions)
+            XCTAssertTrue((type["UTTypeConformsTo"] as? [String] ?? []).contains(parent))
+        }
+    }
+
 }

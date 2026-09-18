@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import GyoshukuKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -140,4 +141,69 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
         XCTAssertEqual(try ScenarioFixture.digest(archive), try ScenarioFixture.digest(fixture.archive))
         await session.close()
     }
+
+    @MainActor func testLHALargeAppendOutOfSpaceKeepsOriginalAndRemovesSpool() async throws {
+        let fixture = try ScenarioFixture(), volume = try volume()
+        let archive = volume.mount.appendingPathComponent("archive.lzh")
+        let writer = try GyoshukuKit.ArchiveWriter.create(url: archive, format: .lha)
+        try writer.add(data: Data("original".utf8), as: "original.txt")
+        try writer.finish()
+        let (document, _) = try await scenarioDocument(fixture, url: archive)
+        let before = try ScenarioFixture.digest(archive)
+        let names = Set(try FileManager.default.contentsOfDirectory(atPath: volume.mount.path))
+        let source = try fixture.file("large.bin", bytes: Data(repeating: 0x41, count: 32 * 1024 * 1024))
+        do {
+            _ = try await document.append(urls: [source], to: "", progress: Progress(),
+                                          willPublish: { XCTFail("容量不足で公開境界に進みました") })
+            XCTFail("LHA streaming append exceeded the test volume")
+        } catch {
+            let cocoa = error as NSError, reason = String(describing: error)
+            XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
+                || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+        }
+        XCTAssertEqual(try ScenarioFixture.digest(archive), before)
+        XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+        XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+        XCTAssertEqual(document.generation, 0)
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: volume.mount.path)), names)
+        document.close()
+        await document.sessionCleanup?.value
+    }
+
+    @MainActor func testCompressedTarAppendOutOfSpaceKeepsOriginalAndUndoHistory() async throws {
+        var state: UInt64 = 0x7461_7220_2026
+        let bytes = Data((0..<(16 * 1_024 * 1_024)).map { _ in
+            state ^= state << 13; state ^= state >> 7; state ^= state << 17
+            return UInt8(truncatingIfNeeded: state)
+        })
+        for (format, suffix) in [(GyoshukuKit.ArchiveFormat.tarBzip2, "tar.bz2"), (.tarXZ, "tar.xz")] {
+            let fixture = try ScenarioFixture(), volume = try volume()
+            let archive = volume.mount.appendingPathComponent("archive." + suffix)
+            let writer = try GyoshukuKit.ArchiveWriter.create(url: archive, format: format)
+            try writer.add(data: Data("original".utf8), as: "original.txt")
+            try writer.finish()
+            let (document, _) = try await scenarioDocument(fixture, url: archive)
+            let before = try ScenarioFixture.digest(archive)
+            let names = Set(try FileManager.default.contentsOfDirectory(atPath: volume.mount.path))
+            let source = try fixture.file("large.bin", bytes: bytes)
+            do {
+                _ = try await document.append(urls: [source], to: "", progress: Progress(),
+                                              willPublish: { XCTFail("容量不足で公開境界に進みました") })
+                XCTFail("compressed tar append exceeded the test volume")
+            } catch {
+                let cocoa = error as NSError, reason = String(describing: error)
+                XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
+                    || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+            }
+            XCTAssertEqual(try ScenarioFixture.digest(archive), before)
+            XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+            XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+            XCTAssertEqual(document.generation, 0)
+            XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: volume.mount.path)), names)
+            document.close()
+            await document.sessionCleanup?.value
+            try volume.detach()
+        }
+    }
+
 }

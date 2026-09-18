@@ -19,6 +19,7 @@ final class PreferencesViewModel {
     var folderPolicyIndex: Int { Self.folderPolicies.firstIndex(of: preferences.folderPolicy)! }
     var zipLevelLabel: String { String(preferences.zipLevel) }
     var tarGzipLevelLabel: String { String(preferences.tarGzipLevel) }
+    var tarBzip2LevelLabel: String { String(preferences.tarBzip2Level) }
 
     func selectDefaultFormat(at index: Int) {
         guard ArchivePreferences.formats.indices.contains(index) else { return }
@@ -38,6 +39,7 @@ final class PreferencesViewModel {
     func changeZipLevel(to level: Int) { store.preferences.zipLevel = ArchivePreferences.clampedLevel(level) }
     func changeZipSkipsCompressedTypes(to enabled: Bool) { store.preferences.zipSkipsCompressedTypes = enabled }
     func changeTarGzipLevel(to level: Int) { store.preferences.tarGzipLevel = ArchivePreferences.clampedLevel(level) }
+    func changeTarBzip2Level(to level: Int) { store.preferences.tarBzip2Level = ArchivePreferences.clampedLevel(level) }
     func changeTarPreservesOwnerIDs(to enabled: Bool) { store.preferences.tarPreservesOwnerIDs = enabled }
     func changeShowsHiddenFiles(to enabled: Bool) { store.preferences.showsHiddenFiles = enabled }
     func changeShowsWelcomeWindowAtLaunch(to enabled: Bool) { store.preferences.showsWelcomeWindowAtLaunch = enabled }
@@ -84,6 +86,7 @@ final class PreferencesTabViewController: NSTabViewController {
 final class PreferencesWindowController: NSWindowController {
     let viewModel: PreferencesViewModel
     private let bundle: Bundle
+    private let softwareUpdater: any SoftwareUpdating
     let tabController = PreferencesTabViewController()
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -93,6 +96,8 @@ final class PreferencesWindowController: NSWindowController {
     let zipSkipsCompressedTypesCheckbox: NSButton
     let tarGzipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let tarGzipLevelLabel = NSTextField(labelWithString: "")
+    let tarBzip2LevelSlider = NSSlider(value: 9, minValue: 1, maxValue: 9, target: nil, action: nil)
+    let tarBzip2LevelLabel = NSTextField(labelWithString: "")
     let tarPreservesOwnerIDsCheckbox: NSButton
     let extractionDestinationPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let folderPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -102,9 +107,23 @@ final class PreferencesWindowController: NSWindowController {
     let showsWelcomeWindowAtLaunchCheckbox: NSButton
     let excludesDSStoreCheckbox: NSButton
     let excludesHiddenFilesCheckbox: NSButton
+    let automaticallyChecksForUpdatesCheckbox: NSButton
+    let automaticallyDownloadsUpdatesCheckbox: NSButton
+    let checkForUpdatesButton: NSButton
+    let lastUpdateCheckLabel = NSTextField(labelWithString: "")
+    let updateAvailabilityLabel: NSTextField
 
-    init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main) {
+    init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main,
+         softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared) {
         self.bundle = bundle
+        self.softwareUpdater = softwareUpdater
+        automaticallyChecksForUpdatesCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "アップデートを自動的に確認", bundle: bundle), target: nil, action: nil)
+        automaticallyDownloadsUpdatesCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "アップデートを自動的にダウンロードしてインストール", bundle: bundle), target: nil, action: nil)
+        checkForUpdatesButton = NSButton(title: String(localized: "アップデートを確認…", bundle: bundle), target: nil, action: nil)
+        updateAvailabilityLabel = NSTextField(wrappingLabelWithString:
+            String(localized: "ダウンロードしたアップデートは、KaitoFinderの終了時にインストールされます。", bundle: bundle))
         showsWelcomeWindowAtLaunchCheckbox = NSButton(
             checkboxWithTitle: String(localized: "起動時にようこそウインドウを表示", bundle: bundle), target: nil, action: nil)
         showsHiddenFilesCheckbox = NSButton(
@@ -143,7 +162,7 @@ final class PreferencesWindowController: NSWindowController {
                 checkboxRow(showsWelcomeWindowAtLaunchCheckbox)
             ], spanningRows: [0, 1])
         ])
-        let footnote = NSTextField(wrappingLabelWithString: String(localized: "7zはLZMA2、LHAは-lh5-で固定です。", bundle: bundle))
+        let footnote = NSTextField(wrappingLabelWithString: String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
         footnote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         footnote.preferredMaxLayoutWidth = 520
@@ -154,12 +173,11 @@ final class PreferencesWindowController: NSWindowController {
                 row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
                 checkboxRow(zipSkipsCompressedTypesCheckbox)
             ], spanningRows: [2]),
-            group(title: String(localized: "tar.gz", bundle: bundle), rows: [
-                row(String(localized: "gzipレベル:", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel))
-            ]),
             group(title: String(localized: "tar", bundle: bundle), rows: [
+                row(String(localized: "gzipレベル:", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel)),
+                row(String(localized: "bzip2レベル:", bundle: bundle), control: levelControl(tarBzip2LevelSlider, label: tarBzip2LevelLabel)),
                 checkboxRow(tarPreservesOwnerIDsCheckbox)
-            ], spanningRows: [0]),
+            ], spanningRows: [2]),
             footnote
         ])
         addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", sections: [
@@ -171,6 +189,30 @@ final class PreferencesWindowController: NSWindowController {
                 row(String(localized: "展開後:", bundle: bundle), control: afterExpansionPopup),
                 checkboxRow(revealsExtractedItemsInFinderCheckbox)
             ], spanningRows: [1])
+        ])
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+        let versionLabel = NSTextField(labelWithString: "KaitoFinder \(version) (\(build))")
+        versionLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+        updateAvailabilityLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        updateAvailabilityLabel.textColor = .secondaryLabelColor
+        updateAvailabilityLabel.preferredMaxLayoutWidth = 520
+        // 状態や日時の変化でウインドウを揺らさない。文言は既存の設定幅で折り返す。
+        lastUpdateCheckLabel.textColor = .secondaryLabelColor
+        lastUpdateCheckLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        lastUpdateCheckLabel.lineBreakMode = .byTruncatingTail
+        lastUpdateCheckLabel.widthAnchor.constraint(equalToConstant: 520).isActive = true
+        let updateActions = NSStackView(views: [checkForUpdatesButton, lastUpdateCheckLabel])
+        updateActions.orientation = .vertical
+        updateActions.alignment = .leading
+        updateActions.spacing = 10
+        updateActions.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+        addTab(title: String(localized: "アップデート", bundle: bundle), symbol: "arrow.triangle.2.circlepath", sections: [
+            versionLabel,
+            group(rows: [checkboxRow(automaticallyChecksForUpdatesCheckbox),
+                         checkboxRow(automaticallyDownloadsUpdatesCheckbox)], spanningRows: [0, 1]),
+            updateAvailabilityLabel,
+            updateActions
         ])
         // 長い翻訳も省略しない共通の幅を選び、高さはタブの内容に合わせる。
         let width = tabController.tabViewItems.reduce(CGFloat(600)) { width, item in
@@ -189,6 +231,8 @@ final class PreferencesWindowController: NSWindowController {
         window.toolbar?.allowsUserCustomization = false
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: store)
+        NotificationCenter.default.addObserver(self, selector: #selector(softwareUpdatesDidChange(_:)),
+                                               name: SoftwareUpdateController.didChange, object: softwareUpdater)
         refreshControls()
     }
 
@@ -221,15 +265,20 @@ final class PreferencesWindowController: NSWindowController {
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
             (tarGzipLevelSlider, #selector(changeTarGzipLevel(_:))),
+            (tarBzip2LevelSlider, #selector(changeTarBzip2Level(_:))),
             (tarPreservesOwnerIDsCheckbox, #selector(changeTarPreservesOwnerIDs(_:))),
             (extractionDestinationPopup, #selector(changeExtractionDestination(_:))),
             (folderPolicyPopup, #selector(changeFolderPolicy(_:))),
             (afterExpansionPopup, #selector(changeAfterExpansion(_:))),
-            (revealsExtractedItemsInFinderCheckbox, #selector(changeRevealsExtractedItemsInFinder(_:)))
+            (revealsExtractedItemsInFinderCheckbox, #selector(changeRevealsExtractedItemsInFinder(_:))),
+            (automaticallyChecksForUpdatesCheckbox, #selector(changeAutomaticallyChecksForUpdates(_:))),
+            (automaticallyDownloadsUpdatesCheckbox, #selector(changeAutomaticallyDownloadsUpdates(_:))),
+            (checkForUpdatesButton, #selector(checkForUpdates(_:)))
         ]
         for (control, action) in actions { control.target = self; control.action = action }
         zipLevelSlider.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
         tarGzipLevelSlider.setAccessibilityLabel(String(localized: "gzipレベル", bundle: bundle))
+        tarBzip2LevelSlider.setAccessibilityLabel(String(localized: "bzip2レベル", bundle: bundle))
     }
 
     private func levelControl(_ slider: NSSlider, label: NSTextField) -> NSView {
@@ -355,8 +404,39 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func preferencesDidChange(_ notification: Notification) { refreshControls() }
+    @objc private func softwareUpdatesDidChange(_ notification: Notification) { refreshUpdateControls() }
+
+    @objc private func changeAutomaticallyChecksForUpdates(_ sender: NSButton) {
+        softwareUpdater.automaticallyChecksForUpdates = sender.state == .on
+        refreshUpdateControls()
+    }
+
+    @objc private func changeAutomaticallyDownloadsUpdates(_ sender: NSButton) {
+        softwareUpdater.automaticallyDownloadsUpdates = sender.state == .on
+        refreshUpdateControls()
+    }
+
+    @objc private func checkForUpdates(_ sender: NSButton) { softwareUpdater.checkForUpdates() }
+
+    private func refreshUpdateControls() {
+        automaticallyChecksForUpdatesCheckbox.state = softwareUpdater.automaticallyChecksForUpdates ? .on : .off
+        automaticallyChecksForUpdatesCheckbox.isEnabled = softwareUpdater.isAvailable
+        automaticallyDownloadsUpdatesCheckbox.state = softwareUpdater.automaticallyDownloadsUpdates ? .on : .off
+        automaticallyDownloadsUpdatesCheckbox.isEnabled = softwareUpdater.isAvailable
+            && softwareUpdater.automaticallyChecksForUpdates && softwareUpdater.allowsAutomaticUpdates
+        checkForUpdatesButton.isEnabled = softwareUpdater.canCheckForUpdates
+        let lastCheck = softwareUpdater.lastUpdateCheckDate.map {
+            DateFormatter.localizedString(from: $0, dateStyle: .medium, timeStyle: .short)
+        } ?? String(localized: "未確認", bundle: bundle)
+        lastUpdateCheckLabel.stringValue = String(format: String(localized: "最終確認: %@", bundle: bundle), lastCheck)
+        lastUpdateCheckLabel.toolTip = lastUpdateCheckLabel.stringValue
+        updateAvailabilityLabel.stringValue = softwareUpdater.isAvailable
+            ? String(localized: "ダウンロードしたアップデートは、KaitoFinderの終了時にインストールされます。", bundle: bundle)
+            : String(localized: "このビルドでは自動更新を利用できません。", bundle: bundle)
+    }
 
     private func refreshControls() {
+        refreshUpdateControls()
         let preferences = viewModel.preferences
         showsWelcomeWindowAtLaunchCheckbox.state = preferences.showsWelcomeWindowAtLaunch ? .on : .off
         showsHiddenFilesCheckbox.state = preferences.showsHiddenFiles ? .on : .off
@@ -372,6 +452,8 @@ final class PreferencesWindowController: NSWindowController {
         zipSkipsCompressedTypesCheckbox.state = preferences.zipSkipsCompressedTypes ? .on : .off
         tarGzipLevelSlider.integerValue = preferences.tarGzipLevel
         tarGzipLevelLabel.stringValue = viewModel.tarGzipLevelLabel
+        tarBzip2LevelSlider.integerValue = preferences.tarBzip2Level
+        tarBzip2LevelLabel.stringValue = viewModel.tarBzip2LevelLabel
         tarPreservesOwnerIDsCheckbox.state = preferences.tarPreservesOwnerIDs ? .on : .off
         extractionDestinationPopup.selectItem(at: viewModel.extractionDestinationIndex)
         folderPolicyPopup.selectItem(at: viewModel.folderPolicyIndex)
@@ -391,6 +473,7 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }
     @objc private func changeTarGzipLevel(_ sender: NSSlider) { viewModel.changeTarGzipLevel(to: sender.integerValue) }
+    @objc private func changeTarBzip2Level(_ sender: NSSlider) { viewModel.changeTarBzip2Level(to: sender.integerValue) }
     @objc private func changeTarPreservesOwnerIDs(_ sender: NSButton) { viewModel.changeTarPreservesOwnerIDs(to: sender.state == .on) }
     @objc private func changeExtractionDestination(_ sender: NSPopUpButton) { viewModel.selectExtractionDestination(at: sender.indexOfSelectedItem) }
     @objc private func changeFolderPolicy(_ sender: NSPopUpButton) { viewModel.selectFolderPolicy(at: sender.indexOfSelectedItem) }

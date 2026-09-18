@@ -14,20 +14,21 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
         init(_ names: [String] = ["a.txt", "b.txt", "c.txt"], tar: Bool = false) throws {
             directory = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-Controls-" + UUID().uuidString)
-            archive = directory.appendingPathComponent(tar ? "archive.tar.bz2" : "archive.zip")
+            archive = directory.appendingPathComponent(tar ? "archive.tar.lzma" : "archive.zip")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let process = Process(), output = Pipe()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
             process.arguments = ["-c", """
             import io, sys, tarfile, zipfile
             p, *names = sys.argv[1:]
-            if p.endswith('.tar.bz2'):
-                with tarfile.open(p, 'w:bz2') as a:
+            if p.endswith('.tar.lzma'):
+                with tarfile.open(p, 'w') as a:
                     for name in names:
                         item = tarfile.TarInfo(name)
                         data = name.encode()
                         item.size = len(data)
                         a.addfile(item, io.BytesIO(data))
+                import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
             else:
                 with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as a:
                     for name in names:

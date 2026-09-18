@@ -21,6 +21,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(value.zipLevel, 6)
         XCTAssertTrue(value.zipSkipsCompressedTypes)
         XCTAssertEqual(value.tarGzipLevel, 6)
+        XCTAssertEqual(value.tarBzip2Level, 9)
         XCTAssertFalse(value.tarPreservesOwnerIDs)
         XCTAssertEqual(value.extractionDestination, .sameFolder)
         XCTAssertEqual(value.folderPolicy, .whenMultipleTopLevelItems)
@@ -38,8 +39,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for (index, format) in ArchivePreferences.formats.enumerated() {
             let value = ArchivePreferences(defaultFormat: format, zipMethod: index.isMultiple(of: 2) ? .stored : .deflate,
-                                           zipLevel: 1 + index * 2, zipSkipsCompressedTypes: !index.isMultiple(of: 2),
-                                           tarGzipLevel: 9 - index * 2, tarPreservesOwnerIDs: index.isMultiple(of: 2),
+                                           zipLevel: 1 + index, zipSkipsCompressedTypes: !index.isMultiple(of: 2),
+                                           tarGzipLevel: 9 - index, tarBzip2Level: 1 + index, tarPreservesOwnerIDs: index.isMultiple(of: 2),
                                            extractionDestination: index.isMultiple(of: 2) ? .ask : .sameFolder,
                                            folderPolicy: [.always, .whenMultipleTopLevelItems, .never][index % 3],
                                            trashesArchiveAfterExtraction: index.isMultiple(of: 2),
@@ -51,11 +52,12 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             store.preferences = value
             let reopened = ArchivePreferencesStore(defaults: try XCTUnwrap(UserDefaults(suiteName: suite.name)))
             XCTAssertEqual(reopened.preferences, value)
-            XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), ["zip", "tar", "tar.gz", "7z", "lzh"][index])
+            XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "lzh"][index])
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveZipMethod"), value.zipMethod.rawValue)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveZipLevel"), value.zipLevel)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveZipSkipsCompressedTypes"), value.zipSkipsCompressedTypes)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveTarGzipLevel"), value.tarGzipLevel)
+            XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveTarBzip2Level"), value.tarBzip2Level)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveTarPreservesOwnerIDs"), value.tarPreservesOwnerIDs)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveExtractionDestination"), value.extractionDestination.rawValue)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveFolderPolicy"), value.folderPolicy.rawValue)
@@ -84,15 +86,18 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         // 保存済みの不正値は既定に戻す。スライダーの入力を丸める規則とは別に検証する。
         let invalidValues: [Any] = [0, -10, 42, 2.5, "9", "broken", true, Date(), Data([0])]
         for invalid in invalidValues {
-            for key in ["ArchiveZipLevel", "ArchiveTarGzipLevel"] { suite.defaults.set(invalid, forKey: key) }
+            for key in ["ArchiveZipLevel", "ArchiveTarGzipLevel", "ArchiveTarBzip2Level"] { suite.defaults.set(invalid, forKey: key) }
             XCTAssertEqual(store.preferences.zipLevel, 6, "\(invalid)")
             XCTAssertEqual(store.preferences.tarGzipLevel, 6, "\(invalid)")
+            XCTAssertEqual(store.preferences.tarBzip2Level, 9, "\(invalid)")
         }
         for level in 1...9 {
             suite.defaults.set(level, forKey: "ArchiveZipLevel")
             suite.defaults.set(level, forKey: "ArchiveTarGzipLevel")
+            suite.defaults.set(level, forKey: "ArchiveTarBzip2Level")
             XCTAssertEqual(store.preferences.zipLevel, level)
             XCTAssertEqual(store.preferences.tarGzipLevel, level)
+            XCTAssertEqual(store.preferences.tarBzip2Level, level)
         }
     }
 
@@ -125,6 +130,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
                                file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(actual.compressionMethod, expected.compressionMethod, file: file, line: line)
         XCTAssertEqual(actual.deflateLevel, expected.deflateLevel, file: file, line: line)
+        XCTAssertEqual(actual.bzip2Level, expected.bzip2Level, file: file, line: line)
         XCTAssertEqual(actual.useCompressionHeuristic, expected.useCompressionHeuristic, file: file, line: line)
         XCTAssertEqual(actual.preserveOwnerIDs, expected.preserveOwnerIDs, file: file, line: line)
         XCTAssertEqual(actual.preserveMacOSMetadata, expected.preserveMacOSMetadata, file: file, line: line)
@@ -142,10 +148,13 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         store.preferences.zipLevel = 9
         assertOptions(store.preferences.writerOptions(for: .zip), WriterOptions(deflateLevel: 9, useCompressionHeuristic: false))
         store.preferences.tarGzipLevel = 1
+        store.preferences.tarBzip2Level = 8
         for owners in [false, true] {
             store.preferences.tarPreservesOwnerIDs = owners
             assertOptions(store.preferences.writerOptions(for: .tarGzip), WriterOptions(deflateLevel: 1, preserveOwnerIDs: owners))
             assertOptions(store.preferences.writerOptions(for: .tar), WriterOptions(preserveOwnerIDs: owners))
+            assertOptions(store.preferences.writerOptions(for: .tarXZ), WriterOptions(preserveOwnerIDs: owners))
+            assertOptions(store.preferences.writerOptions(for: .tarBzip2), WriterOptions(bzip2Level: 8, preserveOwnerIDs: owners))
             assertOptions(store.preferences.writerOptions(for: .zip), WriterOptions(deflateLevel: 9, useCompressionHeuristic: false))
             for format in [GyoshukuKit.ArchiveFormat.sevenZip, .lha] {
                 assertOptions(store.preferences.writerOptions(for: format), WriterOptions())

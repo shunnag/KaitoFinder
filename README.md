@@ -23,10 +23,13 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 - ZIP / ZIP64、7z、RAR4 / RAR5、LHA / LZH
 - StuffIt (`.sit` / `.sea`)、StuffIt X (`.sitx`)
 - tar、cpio、ar (`.deb`)、ISO 9660、xar (`.pkg`)、CAB、RPM
-- gzip、bzip2、xz、Zstandard (`.zst`)、LZMA (`.lzma`)、UNIX compress (`.Z`)
-- 圧縮 tar: tar.gz / tgz、tar.bz2 / tbz2、tar.xz / txz、tar.zst / tzst、tar.Z
+- gzip、bzip2、xz、Zstandard (`.zst`)、LZ4 (`.lz4`)、LZMA (`.lzma`)、UNIX compress (`.Z`)
+- 圧縮 tar: tar.gz / tgz、tar.bz2 / tbz / tbz2、tar.xz / txz、tar.zst / tzst、tar.lz4、tar.lzma / tlz、tar.Z
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
+LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
+
+ZIP 内の XZ（method 95）と旧 Zstandard（method 20）の展開・プレビューにも対応する。
 対応する圧縮方式・暗号・分割方法の範囲は [KaitoKit の対応状況](https://github.com/shunnag/KaitoKit#対応状況)を参照。
 パスワードは必要なときに入力し、「このパスワードを記憶」で次回から自動使用できる（記憶は既定でオフ）。
 
@@ -59,13 +62,13 @@ ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号�
 ## 作成と変換
 
 「新規アーカイブ…」（⌘N）や Finder のサービス「KaitoFinderで圧縮」から、
-ファイル・フォルダを **ZIP / tar / tar.gz / 7z / LHA** にまとめられる。
+ファイル・フォルダを **ZIP / tar / tar.gz / tar.bz2 / tar.xz / 7z / LHA** にまとめられる。
 「別名で保存…」（⇧⌘S）は中身を別の形式へ変換し、元ファイルを残して新しい保存先を同じ文書で開く。
 読み取り専用アーカイブへの追加・ペーストでも、新しいアーカイブへの変換を案内する。
 
-ZIP と tar.gz は保存パネルで圧縮レベルを選べる。ZIP は「圧縮しない」も選択できる。
-7z と LHA は固定の圧縮レベル、tar は非圧縮。
-通常の編集では ZIP はその場更新で既存のデータを保ち、tar / tar.gz / 7z / LHA は全体を書き直すため、
+ZIP・tar.gz・tar.bz2 は保存パネルで圧縮レベルを選べる。ZIP は「圧縮しない」も選択できる。
+tar.xz・7z・LHA は固定の圧縮レベル、tar は非圧縮。
+通常の編集では ZIP はその場更新で既存のデータを保ち、tar / tar.gz / tar.bz2 / tar.xz / 7z / LHA は全体を書き直すため、
 アーカイブの大きさに応じて時間がかかる。
 
 ## 暗号化
@@ -73,7 +76,7 @@ ZIP と tar.gz は保存パネルで圧縮レベルを選べる。ZIP は「圧�
 暗号化は保存時に選択する（既定でオフ）。ZIP の暗号方式は **AES-256 が既定**。
 macOS のアーカイブユーティリティでは AES-256 の ZIP を開けないため、互換性が必要なら
 安全性の低い従来方式の ZipCrypto を選ぶ。
-7z は AES-256 に対応し、「ファイル名も暗号化」も選べる。tar / tar.gz / LHA は暗号化できない。
+7z は AES-256 に対応し、「ファイル名も暗号化」も選べる。tar（圧縮 tar を含む）/ LHA は暗号化できない。
 
 開いている ZIP / 7z には「パスワードを設定…」「パスワードを変更…」「パスワードを削除」が使える。
 これらの操作は全体を書き直し、取り消し・やり直しにも対応する。
@@ -140,8 +143,8 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 
 ## 制限
 
-- tar.bz2 / tar.xz など gzip 以外で包んだ tar と、RAR / ISO 9660 / cpio / ar / xar / pkg /
-  CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZMA・UNIX compress は
+- tar.zst / tar.lz4 / tar.lzma / tar.Z と、RAR / ISO 9660 / cpio / ar / xar / pkg /
+  CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZ4・LZMA・UNIX compress は
   読み取り専用。「別名で保存…」で書き込み可能な形式へ変換できる。
 - アイコン / カラム / ギャラリー表示は未対応。リスト表示を使う。
 - 動画・音声のサムネイルは未対応。画像のみを表示する。
@@ -149,9 +152,15 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 
 ## 配布
 
+Sparkleによる自動更新に対応する。「設定」›「アップデート」で自動確認と自動ダウンロード・インストールを選び、
+最終確認日時を確認できる。アプリメニューの「アップデートを確認…」から手動でも確認できる。
+自動確認は既定で有効、自動ダウンロード・インストールは選択式。
+更新フィードの公開・署名と初回配布の手順は[自動更新と配布](Documentation/software-updates.md)を参照。
+
 sandbox なしで配布する。Developer ID による署名と notarize の手順・実施状況は
 [設計書 §11.5](Documentation/design.md#115-配布sandbox-なしnotarize-済み-2026-09-15)を参照。
-リリースビルドは、下記の build コマンドに `-configuration Release` を加えて作成する。
+リリースビルドは、下記の build コマンドに `-configuration Release` と Developer ID の
+`CODE_SIGN_IDENTITY`・`DEVELOPMENT_TEAM` を指定して作成する。開発時は Debug を使う。
 
 ## 開発
 
@@ -174,6 +183,12 @@ xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'plat
 メニュー・操作経路の変更では `python3 Tools/verify_ui_integration.py` も実行する。
 実メニューの操作と、最近使った項目の保存・再起動・消去を専用アプリで検証する。
 確認範囲とテストの書き方は [UI の回帰テスト](Documentation/ui-integration-testing.md)を参照。
+
+リリース前は両ライブラリの `swift test` も実行し、選択した UI テストだけで全体の成功を判断しない。
+[横断検証の記録](Documentation/verification/2026-09-17-release-hardening.md)に
+全件・スキップ・実書庫・性能の結果をまとめ、[圧縮形式の追加計画](Documentation/compression-roadmap.md)に
+読み取り・書き込みの不足と追加時の検証条件を記す。
+ZIP 20/95 の追加と暗号化入力の効率化は [追加検証](Documentation/verification/2026-09-18-zip-methods.md)を参照。
 
 アプリの「ファイル > 開く…」、または実行ファイルへのアーカイブのパス引数で開く。
 テストはアーカイブを実際に生成し、参照実装（`unzip`、`7zz`、`ditto`、`bsdtar`）と
@@ -202,10 +217,11 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Readable formats are ZIP / ZIP64, 7z, RAR4 / RAR5, LHA / LZH, StuffIt (.sit / .sea),
 > StuffIt X (.sitx), tar, cpio, ar (.deb), ISO 9660, xar (.pkg), CAB, RPM, gzip, bzip2,
-> xz, Zstandard (.zst), LZMA (.lzma), and UNIX compress (.Z). Compressed tar includes
-> tar.gz / tgz, tar.bz2 / tbz2, tar.xz / txz, tar.zst / tzst, and tar.Z.
+> xz, Zstandard (.zst), LZ4 (.lz4), LZMA (.lzma), and UNIX compress (.Z). Compressed tar includes
+> tar.gz / tgz, tar.bz2 / tbz / tbz2, tar.xz / txz, tar.zst / tzst, tar.lz4, tar.lzma / tlz, and tar.Z.
 > Split ZIP / 7z / RAR volumes, supported self-extracting archives (SFX), and encrypted
-> archives can also be read. See [KaitoKit's format support](https://github.com/shunnag/KaitoKit#対応状況)
+> archives can also be read, including ZIP XZ (method 95) and legacy Zstandard (method 20)
+> extraction and previews. See [KaitoKit's format support](https://github.com/shunnag/KaitoKit#対応状況)
 > for supported methods, encryption, and volume layouts. Passwords are requested when
 > needed; “Remember this password” enables automatic reuse and is off by default.
 >
@@ -241,12 +257,12 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > ## Create and Convert
 >
 > New Archive… (⌘N) and Finder's “Compress with KaitoFinder” service create ZIP, tar,
-> tar.gz, 7z, or LHA archives from files and folders. Save As… (⇧⌘S) converts to a new
+> tar.gz, tar.bz2, tar.xz, 7z, or LHA archives from files and folders. Save As… (⇧⌘S) converts to a new
 > file, leaves the original intact, and switches the same document to the saved file.
 > Adding or pasting into a read-only archive also offers conversion to a new archive.
-> ZIP and tar.gz have selectable compression levels; ZIP also offers no compression.
-> 7z and LHA use fixed levels, and tar is uncompressed. Normal ZIP edits update the
-> archive in place while preserving existing data; tar, tar.gz, 7z, and LHA edits
+> ZIP, tar.gz, and tar.bz2 have selectable compression levels; ZIP also offers no compression.
+> tar.xz, 7z, and LHA use fixed levels, and tar is uncompressed. Normal ZIP edits update the
+> archive in place while preserving existing data; tar, tar.gz, tar.bz2, tar.xz, 7z, and LHA edits
 > rewrite the whole archive, so the time needed depends on its size.
 >
 > ## Encryption
@@ -279,7 +295,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > ## Settings
 >
-> Settings… (⌘,) has General, Compression, and Extract tabs. Choose the default
+> Settings… (⌘,) has General, Compression, Extract, and Updates tabs. Choose the default
 > archive format, hidden-file and welcome display, compression methods and levels,
 > extraction destinations and folder rules, and whether to trash an archive after
 > successful extraction. When adding files or creating archives, excluding `.DS_Store`
@@ -305,9 +321,9 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > ## Limitations
 >
-> tar wrapped in compression other than gzip, such as tar.bz2 and tar.xz, is read-only,
+> tar.zst, tar.lz4, tar.lzma, and tar.Z are read-only,
 > as are RAR, ISO 9660, cpio, ar, xar / pkg, CAB, RPM, StuffIt, StuffIt X, and standalone
-> gzip, bzip2, xz, Zstandard, LZMA, and UNIX compress streams. Use Save As… to convert
+> gzip, bzip2, xz, Zstandard, LZ4, LZMA, and UNIX compress streams. Use Save As… to convert
 > them to a writable format. Icon, column, and gallery views are not implemented;
 > browsing uses the list view. Thumbnails cover images only, with no video or audio
 > thumbnails. SFX creation is not supported; supported SFX archives can be read.
@@ -316,7 +332,12 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > The app is distributed without a sandbox. See [design §11.5](Documentation/design.md#115-配布sandbox-なしnotarize-済み-2026-09-15)
 > for Developer ID signing, notarization, and their current verification status.
-> To make a release build, add `-configuration Release` to the build command above.
+> Sparkle provides automatic updates. Settings › Updates controls automatic checks and downloads,
+> shows the last check time, and offers a manual check. Automatic checks are enabled by default;
+> automatic downloads and installation on quit are optional.
+> See [Software updates](Documentation/software-updates.md) for signed feeds and the initial release setup.
+> For a release build, add `-configuration Release` and specify your Developer ID
+> `CODE_SIGN_IDENTITY` and `DEVELOPMENT_TEAM`. Use Debug for local development.
 >
 > ## Development
 >

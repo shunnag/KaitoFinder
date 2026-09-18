@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		F00000000000000000000030 /* KaitoKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00000000000000000000032 /* KaitoKit */; };
 		F00000000000000000000034 /* GyoshukuKit in Frameworks */ = {isa = PBXBuildFile; productRef = F00000000000000000000035 /* GyoshukuKit */; };
+		F00000000000000000000037 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = F00000000000000000000038 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			files = (
 				F00000000000000000000030 /* KaitoKit in Frameworks */,
 				F00000000000000000000034 /* GyoshukuKit in Frameworks */,
+				F00000000000000000000037 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +114,7 @@
 			packageProductDependencies = (
 				F00000000000000000000032 /* KaitoKit */,
 				F00000000000000000000035 /* GyoshukuKit */,
+				F00000000000000000000038 /* Sparkle */,
 			);
 			productName = KaitoFinder;
 			productReference = F00000000000000000000009 /* KaitoFinder.app */;
@@ -191,6 +194,7 @@
 			packageReferences = (
 				F00000000000000000000033 /* XCLocalSwiftPackageReference "../KaitoKit" */,
 				F00000000000000000000036 /* XCLocalSwiftPackageReference "../GyoshukuKit" */,
+				F00000000000000000000039 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F00000000000000000000002 /* Products */;
@@ -409,6 +413,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		F00000000000000000000039 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		F00000000000000000000032 /* KaitoKit */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -419,6 +434,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = F00000000000000000000036 /* XCLocalSwiftPackageReference "../GyoshukuKit" */;
 			productName = GyoshukuKit;
+		};
+		F00000000000000000000038 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F00000000000000000000039 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

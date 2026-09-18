@@ -2,19 +2,34 @@
 """Run real AppKit commands and recent-history relaunch checks in an isolated app."""
 
 import argparse
+import json
 import pathlib
 import plistlib
 import re
 import subprocess
 import tempfile
+import time
 import uuid
 import zipfile
 
 
-def run(command, log, required_pass=None, suites=()):
+def run(command, log, required_pass=None, suites=(), on_tick=None):
     print(f"Running {log.stem}; log: {log}", flush=True)
     with log.open("w") as output:
-        result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT)
+        with subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT) as result:
+            try:
+                while result.poll() is None:
+                    if on_tick:
+                        on_tick()
+                    time.sleep(0.1)
+            except BaseException:
+                result.terminate()
+                try:
+                    result.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    result.kill()
+                    result.wait()
+                raise
     contents = log.read_text(errors="replace")
     missing_suite = any(not re.search(
         r"Test Suite '" + re.escape(suite) + r"' passed[^\n]*\n\s*Executed [1-9][0-9]* tests?, with 0 failures",
@@ -38,15 +53,26 @@ def configure_test_run(value, test_root, environment):
     return value
 
 
+def require_unlocked_session(repository, output):
+    result = subprocess.run([
+        "swift", "-module-cache-path", str(output / "SessionModuleCache"),
+        str(repository / "Tools/verify_gui_session.swift"),
+    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if result.returncode:
+        raise RuntimeError(result.stdout.strip())
+
+
 def main():
     repository = pathlib.Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--derived-data", type=pathlib.Path, default=repository / "build/UIIntegrationDerivedData")
+    parser.add_argument("--native-save-only", action="store_true", help="Run only the real Save button and format-switch checks")
     arguments = parser.parse_args()
     derived = arguments.derived_data.resolve()
     identifier = "com.shunnag.KaitoFinder.UIIntegrationVerification." + str(uuid.uuid4())
     output = repository / "build/UIIntegrationVerification" / identifier.rsplit(".", 1)[1]
     output.mkdir(parents=True)
+    require_unlocked_session(repository, output)
     build = ["xcodebuild", "-project", str(repository / "KaitoFinder.xcodeproj"), "-scheme", "KaitoFinder",
              "-destination", "platform=macOS,arch=arm64", "-derivedDataPath", str(derived),
              "PRODUCT_BUNDLE_IDENTIFIER=" + identifier, "build-for-testing"]
@@ -59,7 +85,22 @@ def main():
     with source.open("rb") as file:
         template = plistlib.load(file)
 
-    def test(name, selection, environment, passed):
+    def test(name, selection, environment, passed, native_save=False):
+        require_unlocked_session(repository, output)
+        request = output / "native-save-request.json"
+        if native_save:
+            environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] = str(request)
+
+        def press_requested_save():
+            if not request.exists():
+                return
+            value = json.loads(request.read_text())
+            request.unlink()
+            subprocess.run([str(output / "press-verification-save"), str(value["pid"]), identifier,
+                            value["saveTitle"], json.dumps(value)], check=True)
+            if value.get("editOnly"):
+                request.with_suffix(".done").touch()
+
         configuration = configure_test_run(template, source.parent, environment)
         path = output / (name + ".xctestrun")
         with path.open("wb") as file:
@@ -67,17 +108,38 @@ def main():
         command = ["xcodebuild", "test-without-building", "-xctestrun", str(path),
                    "-destination", "platform=macOS,arch=arm64"]
         command.extend("-only-testing:KaitoFinderTests/" + item for item in selection)
-        run(command, output / (name + ".log"), passed, {item.split("/")[0] for item in selection})
+        try:
+            run(command, output / (name + ".log"), passed, {item.split("/")[0] for item in selection},
+                press_requested_save if native_save else None)
+        finally:
+            # Report a lost GUI session separately from a product assertion.
+            require_unlocked_session(repository, output)
 
-    test("commands", ["ApplicationCommandIntegrationTests", "RecentDocumentsMenuTests",
-         "ArchiveTabTests", "ArchiveTabSpringLoadingTests", "ArchiveDropIntegrationTests", "ArchiveConflictUITests",
-         "ArchivePasswordUITests/testPresentedSavePanelAnimatesEncryptionAndCancelsWithoutSaving",
-         "ArchivePasswordUITests/testSavePanelSheetReversesAnimationAndCancelsDuringExpansion",
-         "ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents",
-         "ArchivePasswordUITests/testSavePanelReducedMotionChangesSizeWithoutAnimation",
-         "ArchivePasswordUITests/testExpandedSavePanelRebasesAfterNativeResizeAndFitsTheScreen",
-         "ArchiveDisplayTests/testWindowChromeAndFirstRowRemainReadableAtMinimumSizeInBothAppearances"], {},
-         "** TEST EXECUTE SUCCEEDED **")
+    if not arguments.native_save_only:
+        test("commands", ["ApplicationCommandIntegrationTests", "RecentDocumentsMenuTests",
+             "SoftwareUpdateTests", "ArchivePreferencesUITests",
+             "ArchiveTabTests", "ArchiveTabSpringLoadingTests", "ArchiveDropIntegrationTests", "ArchiveConflictUITests",
+             "ArchiveDocumentOpeningTests/testQuickLookForSelectedZIPRowSurvivesForegroundAsyncLoading",
+             "ArchiveDocumentOpeningTests/testQuickLookForXZAndLegacyZstandardZIPRows",
+             "ArchivePasswordUITests/testPresentedSavePanelAnimatesEncryptionAndCancelsWithoutSaving",
+             "ArchivePasswordUITests/testSavePanelSheetReversesAnimationAndCancelsDuringExpansion",
+             "ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents",
+             "ArchivePasswordUITests/testSavePanelReducedMotionChangesSizeWithoutAnimation",
+             "ArchivePasswordUITests/testExpandedSavePanelRebasesAfterNativeResizeAndFitsTheScreen",
+             "ArchivePasswordUITests/testExpandedSaveSheetKeepsItsButtonsOnScreenNearTheBottom",
+             "ArchiveDisplayTests/testWindowChromeAndFirstRowRemainReadableAtMinimumSizeInBothAppearances"], {},
+             "** TEST EXECUTE SUCCEEDED **")
+    subprocess.run(["swiftc", str(repository / "Tools/press_verification_save.swift"),
+                    "-o", str(output / "press-verification-save")], check=True)
+    native_selection = ["ArchiveCreationUITests/testPresentedCompressedTarSavePanelAcceptsExactFilenameAndSwitchesFromEncryption",
+                        "ArchiveCreationUITests/testPresentedSavePanelSwitchesEveryFormatWithoutDuplicatingExtensions",
+                        "ArchiveCreationUITests/testPresentedSavePanelSwitchesFormatsAfterEditingTheName",
+                        "ArchiveCreationUITests/testPresentedSavePanelPreservesTypedNamesAndConfirmsTheExactOverwrite"]
+    test("native-save", native_selection,
+         {}, "** TEST EXECUTE SUCCEEDED **", native_save=True)
+    if arguments.native_save_only:
+        print(f"Native Save verification passed. Logs: {output}", flush=True)
+        return
     with tempfile.TemporaryDirectory(prefix="kaitofinder-recent-history-") as temporary:
         archive = pathlib.Path(temporary) / ("persistent-" + str(uuid.uuid4()) + ".zip")
         with zipfile.ZipFile(archive, "w") as file:

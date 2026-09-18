@@ -9,13 +9,14 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum FolderPolicy: String, Sendable { case always, whenMultipleTopLevelItems, never }
     enum OpeningBehavior: String, Sendable, CaseIterable { case system, newTab, newWindow }
 
-    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .sevenZip, .lha]
+    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .sevenZip, .lha]
 
     var defaultFormat: GyoshukuKit.ArchiveFormat = .zip
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
     var zipSkipsCompressedTypes = true
     var tarGzipLevel = 6
+    var tarBzip2Level = 9
     var tarPreservesOwnerIDs = false
     var extractionDestination: ExtractionDestination = .sameFolder
     var folderPolicy: FolderPolicy = .whenMultipleTopLevelItems
@@ -37,10 +38,12 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             WriterOptions(compressionMethod: zipMethod == .stored ? .stored : .deflate,
                           deflateLevel: Self.clampedLevel(zipLevel),
                           useCompressionHeuristic: zipSkipsCompressedTypes)
-        case .tar:
+        case .tar, .tarXZ:
             WriterOptions(preserveOwnerIDs: tarPreservesOwnerIDs)
         case .tarGzip:
             WriterOptions(deflateLevel: Self.clampedLevel(tarGzipLevel), preserveOwnerIDs: tarPreservesOwnerIDs)
+        case .tarBzip2:
+            WriterOptions(bzip2Level: Self.clampedLevel(tarBzip2Level), preserveOwnerIDs: tarPreservesOwnerIDs)
         case .sevenZip, .lha:
             // 固定のエンコーダーへ、他形式の設定を持ち込まない。
             WriterOptions()
@@ -61,6 +64,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let zipLevel = "ArchiveZipLevel"
         static let zipSkipsCompressedTypes = "ArchiveZipSkipsCompressedTypes"
         static let tarGzipLevel = "ArchiveTarGzipLevel"
+        static let tarBzip2Level = "ArchiveTarBzip2Level"
         static let tarPreservesOwnerIDs = "ArchiveTarPreservesOwnerIDs"
         static let extractionDestination = "ArchiveExtractionDestination"
         static let folderPolicy = "ArchiveFolderPolicy"
@@ -89,6 +93,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.zipLevel = level(forKey: Key.zipLevel)
             value.zipSkipsCompressedTypes = boolean(forKey: Key.zipSkipsCompressedTypes, fallback: value.zipSkipsCompressedTypes)
             value.tarGzipLevel = level(forKey: Key.tarGzipLevel)
+            value.tarBzip2Level = level(forKey: Key.tarBzip2Level, fallback: 9)
             value.tarPreservesOwnerIDs = boolean(forKey: Key.tarPreservesOwnerIDs, fallback: value.tarPreservesOwnerIDs)
             value.extractionDestination = defaults.string(forKey: Key.extractionDestination)
                 .flatMap(ArchivePreferences.ExtractionDestination.init(rawValue:)) ?? value.extractionDestination
@@ -113,6 +118,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchivePreferences.clampedLevel(newValue.zipLevel), forKey: Key.zipLevel)
             defaults.set(newValue.zipSkipsCompressedTypes, forKey: Key.zipSkipsCompressedTypes)
             defaults.set(ArchivePreferences.clampedLevel(newValue.tarGzipLevel), forKey: Key.tarGzipLevel)
+            defaults.set(ArchivePreferences.clampedLevel(newValue.tarBzip2Level), forKey: Key.tarBzip2Level)
             defaults.set(newValue.tarPreservesOwnerIDs, forKey: Key.tarPreservesOwnerIDs)
             defaults.set(newValue.extractionDestination.rawValue, forKey: Key.extractionDestination)
             defaults.set(newValue.folderPolicy.rawValue, forKey: Key.folderPolicy)
@@ -128,10 +134,10 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         }
     }
 
-    private func level(forKey key: String) -> Int {
+    private func level(forKey key: String, fallback: Int = 6) -> Int {
         guard let number = defaults.object(forKey: key) as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(),
-              (1...9).contains(number.intValue), number.doubleValue == Double(number.intValue) else { return 6 }
+              (1...9).contains(number.intValue), number.doubleValue == Double(number.intValue) else { return fallback }
         return number.intValue
     }
 

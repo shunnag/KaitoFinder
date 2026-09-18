@@ -52,17 +52,17 @@ nonisolated struct EntryReadCapability: Sendable {
 
     private static func supportsMethod(_ entry: ArchiveEntry, format: ArchiveFormat) -> Bool {
         let method = entry.methodDescription
-        // KaitoKit 0.3.0 の公開メタデータと decoder の対応。エンジン追加時はここも更新する。
+        // decoder の対応は CompressionCapabilityTests の実 fixture から展開まで照合する。
         switch format {
-        case .zip: return ["stored", "deflate", "deflate64", "bzip2", "lzma"].contains(method)
+        case .zip: return ["stored", "deflate", "deflate64", "bzip2", "lzma", "zstd", "xz", "ppmd"].contains(method)
         case .lha:
             return ["-lh0-", "-lh1-", "-lh4-", "-lh5-", "-lh6-", "-lh7-", "-lhx-",
                     "-lz4-", "-lz5-", "-lzs-", "-pm0-"].contains(method)
-        case .cab: return ["cab (stored)", "cab (MSZIP)"].contains(method) && entry.formatSpecific["continued"] == nil
+        case .cab: return ["cab (stored)", "cab (MSZIP)", "cab (LZX)"].contains(method) && entry.formatSpecific["continued"] == nil
         case .xar: return ["xar (stored)", "xar (zlib)", "xar (bzip2)", "xar (lzma)", "xar (xz)"].contains(method)
         case .sevenZip:
             let supported = ["Copy", "LZMA", "LZMA2", "PPMd7", "Deflate", "BZip2", "7zAES-256",
-                             "Delta", "BCJ", "ARM", "ARMT", "ARM64", "PPC", "SPARC", "IA64", "BCJ2"]
+                             "Delta", "Swap2", "Swap4", "BCJ", "ARM", "ARMT", "ARM64", "PPC", "SPARC", "IA64", "BCJ2"]
             return method.isEmpty || method.split(separator: "+").allSatisfy {
                 $0.split(separator: ":").first.map { supported.contains(String($0)) } == true
             }

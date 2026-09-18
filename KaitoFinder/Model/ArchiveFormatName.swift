@@ -21,6 +21,7 @@ extension KaitoKit.ArchiveFormat {
         case .bzip2: "bzip2"
         case .xz: "xz"
         case .zstd: "Zstandard"
+        case .lz4: "LZ4"
         case .lzma: "LZMA"
         case .compress: "UNIX compress"
         }

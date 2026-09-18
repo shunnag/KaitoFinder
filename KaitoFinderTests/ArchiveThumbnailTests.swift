@@ -1,7 +1,6 @@
 import AppKit
 import KaitoKit
 import QuickLookThumbnailing
-import UniformTypeIdentifiers
 import XCTest
 @testable import KaitoFinder
 
@@ -161,6 +160,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
             started?(item, progress)
         }
         let generic = try XCTUnwrap(nameCell(small, in: ui.controller).imageView?.image)
+        let noteIcon = try XCTUnwrap(nameCell(note, in: ui.controller).imageView?.image)
         XCTAssertNil(provider.thumbnail(for: small))
         for node in excluded { XCTAssertNil(provider.thumbnail(for: node)) }
         await fulfillment(of: [ready], timeout: 5)
@@ -170,9 +170,9 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         XCTAssertLessThanOrEqual(image.size.height, 16.5)
         XCTAssertTrue(try nameCell(small, in: ui.controller).imageView?.image === image)
         XCTAssertFalse(image === generic)
-        let noteIcon = try XCTUnwrap(nameCell(note, in: ui.controller).imageView?.image)
-        let textType = try XCTUnwrap(UTType(filenameExtension: "txt"))
-        XCTAssertEqual(noteIcon.tiffRepresentation, NSWorkspace.shared.icon(for: textType).tiffRepresentation)
+        // 対象外の行には元のアイコンが残る。NSWorkspace の画像は描画時に表現が
+        // 追加されるため、別途取得した画像の TIFF 全体とのバイト比較は安定しない。
+        XCTAssertTrue(try nameCell(note, in: ui.controller).imageView?.image === noteIcon)
         for _ in 0..<3 {
             XCTAssertTrue(provider.thumbnail(for: small) === image)
             for node in excluded { XCTAssertNil(provider.thumbnail(for: node)) }

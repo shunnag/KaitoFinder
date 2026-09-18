@@ -98,7 +98,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle)
             defer { controller.close() }
             controller.window?.setFrameAutosaveName("")
-            let tabs = ["general", "compression", "extraction"]
+            let tabs = ["general", "compression", "extraction", "updates"]
             XCTAssertEqual(controller.tabController.tabViewItems.count, tabs.count)
             let window = try XCTUnwrap(controller.window)
             XCTAssertFalse(window.styleMask.contains(.resizable))
@@ -128,7 +128,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                 window.appearance = nil
                 if index == 1 {
                     for (slider, label) in [(controller.zipLevelSlider, controller.zipLevelLabel),
-                                            (controller.tarGzipLevelSlider, controller.tarGzipLevelLabel)] {
+                                            (controller.tarGzipLevelSlider, controller.tarGzipLevelLabel),
+                                            (controller.tarBzip2LevelSlider, controller.tarBzip2LevelLabel)] {
                         let original = label.frame
                         for level in [6, 9] {
                             slider.integerValue = level

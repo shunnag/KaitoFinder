@@ -282,7 +282,7 @@ NSSplitViewController / NSToolbar / NSSearchField を使っている。column vi
 
 **設定**: アプリメニューの「設定…」(⌘,)から、一般 / 圧縮 / 展開の三つのタブを持つ
 単一のウインドウを開く。新規書庫の既定形式は保存パネルと共有し、ZIP の方式・レベル・
-圧縮済みファイルの無圧縮格納、tar.gz の gzip レベル、tar / tar.gz の所有者 ID 保存を変更できる。
+圧縮済みファイルの無圧縮格納、tar.gz の gzip レベル、tar.bz2 の bzip2 レベル、tar 系の所有者 ID 保存を変更できる。
 7z は LZMA2、LHA は -lh5- の固定エンコーダーを使う。操作ごとに UserDefaults へ保存し、
 新規作成・形式変換・開いている書庫の追加や編集へ即時反映する。展開先・フォルダ作成方針・
 展開後のアーカイブのゴミ箱移動も保存し、一括展開から参照する。
@@ -947,7 +947,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   作成 plan から渡す。最上位の選択と再帰列挙の両方に適用し、展開や既存項目の変換には適用しない。
   macOS の Foundation `contentsOfDirectory(at:)` は AppleDouble (`._*`) を列挙しないため、列挙経由の追加には除外設定に関係なく含まれない。
 - 共通の保存パネルに圧縮レベルを置く。ZIP は「圧縮しない」(stored)、速い(1)、標準(6)、
-  高い(8)、最高(9)。tar.gz は 1/6/8/9、7z と LHA は標準で固定、tar は非圧縮のため
+  高い(8)、最高(9)。tar.gz / tar.bz2 は 1/6/8/9、tar.xz / 7z / LHA は標準で固定、tar は非圧縮のため
   レベルを変更できない。設定値に最も近い段階から開始し、同距離なら高い方を選ぶ。
   形式を変えるとその形式の設定から選び直す。レベルの選択は今回だけに適用する。
 - ファイル › 別名で保存…(⇧⌘S) は、`ArchiveCreationTransaction` で新しい保存先へ変換し、
@@ -963,7 +963,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 
 - 新規アーカイブ(⌘N)、Finder の圧縮サービス、ドロップからの形式変換、別名で保存は
   `ArchiveSavePanel` の同じ暗号化行を使う。既定はオフ、ZIP は AES-256、7z のファイル名暗号化はオフ。
-  ZIP は ZipCrypto も選べる。tar / tar.gz / LHA は暗号化できず、チェックボックスを無効にして理由を示す。
+  ZIP は ZipCrypto も選べる。tar（圧縮 tar を含む）/ LHA は暗号化できず、チェックボックスを無効にして理由を示す。
   形式を切り替えても両パスワード欄の値は保ち、出力形式で有効な設定だけを `WriterOptions` へ渡す。
   `NSOpenSavePanelDelegate.panel(_:validate:)` が空欄と不一致を拒否し、保存パネルを開いたままにする。
 - ファイルメニューの「別名で保存…」の直後に「パスワードを設定…」「パスワードを変更…」
@@ -1115,7 +1115,7 @@ Developer ID による署名と notarize はこの環境に鍵が無く、ユー
 
 | 項目 | 理由 |
 |---|---|
-| bzip2 / xz で包んだ tar の作成・更新 | writer が gzip 包装しか持たない。`.tar.bz2` / `.tar.xz` は読み取り専用のまま、変換で逃がす |
+| bzip2 / xz で包んだ tar の作成・更新 | 2026-09-18 に writer と設定・編集を追加。実画面の保存確定を含む検証状況は [圧縮 tar 検証](verification/2026-09-18-compressed-tar.md) |
 | アイコン / カラム / ギャラリー表示 | Finder らしさの中核はリスト表示で満たしている。描画をこの環境で確認できないため、パスバー・タブ・サムネイルまでを実装し、表示形式の切替は後回し |
 | 動画・音声のサムネイル | 画像のみ。動画は `QLThumbnailGenerator` が entry の実体化を要求し、遅延実体化の設計と衝突する |
 
@@ -1190,13 +1190,20 @@ stash による「修正前に失敗」の再確認を行い、記録を `verifi
 
 ユーザーの決定は「sandbox なし、notarize して配布」。現状と手順:
 
+2026-09-17 に Sparkle 2 を追加した。単一の `SoftwareUpdateController` が標準の更新 UI とスケジュールを所有し、
+設定ウインドウの「アップデート」タブとアプリメニューから操作する。設定の永続化は Sparkle のプロパティを使い、
+KVO で画面の状態を追従させる。HTTPS のフィードと Ed25519 公開鍵をアプリに埋め込み、フィードと更新書庫の署名を要求する。
+署名鍵の保管、GitHub Releases のフィード、配布物の準備・検証は[自動更新と配布](software-updates.md)に記す。
+
 - **project の設定(確認済み)**: `ENABLE_APP_SANDBOX = NO`、Release は
   `ENABLE_HARDENED_RUNTIME = YES`、`CODE_SIGN_IDENTITY = "-"`(ad-hoc)、
   `MACOSX_DEPLOYMENT_TARGET = 26.0`。entitlements ファイルは無い(sandbox も
   例外的な権限も要らない)。Release ビルドは通り、ad-hoc 署名 + hardened runtime で
   起動・文書オープン・終了まで確認した(`2026-09-15-launch-smoke.md`)。
-- **この環境に無いもの**: Developer ID 証明書と App Store Connect の API 鍵。
-  従って署名・notarize はユーザーの Mac で行う。
+- **署名環境**: 2026-09-15 の検証環境では Developer ID 証明書がなかった。
+  2026-09-17 に現在の Mac で Developer ID 証明書を確認した。Sparkle を使う Release の起動には
+  Developer ID または Apple Development の署名が必要で、ad-hoc 署名では Library Validation が読み込みを拒否する。
+  notarize は下記の資格情報を用意した配布手順で行う。
 - **手順**(Xcode の GUI なら Product › Archive › Distribute App › Developer ID で同等):
   1. `xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -configuration Release
      archive -archivePath build/KaitoFinder.xcarchive CODE_SIGN_IDENTITY="Developer ID Application: <名前> (<TEAM>)" DEVELOPMENT_TEAM=<TEAM>`

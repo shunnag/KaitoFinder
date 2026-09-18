@@ -13,7 +13,7 @@ import subprocess
 import time
 import uuid
 
-from verify_ui_integration import configure_test_run, run
+from verify_ui_integration import configure_test_run, require_unlocked_session, run
 
 
 def main():
@@ -24,6 +24,7 @@ def main():
     identifier = "com.shunnag.KaitoFinder.SavePanelVerification." + str(uuid.uuid4())
     output = repository / "build/SavePanelAnimationVerification" / identifier.rsplit(".", 1)[1]
     output.mkdir(parents=True)
+    require_unlocked_session(repository, output)
     recorder = output / "recorder"
     subprocess.run(["swiftc", "-parse-as-library", "-module-cache-path", str(output / "ModuleCache"),
                     str(repository / "Tools/record_save_panel.swift"), "-o", str(recorder)], check=True)
@@ -45,6 +46,7 @@ def main():
     command = ["xcodebuild", "test-without-building", "-xctestrun", str(test_run),
                "-destination", "platform=macOS,arch=arm64",
                "-only-testing:KaitoFinderTests/ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents"]
+    require_unlocked_session(repository, output)
     recorded = set()
     log = output / "capture.log"
     print(f"Recording save-panel transitions. Logs and videos: {output}", flush=True)
@@ -67,6 +69,7 @@ def main():
             if process.poll() is None:
                 process.terminate()
                 process.wait(timeout=20)
+            require_unlocked_session(repository, output)
     if process.returncode or "** TEST EXECUTE SUCCEEDED **" not in log.read_text() or len(recorded) != 4:
         raise RuntimeError(f"Save-panel verification failed. Inspect {log}")
     print(f"All four native-panel cases passed. Review capture.mov in each folder: {output}", flush=True)

@@ -3,7 +3,7 @@ import GyoshukuKit
 import QuartzCore
 import UniformTypeIdentifiers
 
-/// popup の選択・型・名前の変更を、パネルを表示せずに検証できる。
+/// 保存形式と圧縮設定を管理する。保存名と拡張子の表示は標準パネルに任せる。
 final class ArchiveSavePanelController {
     nonisolated enum Level: Int, CaseIterable, Sendable {
         case none = 0, fast = 1, normal = 6, high = 8, maximum = 9
@@ -31,12 +31,21 @@ final class ArchiveSavePanelController {
                 options.compressionMethod = self == .none ? .stored : .deflate
             }
             if (format == .zip || format == .tarGzip), self != .none { options.deflateLevel = rawValue }
+            if format == .tarBzip2, self != .none { options.bzip2Level = rawValue }
             return options
         }
     }
 
     static let defaultsKey = ArchivePreferencesStore.Key.defaultFormat
     static let formats = ArchivePreferences.formats
+    static var panelContentTypes: [UTType] {
+        // 手入力された複合拡張子や別名も標準パネルに受理させる。
+        // 選択形式との一致は validate で検査する。
+        formats.map(contentType(for:)) + [.gzip]
+            + ["public.bzip2-archive", "org.tukaani.xz-archive", "public.lha-archive",
+               "org.gnu.gnu-zip-tar-archive", "com.shunnag.KaitoFinder.save-tbz", "org.tukaani.tar-xz-archive"]
+                .compactMap { UTType($0) }
+    }
     private let store: ArchivePreferencesStore
     private(set) var format: GyoshukuKit.ArchiveFormat
     private(set) var level: Level = .normal
@@ -51,12 +60,12 @@ final class ArchiveSavePanelController {
 
     var selectedIndex: Int { Self.formats.firstIndex(of: format)! }
     var allowedContentTypes: [UTType] { [Self.contentType(for: format)] }
-    var isLevelEnabled: Bool { format == .zip || format == .tarGzip }
+    var isLevelEnabled: Bool { format == .zip || format == .tarGzip || format == .tarBzip2 }
     var levels: [Level] {
         switch format {
         case .zip: Level.allCases
-        case .tarGzip: [.fast, .normal, .high, .maximum]
-        case .tar, .sevenZip, .lha: [.normal]
+        case .tarGzip, .tarBzip2: [.fast, .normal, .high, .maximum]
+        case .tar, .tarXZ, .sevenZip, .lha: [.normal]
         }
     }
     var selectedLevelIndex: Int { levels.firstIndex(of: level)! }
@@ -71,7 +80,8 @@ final class ArchiveSavePanelController {
         switch format {
         case .zip: level = preferences.zipMethod == .stored ? .none : .closest(to: preferences.zipLevel)
         case .tarGzip: level = .closest(to: preferences.tarGzipLevel)
-        case .tar, .sevenZip, .lha: level = .normal
+        case .tarBzip2: level = .closest(to: preferences.tarBzip2Level)
+        case .tar, .tarXZ, .sevenZip, .lha: level = .normal
         }
     }
 
@@ -80,6 +90,8 @@ final class ArchiveSavePanelController {
         case .zip: String(localized: "ZIP", bundle: bundle)
         case .tar: String(localized: "tar", bundle: bundle)
         case .tarGzip: String(localized: "tar.gz", bundle: bundle)
+        case .tarBzip2: String(localized: "tar.bz2", bundle: bundle)
+        case .tarXZ: String(localized: "tar.xz", bundle: bundle)
         case .sevenZip: String(localized: "7z", bundle: bundle)
         case .lha: String(localized: "LHA", bundle: bundle)
         }
@@ -90,27 +102,31 @@ final class ArchiveSavePanelController {
         switch format {
         case .zip: return .zip
         case .tar: identifier = "public.tar-archive"
-        case .tarGzip:
-            // 実測: system の org.gnu.gnu-zip-tar-archive の拡張子タグは ["tgz"] のみ。
-            // UTType(filenameExtension: "tar.gz") は nil で、アプリの imported 宣言でもタグは変わらない。
-            // この UTI を NSSavePanel に指定すると Docs.tar.gz.tgz になるため、末尾 gz に合う .gzip を使う。
-            return .gzip
+        // システムの圧縮型は gz / bz2 / xz しか付けないため、保存時の
+        // 優先拡張子が tar.gz / tar.bz2 / tar.xz の型を宣言している。
+        case .tarGzip: identifier = "com.shunnag.KaitoFinder.save-tar-gzip"
+        case .tarBzip2: identifier = "com.shunnag.KaitoFinder.save-tar-bzip2"
+        case .tarXZ: identifier = "com.shunnag.KaitoFinder.save-tar-xz"
         case .sevenZip: identifier = "org.7-zip.7-zip-archive"
-        case .lha: identifier = "public.lha-archive"
+        case .lha: identifier = "com.shunnag.KaitoFinder.lzh-archive"
         }
         // 宣言が未登録なら拡張子から解決する。
         let suffix = ArchiveCreationPlan.filenameExtension(for: format)
         return UTType(identifier) ?? UTType(filenameExtension: suffix) ?? .data
     }
 
-    func selectFormat(at index: Int, filename: String) -> String {
-        guard Self.formats.indices.contains(index) else { return filename }
-        let suffix = "." + ArchiveCreationPlan.filenameExtension(for: format)
-        let stem = filename.lowercased().hasSuffix(suffix) ? String(filename.dropLast(suffix.count)) : filename
+    static func filenameStem(_ filename: String, format: GyoshukuKit.ArchiveFormat) -> String {
+        let suffix = ArchiveCreationPlan.acceptedExtensions(for: format)
+            .sorted { $0.count > $1.count }
+            .first { filename.lowercased().hasSuffix("." + $0) }
+        return suffix.map { String(filename.dropLast($0.count + 1)) } ?? filename
+    }
+
+    func selectFormat(at index: Int) {
+        guard Self.formats.indices.contains(index) else { return }
         format = Self.formats[index]
         resetLevel()
         store.preferences.defaultFormat = format
-        return stem + "." + ArchiveCreationPlan.filenameExtension(for: format)
     }
 }
 
@@ -217,6 +233,8 @@ private final class ArchiveSaveResizeAnimation: NSObject {
 }
 
 final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
+    private var configuredFilename = ""
+    private var suggestedStem = ""
     private static let accessoryHorizontalInset: CGFloat = 2
     let panel = NSSavePanel()
     let controller: ArchiveSavePanelController
@@ -244,7 +262,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             minimumLabelWidth: Self.minimumLabelWidth(bundle: bundle), bundle: bundle)
         encryptionCheckbox = NSButton(checkboxWithTitle: String(localized: "暗号化", bundle: bundle), target: nil, action: nil)
         encryptionNote = Self.makeNote(String(localized: "tar と LHA は暗号化できません", bundle: bundle), width: passwordFields.width)
-        fixedLevelNote = Self.makeNote(String(localized: "7z と LHA の圧縮レベルは固定です", bundle: bundle), width: passwordFields.width)
+        fixedLevelNote = Self.makeNote(String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle), width: passwordFields.width)
         controller = ArchiveSavePanelController(store: store)
         super.init()
         panel.delegate = self
@@ -257,11 +275,19 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         encryptionCheckbox.action = #selector(changeEncryption(_:))
         passwordFields.didChange = { [weak self] in self?.refreshPasswordNotice() }
         panel.directoryURL = (existingURL ?? sources.first)?.deletingLastPathComponent()
-        panel.nameFieldStringValue = existingURL.map { ArchiveCreationPlan.conversionName(for: $0, format: controller.format) }
+        let suggestedName = existingURL.map { ArchiveCreationPlan.conversionName(for: $0, format: controller.format) }
             ?? ArchiveCreationPlan.defaultName(for: sources, format: controller.format)
-        panel.allowedContentTypes = controller.allowedContentTypes
+        panel.allowedContentTypes = ArchiveSavePanelController.panelContentTypes
+        panel.currentContentType = controller.allowedContentTypes.first
         panel.canCreateDirectories = true
-        panel.isExtensionHidden = false
+        panel.isExtensionHidden = true
+        // 初期表示では AppKit が最後の拡張子だけを隠す。
+        // 本体を残し、保存時の完全な拡張子は currentContentType に任せる。
+        let stem = ArchiveSavePanelController.filenameStem(suggestedName, format: controller.format)
+        let suffix = ArchiveCreationPlan.filenameExtension(for: controller.format).split(separator: ".").last!
+        suggestedStem = stem
+        configuredFilename = stem + "." + suffix
+        panel.nameFieldStringValue = configuredFilename
         formatPopup.addItems(withTitles: ArchiveSavePanelController.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         formatPopup.selectItem(at: controller.selectedIndex)
         formatPopup.target = self
@@ -287,6 +313,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
                                   passwordFields: ArchivePasswordFields, encryptionNote: NSTextField,
                                   bundle: Bundle = .main) -> NSView {
         formatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
+        formatPopup.setAccessibilityIdentifier("ArchiveSaveFormat")
         levelPopup.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
         let rows = NSGridView(views: [
             [NSTextField(labelWithString: String(localized: "フォーマット", bundle: bundle)), formatPopup],
@@ -429,8 +456,12 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         let initialHeight = accessory.frame.height
         let initialPanelFrame = panel.frame
         let screenFrame = panel.screen?.visibleFrame
-        let fitsScreen = screenFrame.map { initialPanelFrame.height + size.height - initialHeight <= $0.height } ?? true
-        // 画面いっぱいに広げられている場合は、一覧の領域調整を標準パネルに任せる。
+        let expandedHeight = initialPanelFrame.height + size.height - initialHeight
+        let fitsScreen = screenFrame.map {
+            expandedHeight <= $0.height && initialPanelFrame.maxY - expandedHeight >= $0.minY
+        } ?? true
+        // 画面の下端付近では XPC シートが setFrame の原点を維持しないことがある。
+        // 現在の上端から収まらない場合も、一覧の領域調整を標準パネルに任せる。
         if !fitsScreen { accessory.viewportHeightInPanel = nil }
         let animate = animateResize && panel.isVisible && !reducesMotion() && fitsScreen && abs(initialHeight - size.height) > 0.5
         let panelChromeHeight = initialPanelFrame.height - (accessory.viewportHeightInPanel?() ?? initialHeight)
@@ -519,15 +550,37 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         levelPopup.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle) })
         levelPopup.selectItem(at: controller.selectedLevelIndex)
         levelPopup.isEnabled = controller.isLevelEnabled
-        fixedLevelNote.isHidden = controller.format != .sevenZip && controller.format != .lha
+        fixedLevelNote.isHidden = ![.tarXZ, .sevenZip, .lha].contains(controller.format)
     }
 
     @objc func changeLevel(_ sender: NSPopUpButton) { controller.selectLevel(at: sender.indexOfSelectedItem) }
 
+    func panel(_ sender: Any, userEnteredFilename filename: String, confirmed okFlag: Bool) -> String? {
+        // foo.zip を ZIP に入れる場合、foo.zip.zip の末尾を隠した名前は foo.zip。
+        // 未編集の候補だけを補正し、元の書庫名が再び拡張子として消えるのを防ぐ。
+        if okFlag, panel.isExtensionHidden, panel.nameFieldStringValue == configuredFilename,
+           filename == suggestedStem {
+            return suggestedStem + "." + ArchiveCreationPlan.filenameExtension(for: controller.format)
+        }
+        return filename
+    }
+
     @objc func changeFormat(_ sender: NSPopUpButton) {
-        let filename = controller.selectFormat(at: sender.indexOfSelectedItem, filename: panel.nameFieldStringValue)
-        panel.allowedContentTypes = controller.allowedContentTypes
-        panel.nameFieldStringValue = filename
+        controller.selectFormat(at: sender.indexOfSelectedItem)
+        // 表示中の名前の setter は XPC パネルが受け付けないため、型だけを変更する。
+        if !panel.isExtensionHidden {
+            // 手入力済みの完全な名前では、AppKit は最後の拡張子だけを置き換える。
+            // 単一の短縮拡張子なら、切り替え後に名前を再編集しても不足・重複しない。
+            let alias: String? = switch controller.format {
+            case .tarGzip: "org.gnu.gnu-zip-tar-archive"
+            case .tarBzip2: "com.shunnag.KaitoFinder.save-tbz"
+            case .tarXZ: "org.tukaani.tar-xz-archive"
+            default: nil
+            }
+            panel.currentContentType = alias.flatMap { UTType($0) } ?? controller.allowedContentTypes.first
+        } else {
+            panel.currentContentType = controller.allowedContentTypes.first
+        }
         refreshLevel()
         refreshEncryption()
     }

@@ -6,6 +6,20 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveImportConflictTests: XCTestCase {
+    func testFolderCountsIncludeVirtualParentsAndDeduplicateEquivalentPaths() {
+        XCTAssertEqual(ArchiveConflictItem.descendantCount([], below: "root"), 0)
+        XCTAssertEqual(ArchiveConflictItem.descendantCount(["root", "root/"], below: "root"), 0)
+        let paths = ["root/a/one", "root/a/two", "root/a/one", "root/a", "root/b/empty/",
+                     "root/cafe\u{0301}", "root/café", "root/\u{0301}mark/child"]
+        XCTAssertEqual(ArchiveConflictItem.descendantCount(paths, below: "root"), 8)
+        XCTAssertEqual(ArchiveConflictItem.descendantCount(paths, below: ""), 9)
+        for depth in [1, 8, 64, 1024] {
+            let parent = (["root"] + (0..<depth).map { "folder-\($0)" }).joined(separator: "/")
+            let files = (0..<100).map { parent + "/file-\($0)" }
+            XCTAssertEqual(ArchiveConflictItem.descendantCount(files + files, below: "root"), depth + 100)
+        }
+    }
+
     @MainActor func testReplacementRequiresMatchingUpdaterEntriesBeforeRemovingAnything() async throws {
         let fixture = try ScenarioFixture(), source = try fixture.file("original.txt")
         let before = try ScenarioFixture.digest(fixture.archive)

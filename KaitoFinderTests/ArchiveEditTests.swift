@@ -631,7 +631,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     @MainActor func testReadOnlyCapabilitiesRefuseDeleteRenameAndMixedEditsBeforeOpeningUpdater() async throws {
         for (filename, script) in [
-            ("archive.tar.bz2", "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))"),
+            ("archive.tar.lzma", "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))"),
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')")
         ] {
             let fixture = try Fixture(filename: filename, script: script), session = try ArchiveSession(url: fixture.archive)
@@ -859,7 +859,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     @MainActor func testNewFolderReadOnlyRefusalPrecedesUpdaterAndExposesReason() async throws {
         let cases: [(String, String, Bool)] = [
-            ("archive.tar.bz2", "with tarfile.open(p, 'w:bz2') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))", false),
+            ("archive.tar.lzma", "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", false),
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')", false),
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')", true)
         ]
@@ -1144,9 +1144,10 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     }
 
     @MainActor func testReadOnlyArchiveRefusesMoveBeforeOpeningUpdater() async throws {
-        let fixture = try Fixture(filename: "archive.tar.bz2", script: """
-        with tarfile.open(p, 'w:bz2') as t:
+        let fixture = try Fixture(filename: "archive.tar.lzma", script: """
+        with tarfile.open(p, 'w') as t:
             i = tarfile.TarInfo('a/x.txt'); i.size = 1; t.addfile(i, io.BytesIO(b'x'))
+        import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
         """)
         let session = try ArchiveSession(url: fixture.archive), before = try digest(fixture.archive), opened = Mutex(0)
         let selected = ArchiveEditSelection(try await node("a/x.txt", in: session))

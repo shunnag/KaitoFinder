@@ -9,12 +9,14 @@ import XCTest
 
 nonisolated final class ArchiveRewriteTests: XCTestCase {
     private enum Format: CaseIterable {
-        case tar, tgz, sevenZip, lha
+        case tar, tgz, tbz2, txz, sevenZip, lha
 
         var suffix: String {
             switch self {
             case .tar: "tar"
             case .tgz: "tgz"
+            case .tbz2: "tbz2"
+            case .txz: "txz"
             case .sevenZip: "7z"
             case .lha: "lzh"
             }
@@ -24,6 +26,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             switch self {
             case .tar: .tar
             case .tgz: .tarGzip
+            case .tbz2: .tarBzip2
+            case .txz: .tarXZ
             case .sevenZip: .sevenZip
             case .lha: .lha
             }
@@ -31,7 +35,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
         var input: KaitoKit.ArchiveFormat {
             switch self {
-            case .tar, .tgz: .tar
+            case .tar, .tgz, .tbz2, .txz: .tar
             case .sevenZip: .sevenZip
             case .lha: .lha
             }
@@ -77,6 +81,9 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
                     try directory.run("/usr/bin/gzip", ["-n", tar.path])
                     try FileManager.default.moveItem(at: tar.appendingPathExtension("gz"), to: archive)
                 }
+            case .tbz2, .txz:
+                try directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs",
+                    format == .tbz2 ? "-cjf" : "-cJf", archive.path, "-C", seed.path, "original.txt", "existing"])
             case .sevenZip:
                 try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-t7z", archive.path, "original.txt", "existing"])
             case .lha:
@@ -132,8 +139,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         }
     }
 
-    func testTarBzip2AndXZCapabilitiesRefuseTheCorrectWrapper() throws {
-        for (flag, name) in [("-cjf", "tar.bz2"), ("-cJf", "tar.xz")] {
+    func testTarBzip2AndXZCapabilitiesEnableTheCorrectWriter() throws {
+        for (flag, name, format) in [("-cjf", "tar.bz2", GyoshukuKit.ArchiveFormat.tarBzip2), ("-cJf", "tar.xz", .tarXZ)] {
             let fixture = try Fixture(.tar)
             let archive = fixture.directory.url.appendingPathComponent("wrapped." + name)
             try fixture.directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", flag, archive.path,
@@ -142,15 +149,15 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let reader = try ArchiveReader.open(url: archive)
             XCTAssertEqual(reader.format, .tar)
             let capability = ArchiveCapabilities.inspect(url: archive, format: reader.format)
-            XCTAssertEqual(capability.refusal, .format(name))
-            XCTAssertNil(capability.mode)
-            XCTAssertFalse(capability.canEdit)
-            XCTAssertNil(capability.rewriteNotice)
-            XCTAssertEqual(capability.readOnlyReason, String(localized: "\(name)アーカイブは変更できません。"))
+            XCTAssertNil(capability.refusal)
+            XCTAssertEqual(capability.mode, .rewrite(format))
+            XCTAssertTrue(capability.canEdit)
+            XCTAssertNotNil(capability.rewriteNotice)
+            XCTAssertNil(capability.readOnlyReason)
         }
     }
 
-    func testTarCompressZstandardAndLZMAMagicAreReadOnly() throws {
+    func testTruncatedCompressedTarSignaturesCannotEnableEditing() throws {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("wrapped.tar")
         let cases: [([UInt8], String)] = [
             ([0x1f, 0x9d], "tar.Z"), ([0x28, 0xb5, 0x2f, 0xfd], "tar.zst"), ([0x5d, 0x00, 0x00], "tar.lzma")
@@ -158,7 +165,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         for (magic, name) in cases {
             try Data(magic).write(to: archive)
             let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
-            XCTAssertEqual(capability.refusal, .format(name))
+            XCTAssertFalse(capability.canEdit, name)
             XCTAssertNil(capability.mode)
             XCTAssertNil(capability.rewriteNotice)
         }
@@ -327,6 +334,33 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         return document
     }
 
+    @MainActor func testRemovingEveryMemberKeepsEmptyArchiveReadableEditableAndUndoable() async throws {
+        for format in Format.allCases {
+            let fixture = try Fixture(format), document = try document(fixture)
+            let session = try XCTUnwrap(document.session)
+            let original = try digest(fixture.archive)
+            let root = EntryNode.tree(from: await session.entries())
+            let result = try await document.remove(root.children, progress: Progress())
+            XCTAssertTrue(result.published, format.suffix)
+            XCTAssertNil(result.reloadFailure, format.suffix)
+            let empty = try ArchiveReader.open(url: fixture.archive)
+            XCTAssertEqual(empty.format, format.input)
+            XCTAssertTrue(empty.entries.isEmpty, format.suffix)
+            XCTAssertTrue(session.capabilities.canEdit, format.suffix)
+            document.undoManager?.undo()
+            await document.undoTask?.value
+            XCTAssertEqual(try digest(fixture.archive), original, format.suffix)
+            document.undoManager?.redo()
+            await document.undoTask?.value
+            XCTAssertTrue(try ArchiveReader.open(url: fixture.archive).entries.isEmpty, format.suffix)
+            let source = try fixture.file("after-empty.txt", data: Data("added".utf8))
+            let appended = try await document.append(urls: [source], to: "", progress: Progress())
+            XCTAssertEqual(appended.addedPaths, ["after-empty.txt"])
+            XCTAssertNil(appended.reloadFailure)
+            XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), ["after-empty.txt": Data("added".utf8)])
+        }
+    }
+
     @MainActor private func node(_ name: String, in session: ArchiveSession) async throws -> EntryNode {
         let entries = await session.entries()
         var pending = [EntryNode.tree(from: entries)]
@@ -363,7 +397,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     private func assertIndependentListing(_ fixture: Fixture, names: Set<String>) throws {
         let expected = Set(names.map(nameWithoutTrailingSlash))
         switch fixture.format {
-        case .tar:
+        case .tar, .tbz2, .txz:
             let listing = try fixture.directory.run("/usr/bin/bsdtar", ["-tf", fixture.archive.path])
             XCTAssertEqual(Set(listing.split(separator: "\n").map { nameWithoutTrailingSlash(String($0)) }), expected)
         case .tgz:
@@ -446,6 +480,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
     @MainActor func testTarDocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.tar) }
     @MainActor func testTGZDocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.tgz) }
+    @MainActor func testTarBzip2DocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.tbz2) }
+    @MainActor func testTarXZDocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.txz) }
     @MainActor func testSevenZipDocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.sevenZip) }
     @MainActor func testLHADocumentEditsAndUndoRestoreOriginalSHA256() async throws { try await assertDocumentEditsAndUndo(.lha) }
 
@@ -506,7 +542,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
     @MainActor func testTarAppendHonoursPreferredOwnerIDs() async throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        for format in [Format.tar, .tgz] {
+        for format in [Format.tar, .tgz, .tbz2, .txz] {
             let fixture = try Fixture(format), document = try document(fixture, preferencesStore: store)
             for preserve in [true, false] {
                 store.preferences.tarPreservesOwnerIDs = preserve
@@ -555,7 +591,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let entries = try ArchiveReader.open(url: archive).entries
             XCTAssertEqual(Set(entries.map { nameWithoutTrailingSlash($0.name) }), ["renamed.txt", "input.txt", "folder"])
             let appendedEntry = try XCTUnwrap(entries.first { $0.name == "input.txt" })
-            if format == .tar || format == .tarGzip {
+            if [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format) {
                 // フォルダ作成・改名の再書き込みでも、追加時に保存した所有者を失わない。
                 XCTAssertEqual(appendedEntry.formatSpecific["uid"], String(getuid()))
             } else if format == .zip {
@@ -693,9 +729,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         await session.close()
 
         let fixture = try Fixture(.tar)
-        let readOnlyArchive = fixture.directory.url.appendingPathComponent("archive.tar.bz2")
-        try fixture.directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", "-cjf", readOnlyArchive.path,
-                                                      "-C", fixture.directory.url.path, "original.txt"])
+        let readOnlyArchive = fixture.directory.url.appendingPathComponent("archive.tar.zst")
+        try fixture.directory.run("/opt/homebrew/bin/zstd", ["-q", fixture.archive.path, "-o", readOnlyArchive.path])
         let readOnlySession = try ArchiveSession(url: readOnlyArchive), readOnlySnapshot = await readOnlySession.snapshot()
         let readOnlyReason = try XCTUnwrap(readOnlySession.capabilities.readOnlyReason)
         controller.display(EntryNode.tree(from: readOnlySnapshot.entries), session: readOnlySession,

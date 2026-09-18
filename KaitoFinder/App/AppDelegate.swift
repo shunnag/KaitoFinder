@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
     private let preferencesStore: ArchivePreferencesStore
+    private let softwareUpdater: any SoftwareUpdating
     private(set) var preferencesWindowController: PreferencesWindowController?
     private(set) var welcomeWindowController: WelcomeWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
@@ -31,15 +32,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     override convenience init() { self.init(passwordVault: .shared) }
 
-    init(passwordVault: ArchivePasswordVault = .shared, preferencesStore: ArchivePreferencesStore = .shared) {
+    init(passwordVault: ArchivePasswordVault = .shared, preferencesStore: ArchivePreferencesStore = .shared,
+         softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared) {
         self.passwordVault = passwordVault
         self.preferencesStore = preferencesStore
+        self.softwareUpdater = softwareUpdater
         super.init()
     }
 
     @objc func showPreferences(_ sender: Any?) {
         if preferencesWindowController == nil {
-            preferencesWindowController = PreferencesWindowController(store: preferencesStore)
+            preferencesWindowController = PreferencesWindowController(store: preferencesStore, softwareUpdater: softwareUpdater)
         }
         preferencesWindowController?.showWindow(sender)
         preferencesWindowController?.window?.makeKeyAndOrderFront(sender)
@@ -75,8 +78,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func toggleHiddenFiles(_ sender: Any?) { preferencesStore.preferences.showsHiddenFiles.toggle() }
 
+    @objc func checkForUpdates(_ sender: Any?) { softwareUpdater.checkForUpdates() }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(checkForUpdates(_:)):
+            return softwareUpdater.canCheckForUpdates
         case #selector(newArchive(_:)):
             return archiveCreationTask == nil && creationOpenPanel == nil
         case #selector(extractArchivesFromMenu(_:)):
@@ -281,6 +288,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // 実行ファイルへ直接渡したパスも、通常の文書オープン経路へ流す。
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil,
               ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil else { return }
+        softwareUpdater.start()
         let hadFiles = openLaunchArguments(Array(CommandLine.arguments.dropFirst())) { NSApp.presentError($0) }
         // LaunchServices の起動時 open が文書を登録する機会を待ってから判断する。
         DispatchQueue.main.async { [weak self] in
@@ -333,6 +341,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let preferences = appMenu.addItem(withTitle: String(localized: "設定…", bundle: bundle),
                                           action: #selector(showPreferences(_:)), keyEquivalent: ",")
         preferences.target = self
+        let updates = appMenu.addItem(withTitle: String(localized: "アップデートを確認…", bundle: bundle),
+                                     action: #selector(checkForUpdates(_:)), keyEquivalent: "")
+        updates.target = self
         appMenu.addItem(.separator())
         let services = appMenu.addItem(withTitle: String(localized: "サービス", bundle: bundle), action: nil, keyEquivalent: "")
         let servicesMenu = NSMenu(title: services.title)

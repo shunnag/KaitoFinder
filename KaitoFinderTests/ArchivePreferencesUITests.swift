@@ -33,6 +33,10 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             expected.tarGzipLevel = 10 - level
             check()
             XCTAssertEqual(model.tarGzipLevelLabel, String(10 - level))
+            model.changeTarBzip2Level(to: level)
+            expected.tarBzip2Level = level
+            check()
+            XCTAssertEqual(model.tarBzip2LevelLabel, String(level))
         }
         for enabled in [true, false] {
             model.changeZipSkipsCompressedTypes(to: enabled)
@@ -64,7 +68,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     @MainActor func testViewModelLoadsStoredValuesAndClampsLiveLevels() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let saved = ArchivePreferences(defaultFormat: .tarGzip, zipMethod: .stored, zipLevel: 8,
-                                       zipSkipsCompressedTypes: false, tarGzipLevel: 2, tarPreservesOwnerIDs: true,
+                                       zipSkipsCompressedTypes: false, tarGzipLevel: 2, tarBzip2Level: 4, tarPreservesOwnerIDs: true,
                                        extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true,
                                        revealsExtractedItemsInFinder: true, openingBehavior: .newWindow)
         store.preferences = saved
@@ -78,15 +82,19 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(model.afterExpansionIndex, 1)
         XCTAssertEqual(model.zipLevelLabel, "8")
         XCTAssertEqual(model.tarGzipLevelLabel, "2")
+        XCTAssertEqual(model.tarBzip2LevelLabel, "4")
         for (input, expected) in [(Int.min, 1), (0, 1), (42, 9), (Int.max, 9)] {
             model.changeZipLevel(to: input)
             model.changeTarGzipLevel(to: input)
+            model.changeTarBzip2Level(to: input)
             XCTAssertEqual(store.preferences.zipLevel, expected)
             XCTAssertEqual(store.preferences.tarGzipLevel, expected)
+            XCTAssertEqual(store.preferences.tarBzip2Level, expected)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveZipLevel"), expected)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveTarGzipLevel"), expected)
             XCTAssertEqual(model.zipLevelLabel, String(expected))
             XCTAssertEqual(model.tarGzipLevelLabel, String(expected))
+            XCTAssertEqual(model.tarBzip2LevelLabel, String(expected))
         }
         let before = store.preferences
         for index in [-1, 99] {
@@ -109,7 +117,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let controller = PreferencesWindowController(store: store)
         defer { controller.close() }
-        controller.defaultFormatPopup.selectItem(at: 4)
+        controller.defaultFormatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .lha)))
         sendAction(controller.defaultFormatPopup)
         XCTAssertEqual(store.preferences.defaultFormat, .lha)
         controller.openingBehaviorPopup.selectItem(at: 1)
@@ -130,6 +138,10 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         sendAction(controller.tarGzipLevelSlider)
         XCTAssertEqual(store.preferences.tarGzipLevel, 1)
         XCTAssertEqual(controller.tarGzipLevelLabel.stringValue, "1")
+        controller.tarBzip2LevelSlider.integerValue = 3
+        sendAction(controller.tarBzip2LevelSlider)
+        XCTAssertEqual(store.preferences.tarBzip2Level, 3)
+        XCTAssertEqual(controller.tarBzip2LevelLabel.stringValue, "3")
         controller.tarPreservesOwnerIDsCheckbox.state = .on
         sendAction(controller.tarPreservesOwnerIDsCheckbox)
         XCTAssertTrue(store.preferences.tarPreservesOwnerIDs)
@@ -156,6 +168,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(controller.zipSkipsCompressedTypesCheckbox.state, .on)
         XCTAssertEqual(controller.tarGzipLevelSlider.integerValue, 6)
         XCTAssertEqual(controller.tarGzipLevelLabel.stringValue, "6")
+        XCTAssertEqual(controller.tarBzip2LevelSlider.integerValue, 9)
+        XCTAssertEqual(controller.tarBzip2LevelLabel.stringValue, "9")
         XCTAssertEqual(controller.tarPreservesOwnerIDsCheckbox.state, .off)
         XCTAssertEqual(controller.extractionDestinationPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.folderPolicyPopup.indexOfSelectedItem, 1)
@@ -170,10 +184,10 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         let save = ArchiveSavePanel(sources: [URL(fileURLWithPath: "/tmp/preferences.txt")], store: store)
         XCTAssertEqual(save.controller.format, store.preferences.defaultFormat)
         XCTAssertEqual(save.formatPopup.indexOfSelectedItem, 2)
-        save.formatPopup.selectItem(at: 3)
+        save.formatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .sevenZip)))
         sendAction(save.formatPopup)
         XCTAssertEqual(store.preferences.defaultFormat, .sevenZip)
-        XCTAssertEqual(model.defaultFormatIndex, 3)
+        XCTAssertEqual(model.defaultFormatIndex, ArchivePreferences.formats.firstIndex(of: .sevenZip))
         XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), "7z")
         XCTAssertEqual(ArchiveSavePanelController(defaults: suite.defaults).format, .sevenZip)
     }
@@ -201,7 +215,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertFalse(window.styleMask.contains(.resizable))
         XCTAssertEqual(first.tabController.tabStyle, .toolbar)
         XCTAssertEqual(first.tabController.tabViewItems.map(\.label),
-                       [String(localized: "一般"), String(localized: "圧縮"), String(localized: "展開")])
+                       [String(localized: "一般"), String(localized: "圧縮"), String(localized: "展開"), String(localized: "アップデート")])
         first.close()
         try performMenuItem(settings)
         XCTAssertTrue(delegate.preferencesWindowController === first)
@@ -246,7 +260,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         window.setFrameOrigin(NSPoint(x: visible.minX + 20, y: visible.minY + 20))
         let initialSize = try XCTUnwrap(window.contentView).bounds.size
         let toolbar = try XCTUnwrap(window.toolbar)
-        for index in [1, 2, 0] {
+        for index in [1, 2, 3, 0] {
             let pane = controller.tabController.tabViewItems[index]
             let identifier = try XCTUnwrap(pane.identifier as? String)
             let item = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == identifier })

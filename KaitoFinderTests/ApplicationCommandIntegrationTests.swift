@@ -199,15 +199,22 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
 
     @MainActor func testReadOnlyContextMenuAndToolbarValidateAndRouteExtraction() async throws {
         let fixture = try ScenarioFixture(script: """
-        with tarfile.open(p, 'w:bz2') as z:
+        with tarfile.open(p, 'w') as z:
             for name in ('first.txt', 'second.txt'):
                 item = tarfile.TarInfo(name)
                 item.size = 4
                 z.addfile(item, io.BytesIO(b'data'))
-        """, suffix: "tar.bz2")
+        import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
+        """, suffix: "tar.lzma")
         let (_, controller) = try await scenarioDocument(fixture)
         let menu = try XCTUnwrap(controller.outlineView.menu)
-        let toolbar = try XCTUnwrap(controller.window?.toolbar)
+        let window = try XCTUnwrap(controller.window)
+        // validateVisibleItems は非表示・overflow 項目を更新しない。保存された狭い
+        // ウインドウサイズに依存せず、実際に見えるボタンの接続を検査する。
+        window.setContentSize(NSSize(width: 1100, height: 600))
+        controller.showWindow(nil)
+        window.layoutIfNeeded()
+        let toolbar = try XCTUnwrap(window.toolbar)
         controller.outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         menu.update()
         toolbar.validateVisibleItems()
@@ -217,6 +224,7 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
             XCTAssertFalse(try menuItem(action, in: menu).isEnabled)
         }
         for identifier in ["newFolder", "delete"] {
+            XCTAssertTrue(toolbar.visibleItems?.contains { $0.itemIdentifier.rawValue == identifier } == true)
             XCTAssertFalse(try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == identifier }).isEnabled)
         }
         var requested: [EntryNode] = []

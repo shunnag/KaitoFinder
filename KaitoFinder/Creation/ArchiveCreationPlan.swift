@@ -35,6 +35,8 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         case .zip: "zip"
         case .tar: "tar"
         case .tarGzip: "tar.gz"
+        case .tarBzip2: "tar.bz2"
+        case .tarXZ: "tar.xz"
         case .sevenZip: "7z"
         case .lha: "lzh"
         }
@@ -45,6 +47,8 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         case .zip: ["zip"]
         case .tar: ["tar"]
         case .tarGzip: ["tar.gz", "tgz"]
+        case .tarBzip2: ["tar.bz2", "tbz2", "tbz"]
+        case .tarXZ: ["tar.xz", "txz"]
         case .sevenZip: ["7z"]
         case .lha: ["lzh", "lha"]
         }
@@ -67,7 +71,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
     static func archiveStem(for archive: URL) -> String {
         let name = archive.lastPathComponent
         // 二重拡張子も一つのアーカイブ拡張子として外し、形式変換と一括展開で共有する。
-        let wrappers = ["tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.lzma", "tar.Z"]
+        let wrappers = ["tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.lz4", "tar.lzma", "tar.Z"]
         let stem: String
         if let suffix = wrappers.first(where: { name.lowercased().hasSuffix("." + $0.lowercased()) }) {
             stem = String(name.dropLast(suffix.count + 1))

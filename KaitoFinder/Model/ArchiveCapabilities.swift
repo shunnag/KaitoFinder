@@ -63,21 +63,19 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 _ = try ArchiveUpdater.open(url: url)
                 mode = .inPlace
             case .tar:
-                // KaitoKit は tgz も tar と報告する。拡張子でなく外側の magic を調べる。
-                let file = try FileHandle(forReadingFrom: url)
-                defer { try? file.close() }
-                let magic = try file.read(upToCount: 6) ?? Data()
-                let unsupported: [([UInt8], String)] = [
-                    ([0x42, 0x5a, 0x68], "tar.bz2"),
-                    ([0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00], "tar.xz"),
-                    ([0x1f, 0x9d], "tar.Z"),
-                    ([0x28, 0xb5, 0x2f, 0xfd], "tar.zst"),
-                    ([0x5d, 0x00, 0x00], "tar.lzma")
-                ]
-                if let (_, name) = unsupported.first(where: { magic.starts(with: $0.0) }) {
-                    return Self(refusal: .format(name))
+                // ArchiveReader は圧縮 tar の内側を報告する。外側の判定もエンジンに任せ、
+                // skippable frame や tar のファイル名を短い圧縮署名と取り違えない。
+                switch try FormatDetector.detect(url: url) {
+                case .tar: mode = .rewrite(.tar)
+                case .gzip: mode = .rewrite(.tarGzip)
+                case .bzip2: mode = .rewrite(.tarBzip2)
+                case .xz: mode = .rewrite(.tarXZ)
+                case .compress: return Self(refusal: .format("tar.Z"))
+                case .zstd: return Self(refusal: .format("tar.zst"))
+                case .lz4: return Self(refusal: .format("tar.lz4"))
+                case .lzma: return Self(refusal: .format("tar.lzma"))
+                default: return Self(refusal: .format(format.displayName))
                 }
-                mode = .rewrite(magic.starts(with: [0x1f, 0x8b]) ? .tarGzip : .tar)
             case .sevenZip: mode = .rewrite(.sevenZip)
             case .lha: mode = .rewrite(.lha)
             default: return Self(refusal: .format(format.displayName))

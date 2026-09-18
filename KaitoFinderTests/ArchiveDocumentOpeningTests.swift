@@ -161,9 +161,31 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("preview.zip")
         // 行 0 が仮想フォルダではなく、プレビュー可能なファイルになる ZIP を開く。
         try directory.run("/usr/bin/zip", ["-q", "-D", archive.path, "note.txt"])
+        try await assertQuickLook(archive, in: directory, name: "note.txt", expected: Data("note.txt".utf8))
+    }
+
+    @MainActor func testQuickLookForXZAndLegacyZstandardZIPRows() async throws {
+        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("KaitoKit/Tests/Fixtures/zip-modern")
+        let expected = Data(String(repeating: "XZ and Zstandard ZIP interoperability 日本語\n", count: 800).utf8)
+        for name in ["xz.zip", "xz-aes.zip", "xz-zipcrypto.zip", "zstd20.zip", "zstd-aes20.zip"] {
+            let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent(name)
+            let encoded = try Data(contentsOf: fixtures.appendingPathComponent(name + ".b64"))
+            try XCTUnwrap(Data(base64Encoded: encoded, options: .ignoreUnknownCharacters)).write(to: archive)
+            try await assertQuickLook(archive, in: directory, name: "payload.txt", expected: expected,
+                                      password: "KaitoFixture")
+        }
+    }
+
+    @MainActor private func assertQuickLook(_ archive: URL, in directory: ArchiveTestDirectory,
+                                            name: String, expected: Data, password: String? = nil) async throws {
         NSApp.activate()
         let controller = try await assertOpensThroughDocumentController(archive, in: directory,
-            expectedTopLevelPaths: ["note.txt"])
+            expectedTopLevelPaths: [name])
+        if let password {
+            let document = try XCTUnwrap(controller.document as? ArchiveDocument)
+            document.session?.setPasswordPrompt { _ in password }
+        }
         let window = try XCTUnwrap(controller.window)
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(controller.outlineView)
@@ -189,7 +211,8 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         XCTAssertTrue(QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared()?.isVisible == true)
         let panel = try XCTUnwrap(QLPreviewPanel.shared())
         XCTAssertTrue(panel.currentController as AnyObject? === controller)
-        XCTAssertNotNil(controller.previewPanel(panel, previewItemAt: 0)?.previewItemURL)
+        let previewURL = try XCTUnwrap(controller.previewPanel(panel, previewItemAt: 0)?.previewItemURL)
+        XCTAssertEqual(try Data(contentsOf: previewURL), expected)
         try performMenuItem(previewCommand)
         let hideDeadline = Date().addingTimeInterval(2)
         while panel.isVisible, Date() < hideDeadline {

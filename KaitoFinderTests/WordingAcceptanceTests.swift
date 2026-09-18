@@ -144,7 +144,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertFalse(text.contains("／"), key)
             XCTAssertFalse(text.contains("「%@」"), key)
             // Wave A の指定ラベルは、形式名・ファイル名を区切る空白も仕様どおりに保つ。
-            if ![".DS_Store を含めない", "7z と LHA の圧縮レベルは固定です", "tar と LHA は暗号化できません",
+            if ![".DS_Store を含めない", "tar.xz、7z、LHA の圧縮レベルは固定です", "tar と LHA は暗号化できません",
                   "この形式は暗号化できません。別名で保存で ZIP か 7z にしてください。"].contains(key) {
                 XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)
             }
@@ -624,9 +624,13 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
                            ["KaitoFinder", title("ファイル"), title("編集"), title("表示"), title("ウインドウ"), title("ヘルプ")])
             let app = try XCTUnwrap(submenus.first)
             XCTAssertEqual(app.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
-                           [title("KaitoFinderについて"), "", title("設定…"), "", title("サービス"), "",
+                           [title("KaitoFinderについて"), "", title("設定…"), title("アップデートを確認…"), "", title("サービス"), "",
                                                   title("KaitoFinderを非表示"), title("ほかを非表示"), title("すべてを表示"), "", title("KaitoFinderを終了")])
-            for index in [1, 3, 5, 9] { XCTAssertTrue(app.items[index].isSeparatorItem) }
+            for index in [1, 4, 6, 10] { XCTAssertTrue(app.items[index].isSeparatorItem) }
+            let update = try XCTUnwrap(item(app, title("アップデートを確認…")))
+            XCTAssertEqual(update.action, #selector(AppDelegate.checkForUpdates(_:)))
+            XCTAssertTrue(update.target === delegate)
+            XCTAssertEqual(update.keyEquivalent, "")
             let services = try XCTUnwrap(item(app, title("サービス"))?.submenu)
             XCTAssertEqual(LocalizationAcceptance.normalizedTitle(services.title), title("サービス"))
             // テスト host では起動時に据えたメニューを AppKit が保持し、言語ごとの再構築では差し替わらない。

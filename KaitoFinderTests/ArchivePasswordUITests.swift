@@ -199,6 +199,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 let parent = asSheet ? NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
                     styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false) : nil
                 parent?.isReleasedWhenClosed = false
+                parent?.center()
                 parent?.makeKeyAndOrderFront(nil)
                 var response: NSApplication.ModalResponse?
                 if let parent { save.panel.beginSheetModal(for: parent) { response = $0 } }
@@ -484,6 +485,61 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         XCTAssertEqual(response, .cancel)
     }
 
+    @MainActor func testExpandedSaveSheetKeepsItsButtonsOnScreenNearTheBottom() async throws {
+        let restoreAnimations = enableNativeWindowAnimations()
+        let restoreBrowser = setNativeSavePanelBrowserExpanded(true)
+        defer { restoreAnimations(); restoreBrowser() }
+        let suite = try ArchivePreferencesTestDefaults()
+        let save = ArchiveSavePanel(sources: [], defaults: suite.defaults)
+        let parent = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
+                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        parent.isReleasedWhenClosed = false
+        parent.makeKeyAndOrderFront(nil)
+        var response: NSApplication.ModalResponse?
+        save.panel.beginSheetModal(for: parent) { response = $0 }
+        defer { save.panel.cancel(nil); parent.close() }
+        try await scenarioWait { save.panel.isVisible }
+        try await Task.sleep(for: .seconds(1))
+        let screen = try XCTUnwrap(save.panel.screen).visibleFrame
+        let frame = save.panel.frame
+        let height = min(600, screen.height - 200)
+        let bottom = screen.minY + 8
+        save.panel.setFrame(NSRect(x: frame.minX, y: bottom,
+                                   width: frame.width, height: height), display: true)
+        try await Task.sleep(for: .milliseconds(300))
+        // 前のパネルが大きいと、AppKit は表示時に親を上へ移動する。
+        // シートの原点指定は無視されるので、親ごと下端の検査位置へ戻す。
+        parent.setFrameOrigin(NSPoint(x: parent.frame.minX,
+            y: parent.frame.minY + bottom - save.panel.frame.minY))
+        try await scenarioWait { abs(save.panel.frame.minY - bottom) < 0.5 }
+        for state in [NSControl.StateValue.on, .off, .on, .off] {
+            save.encryptionCheckbox.performClick(nil)
+            try await scenarioWait {
+                state == .on ? save.passwordFields.view.alphaValue == 1 : save.passwordFields.view.isHidden
+            }
+            try await Task.sleep(for: .milliseconds(300))
+            // ローカルのビューだけでなく、WindowServer が表示するシート全体を調べる。
+            let windows = try XCTUnwrap(CGWindowListCopyWindowInfo(.optionIncludingWindow,
+                CGWindowID(save.panel.windowNumber)) as? [[String: Any]])
+            let bounds = try XCTUnwrap(windows.first?[kCGWindowBounds as String] as? [String: CGFloat])
+            let displayed = try XCTUnwrap(CGRect(dictionaryRepresentation: bounds as CFDictionary))
+            let primaryTop = try XCTUnwrap(NSScreen.screens.first).frame.maxY
+            let visible = NSRect(x: displayed.minX, y: primaryTop - displayed.maxY,
+                                 width: displayed.width, height: displayed.height)
+            print("Save sheet screen fit: model=\(save.panel.frame), displayed=\(visible), screen=\(screen)")
+            XCTAssertGreaterThanOrEqual(visible.minY, screen.minY - 0.5, "保存ボタンが画面下端からはみ出した")
+            XCTAssertLessThanOrEqual(visible.maxY, screen.maxY + 0.5)
+            if state == .on {
+                for field in [save.passwordFields.passwordField, save.passwordFields.verifyField] {
+                    XCTAssertEqual(field.visibleRect.intersection(field.bounds).height, field.bounds.height, accuracy: 0.5)
+                }
+            }
+        }
+        save.panel.cancel(nil)
+        try await scenarioWait { response != nil }
+        XCTAssertEqual(response, .cancel)
+    }
+
     // 大量の非表示ウインドウを作る通常テストとは分け、実パネルでは標準アニメーションも有効にする。
     // 保存済みのユーザー設定には書き込まず、登録ドメインだけを一時的に差し替える。
     @MainActor private func enableNativeWindowAnimations() -> () -> Void {
@@ -528,14 +584,14 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
             levels.addItems(withTitles: ArchiveSavePanelController.Level.allCases.map { $0.title(bundle: bundle) })
             let checkbox = NSButton(checkboxWithTitle: String(localized: "暗号化", bundle: bundle), target: nil, action: nil)
             checkbox.state = .on
-            let fixedNote = ArchiveSavePanel.makeNote(String(localized: "7z と LHA の圧縮レベルは固定です", bundle: bundle), width: fields.width)
+            let fixedNote = ArchiveSavePanel.makeNote(String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle), width: fields.width)
             let encryptionNote = ArchiveSavePanel.makeNote(String(localized: "tar と LHA は暗号化できません", bundle: bundle), width: fields.width)
             let accessory = ArchiveSavePanel.makeAccessoryView(formatPopup: formats, levelPopup: levels, fixedLevelNote: fixedNote,
                 encryptionCheckbox: checkbox, passwordFields: fields, encryptionNote: encryptionNote, bundle: bundle)
             let width = accessory.frame.width
             for (index, format) in ArchiveSavePanelController.formats.enumerated() {
                 formats.selectItem(at: index)
-                _ = controller.selectFormat(at: index, filename: "snapshot.zip")
+                controller.selectFormat(at: index)
                 levels.removeAllItems()
                 levels.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle) })
                 levels.selectItem(at: controller.selectedLevelIndex)
