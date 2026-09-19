@@ -601,3 +601,23 @@ Auto Layout が配置される前に描かれ、アイコンと名前の位置�
 
 notarytool の資格情報はユーザーが `xcrun notarytool store-credentials KaitoFinder`（Apple ID + app 用パスワード）で
 ログインキーチェーンに保存し、以後は `--keychain-profile KaitoFinder` で参照する。パスワードは記録しない。
+
+### 実行結果（17:1x〜17:2x、すべてオーケストレータが実行）
+
+| 手順 | 結果 |
+|---|---|
+| コミット | KaitoFinder `a834dac`（72 ファイル、0.1.0 build 2）。KaitoKit `74662cf`、GyoshukuKit `62d0855` は先にコミット済み |
+| archive | `xcodebuild … -configuration Release archive`（Developer ID 識別子 `B7A1…EB48`、`build/ReleaseArchiveDerivedData`）: ARCHIVE SUCCEEDED |
+| export | `-exportArchive … build/release/ExportOptions.plist`: EXPORT SUCCEEDED。Info.plist は CFBundleVersion 2 / 0.1.0 / LSMinimumSystemVersion 26.0 / SUFeedURL・SUPublicEDKey が期待どおり。`codesign --verify --deep --strict` 成功、本体・Sparkle.framework とも Developer ID Application (FQTM2788K5)、hardened runtime |
+| notarize | `xcrun notarytool submit build/KaitoFinder.zip --keychain-profile KaitoFinder --wait`: id `abce3903-fce5-419f-8a0d-db7e2062d76f`、**Accepted**（`notarytool log`: issues null） |
+| staple / Gatekeeper | `stapler staple` → validate 成功。`spctl -a -vv -t exec`: accepted、`source=Notarized Developer ID` |
+| 起動スモーク | export した app を fixture 付きで起動、ウインドウ「drag-many.zip」を確認して正常終了 |
+| 更新ファイル | `Tools/prepare_update.py --app build/export/KaitoFinder.app --sparkle-bin build/CompoundExtensionDerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin --output build/updates/0.1.0 --notes Documentation/releases/0.1.0.md`: `KaitoFinder-0.1.0.zip`（7,315,001 byte、staple 後の app から ditto）と署名付き `appcast.xml`（version 2、enclosure は `releases/download/v0.1.0/…`、length 一致） |
+| 最終 ZIP の再検証 | ZIP を展開し直した app で `stapler validate` / `codesign --verify --deep --strict` / `spctl` すべて成功（Notarized Developer ID） |
+| push | KaitoKit `26b84ca..74662cf`、GyoshukuKit `e1f16ac..62d0855`、KaitoFinder `0e1131c..a834dac` を origin/main へ。tag `v0.1.0`（a834dac）を push |
+| GitHub Release | `gh release create v0.1.0 --draft --verify-tag` に ZIP と appcast.xml を添付（サイズ確認済み）→ `gh release edit --draft=false --latest` で公開。`releases/latest` は v0.1.0 |
+| フィード確認 | `curl -sIL …/releases/latest/download/appcast.xml`: 302 → 302 → 200。取得した本文はローカルの appcast.xml と byte 一致。enclosure URL は 302 → 200、content-length 7,315,001 |
+| 実 Sparkle での確認 | `Tools/probe_software_update.swift` を一時 bundle（`com.shunnag.KaitoFinder.UpdateProbe.*`、本番の HTTPS フィード、署名要求あり）で実行: build 0 からは version 2 を検出（error 0）、build 2 からは `SUNoUpdateError`（1001、"You're up to date!"）。ダウンロード・インストールは行わない |
+
+利用者側の配布物: https://github.com/shunnag/KaitoFinder/releases/tag/v0.1.0 。
+次回以降は `--previous-appcast build/updates/0.1.0/appcast.xml` を渡し、build 番号を 2 より大きくする。
