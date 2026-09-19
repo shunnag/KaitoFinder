@@ -112,6 +112,10 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
     var count: Int { records.count }
     var sessionCount: Int { sessions.count }
     var hasActiveWrites: Bool { records.values.contains { $0.delegate.isWriting } }
+#if DEBUG
+    private(set) var sweepCount = 0
+    private(set) var sweepWritingCheckCount = 0
+#endif
 
     init(automaticallySweeps: Bool = false) {
         if automaticallySweeps {
@@ -130,7 +134,6 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
     func register(payload: ArchiveEntryPayload, session: ArchiveSession, owner: UUID? = nil, now: Date = Date(),
                   didWrite: (@Sendable (Int) -> Void)? = nil) throws
         -> (id: UUID, provider: NSFilePromiseProvider) {
-        sweep(now: now)
         let id = UUID()
         let delegate = ArchiveFilePromise(payload: payload, session: session, didWrite: didWrite) { [weak self] in
             Task { @MainActor in self?.finishedWriting(id) }
@@ -141,6 +144,8 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
     }
 
     func beganPending(sessionID: Int, owner: UUID) {
+        // 行ごとの register では走査せず、ドラッグ開始時に一度だけ期限切れを回収する。
+        sweep()
         began(sessionID: sessionID, promises: records.compactMap { id, record in
             record.owner == owner && record.sessionID == nil ? id : nil
         })
@@ -161,8 +166,15 @@ nonisolated private final class PromiseCompletion: @unchecked Sendable {
     }
 
     func sweep(now: Date = Date()) {
-        let expired = records.compactMap { id, record in
-            !record.delegate.isWriting && record.deadline.map { $0 <= now } == true ? id : nil
+#if DEBUG
+        sweepCount += 1
+#endif
+        let expired = records.compactMap { id, record -> UUID? in
+            guard let deadline = record.deadline, deadline <= now else { return nil }
+#if DEBUG
+            sweepWritingCheckCount += 1
+#endif
+            return record.delegate.isWriting ? nil : id
         }
         for id in expired { remove(id) }
     }

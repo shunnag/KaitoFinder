@@ -47,13 +47,16 @@ import UniformTypeIdentifiers
         self.generate = generate
     }
 
+    /// 生成を始めずに、既にあるサムネイルだけを返す（ドラッグ画像など、副作用を持ち込めない場面向け）。
+    func cachedThumbnail(for node: EntryNode) -> NSImage? { cache[ObjectIdentifier(node)] }
+
     func thumbnail(for node: EntryNode) -> NSImage? {
         guard !cancelled else { return nil }
         let id = ObjectIdentifier(node)
         if let image = cache[id] { return image }
         // 暗号化の除外は await より前に行い、session の password prompt に到達させない。
         guard !node.isDirectory, let entry = node.entry, entry.kind == .file,
-              !entry.isEncrypted, !entry.isIncomplete,
+              !entry.isEncrypted, !entry.isIncomplete, entry.solidGroup < 0,
               let size = entry.uncompressedSize, size <= 8 * 1024 * 1024,
               UTType(filenameExtension: (node.name as NSString).pathExtension)?.conforms(to: .image) == true,
               requested.insert(id).inserted else { return nil }

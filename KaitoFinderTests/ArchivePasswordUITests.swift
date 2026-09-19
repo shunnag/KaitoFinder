@@ -102,8 +102,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         let accessory = try XCTUnwrap(save.panel.accessoryView)
         let collapsedHeight = accessory.fittingSize.height
         var response: NSApplication.ModalResponse?
-        save.panel.begin { response = $0 }
-        defer { save.panel.cancel(nil) }
+        save.begin { response = $0 }
+        defer { save.cancel() }
         try await scenarioWait { save.panel.isVisible && abs(accessory.frame.height - collapsedHeight) < 0.5 }
         let accessoryWindow = try XCTUnwrap(accessory.window)
         let collapsedPanelFrame = save.panel.frame
@@ -175,7 +175,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         try await scenarioWait { save.passwordFields.view.isHidden && abs(accessory.frame.height - accessory.fittingSize.height) < 0.5 }
         XCTAssertFalse(accessoryWindow.firstResponder === resumedEditor)
         XCTAssertNil(save.encryptionSettings.password)
-        save.panel.cancel(nil)
+        save.cancel()
         try await scenarioWait { response != nil }
         XCTAssertEqual(response, .cancel)
     }
@@ -202,9 +202,9 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 parent?.center()
                 parent?.makeKeyAndOrderFront(nil)
                 var response: NSApplication.ModalResponse?
-                if let parent { save.panel.beginSheetModal(for: parent) { response = $0 } }
-                else { save.panel.begin { response = $0 } }
-                defer { save.panel.cancel(nil); parent?.close() }
+                if let parent { save.begin(on: parent) { response = $0 } }
+                else { save.begin { response = $0 } }
+                defer { save.cancel(); parent?.close() }
                 try await scenarioWait {
                     save.panel.isVisible && abs(accessory.frame.height - collapsedHeight) < 0.5
                 }
@@ -306,7 +306,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 if let captureFolder {
                     try await scenarioWait { FileManager.default.fileExists(atPath: captureFolder.appendingPathComponent("frames.json").path) }
                 }
-                save.panel.cancel(nil)
+                save.cancel()
                 try await scenarioWait { response != nil }
                 XCTAssertEqual(response, .cancel)
             }
@@ -325,7 +325,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         parent.isReleasedWhenClosed = false
         parent.makeKeyAndOrderFront(nil)
         let destination = Task { try await save.destination(on: parent) }
-        defer { destination.cancel(); save.panel.cancel(nil); parent.close() }
+        defer { destination.cancel(); save.cancel(); parent.close() }
         try await scenarioWait { save.panel.isVisible && abs(accessory.frame.height - collapsedHeight) < 0.5 }
         XCTAssertTrue(parent.attachedSheet === save.panel)
         save.encryptionCheckbox.performClick(nil)
@@ -376,8 +376,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         let accessory = try XCTUnwrap(save.panel.accessoryView)
         let collapsedHeight = accessory.fittingSize.height
         var response: NSApplication.ModalResponse?
-        save.panel.begin { response = $0 }
-        defer { save.panel.cancel(nil) }
+        save.begin { response = $0 }
+        defer { save.cancel() }
         try await scenarioWait { save.panel.isVisible && abs(accessory.frame.height - collapsedHeight) < 0.5 }
         save.encryptionCheckbox.performClick(nil)
         let expandedHeight = try XCTUnwrap(accessory.subviews.first).fittingSize.height
@@ -409,7 +409,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 && (accessory.layer?.animationKeys()?.isEmpty ?? true)
         }
         XCTAssertNil(save.passwordFields.passwordField.currentEditor())
-        save.panel.cancel(nil)
+        save.cancel()
         try await scenarioWait { response != nil }
         XCTAssertEqual(response, .cancel)
     }
@@ -448,8 +448,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         let save = ArchiveSavePanel(sources: [], defaults: suite.defaults)
         let accessory = try XCTUnwrap(save.panel.accessoryView)
         var response: NSApplication.ModalResponse?
-        save.panel.begin { response = $0 }
-        defer { save.panel.cancel(nil) }
+        save.begin { response = $0 }
+        defer { save.cancel() }
         try await scenarioWait { save.panel.isVisible }
         try await Task.sleep(for: .seconds(1))
         XCTAssertTrue(save.panel.isExpanded)
@@ -480,7 +480,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         let expandedHeight = save.panel.frame.height
         save.encryptionCheckbox.performClick(nil)
         try await scenarioWait { save.passwordFields.view.isHidden && save.panel.frame.height < expandedHeight - 1 }
-        save.panel.cancel(nil)
+        save.cancel()
         try await scenarioWait { response != nil }
         XCTAssertEqual(response, .cancel)
     }
@@ -496,8 +496,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         parent.isReleasedWhenClosed = false
         parent.makeKeyAndOrderFront(nil)
         var response: NSApplication.ModalResponse?
-        save.panel.beginSheetModal(for: parent) { response = $0 }
-        defer { save.panel.cancel(nil); parent.close() }
+        save.begin(on: parent) { response = $0 }
+        defer { save.cancel(); parent.close() }
         try await scenarioWait { save.panel.isVisible }
         try await Task.sleep(for: .seconds(1))
         let screen = try XCTUnwrap(save.panel.screen).visibleFrame
@@ -535,7 +535,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 }
             }
         }
-        save.panel.cancel(nil)
+        save.cancel()
         try await scenarioWait { response != nil }
         XCTAssertEqual(response, .cancel)
     }

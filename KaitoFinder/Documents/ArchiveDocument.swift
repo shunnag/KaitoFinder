@@ -82,11 +82,10 @@ import Synchronization
     }
 
     var canUndoNextMutation: Bool {
-        guard let sourceURL = session?.sourceURL,
-              let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
-              let size = attributes[.size] as? NSNumber else {
-            return archiveUndoStack.canUndoNextMutation
-        }
+        guard let sourceURL = session?.sourceURL else { return false }
+        archiveUndoStack.resolveCloneSupport(for: sourceURL)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
+              let size = attributes[.size] as? NSNumber else { return false }
         return archiveUndoStack.canUndoNextMutation(archiveSize: size.uint64Value)
     }
 
@@ -206,17 +205,20 @@ import Synchronization
         let vaultGeneration = await passwordVault.generation()
         let response = try await request()
         try checkPasswordRequest(session, generation: expectedGeneration)
+        // A closed session must reject even a correct candidate before installing a callback.
+        _ = try await session.extractionReader()
+        try checkPasswordRequest(session, generation: expectedGeneration)
+        session.setPasswordAcceptance(nil)
         if response.remember {
-            let snapshot = await session.snapshot()
-            let verified = try await Self.verifyRememberedPassword(response.password, url: session.sourceURL,
-                                                                   entries: snapshot.entries)
-            // session の prompt には採用通知がない。別 reader で CRC / HMAC まで確かめ、
-            // 検証できない候補は保存せず、元の読み出し側に可否の判断を返す。
-            _ = try await session.extractionReader()
-            try checkPasswordRequest(session, generation: expectedGeneration)
-            if verified, await passwordVault.save(response.password, for: key, generation: vaultGeneration) {
-                try checkPasswordRequest(session, generation: expectedGeneration)
-                rememberedPayloadPassword = response.password
+            session.setPasswordAcceptance { [weak self, weak session] accepted, generation in
+                guard let self, let session, accepted == response.password, generation == expectedGeneration else { return }
+                do { try self.checkPasswordRequest(session, generation: expectedGeneration) }
+                catch { return }
+                if await self.passwordVault.save(accepted, for: key, generation: vaultGeneration) {
+                    do { try self.checkPasswordRequest(session, generation: expectedGeneration) }
+                    catch { return }
+                    self.rememberedPayloadPassword = accepted
+                }
             }
         }
         return response.password
@@ -230,22 +232,6 @@ import Synchronization
         }
     }
 
-    @concurrent private static func verifyRememberedPassword(_ password: String, url: URL,
-                                                             entries: [ArchiveEntry]) async throws -> Bool {
-        do {
-            try Task.checkCancellation()
-            let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
-            guard reader.entries == entries, entries.contains(where: \.isEncrypted) else { return false }
-            var buffer = [UInt8](repeating: 0, count: 128 * 1024)
-            for entry in entries where entry.isEncrypted {
-                try ExtractionService.consume(reader.stream(entry), buffer: &buffer,
-                                              checkCancellation: { try Task.checkCancellation() }) { _ in }
-            }
-            return true
-        } catch is CancellationError { throw CancellationError() }
-        catch { return false }
-    }
-
     @concurrent private static func openArchive(
         _ url: URL, password: String?,
         writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions,
@@ -253,6 +239,13 @@ import Synchronization
         checksCancellation: Bool = true
     ) async throws -> ArchiveSession {
         if checksCancellation { try Task.checkCancellation() }
+        else {
+            // 公開後の再オープンは遅れて届いた取消しに左右されない。KaitoKit は圧縮 tar の一時展開で
+            // Task の取消しを検査するため、取消し状態を継承しない detached Task で開く。
+            return try await Task.detached(priority: Task.currentPriority) {
+                try ArchiveSession(url: url, password: password, writerOptions: writerOptions, importOptions: importOptions)
+            }.value
+        }
         return try ArchiveSession(url: url, password: password, writerOptions: writerOptions, importOptions: importOptions)
     }
 

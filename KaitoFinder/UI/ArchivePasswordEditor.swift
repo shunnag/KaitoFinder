@@ -171,12 +171,13 @@ final class ArchivePasswordEditor {
     let action: ArchivePasswordAction
 
     init(action: ArchivePasswordAction, format: GyoshukuKit.ArchiveFormat, archiveName: String,
-         settings: ArchiveEncryptionSettings = .init(), bundle: Bundle = .main) {
+         settings: ArchiveEncryptionSettings = .init(), canUndo: Bool = true, bundle: Bundle = .main) {
         self.action = action
         if action == .remove {
             fields = nil
             alert.messageText = String(localized: "“\(archiveName)”のパスワードを削除しますか？", bundle: bundle)
             alert.informativeText = String(localized: "アーカイブは暗号化されていない状態で書き直されます。", bundle: bundle)
+            if !canUndo { alert.informativeText += "\n" + String(localized: "この操作は取り消せません。", bundle: bundle) }
         } else {
             let fields = ArchivePasswordFields(format: format, changing: action == .change, bundle: bundle)
             self.fields = fields

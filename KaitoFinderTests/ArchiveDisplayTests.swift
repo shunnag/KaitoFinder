@@ -86,7 +86,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         let (_, controller, _) = try await interface()
         let window = try XCTUnwrap(controller.window), toolbar = try XCTUnwrap(window.toolbar)
         XCTAssertEqual(toolbar.items.filter { $0.itemIdentifier != .space }.map(\.itemIdentifier.rawValue),
-                       ["extract", "addFiles", "newFolder", "delete", "quickLook", NSToolbarItem.Identifier.flexibleSpace.rawValue, "search"])
+                       ["extract", "addFiles", "newFolder", "delete", "quickLook", NSToolbarItem.Identifier.flexibleSpace.rawValue, "search", "previewSidebar"])
         let item = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "search" } as? NSSearchToolbarItem)
         XCTAssertTrue(controller.searchField === item.searchField)
         XCTAssertEqual(toolbar.displayMode, .iconOnly)
@@ -195,6 +195,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
             ("newFolder", String(localized: "新規フォルダ"), #selector(ArchiveWindowController.newFolder(_:))),
             ("delete", String(localized: "削除"), #selector(ArchiveWindowController.deleteEntries(_:))),
             ("quickLook", String(localized: "クイックルック"), #selector(ArchiveWindowController.togglePreviewPanel(_:))),
+            ("previewSidebar", String(localized: "プレビューを表示"), #selector(ArchiveWindowController.togglePreviewSidebar(_:))),
             ("search", String(localized: "検索"), nil)
         ]
         for (identifier, title, action) in expected {
@@ -389,8 +390,9 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(path.frame.height, path.intrinsicContentSize.height)
         XCTAssertGreaterThan(path.frame.minX, content.bounds.minX)
         XCTAssertLessThan(path.frame.maxX, content.bounds.maxX)
-        XCTAssertEqual(scroll.frame.maxY, content.bounds.maxY, accuracy: 0.5)
-        XCTAssertGreaterThan(scroll.frame.minY, path.frame.maxY)
+        let scrollFrame = scroll.convert(scroll.bounds, to: content)
+        XCTAssertEqual(scrollFrame.maxY, content.safeAreaRect.maxY, accuracy: 0.5)
+        XCTAssertGreaterThan(scrollFrame.minY, path.frame.maxY)
         let footer = try XCTUnwrap(content.subviews.compactMap { $0 as? NSStackView }.first)
         XCTAssertEqual(path.frame.minY, footer.frame.maxY + 6, accuracy: 0.5)
     }

@@ -29,6 +29,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertFalse(value.revealsExtractedItemsInFinder)
         XCTAssertFalse(value.showsHiddenFiles)
         XCTAssertTrue(value.showsWelcomeWindowAtLaunch)
+        XCTAssertTrue(value.renamesOnClick)
         XCTAssertEqual(value.openingBehavior, .system)
         XCTAssertTrue(value.excludesDSStore)
         XCTAssertFalse(value.excludesHiddenFiles)
@@ -47,6 +48,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
                                            revealsExtractedItemsInFinder: !index.isMultiple(of: 2),
                                            showsHiddenFiles: index.isMultiple(of: 2),
                                            showsWelcomeWindowAtLaunch: !index.isMultiple(of: 2),
+                                           renamesOnClick: index.isMultiple(of: 2),
                                            openingBehavior: ArchivePreferences.OpeningBehavior.allCases[index % 3],
                                            excludesDSStore: !index.isMultiple(of: 2), excludesHiddenFiles: index.isMultiple(of: 2))
             store.preferences = value
@@ -65,6 +67,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveRevealsExtractedItems"), value.revealsExtractedItemsInFinder)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveShowsHiddenFiles"), value.showsHiddenFiles)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveShowsWelcomeAtLaunch"), value.showsWelcomeWindowAtLaunch)
+            XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveRenamesOnClick"), value.renamesOnClick)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveOpeningBehavior"), value.openingBehavior.rawValue)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveExcludesDSStore"), value.excludesDSStore)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveExcludesHiddenFiles"), value.excludesHiddenFiles)
@@ -79,7 +82,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             "ArchiveTarPreservesOwnerIDs": "yes", "ArchiveExtractionDestination": "desktop",
             "ArchiveFolderPolicy": "sometimes", "ArchiveTrashesArchiveAfterExtraction": Data([0xff]),
             "ArchiveRevealsExtractedItems": "true", "ArchiveShowsHiddenFiles": "broken", "ArchiveShowsWelcomeAtLaunch": "broken",
-            "ArchiveExcludesDSStore": "broken", "ArchiveExcludesHiddenFiles": "broken", "ArchiveOpeningBehavior": "replace"
+            "ArchiveExcludesDSStore": "broken", "ArchiveExcludesHiddenFiles": "broken", "ArchiveOpeningBehavior": "replace",
+            "ArchiveRenamesOnClick": "false"
         ]
         for (key, value) in corrupt { suite.defaults.set(value, forKey: key) }
         XCTAssertEqual(store.preferences, ArchivePreferences())

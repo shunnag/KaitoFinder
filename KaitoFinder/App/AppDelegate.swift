@@ -416,6 +416,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         // 文書がないときや保管庫が読めないときも、アプリ全体の削除を利用できる。
         forget.target = self
         let viewMenu = NSMenu(title: String(localized: "表示", bundle: bundle))
+        let preview = viewMenu.addItem(withTitle: String(localized: "プレビューを表示", bundle: bundle),
+                                      action: #selector(ArchiveWindowController.togglePreviewSidebar(_:)), keyEquivalent: "p")
+        preview.keyEquivalentModifierMask = [.command, .shift]
+        viewMenu.addItem(.separator())
         let hidden = viewMenu.addItem(withTitle: String(localized: "隠しファイルを表示", bundle: bundle),
                                       action: #selector(toggleHiddenFiles(_:)), keyEquivalent: ".")
         hidden.keyEquivalentModifierMask = [.command, .shift]
@@ -439,6 +443,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         help.target = self
         ArchiveMenuSymbols.apply(to: fileMenu)
         ArchiveMenuSymbols.apply(to: editMenu)
+        ArchiveMenuSymbols.apply(to: viewMenu)
         for submenu in [appMenu, fileMenu, editMenu, viewMenu, windowMenu, helpMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu

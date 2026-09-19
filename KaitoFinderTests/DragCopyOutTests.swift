@@ -214,6 +214,51 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         XCTAssertEqual(registry.sessionCount, 0)
     }
 
+    @MainActor func testRegisteringFiveThousandPromisesSweepsAtMostOncePerDrag() async throws {
+        let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("drag.zip")
+        let names = (0..<5_000).map { "item-\($0)" }
+        try ReleaseReviewFixtures.zip(names.map { ($0, Data()) }).write(to: archive)
+        let session = try ArchiveSession(url: archive), registry = FilePromiseRegistry(), owner = UUID()
+        let payloads = names.enumerated().map { index, name in
+            ArchiveEntryPayload(archiveURL: archive, generation: session.generation,
+                                entryIndex: index, path: name, isDirectory: false)
+        }
+        let start = ContinuousClock.now
+        for payload in payloads { _ = try registry.register(payload: payload, session: session, owner: owner) }
+        registry.beganPending(sessionID: 1, owner: owner)
+        let elapsed = start.duration(to: .now)
+        XCTAssertEqual(registry.count, 5_000)
+        XCTAssertLessThanOrEqual(registry.sweepCount, 2, "Drag initiation must not sweep once per promised row")
+        XCTAssertLessThan(elapsed, .milliseconds(200), "Registering 5,000 promises must finish within 200 ms")
+        registry.ended(sessionID: 1)
+        registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1))
+        XCTAssertEqual(registry.count, 0)
+        await session.close()
+    }
+
+    @MainActor func testRegistrySweepChecksDeadlinesBeforeDelegateWriteState() async throws {
+        let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("deadlines.zip")
+        try ReleaseReviewFixtures.zip([("item", Data())]).write(to: archive)
+        let session = try ArchiveSession(url: archive), registry = FilePromiseRegistry(), now = Date()
+        let payload = ArchiveEntryPayload(archiveURL: archive, generation: session.generation,
+                                          entryIndex: 0, path: "item", isDirectory: false)
+        _ = try registry.register(payload: payload, session: session, now: now)
+        let activeDrag = try registry.register(payload: payload, session: session, now: now)
+        registry.began(sessionID: 1, promises: [activeDrag.id])
+        let before = registry.sweepWritingCheckCount
+        registry.sweep(now: now.addingTimeInterval(registry.gracePeriod - 1))
+        XCTAssertEqual(registry.sweepWritingCheckCount, before,
+                       "Unexpired and active-drag promises must not take the delegate mutex")
+        XCTAssertEqual(registry.count, 2)
+        registry.sweep(now: now.addingTimeInterval(registry.gracePeriod + 1))
+        XCTAssertEqual(registry.sweepWritingCheckCount - before, 1, "Only expired promises need a write-state check")
+        XCTAssertEqual(registry.count, 1)
+        registry.ended(sessionID: 1, now: now)
+        registry.sweep(now: now.addingTimeInterval(registry.gracePeriod + 1))
+        XCTAssertEqual(registry.count, 0)
+        await session.close()
+    }
+
     @MainActor func testRegistryRetainsAfterDragEndAndReleasesAfterWrite() async throws {
         let fixture = try Fixture()
         let session = try ArchiveSession(url: fixture.archive)

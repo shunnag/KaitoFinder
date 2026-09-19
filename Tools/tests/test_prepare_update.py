@@ -84,6 +84,52 @@ class PreparationTests(unittest.TestCase):
     def assert_no_staging(self):
         self.assertFalse([path.name for path in self.root.iterdir() if path.name.startswith('.kaitofinder-update-')])
 
+    def previous_feed(self, versions):
+        feed = self.root / 'previous-appcast.xml'
+        rss = ET.Element('rss')
+        channel = ET.SubElement(rss, 'channel')
+        for build, version in versions:
+            item = ET.SubElement(channel, 'item')
+            ET.SubElement(item, prepare_update.SPARKLE + 'version').text = build
+            ET.SubElement(item, prepare_update.SPARKLE + 'shortVersionString').text = version
+        ET.ElementTree(rss).write(feed)
+        return feed
+
+    def test_previous_appcast_accepts_increased_build_and_same_marketing_version(self):
+        previous = self.previous_feed([('9', '1.2.2'), ('41.0', '1.2.3')])
+        archive, feed = prepare_update.prepare(self.app, self.tools, self.output, None, 'test-account',
+                                               test_only=True, previous_appcast=previous)
+        self.assertTrue(archive.is_file())
+        self.assertTrue(feed.is_file())
+
+    def test_previous_appcast_rejects_nonincreasing_build_before_any_tool(self):
+        for build in ['42', '42.0.0', '43', '100']:
+            with self.subTest(build=build):
+                previous = self.previous_feed([('9', '1.0.0'), (build, '1.2.3')])
+                with self.assertRaisesRegex(ValueError, 'CFBundleVersion must be strictly greater'):
+                    prepare_update.prepare(self.app, self.tools, self.output, None, 'test-account',
+                                           test_only=True, previous_appcast=previous)
+                self.assertEqual(self.visibility, [], 'Version guard must run before signing or external tools')
+                self.assertFalse(self.output.exists())
+                self.assert_no_staging()
+
+    def test_previous_appcast_rejects_marketing_downgrade_before_any_tool(self):
+        previous = self.previous_feed([('41', '1.2.4')])
+        with self.assertRaisesRegex(ValueError, 'CFBundleShortVersionString must not decrease'):
+            prepare_update.prepare(self.app, self.tools, self.output, None, 'test-account',
+                                   test_only=True, previous_appcast=previous)
+        self.assertEqual(self.visibility, [])
+        self.assertFalse(self.output.exists())
+
+    def test_previous_appcast_rejects_missing_or_malformed_versions(self):
+        for versions in [[], [('41', '')], [('oops', '1.2.3')]]:
+            with self.subTest(versions=versions):
+                previous = self.previous_feed(versions)
+                with self.assertRaises(ValueError):
+                    prepare_update.prepare(self.app, self.tools, self.output, None, 'test-account',
+                                           test_only=True, previous_appcast=previous)
+                self.assertEqual(self.visibility, [])
+
     def test_late_failure_leaves_no_final_output_and_same_destination_can_retry(self):
         for phase in ('archive', 'appcast', 'feed-signature', 'archive-signature'):
             with self.subTest(phase=phase):

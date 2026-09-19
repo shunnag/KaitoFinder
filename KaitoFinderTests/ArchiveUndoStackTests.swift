@@ -631,3 +631,82 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertEqual(try digest(fixture.archive), added)
     }
 }
+
+
+extension ArchiveUndoStackTests {
+    func testDefaultCloneSupportQuerySupportsAPFSWithoutCapturing() throws {
+        let fixture = try Fixture(), captures = Mutex(0)
+        let stack = ArchiveUndoStack { _, _ in
+            captures.withLock { $0 += 1 }
+            return ENOTSUP
+        }
+        stack.resolveCloneSupport(for: fixture.archive)
+        XCTAssertTrue(stack.canUndoNextMutation, "The APFS volume query must report clone support")
+        XCTAssertEqual(captures.withLock { $0 }, 0, "The support query must never invoke the capture closure")
+    }
+
+    @MainActor func testFirstDeleteOnUnsupportedCloneVolumeRequiresConfirmation() async throws {
+        preserveArchiveWindowFrame()
+        for support in [false, nil] as [Bool?] {
+            let fixture = try Fixture()
+            let stack = ArchiveUndoStack(clone: { _, _ in
+                XCTFail("Confirmation must precede any capture")
+                return ENOTSUP
+            }, cloneSupportQuery: { _ in support })
+            let document = try document(fixture, stack: stack)
+            let session = try XCTUnwrap(document.session), controller = ArchiveWindowController()
+            document.addWindowController(controller)
+            controller.display(EntryNode.tree(from: await session.entries()), session: session)
+            controller.outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            let before = try digest(fixture.archive)
+            controller.deleteEntries(nil)
+            XCTAssertNotNil(controller.deletionConfirmation, "Unsupported or unknown clone support must ask before publication")
+            XCTAssertFalse(document.canUndoNextMutation, "Only confirmed clone support permits undo")
+            XCTAssertEqual(try digest(fixture.archive), before)
+            controller.cancelExtraction()
+            await controller.extractionTask?.value
+            XCTAssertEqual(try digest(fixture.archive), before)
+        }
+    }
+
+    @MainActor func testCloneProbeRunsOnceAndEmptyCopyRechecksNewBackingFile() async throws {
+        for support in [false, nil] as [Bool?] {
+            let fixture = try Fixture(), nextFixture = try Fixture()
+            let queries = Mutex<[URL]>([]), captures = Mutex(0)
+            let stack = ArchiveUndoStack(clone: { _, _ in
+                captures.withLock { $0 += 1 }
+                return ENOTSUP
+            }, cloneSupportQuery: { archive in
+                queries.withLock { $0.append(archive) }
+                return support
+            })
+            let document = try document(fixture, stack: stack)
+            XCTAssertFalse(document.canUndoNextMutation)
+            XCTAssertFalse(document.canUndoNextMutation)
+            XCTAssertEqual(queries.withLock { $0 }, [fixture.archive], "Resolve clone support once, including unknown results")
+            let replacement = try self.document(nextFixture, stack: stack.emptyCopy())
+            XCTAssertFalse(replacement.canUndoNextMutation)
+            XCTAssertEqual(queries.withLock { $0 }, [fixture.archive, nextFixture.archive],
+                           "A new backing file must be queried independently")
+            XCTAssertEqual(captures.withLock { $0 }, 0, "Capability queries must never capture an archive")
+        }
+    }
+}
+
+
+extension ArchiveUndoStackTests {
+    @MainActor func testReplacementAndPasswordRemovalWarningsFollowUndoGate() async throws {
+        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let item = ArchiveConflictItem(name: "old.txt", location: "archive", kind: .file,
+            size: 1, modificationDate: nil, entryCount: 1, source: nil)
+        let conflict = ArchiveImportConflict(path: "old.txt", existing: item, incoming: item, remainingCount: 1)
+        let warning = String(localized: "この操作は取り消せません。")
+        for canUndo in [false, true] {
+            let prompt = ArchiveConflictPrompt(conflict: conflict, session: session, canUndo: canUndo)
+            XCTAssertEqual(prompt.alert.informativeText.contains(warning), !canUndo)
+            let editor = ArchivePasswordEditor(action: .remove, format: .zip, archiveName: "Archive.zip", canUndo: canUndo)
+            XCTAssertEqual(editor.alert.informativeText.contains(warning), !canUndo)
+        }
+        await session.close()
+    }
+}

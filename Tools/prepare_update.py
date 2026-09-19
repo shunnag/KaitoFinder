@@ -37,7 +37,31 @@ def publish_directory(staging, output):
         raise OSError(code, os.strerror(code), str(output))
 
 
-def prepare(app, tools, output, notes, account, test_only=False):
+def numeric_version(value):
+    if not value or not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}", value):
+        raise ValueError("Previous appcast must contain numeric build and marketing versions.")
+    parts = tuple(int(part) for part in value.split('.'))
+    return parts + (0,) * (3 - len(parts))
+
+
+def check_previous_appcast(path, build, version):
+    items = []
+    for item in ET.parse(path).findall('./channel/item'):
+        enclosure = item.find('enclosure')
+        def field(name):
+            return item.findtext(SPARKLE + name) or (enclosure.get(SPARKLE + name) if enclosure is not None else None)
+        items.append((numeric_version(field('version')), numeric_version(field('shortVersionString'))))
+    if not items:
+        raise ValueError("Previous appcast must contain at least one release item.")
+    # Feed order and publication dates need not match Sparkle's numeric version order.
+    previous_build, previous_version = max(items)
+    if numeric_version(build) <= previous_build:
+        raise ValueError("CFBundleVersion must be strictly greater than the newest previous appcast build.")
+    if numeric_version(version) < previous_version:
+        raise ValueError("CFBundleShortVersionString must not decrease from the newest previous appcast release.")
+
+
+def prepare(app, tools, output, notes, account, test_only=False, previous_appcast=None):
     app, tools = app.resolve(), tools.resolve()
     if not output.name or output.name == '..':
         raise ValueError('Choose a new named output directory.')
@@ -62,6 +86,8 @@ def prepare(app, tools, output, notes, account, test_only=False):
         raise ValueError("Expected the distribution KaitoFinder.app bundle.")
     if info.get("SUFeedURL") != FEED or not info.get("SURequireSignedFeed") or not info.get("SUVerifyUpdateBeforeExtraction"):
         raise ValueError("The app must use the configured HTTPS feed and require Sparkle signatures.")
+    if previous_appcast is not None:
+        check_previous_appcast(previous_appcast, build, version)
     public_key = run(tools / "generate_keys", "--account", account, "-p")
     if public_key != info.get("SUPublicEDKey"):
         raise ValueError("The signing account does not match the app's Sparkle public key.")
@@ -105,11 +131,13 @@ def main():
     parser.add_argument("--sparkle-bin", type=pathlib.Path, required=True, help="Sparkle distribution bin directory")
     parser.add_argument("--output", type=pathlib.Path, required=True, help="New output directory")
     parser.add_argument("--notes", type=pathlib.Path, help="Release notes to embed in the signed feed")
+    parser.add_argument("--previous-appcast", type=pathlib.Path,
+                        help="Local previous feed; require a higher build and a nondecreasing marketing version")
     parser.add_argument("--account", default="com.shunnag.KaitoFinder")
     parser.add_argument("--test-only", action="store_true", help="Allow a local ad-hoc build; never publish this output")
     args = parser.parse_args()
     try:
-        archive, feed = prepare(args.app, args.sparkle_bin, args.output, args.notes, args.account, args.test_only)
+        archive, feed = prepare(args.app, args.sparkle_bin, args.output, args.notes, args.account, args.test_only, args.previous_appcast)
     except subprocess.CalledProcessError as error:
         parser.exit(1, (error.stderr or error.stdout or str(error)) + "\n")
     except (OSError, ValueError, KeyError, ET.ParseError) as error:

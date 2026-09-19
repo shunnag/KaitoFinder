@@ -192,11 +192,25 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
     }
 
     private func entry(_ path: String, kind: EntryKind = .file, size: UInt64? = 1,
-                       encrypted: Bool = false, incomplete: Bool = false) -> ArchiveEntry {
+                       encrypted: Bool = false, incomplete: Bool = false, solidGroup: Int = -1) -> ArchiveEntry {
         ArchiveEntry(index: 0, rawName: RawName(bytes: Array(path.utf8)), name: path,
             pathComponents: path.split(separator: "/").map(String.init), kind: kind, uncompressedSize: size,
             compressedSize: 1, modificationDate: nil, posixPermissions: nil, isEncrypted: encrypted,
-            solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:], isIncomplete: incomplete)
+            solidGroup: solidGroup, crc32: nil, methodDescription: "stored", formatSpecific: [:], isIncomplete: incomplete)
+    }
+
+    @MainActor func testSolidMemberNeverStartsThumbnailProduction() async throws {
+        let fixture = try Fixture()
+        let (provider, _, _, _) = try await provider(fixture) { _, _ in
+            XCTFail("Solid members must not invoke thumbnail generation")
+            throw Failure.generation
+        }
+        let node = try XCTUnwrap(EntryNode.tree(from: [entry("small.png", solidGroup: 0)]).children.first)
+        XCTAssertNil(provider.thumbnail(for: node))
+        XCTAssertTrue(provider.isIdle, "Solid members must not start a production")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.temporary.root.path))
+        await provider.cancelAll().value
+        XCTAssertTrue(fixture.files().isEmpty)
     }
 
     @MainActor func testThumbnailEligibilityRejectsUnsafeOrNonImageNodesSynchronously() async throws {

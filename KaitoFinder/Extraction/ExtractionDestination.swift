@@ -148,6 +148,7 @@ nonisolated final class ExtractionDestination {
             close(file)
             if !complete { unlinkat(parent, leaf, 0) }
         }
+        // 0600 のまま quarantine を先に適用し、CRC 検証完了後だけ既定の mode へ広げる。
         // 属性設定失敗時も未検証 payload を公開しない。宣言サイズで read を止めない。
         try ExtractionQuarantine.apply(quarantine, toDescriptor: file)
         try ExtractionService.consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { bytes in
@@ -231,21 +232,28 @@ nonisolated final class ExtractionDestination {
         try attributes(entry, descriptor: directory)
     }
 
+    func finishSynthesizedDirectory(_ url: URL) throws {
+        let components = Array(url.pathComponents.dropFirst(root.pathComponents.count))
+        let directory = try openDirectory(components, create: false)
+        defer { close(directory) }
+        guard fchmod(directory, 0o777 & ~permissionMask) == 0 else { throw ExtractionFailure.system(errno) }
+    }
+
     private func attributes(_ entry: ArchiveEntry, descriptor: Int32) throws {
         if let date = entry.modificationDate {
-            let seconds = date.timeIntervalSince1970
-            guard seconds.isFinite, seconds > Double(Int.min), seconds < Double(Int.max) else {
-                throw ExtractionFailure.refused(String(localized: "変更日時が範囲外です。"))
-            }
+            // APFS の Int64 ナノ秒範囲へ飽和し、検証済みの本文を日時だけで捨てない。
+            let value = date.timeIntervalSince1970
+            let seconds = value.isNaN ? 0 : min(9_223_372_036, max(-9_223_372_036, value))
             var times = [timespec(tv_sec: 0, tv_nsec: Int(UTIME_OMIT)),
                          timespec(tv_sec: Int(floor(seconds)), tv_nsec: Int((seconds - floor(seconds)) * 1_000_000_000))]
             guard futimens(descriptor, &times) == 0 else { throw ExtractionFailure.system(errno) }
         }
-        if let mode = entry.posixPermissions {
-            // 特殊ビットを除去し、fchmod にも起動時の umask を明示的に反映する。
-            guard fchmod(descriptor, mode_t(mode & 0o777) & ~permissionMask) == 0 else {
-                throw ExtractionFailure.system(errno)
-            }
+        // 特殊ビットを除去し、格納 mode のない項目にも起動時の umask を反映する。
+        // 格納 mode のない readOnly ファイルは、この後に 0400 とするまで 0600 を保つ。
+        let mode = entry.posixPermissions.map { mode_t($0 & 0o777) }
+            ?? (entry.kind == .directory ? 0o777 : readOnly ? nil : 0o666)
+        if let mode, fchmod(descriptor, mode & ~permissionMask) != 0 {
+            throw ExtractionFailure.system(errno)
         }
     }
 }

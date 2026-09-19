@@ -261,6 +261,15 @@ nonisolated enum ExtractionService {
                                              reason: String(localized: "ディレクトリ属性: \(ArchiveErrorText.describe(error))。")))
             }
         }
+        let explicitDirectories = Set(directories.map { output.url($0.1).path })
+        for directory in output.createdDirectories.sorted(by: { $0.pathComponents.count > $1.pathComponents.count })
+            where !explicitDirectories.contains(directory.path) {
+            do { try output.finishSynthesizedDirectory(directory) }
+            catch {
+                result.failures.append(.init(entryIndex: -1, name: directory.lastPathComponent,
+                    reason: String(localized: "ディレクトリ属性: \(ArchiveErrorText.describe(error))。")))
+            }
+        }
         result.cancelled = result.cancelled || progress.isCancelled || Task.isCancelled
         let explicit = Set(result.written.map { $0.url.path })
         result.written += output.createdDirectories.filter { !explicit.contains($0.path) }

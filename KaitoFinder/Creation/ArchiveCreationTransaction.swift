@@ -22,7 +22,7 @@ nonisolated enum ArchiveCreationTransaction {
                                                   existing: plan.existing?.entries ?? [], progress: progress,
                                                   options: plan.importOptions)
         guard imported.failures.isEmpty else {
-            throw ExtractionFailure.refused(imported.failures.map { "\($0.name): \($0.reason)" }.joined(separator: "\n"))
+            throw ExtractionFailure.refused(ArchiveFailureReport.describe(imported.failures, name: \.name, reason: \.reason))
         }
         // 選択フォルダの子も作成元。既存の保存先があるときだけ同一性を調べ、
         // 新規保存では全 source の実パスをもう一度解決する固定費を避ける。
@@ -55,10 +55,7 @@ nonisolated enum ArchiveCreationTransaction {
             registry.unregister(directory)
             throw error
         }
-        defer {
-            try? FileManager.default.removeItem(at: directory)
-            registry.unregister(directory)
-        }
+        defer { registry.removeAndUnregister(directory) }
         do { try registry.recordIdentity(directory) }
         catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
         // KaitoKit は gzip の中身が tar かどうかを名前でも判定する。仮出力にも本当の拡張子を付ける。
@@ -97,7 +94,7 @@ nonisolated enum ArchiveCreationTransaction {
             try ArchiveImportPlan.checkCancellation(progress)
         }
         try ExtractionQuarantine.apply(quarantine, to: output)
-        _ = try ArchiveReader.open(url: output, options: ReaderOptions(password: plan.options.password))
+        _ = try ArchiveReader.open(url: output, options: .kaitoFinder(password: plan.options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }

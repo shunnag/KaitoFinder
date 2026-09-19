@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import KaitoKit
+import GyoshukuKit
 import XCTest
 @testable import KaitoFinder
 
@@ -331,5 +332,48 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
                            language == "ja" ? "記憶したパスワードを削除できませんでした" : "Could not forget saved passwords")
             XCTAssertTrue((prompt.alert.accessoryView as? NSStackView)?.arrangedSubviews.contains(prompt.rememberCheckbox) == true)
         }
+    }
+}
+
+
+extension ArchivePasswordPersistenceTests {
+    @MainActor func testRememberingPasswordVerifiesOnlyRequestedEntry() async throws {
+        let fixture = try ArchiveTestDirectory(), archive = fixture.url.appendingPathComponent("two.zip")
+        let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256), directory: fixture.url.appendingPathComponent("vault"))
+        let password = "selection-only-password"
+        let writer = try GyoshukuKit.ArchiveWriter.create(url: archive,
+            options: WriterOptions(compressionMethod: .stored, password: password))
+        let bytes = Data(repeating: 0x61, count: 4 * 1024 * 1024)
+        try writer.add(data: bytes, as: "first.bin")
+        try writer.add(data: bytes, as: "second.bin")
+        try writer.finish()
+        let document = ArchiveDocument(passwordVault: vault)
+        try document.read(from: archive, ofType: "zip")
+        let session = try XCTUnwrap(document.session)
+        session.setPasswordPrompt { challenge in
+            try await document.password(for: session, challenge: challenge) {
+                ArchivePasswordResponse(password: password, remember: true)
+            }
+        }
+        let entries = await session.entries()
+        let entry = try XCTUnwrap(entries.first)
+        XCTAssertTrue(entry.isEncrypted)
+        let payload = ArchiveEntryPayload(archiveURL: archive, generation: 0, entryIndex: entry.index,
+                                         path: entry.name, isDirectory: false)
+        let output = fixture.url.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        ArchiveSession.passwordVerificationBytes.withLock { $0 = 0 }
+        defer { ArchiveSession.passwordVerificationBytes.withLock { $0 = 0 } }
+        let result = try await ExtractionService.extract([payload], from: session, to: output, progress: Progress())
+        XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
+        XCTAssertLessThanOrEqual(Double(ArchiveSession.passwordVerificationBytes.withLock { $0 }),
+                                 Double(try XCTUnwrap(entry.compressedSize)) * 1.1,
+                                 "Remembering a password must not verify unrelated members")
+        let saved = await vault.password(for: .file(archive))
+        XCTAssertEqual(saved, password)
+        XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("first.bin")), bytes)
+        document.close()
+        await document.sessionCleanup?.value
+        await document.undoCleanup?.value
     }
 }

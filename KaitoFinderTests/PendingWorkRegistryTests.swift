@@ -205,3 +205,28 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         XCTAssertTrue(try Self.entries(in: file).isEmpty)
     }
 }
+
+
+extension PendingWorkRegistryTests {
+    func testSweepRetainsUnremovableDirectoryAndContinuesToNextEntry() throws {
+        let fixture = try ArchiveTestDirectory(), file = fixture.url.appendingPathComponent("pending.json")
+        let parent = fixture.url.appendingPathComponent("locked")
+        let blocked = parent.appendingPathComponent(".KaitoFinder-add-blocked")
+        let removable = fixture.url.appendingPathComponent(".KaitoFinder-new-removable")
+        let registry = PendingWorkRegistry(fileURL: file)
+        for directory in [blocked, removable] {
+            try registry.register(directory)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try registry.recordIdentity(directory)
+        }
+        try Self.simulateLegacyProcessExit(in: file)
+        XCTAssertEqual(chmod(parent.path, 0o555), 0)
+        defer { chmod(parent.path, 0o700) }
+        var removed: [URL] = []
+        XCTAssertNoThrow(removed = try registry.sweep(), "An unremovable directory must not abort the sweep")
+        XCTAssertEqual(removed.map(\.path), [removable.path])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: removable.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: blocked.path))
+        XCTAssertEqual(try Self.entries(in: file).compactMap { $0["path"] as? String }, [blocked.path])
+    }
+}

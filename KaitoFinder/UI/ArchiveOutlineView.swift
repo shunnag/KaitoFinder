@@ -5,7 +5,15 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
     var previewSelection: (() -> Void)?
     var deleteSelection: (() -> Void)?
     var renameSelection: (() -> Void)?
+    var openSelection: (() -> Void)?
+    var selectEnclosingFolder: (() -> Void)?
     var renameValidationChanged: ((String?) -> Void)?
+    var renamesOnClick = true {
+        didSet { if !renamesOnClick { cancelPendingClickRename() } }
+    }
+    private var clickRenameTask: Task<Void, Never>?
+    private var clickMonitor: Any?
+    private var clickRenameCandidate: (item: EntryNode, row: Int, rect: NSRect)?
     private(set) var renameField: NSTextField?
     private var renameItem: EntryNode?
     private var renameRecovery: Task<Void, Never>?
@@ -15,29 +23,143 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
 
     var isRenaming: Bool { renameField != nil }
 
+    isolated deinit {
+        clickRenameTask?.cancel()
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        cancelPendingClickRename()
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: window)
+        NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: window)
+        NotificationCenter.default.removeObserver(self, name: NSMenu.didBeginTrackingNotification, object: nil)
+        if let newWindow {
+            // Observe without overriding mouseDown/mouseUp: overriding those
+            // methods disables NSTableView's native gesture/drag handling on
+            // newer macOS versions. Always return the event unchanged.
+            clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [
+                .leftMouseDown, .leftMouseUp, .rightMouseDown, .otherMouseDown,
+                .leftMouseDragged, .keyDown, .flagsChanged, .scrollWheel
+            ]) { [weak self] event in
+                MainActor.assumeIsolated { self?.observeClickRenameEvent(event) }
+                return event
+            }
+            for name in [NSWindow.didResignKeyNotification, NSWindow.willCloseNotification] {
+                NotificationCenter.default.addObserver(self, selector: #selector(cancelPendingClickRename), name: name, object: newWindow)
+            }
+            NotificationCenter.default.addObserver(self, selector: #selector(cancelPendingClickRename),
+                                                   name: NSMenu.didBeginTrackingNotification, object: nil)
+        }
+        super.viewWillMove(toWindow: newWindow)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        let resigned = super.resignFirstResponder()
+        if resigned { cancelPendingClickRename() }
+        return resigned
+    }
+
+    override func reloadData() {
+        cancelPendingClickRename()
+        super.reloadData()
+    }
+
+    override func reloadItem(_ item: Any?, reloadChildren: Bool) {
+        cancelPendingClickRename()
+        super.reloadItem(item, reloadChildren: reloadChildren)
+    }
+
+    // The field fills the name column. Only its rendered filename, not the icon,
+    // disclosure triangle, or unused column space, starts a rename.
+    private func filenameRect(at row: Int) -> NSRect? {
+        guard let column = outlineTableColumn, let index = tableColumns.firstIndex(of: column),
+              let cell = view(atColumn: index, row: row, makeIfNecessary: false) as? NSTableCellView,
+              let field = cell.textField else { return nil }
+        var rect = field.bounds
+        rect.size.width = min(rect.width, field.intrinsicContentSize.width)
+        return convert(rect, from: field)
+    }
+
+    private func observeClickRenameEvent(_ event: NSEvent) {
+        if event.type == .leftMouseUp {
+            if let candidate = clickRenameCandidate, event.window === window, event.clickCount == 1,
+               candidate.rect.contains(convert(event.locationInWindow, from: nil)) {
+                scheduleClickRename()
+            } else { cancelPendingClickRename() }
+            return
+        }
+        cancelPendingClickRename()
+        guard event.type == .leftMouseDown, event.window === window, !isHiddenOrHasHiddenAncestor else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        let row = row(at: point)
+        if renamesOnClick, !isRenaming, window?.isKeyWindow == true, NSApp.isActive,
+           event.clickCount == 1, event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty,
+           row >= 0, selectedRowIndexes == IndexSet(integer: row),
+           let item = item(atRow: row) as? EntryNode, let rect = filenameRect(at: row), rect.contains(point) {
+            clickRenameCandidate = (item, row, rect)
+        }
+    }
+
+    private func scheduleClickRename() {
+        guard clickRenameTask == nil, let candidate = clickRenameCandidate else { return }
+        clickRenameTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval)) }
+            catch { return }
+            guard let self else { return }
+            self.cancelPendingClickRename()
+            let (item, row, rect) = candidate
+            guard self.renamesOnClick, !self.isRenaming, self.window?.isKeyWindow == true,
+                  NSApp.isActive, self.window?.attachedSheet == nil,
+                  self.window?.firstResponder === self,
+                  self.selectedRowIndexes == IndexSet(integer: row),
+                  self.item(atRow: row) as? EntryNode === item,
+                  self.filenameRect(at: row) == rect, self.visibleRect.intersects(rect) else { return }
+            self.renameSelection?()
+        }
+    }
+
+    func cancelClickRenameIfSelectionChanged() {
+        guard let candidate = clickRenameCandidate else { return }
+        if selectedRowIndexes != IndexSet(integer: candidate.row)
+            || item(atRow: candidate.row) as? EntryNode !== candidate.item {
+            cancelPendingClickRename()
+        }
+    }
+
+    @objc func cancelPendingClickRename() {
+        clickRenameTask?.cancel()
+        clickRenameTask = nil
+        clickRenameCandidate = nil
+    }
+
     func handleEntryKey(_ characters: String, modifiers: NSEvent.ModifierFlags) -> Bool {
+        cancelPendingClickRename()
         guard !isRenaming else { return false }
         let modifiers = modifiers.intersection([.command, .shift, .option, .control])
         if modifiers == .command, characters == "\u{7f}" || characters == "\u{8}" {
             deleteSelection?()
         } else if modifiers.isEmpty, characters == "\r" || characters == "\n" {
             renameSelection?()
+        } else if modifiers.isEmpty, characters == " " {
+            previewSelection?()
+        } else if modifiers == .command, characters == "\u{f701}" {
+            openSelection?()
+        } else if modifiers == .command, characters == "\u{f700}" {
+            selectEnclosingFolder?()
         } else { return false }
         return true
     }
 
     override func keyDown(with event: NSEvent) {
         if handleEntryKey(event.charactersIgnoringModifiers ?? "", modifiers: event.modifierFlags) { return }
-        // Space は通常のキーイベント。Force Touch の quickLookWithEvent: は使わない。
-        if event.charactersIgnoringModifiers == " " {
-            previewSelection?()
-        } else {
-            super.keyDown(with: event)
-        }
+        super.keyDown(with: event)
     }
 
     func beginRenaming(_ item: EntryNode, validate: @escaping (String) -> String?,
                        commit: @escaping (String) -> Void) {
+        cancelPendingClickRename()
         guard !isRenaming, window != nil, let column = outlineTableColumn else { return }
         let row = row(forItem: item)
         guard row >= 0, let columnIndex = tableColumns.firstIndex(of: column) else { return }
@@ -53,6 +175,17 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
         prepareRenameField(field)
         // editor の準備は AppKit に任せ、非 key window での一時的な nil を取消しと見なさない。
         editColumn(columnIndex, row: row, with: nil, select: true)
+        if let editor = field.currentEditor() as? NSTextView {
+            editor.setSelectedRange(Self.renameSelectionRange(name: item.name, isDirectory: item.isDirectory))
+        }
+    }
+
+    static func renameSelectionRange(name: String, isDirectory: Bool) -> NSRange {
+        let filename = name as NSString
+        let stem = filename.deletingPathExtension
+        let length = !isDirectory && !filename.pathExtension.isEmpty && !stem.isEmpty
+            ? stem.utf16.count : filename.length
+        return NSRange(location: 0, length: length)
     }
 
     private func prepareRenameField(_ field: NSTextField) {
@@ -150,6 +283,7 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
     }
 
     func cancelRenaming() {
+        cancelPendingClickRename()
         guard let field = renameField else { return }
         // reload と Escape は確定させない。abort の前に delegate と commit を外し、
         // controlTextDidEndEditing からの書き込みを防ぐ。
@@ -187,6 +321,7 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
     }
 
     func contextMenu(forRow row: Int) -> NSMenu? {
+        cancelPendingClickRename()
         if row == -1 { return blankAreaMenu }
         if !selectedRowIndexes.contains(row) {
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)

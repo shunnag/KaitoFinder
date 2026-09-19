@@ -17,7 +17,7 @@ import AppKit
     nonisolated static func check(_ result: ExtractionResult) throws {
         if result.cancelled || Task.isCancelled { throw CancellationError() }
         if !result.failures.isEmpty {
-            throw ExtractionFailure.refused(result.failures.map { "\($0.name): \($0.reason)" }.joined(separator: "\n"))
+            throw ExtractionFailure.refused(ArchiveFailureReport.describe(result.failures, name: \.name, reason: \.reason))
         }
     }
 

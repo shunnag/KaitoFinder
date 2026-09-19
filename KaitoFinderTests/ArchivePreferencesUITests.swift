@@ -39,6 +39,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             XCTAssertEqual(model.tarBzip2LevelLabel, String(level))
         }
         for enabled in [true, false] {
+            model.changeRenamesOnClick(to: enabled)
+            expected.renamesOnClick = enabled
+            check()
             model.changeZipSkipsCompressedTypes(to: enabled)
             expected.zipSkipsCompressedTypes = enabled
             check()
@@ -117,6 +120,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let controller = PreferencesWindowController(store: store)
         defer { controller.close() }
+        XCTAssertEqual(controller.renamesOnClickCheckbox.state, .on)
+        controller.renamesOnClickCheckbox.performClick(nil)
+        XCTAssertFalse(store.preferences.renamesOnClick)
         controller.defaultFormatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .lha)))
         sendAction(controller.defaultFormatPopup)
         XCTAssertEqual(store.preferences.defaultFormat, .lha)
@@ -159,6 +165,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertTrue(store.preferences.revealsExtractedItemsInFinder)
         // 保存パネルなど、別の入口で保存した変更も開いたままの画面へ同期する。
         store.preferences = ArchivePreferences()
+        XCTAssertEqual(controller.renamesOnClickCheckbox.state, .on)
         XCTAssertEqual(controller.defaultFormatPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.openingBehaviorPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.zipMethodPopup.indexOfSelectedItem, 0)

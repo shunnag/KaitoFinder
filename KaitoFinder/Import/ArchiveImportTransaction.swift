@@ -457,10 +457,7 @@ nonisolated enum ArchiveImportTransaction {
             registry.unregister(directory)
             throw error
         }
-        defer {
-            try? FileManager.default.removeItem(at: directory)
-            registry.unregister(directory)
-        }
+        defer { registry.removeAndUnregister(directory) }
         do { try registry.recordIdentity(directory) }
         catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
         let work: URL
@@ -497,7 +494,7 @@ nonisolated enum ArchiveImportTransaction {
             // 公開前の作業コピーだけに付け、取消しや検証失敗で原本の属性を変えない。
             try ExtractionQuarantine.apply(try ExtractionQuarantine.read(from: work) ?? additionalQuarantine, to: work)
         }
-        _ = try ArchiveReader.open(url: work, options: ReaderOptions(password: options.password))
+        _ = try ArchiveReader.open(url: work, options: .kaitoFinder(password: options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard try identity(archive) == original else {

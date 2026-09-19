@@ -27,6 +27,13 @@ ad-hoc 署名の Release では、hardened runtime の Library Validation によ
 
 現在のフィードは `https://github.com/shunnag/KaitoFinder/releases/latest/download/appcast.xml`。
 GitHub Releases の最新の正式リリースに `appcast.xml` と、そのフィードが参照するZIPを配置する。
+GitHub の `releases/latest` はリリース対象コミットの `created_at` を基準に選ばれる。
+固定フィードURLが 404 にならないよう、各リリースには公開前に必ず `appcast.xml` を添付する。
+生成する appcast は最新の1項目だけを含むため、旧系統の保守リリースを「latest」にしない。
+`Tools/prepare_update.py --previous-appcast <path>` に前回のローカルフィードを渡すと、
+署名ツールを呼ぶ前に、今回の `CFBundleVersion` が前回の最新ビルドより大きいことと、
+`CFBundleShortVersionString` が前回以上であることを検査する。省略可能で、フィードのダウンロードは行わない。
+
 アプリには HTTPS のフィードURLと Ed25519 公開鍵が必要。
 `SURequireSignedFeed` と `SUVerifyUpdateBeforeExtraction` を有効にし、更新情報とダウンロードした書庫を検証する。
 
@@ -49,10 +56,11 @@ python3 Tools/prepare_update.py \
   --app build/export/KaitoFinder.app \
   --sparkle-bin build/SparkleDerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin \
   --output build/updates/0.1.1 \
-  --notes Documentation/releases/0.1.1.md
+  --notes Documentation/releases/0.1.1.md \
+  --previous-appcast build/updates/0.1.0/appcast.xml
 ```
 
-バージョンとパスは例。`--notes` は省略可能。`--sparkle-bin` は実際に依存解決した DerivedData の場所に合わせる。
+バージョンとパスは例。`--notes` と `--previous-appcast` は省略可能。初回リリースでは前回フィードの指定を省く。`--sparkle-bin` は実際に依存解決した DerivedData の場所に合わせる。
 このツールはコード署名・Gatekeeper・staple・公開鍵の一致を検査し、Sparkle 公式の `generate_appcast` で
 署名付きZIPとフィードを生成する。最後に双方の署名、URL、サイズ、ビルド番号を再検証する。
 生成と検証は出力先と同じ親ディレクトリの一時フォルダで行い、成功した一式だけを出力先へ確定する。

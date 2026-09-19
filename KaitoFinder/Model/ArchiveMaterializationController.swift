@@ -43,6 +43,14 @@ final class ArchiveMaterializationController {
 
     func cachedItem(for payload: ArchiveEntryPayload) -> ArchivePreviewItem? { cache[payload] }
 
+    /// 右側プレビューなど、同じ文書を独立した選択・取消しで読む表示のための子要求。
+    /// 一時領域の所有者は、子の writer とコピーの回収が終わるまで dispose しない。
+    func makeIndependentController() -> ArchiveMaterializationController {
+        let controller = ArchiveMaterializationController(materialize: materialize)
+        cancelBackgroundWorkOnClose { controller.close() }
+        return controller
+    }
+
     func setSelection(_ items: [ArchivePreviewItem], reportingFailures: Bool = true) {
         guard !closed else { return }
         cancel()

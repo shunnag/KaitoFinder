@@ -207,3 +207,50 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
     }
 
 }
+
+
+extension ScenarioDiskTests {
+    func testFailedPublishKeepsUnremovableWorkRegistered() throws {
+        let fixture = try ArchiveTestDirectory(), parent = fixture.url.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+        let archive = parent.appendingPathComponent("archive.zip")
+        let original = ReleaseReviewFixtures.zip([("original.txt", Data("original".utf8))])
+        try original.write(to: archive)
+        let file = fixture.url.appendingPathComponent("pending.json"), registry = PendingWorkRegistry(fileURL: file)
+        defer { chmod(parent.path, 0o700) }
+        XCTAssertThrowsError(try ArchiveImportTransaction.publish(archive: archive, mode: .inPlace,
+            options: WriterOptions(), progress: Progress(), willPublish: {
+                guard chmod(parent.path, 0o555) == 0 else { throw ExtractionFailure.system(errno) }
+            }, registry: registry, mutate: { try $0.add(data: Data("added".utf8), as: "added.txt", modificationDate: nil, permissions: nil) }))
+        let work = try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") }
+        XCTAssertEqual(work.count, 1)
+        XCTAssertEqual(try PendingWorkRegistryTests.entries(in: file).compactMap { $0["path"] as? String }
+            .map { URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath().path },
+            work.map { $0.standardizedFileURL.resolvingSymlinksInPath().path },
+                       "Failed cleanup must remain registered")
+        XCTAssertEqual(try Data(contentsOf: archive), original)
+    }
+
+    func testFailedCreationKeepsUnremovableWorkRegistered() throws {
+        let fixture = try ArchiveTestDirectory(), parent = fixture.url.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+        let input = fixture.url.appendingPathComponent("input.txt")
+        try Data("payload".utf8).write(to: input)
+        let file = fixture.url.appendingPathComponent("pending.json"), registry = PendingWorkRegistry(fileURL: file)
+        let destination = parent.appendingPathComponent("new.zip")
+        let plan = ArchiveCreationPlan(sources: [input], destination: destination, format: .zip, options: WriterOptions())
+        defer { chmod(parent.path, 0o700) }
+        XCTAssertThrowsError(try ArchiveCreationTransaction.run(plan: plan, progress: Progress(), willPublish: {
+            guard chmod(parent.path, 0o555) == 0 else { throw ExtractionFailure.system(errno) }
+        }, registry: registry))
+        let work = try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix(".KaitoFinder-new-") }
+        XCTAssertEqual(work.count, 1)
+        XCTAssertEqual(try PendingWorkRegistryTests.entries(in: file).compactMap { $0["path"] as? String }
+            .map { URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath().path },
+            work.map { $0.standardizedFileURL.resolvingSymlinksInPath().path },
+                       "Failed cleanup must remain registered")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+}

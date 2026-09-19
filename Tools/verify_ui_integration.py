@@ -96,8 +96,19 @@ def main():
                 return
             value = json.loads(request.read_text())
             request.unlink()
-            subprocess.run([str(output / "press-verification-save"), str(value["pid"]), identifier,
-                            value["saveTitle"], json.dumps(value)], check=True)
+            action = subprocess.run([str(output / "press-verification-save"), str(value["pid"]), identifier,
+                                     value["saveTitle"], json.dumps(value)], capture_output=True, text=True)
+            print(action.stdout, end="", flush=True)
+            print(action.stderr, end="", flush=True)
+            # AX can time out while a successful Save closes its XPC panel.
+            # Never press again: require the real XCTest completion/URL/content
+            # assertions below to prove success. All other helper errors fail.
+            timed_out_save = (not value.get("editOnly") and action.stderr.strip()
+                             == "Cannot press the verification Save button: -25204")
+            if action.returncode and timed_out_save:
+                print("AX Save response timed out; requiring XCTest to verify the actual saved result.", flush=True)
+            else:
+                action.check_returncode()
             if value.get("editOnly"):
                 request.with_suffix(".done").touch()
 
@@ -134,6 +145,7 @@ def main():
     native_selection = ["ArchiveCreationUITests/testPresentedCompressedTarSavePanelAcceptsExactFilenameAndSwitchesFromEncryption",
                         "ArchiveCreationUITests/testPresentedSavePanelSwitchesEveryFormatWithoutDuplicatingExtensions",
                         "ArchiveCreationUITests/testPresentedSavePanelSwitchesFormatsAfterEditingTheName",
+                        "ArchiveCreationUITests/testPresentedSavePanelPreservesSettingsAndCancellationAcrossFilenameChanges",
                         "ArchiveCreationUITests/testPresentedSavePanelPreservesTypedNamesAndConfirmsTheExactOverwrite"]
     test("native-save", native_selection,
          {}, "** TEST EXECUTE SUCCEEDED **", native_save=True)

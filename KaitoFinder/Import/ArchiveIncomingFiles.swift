@@ -111,7 +111,7 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
         }
         try ArchiveImportPlan.checkCancellation(progress)
         return try state.withLock {
-            guard $0.failures.isEmpty else { throw ExtractionFailure.refused($0.failures.joined(separator: "\n")) }
+            guard $0.failures.isEmpty else { throw ExtractionFailure.refused(ArchiveFailureReport.describe($0.failures, name: { _ in "" }, reason: { $0 })) }
             if let urls = $0.resolvedURLs { return urls }
             var urls: [URL] = []
             let files = $0.files.sorted { $0.index == $1.index ? $0.url.path < $1.url.path : $0.index < $1.index }

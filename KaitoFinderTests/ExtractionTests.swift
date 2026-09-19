@@ -832,3 +832,88 @@ nonisolated final class ExtractionTests: XCTestCase {
     }
 
 }
+
+
+extension ExtractionTests {
+    func testExtremePAXModificationTimesPreserveVerifiedPayloads() async throws {
+        let fixture = try ArchiveTestDirectory(), archive = fixture.url.appendingPathComponent("extreme.tar")
+        let output = fixture.url.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        let members = [("future.txt", "10000000000000000000", Data("future".utf8)),
+                       ("past.txt", "-10000000000000000000", Data("past".utf8))]
+        try ReleaseReviewFixtures.paxTar(members).write(to: archive)
+        let session = try ArchiveSession(url: archive)
+        let entries = await session.entries()
+        XCTAssertEqual(entries.count, 2)
+        let result = try await ExtractionService.extract(.init(entries: entries), from: session, to: output)
+        await session.close()
+        XCTAssertTrue(result.failures.isEmpty, "Extreme mtime must not discard verified files: \(result.failures)")
+        for (name, _, bytes) in members {
+            let url = output.appendingPathComponent(name)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), name)
+            XCTAssertEqual(try? Data(contentsOf: url), bytes)
+            var info = stat()
+            XCTAssertEqual(lstat(url.path, &info), 0)
+            XCTAssertGreaterThanOrEqual(info.st_mtimespec.tv_sec, -9_223_372_036)
+            XCTAssertLessThanOrEqual(info.st_mtimespec.tv_sec, 9_223_372_036)
+        }
+    }
+
+    func testMissingZIPPermissionsUsePlatformDefaultsForFilesAndDirectories() async throws {
+        let fixture = try ArchiveTestDirectory(), archive = fixture.url.appendingPathComponent("dos.zip")
+        let output = fixture.url.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        try ReleaseReviewFixtures.zip([("docs/readme.txt", Data("read me".utf8)),
+                                       ("explicit/", Data()), ("explicit/implicit/child", Data())]).write(to: archive)
+        let session = try ArchiveSession(url: archive), entries = await session.entries()
+        XCTAssertEqual(entries.count, 3)
+        for entry in entries { XCTAssertNil(entry.posixPermissions, entry.name) }
+        let result = try await ExtractionService.extract(.init(entries: entries), from: session, to: output)
+        await session.close()
+        XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
+        for (name, mode) in [("docs", mode_t(0o777)), ("docs/readme.txt", 0o666),
+                             ("explicit", 0o777), ("explicit/implicit", 0o777)] {
+            var info = stat()
+            XCTAssertEqual(lstat(output.appendingPathComponent(name).path, &info), 0)
+            XCTAssertEqual(info.st_mode & 0o777, mode & ~ExtractionPermissions.processMask, name)
+        }
+    }
+
+    func testFailureReportIsBoundedForTwoThousandUnwritableEntries() async throws {
+        let fixture = try ArchiveTestDirectory(), archive = fixture.url.appendingPathComponent("many.zip")
+        let output = fixture.url.appendingPathComponent("out")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+        try ReleaseReviewFixtures.zip((0..<2000).map { ("file\($0)", Data()) }).write(to: archive)
+        XCTAssertEqual(chmod(output.path, 0o500), 0)
+        defer { chmod(output.path, 0o700) }
+        let session = try ArchiveSession(url: archive)
+        let result = try await ExtractionService.extract(.init(entries: await session.entries()), from: session, to: output)
+        await session.close()
+        XCTAssertEqual(result.failures.count, 2000)
+        XCTAssertThrowsError(try ArchiveCopyOut.check(result)) { error in
+            let description = String(describing: error)
+            XCTAssertLessThanOrEqual(description.components(separatedBy: "\n").count, 22,
+                                     "Failure reports must be bounded")
+            // 先頭 20 件は名前付きで列挙し、残りは件数で示す（ArchiveFailureReport.displayedLineLimit）。
+            XCTAssertTrue(description.contains("file0:"), "The first failures keep their names")
+            XCTAssertTrue(description.contains((2000 - ArchiveFailureReport.displayedLineLimit).formatted()),
+                          "Failure report must state the omitted count")
+        }
+    }
+}
+
+
+extension ExtractionTests {
+    func testFailureReportBoundsDistinctReasonsAndEmbeddedNewlines() {
+        var result = ExtractionResult()
+        result.failures = (0..<2000).map {
+            .init(entryIndex: $0, name: "file\($0)\nspoof", reason: "reason\($0)\r\ndetail")
+        }
+        XCTAssertThrowsError(try ArchiveCopyOut.check(result)) { error in
+            let text = String(describing: error)
+            XCTAssertLessThanOrEqual(text.components(separatedBy: .newlines).count, 22)
+            XCTAssertTrue(text.contains("reason0"))
+            XCTAssertFalse(text.contains("reason1999"))
+        }
+    }
+}

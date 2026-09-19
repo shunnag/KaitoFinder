@@ -46,7 +46,7 @@ nonisolated final class ArchiveHiddenFilesTests: XCTestCase {
         let settings = PreferencesWindowController(store: store)
         defer { settings.close() }
         let view = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "表示") })
-        let item = try XCTUnwrap(view.items.first)
+        let item = try XCTUnwrap(view.items.first { $0.action == #selector(AppDelegate.toggleHiddenFiles(_:)) })
         XCTAssertEqual(item.title, String(localized: "隠しファイルを表示"))
         XCTAssertEqual(item.keyEquivalent, ".")
         XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .shift])

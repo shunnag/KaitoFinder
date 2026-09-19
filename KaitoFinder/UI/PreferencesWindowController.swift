@@ -43,6 +43,7 @@ final class PreferencesViewModel {
     func changeTarPreservesOwnerIDs(to enabled: Bool) { store.preferences.tarPreservesOwnerIDs = enabled }
     func changeShowsHiddenFiles(to enabled: Bool) { store.preferences.showsHiddenFiles = enabled }
     func changeShowsWelcomeWindowAtLaunch(to enabled: Bool) { store.preferences.showsWelcomeWindowAtLaunch = enabled }
+    func changeRenamesOnClick(to enabled: Bool) { store.preferences.renamesOnClick = enabled }
     func changeExcludesDSStore(to enabled: Bool) { store.preferences.excludesDSStore = enabled }
     func changeExcludesHiddenFiles(to enabled: Bool) { store.preferences.excludesHiddenFiles = enabled }
 
@@ -84,6 +85,8 @@ final class PreferencesTabViewController: NSTabViewController {
 }
 
 final class PreferencesWindowController: NSWindowController {
+    nonisolated static let frameAutosaveName = "Preferences"
+
     let viewModel: PreferencesViewModel
     private let bundle: Bundle
     private let softwareUpdater: any SoftwareUpdating
@@ -105,6 +108,7 @@ final class PreferencesWindowController: NSWindowController {
     let revealsExtractedItemsInFinderCheckbox: NSButton
     let showsHiddenFilesCheckbox: NSButton
     let showsWelcomeWindowAtLaunchCheckbox: NSButton
+    let renamesOnClickCheckbox: NSButton
     let excludesDSStoreCheckbox: NSButton
     let excludesHiddenFilesCheckbox: NSButton
     let automaticallyChecksForUpdatesCheckbox: NSButton
@@ -128,6 +132,8 @@ final class PreferencesWindowController: NSWindowController {
             checkboxWithTitle: String(localized: "起動時にようこそウインドウを表示", bundle: bundle), target: nil, action: nil)
         showsHiddenFilesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "隠しファイルを表示", bundle: bundle), target: nil, action: nil)
+        renamesOnClickCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "選択した名前をクリックして名称変更（Finderと同じ）", bundle: bundle), target: nil, action: nil)
         excludesDSStoreCheckbox = NSButton(
             checkboxWithTitle: String(localized: ".DS_Store を含めない", bundle: bundle), target: nil, action: nil)
         excludesHiddenFilesCheckbox = NSButton(
@@ -148,7 +154,7 @@ final class PreferencesWindowController: NSWindowController {
         window.autorecalculatesKeyViewLoop = true
         window.toolbarStyle = .preference
         window.center()
-        window.setFrameAutosaveName("Preferences")
+        window.setFrameAutosaveName(Self.frameAutosaveName)
         tabController.tabStyle = .toolbar
         tabController.canPropagateSelectedChildViewControllerTitle = false
         configureControls()
@@ -159,8 +165,9 @@ final class PreferencesWindowController: NSWindowController {
             ]),
             group(rows: [
                 checkboxRow(showsHiddenFilesCheckbox),
-                checkboxRow(showsWelcomeWindowAtLaunchCheckbox)
-            ], spanningRows: [0, 1])
+                checkboxRow(showsWelcomeWindowAtLaunchCheckbox),
+                checkboxRow(renamesOnClickCheckbox)
+            ], spanningRows: [0, 1, 2])
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
@@ -257,6 +264,7 @@ final class PreferencesWindowController: NSWindowController {
         let actions: [(NSControl, Selector)] = [
             (showsWelcomeWindowAtLaunchCheckbox, #selector(changeShowsWelcomeWindowAtLaunch(_:))),
             (showsHiddenFilesCheckbox, #selector(changeShowsHiddenFiles(_:))),
+            (renamesOnClickCheckbox, #selector(changeRenamesOnClick(_:))),
             (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
             (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
@@ -440,6 +448,7 @@ final class PreferencesWindowController: NSWindowController {
         let preferences = viewModel.preferences
         showsWelcomeWindowAtLaunchCheckbox.state = preferences.showsWelcomeWindowAtLaunch ? .on : .off
         showsHiddenFilesCheckbox.state = preferences.showsHiddenFiles ? .on : .off
+        renamesOnClickCheckbox.state = preferences.renamesOnClick ? .on : .off
         excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
         excludesHiddenFilesCheckbox.state = preferences.excludesHiddenFiles ? .on : .off
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
@@ -464,6 +473,7 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
     @objc private func changeOpeningBehavior(_ sender: NSPopUpButton) { viewModel.selectOpeningBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
+    @objc private func changeRenamesOnClick(_ sender: NSButton) { viewModel.changeRenamesOnClick(to: sender.state == .on) }
     @objc private func changeShowsWelcomeWindowAtLaunch(_ sender: NSButton) {
         viewModel.changeShowsWelcomeWindowAtLaunch(to: sender.state == .on)
     }

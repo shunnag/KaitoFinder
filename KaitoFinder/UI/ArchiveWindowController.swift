@@ -40,6 +40,10 @@ nonisolated enum ArchiveStatusBarText {
 final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
     NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
     QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    nonisolated static let frameAutosaveName = "ArchiveWindow"
+    nonisolated static let columnsAutosaveName = "ArchiveColumns"
+    nonisolated static let toolbarAutosaveName = "ArchiveToolbar"
+
     private let bundle: Bundle
     private let preferencesStore: ArchivePreferencesStore
     private var showsHiddenFiles: Bool
@@ -82,6 +86,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var entryFilter: EntryTreeFilter?
     private var unfilteredViewState: ArchiveViewState?
     private var materialization: ArchiveMaterializationController?
+    let previewSidebar: ArchivePreviewSidebar
+    private let previewSplitController = NSSplitViewController()
+    private let previewSplitItem: NSSplitViewItem
+    private var previewVisibilityObservation: NSKeyValueObservation?
+    var showsPreviewSidebar: Bool { !previewSplitItem.isCollapsed }
     private weak var previewPanel: QLPreviewPanel?
     private var previewMonitor: Task<Void, Never>?
     private var previewActive = false
@@ -110,6 +119,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     init(bundle: Bundle = .main, preferencesStore: ArchivePreferencesStore = .shared) {
         self.bundle = bundle
         self.preferencesStore = preferencesStore
+        previewSidebar = ArchivePreviewSidebar(bundle: bundle)
+        previewSplitItem = NSSplitViewItem(viewController: previewSidebar)
         showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         unlockButton = NSButton(title: String(localized: "ロックを解除…", bundle: bundle), target: nil, action: nil)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
@@ -121,7 +132,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                                                name: ArchivePreferencesStore.didChange, object: preferencesStore)
         window.minSize = NSSize(width: 600, height: 300)
         window.center()
-        window.setFrameAutosaveName("ArchiveWindow")
+        window.setFrameAutosaveName(Self.frameAutosaveName)
         window.delegate = self
         window.autorecalculatesKeyViewLoop = true
         window.initialFirstResponder = outlineView
@@ -158,7 +169,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             if key == "name" { outlineView.outlineTableColumn = column }
         }
         outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
-        outlineView.autosaveName = "ArchiveColumns"
+        outlineView.autosaveName = Self.columnsAutosaveName
         outlineView.autosaveTableColumns = true
         outlineView.dataSource = self
         outlineView.delegate = self
@@ -167,6 +178,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.previewSelection = { [weak self] in self?.togglePreviewPanel(nil) }
         outlineView.deleteSelection = { [weak self] in self?.deleteEntries(nil) }
         outlineView.renameSelection = { [weak self] in self?.renameEntry(nil) }
+        outlineView.openSelection = { [weak self] in self?.openEntry(nil) }
+        outlineView.selectEnclosingFolder = { [weak self] in self?.selectEnclosingFolder() }
+        outlineView.renamesOnClick = preferencesStore.preferences.renamesOnClick
         outlineView.renameValidationChanged = { [weak self] reason in
             self?.renameValidationNotice.stringValue = reason ?? ""
             self?.renameValidationNotice.isHidden = reason == nil
@@ -267,7 +281,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         searchField.action = #selector(filterEntries(_:))
         searchField.sendsSearchStringImmediately = true
         searchField.sendsWholeSearchString = false
-        let toolbar = NSToolbar(identifier: "ArchiveToolbar")
+        let toolbar = NSToolbar(identifier: NSToolbar.Identifier(Self.toolbarAutosaveName))
         toolbar.delegate = self
         toolbar.allowsUserCustomization = true
         toolbar.autosavesConfiguration = true
@@ -282,6 +296,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         statusBar.alignment = .center
         statusBar.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusBar.textColor = .secondaryLabelColor
+        statusBar.setContentHuggingPriority(.required, for: .vertical)
+        pathControl.setContentHuggingPriority(.required, for: .vertical)
+        footer.setHuggingPriority(.required, for: .vertical)
         statusBar.translatesAutoresizingMaskIntoConstraints = false
         lockedPlaceholder.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
@@ -290,17 +307,35 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let separator = NSBox()
         separator.boxType = .separator
         separator.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(scrollView)
+        let listController = NSViewController()
+        listController.view = scrollView
+        let listItem = NSSplitViewItem(viewController: listController)
+        listItem.minimumThickness = 280
+        previewSplitItem.minimumThickness = 260
+        previewSplitItem.maximumThickness = 520
+        previewSplitItem.canCollapse = true
+        previewSplitItem.canCollapseFromWindowResize = false
+        // 一覧より幅を保ちつつ、ユーザーの divider drag の優先度を超えない。
+        previewSplitItem.holdingPriority = NSLayoutConstraint.Priority(251)
+        previewSplitItem.collapseBehavior = .preferResizingSiblingsWithFixedSplitView
+        previewSplitItem.isCollapsed = true
+        previewSplitController.splitView.isVertical = true
+        previewSplitController.splitView.dividerStyle = .thin
+        previewSplitController.addSplitViewItem(listItem)
+        previewSplitController.addSplitViewItem(previewSplitItem)
+        let splitView = previewSplitController.view
+        splitView.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(splitView)
         content.addSubview(separator)
         content.addSubview(lockedPlaceholder)
         content.addSubview(footer)
         content.addSubview(statusBar)
         content.addSubview(pathControl)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: content.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: separator.topAnchor),
+            splitView.topAnchor.constraint(equalTo: content.safeAreaLayoutGuide.topAnchor),
+            splitView.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            splitView.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            splitView.bottomAnchor.constraint(equalTo: separator.topAnchor),
             separator.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             separator.heightAnchor.constraint(equalToConstant: 1),
@@ -319,7 +354,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             lockedPlaceholder.topAnchor.constraint(equalTo: content.safeAreaLayoutGuide.topAnchor),
             lockedPlaceholder.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor)
         ])
-        window.contentView = content
+        let contentController = NSViewController()
+        contentController.view = content
+        contentController.addChild(previewSplitController)
+        window.contentViewController = contentController
+        previewVisibilityObservation = previewSplitItem.observe(\.isCollapsed, options: [.new]) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.previewSidebarVisibilityDidChange() }
+        }
     }
 
     required init?(coder: NSCoder) { nil }
@@ -327,7 +368,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [NSToolbarItem.Identifier("extract"), .space,
          NSToolbarItem.Identifier("addFiles"), NSToolbarItem.Identifier("newFolder"), NSToolbarItem.Identifier("delete"), .space,
-         NSToolbarItem.Identifier("quickLook"), .flexibleSpace, searchItem.itemIdentifier]
+         NSToolbarItem.Identifier("quickLook"), .flexibleSpace, searchItem.itemIdentifier, .init("previewSidebar")]
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -359,6 +400,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             label = String(localized: "クイックルック", bundle: bundle)
             symbol = "eye"
             action = #selector(togglePreviewPanel(_:))
+        case "previewSidebar":
+            label = String(localized: "プレビューを表示", bundle: bundle)
+            symbol = "sidebar.right"
+            action = #selector(togglePreviewSidebar(_:))
         default: return nil
         }
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
@@ -378,6 +423,29 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let enabled = validateMenuItem(menuItem)
         item.toolTip = menuItem.toolTip ?? item.label
         return enabled
+    }
+
+    @objc func togglePreviewSidebar(_ sender: Any?) {
+        guard archiveSession != nil, !isLocked, !operationInFlight else { return }
+        // ウインドウの大きさを変えず、一覧との境界だけを切り替える。
+        previewSplitItem.isCollapsed.toggle()
+    }
+
+    private func previewSidebarVisibilityDidChange() {
+        if showsPreviewSidebar { updatePreviewSidebar() }
+        else {
+            if let responder = window?.firstResponder as? NSView,
+               previewSidebar.isViewLoaded, responder.isDescendant(of: previewSidebar.view) {
+                window?.makeFirstResponder(outlineView)
+            }
+            previewSidebar.reset()
+        }
+        window?.toolbar?.validateVisibleItems()
+    }
+
+    private func updatePreviewSidebar() {
+        guard showsPreviewSidebar, !isLocked, let session = archiveSession else { return }
+        previewSidebar.display(selectedNodes, session: session, generation: generation)
     }
 
     static func cascadeReferenceWindow(excluding window: NSWindow) -> NSWindow? {
@@ -416,6 +484,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         display(EntryNode.tree(from: []))
         pathControl.pathItems = []
         isLocked = true
+        previewSplitItem.isCollapsed = true
         lockedPlaceholder.isHidden = false
         outlineView.enclosingScrollView?.isHidden = true
         statusBar.isHidden = true
@@ -501,7 +570,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             materializationController ?? (document as? ArchiveDocument)?.materializationController()
                 ?? ArchiveMaterializationController(session: session)
         }
-        if materialization !== nextMaterialization { materialization?.close() }
+        previewSidebar.reset()
+        if materialization !== nextMaterialization {
+            previewSidebar.configure(materialization: nextMaterialization?.makeIndependentController())
+            materialization?.close()
+        }
         archiveSession = session
         isLocked = false
         lockedPlaceholder.isHidden = true
@@ -570,6 +643,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         } else { materialization = nil }
         reloadFilteredEntries(restoring: state)
         updatePathControl()
+        updatePreviewSidebar()
         window?.toolbar?.validateVisibleItems()
     }
 
@@ -644,6 +718,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     @objc func filterEntries(_ sender: NSSearchField) { setFilterQuery(sender.stringValue) }
 
     @objc private func preferencesDidChange(_ notification: Notification) {
+        outlineView.renamesOnClick = preferencesStore.preferences.renamesOnClick
         let showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         guard self.showsHiddenFiles != showsHiddenFiles else { return }
         let state = captureViewState()
@@ -677,6 +752,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.collapseItem(nil, collapseChildren: true)
         if expandsMatches, !filterQuery.isEmpty { outlineView.expandItem(nil, expandChildren: true) }
         restoreViewState(state)
+        updatePreviewSidebar()
     }
 
     private func selectionRoots(_ nodes: [EntryNode]) -> [EntryNode] {
@@ -718,8 +794,32 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,
                      willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) {
+        self.outlineView.cancelPendingClickRename()
         draggedNodes = selectionRoots(draggedItems as? [EntryNode] ?? [])
         FilePromiseRegistry.shared.beganPending(sessionID: session.draggingSequenceNumber, owner: promiseOwner)
+        configureDragImages(session)
+    }
+
+    /// 既定のドラッグ画像は各行のセルビューから作られ、画面外の行ではセルが配置されないまま描かれて崩れる。
+    /// pasteboard の項目（writer を返した行と同じ順序 = draggedNodes）ごとにアイコンと名前だけで組み立て直し、
+    /// 複数項目は Finder と同じく重ねて表示する。サムネイルは生成済みのものだけを使う。
+    private func configureDragImages(_ session: NSDraggingSession) {
+        let nodes = draggedNodes
+        guard !nodes.isEmpty else { return }
+        if nodes.count > 1 { session.draggingFormation = .stack }
+        var index = 0
+        session.enumerateDraggingItems(options: [], for: outlineView, classes: [NSPasteboardItem.self], searchOptions: [:]) { item, _, _ in
+            defer { index += 1 }
+            guard index < nodes.count else { return }
+            let node = nodes[index]
+            let image = self.thumbnailProvider?.cachedThumbnail(for: node) ?? self.icon(for: node)
+            let name = node.name
+            var frame = item.draggingFrame
+            let height = frame.height > 0 ? frame.height : self.outlineView.rowHeight
+            frame.size = NSSize(width: ArchiveDragImage.layout(name: name, height: height).width, height: height)
+            item.draggingFrame = frame
+            item.imageComponentsProvider = { ArchiveDragImage.components(icon: image, name: name, height: height) }
+        }
     }
 
     func outlineView(_ outlineView: NSOutlineView, draggingSession session: NSDraggingSession,
@@ -730,6 +830,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(togglePreviewSidebar(_:)):
+            menuItem.title = showsPreviewSidebar ? String(localized: "プレビューを非表示", bundle: bundle)
+                : String(localized: "プレビューを表示", bundle: bundle)
+            menuItem.state = showsPreviewSidebar ? .on : .off
+            menuItem.toolTip = menuItem.title
+            return archiveSession != nil && !isLocked && !operationInFlight
         case #selector(setArchivePassword(_:)), #selector(changeArchivePassword(_:)), #selector(removeArchivePassword(_:)):
             guard let session = archiveSession, !isLocked else { menuItem.toolTip = nil; return false }
             menuItem.toolTip = session.passwordFormat == nil
@@ -757,7 +863,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         case #selector(addFiles(_:)):
             menuItem.toolTip = archiveSession?.capabilities.readOnlyReason
             return archiveSession != nil && !operationInFlight
-        case #selector(openEntry(_:)), #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)):
+        case #selector(openEntry(_:)):
+            let files = previewItems().filter { !$0.payload.isDirectory }
+            let reason = files.first(where: { !$0.capability.canOpen })?.capability.reason
+            menuItem.toolTip = reason
+            return archiveSession != nil && !selectedNodes.isEmpty && reason == nil
+                && !operationInFlight && !outlineView.isRenaming
+        case #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)):
             let items = previewItems()
             let reason = items.first(where: { !$0.capability.canOpen })?.capability.reason
             menuItem.toolTip = reason
@@ -1288,7 +1400,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 if let reason = result.reloadFailure {
                     self?.reportImportFailure(reason, added: true)
                 } else if !result.failures.isEmpty {
-                    self?.reportImportFailure(result.failures.map { "\($0.name): \($0.reason)" }.joined(separator: "\n"))
+                    self?.reportImportFailure(ArchiveFailureReport.describe(result.failures, name: \.name, reason: \.reason))
                 }
             } catch {
                 sheet.finish()
@@ -1309,7 +1421,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 return incomingLocation.map { $0 + "/" + path } ?? path
             }
             return try await self.conflictPresenter.response(to: conflict, on: window, session: session,
-                existingLocation: location(conflict.existing), incomingLocation: location(conflict.incoming), bundle: self.bundle)
+                existingLocation: location(conflict.existing), incomingLocation: location(conflict.incoming),
+                canUndo: (self.document as? ArchiveDocument)?.canUndoNextMutation ?? false, bundle: self.bundle)
         }
     }
 
@@ -1419,7 +1532,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 _ = try await session.preparedPassword()
                 try Task.checkCancellation()
                 let editor = ArchivePasswordEditor(action: action, format: format, archiveName: document.displayName,
-                                                   settings: await session.encryptionSettings(), bundle: bundle)
+                                                   settings: await session.encryptionSettings(), canUndo: document.canUndoNextMutation, bundle: bundle)
                 passwordEditor = editor
                 let response: NSApplication.ModalResponse = await withTaskCancellationHandler {
                     await withCheckedContinuation { continuation in
@@ -1562,6 +1675,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func cancelExtraction() {
+        previewSidebar.close()
         thumbnailProvider?.cancelAll()
         outlineView.cancelRenaming()
         unlockTask?.cancel()
@@ -1583,7 +1697,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionProgress?.cancel()
         extractionTask?.cancel()
         extractionSheet?.finish()
-        creationController?.savePanel?.panel.cancel(nil)
+        creationController?.savePanel?.cancel()
         creationController?.progressSheet?.finish()
     }
 
@@ -1614,8 +1728,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
-    private func readableSelection() -> [ArchivePreviewItem]? {
-        let items = previewItems()
+    private func readableSelection(skippingDirectories: Bool = false) -> [ArchivePreviewItem]? {
+        let items = previewItems().filter { !skippingDirectories || !$0.payload.isDirectory }
         guard !items.isEmpty, extractionTask == nil else { return nil }
         if let item = items.first(where: { !$0.capability.canOpen }), let reason = item.capability.reason {
             reportFailure("\(item.payload.path): \(reason)")
@@ -1636,15 +1750,28 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
-    @objc func openEntry(_ sender: Any?) { openSelection(application: nil) }
+    @objc func openEntry(_ sender: Any?) {
+        guard !operationInFlight, !outlineView.isRenaming else { return }
+        for node in selectedNodes where node.isDirectory { outlineView.expandItem(node) }
+        openSelection(application: nil, skippingDirectories: true)
+    }
+
+    private func selectEnclosingFolder() {
+        guard !operationInFlight, !outlineView.isRenaming, let node = selectedNodes.first,
+              let parent = outlineView.parent(forItem: node) as? EntryNode else { return }
+        let row = outlineView.row(forItem: parent)
+        guard row >= 0 else { return }
+        outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        outlineView.scrollRowToVisible(row)
+    }
 
     @objc func openWithEntry(_ sender: Any?) {
         guard let application = (sender as? NSMenuItem)?.representedObject as? URL else { return }
         openSelection(application: application)
     }
 
-    private func openSelection(application: URL?) {
-        guard let items = readableSelection(), let materialization else { return }
+    private func openSelection(application: URL?, skippingDirectories: Bool = false) {
+        guard let items = readableSelection(skippingDirectories: skippingDirectories), let materialization else { return }
         closePreview()
         materialization.setSelection(items)
         openNext(index: 0, application: application)
@@ -1791,7 +1918,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
+        outlineView.cancelClickRenameIfSelectionChanged()
         updatePathControl()
+        updatePreviewSidebar()
         materialization?.cancel()
         if previewPanel?.isVisible == true { updatePreviewSelection() }
     }

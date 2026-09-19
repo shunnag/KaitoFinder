@@ -41,6 +41,9 @@ ZIP 内の XZ（method 95）と旧 Zstandard（method 20）の展開・プレビ
   「展開」「すべて展開…」では展開先を指定できる。
 - Space で「クイックルック」。「開く」や「このアプリケーションで開く」でも中身を確認できる。
   他のアプリで開くのは読み取り専用の一時コピーで、変更は元のアーカイブには保存されない。
+- 「表示 > プレビューを表示」（⇧⌘P）またはツールバー右端のボタンで、右側に選択ファイルのプレビューを表示できる。
+  新しい書庫ではオフ。境界をドラッグして幅を調整でき、書庫・タブごとに表示を切り替えられる。
+  64 MiB を超えるファイル、サイズ不明のファイル、solid 7z / RAR のメンバーは「プレビューを表示」を押して読み込む。
 - 「ファイル > アーカイブを展開…」で複数をまとめて展開できる。
   Finder のサービス「KaitoFinderで展開」も、文書ウインドウを開かずに同じ一括展開を行う。
 - 元のアーカイブの quarantine（隔離属性）を展開物へ引き継ぐ。
@@ -91,6 +94,15 @@ Finder 風のリスト表示に、パスバー、タブ、ツールバーの検�
 「隠しファイルを表示」（⇧⌘.）で表示を切り替えられ、検索やステータスバーの件数にも反映する。
 表示で隠した項目も、フォルダ全体の展開・編集からは除かれない。
 
+選択済みのファイル名を、ダブルクリックにならない間隔でもう一度クリックすると名称変更できる。
+最初のクリックは選択だけを行い、アイコン・名前のない余白・複数選択・ドラッグでは名称変更を始めない。
+ファイルは拡張子を除く部分、フォルダは名前全体が選択される。Returnで確定、Escapeで取消し。
+設定 › 一般の「選択した名前をクリックして名称変更（Finderと同じ）」は標準でオン。
+オフにすると従来のクリック操作へ戻り、Returnと「名称変更」メニューは引き続き利用できる。
+設定の変更は、開いているすべての書庫にすぐ反映される。
+⌘↓（または⌘O）で選択したファイルを開き、フォルダなら階層一覧を広げる。⌘↑で親フォルダを選択する。
+Spaceでクイックルックを開く。⌘Spaceなど修飾キー付きのSpaceをクイックルックとして扱わない。
+
 書庫を開く方法は、設定 › 一般の「アーカイブを開くとき:」で
 **macOSの設定に従う（既定）／新しいタブ／新しいウインドウ**から選べる。
 Finder の関連付け、「開く…」、最近使った項目に共通で、変更は次に開く書庫から反映する。
@@ -119,7 +131,7 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 
 ## 設定
 
-「設定…」（⌘,）は **一般 / 圧縮 / 展開** の三つのタブ。
+「設定…」（⌘,）は **一般 / 圧縮 / 展開 / アップデート** の四つのタブ。
 書庫の開き方、既定の作成形式、隠しファイルやようこその表示、圧縮方式・レベル、展開先・フォルダ作成方針、
 展開成功後に元のアーカイブをゴミ箱へ移すかどうかを設定できる。
 追加・新規作成時の **`.DS_Store` の除外は既定でオン、隠しファイル全体の除外は既定でオフ**。
@@ -146,8 +158,14 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 - tar.zst / tar.lz4 / tar.lzma / tar.Z と、RAR / ISO 9660 / cpio / ar / xar / pkg /
   CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZ4・LZMA・UNIX compress は
   読み取り専用。「別名で保存…」で書き込み可能な形式へ変換できる。
+- 圧縮 tar（tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz4 / tar.lzma / tar.Z）は、開くときに内側の tar を一時展開する。
+  64 MiB を超えると一時ファイルへ保存するため、起動ボリュームに展開後の tar とほぼ同じ空き容量が必要。
+  一時ファイルの書き込み中に空き容量が 1 GiB を下回ると、開く操作を中止する（KaitoKit の `stagingFreeSpaceReserve`）。
+- KaitoKit 既定の reader 制限は、1,000,000 項目 / 保持するメタデータ 256 MiB、
+  RAR / .001 セットの 128 巻、コーデック辞書 1 GiB。項目ごと・全体の展開サイズはアプリで制限せず、展開先の空き容量に従う。
+- パーミッションが格納されていない項目には、プラットフォーム既定の mode（ファイル 0666 / フォルダ 0777 に umask を適用）を使う。
 - アイコン / カラム / ギャラリー表示は未対応。リスト表示を使う。
-- 動画・音声のサムネイルは未対応。画像のみを表示する。
+- サムネイルは 8 MiB 以下の画像のみ。暗号化された項目と solid 7z / RAR のメンバー、動画・音声は対象外。
 - SFX の作成は行わない。SFX の読み取りは対応範囲で利用できる。
 
 ## 配布
@@ -183,6 +201,8 @@ xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'plat
 メニュー・操作経路の変更では `python3 Tools/verify_ui_integration.py` も実行する。
 実メニューの操作と、最近使った項目の保存・再起動・消去を専用アプリで検証する。
 確認範囲とテストの書き方は [UI の回帰テスト](Documentation/ui-integration-testing.md)を参照。
+ファイル一覧のクリック・キー操作の変更では `python3 Tools/verify_finder_interactions.py` も実行する。
+実マウス入力での名称変更と既存の書庫間ドラッグを専用アプリで確認する。
 
 リリース前は両ライブラリの `swift test` も実行し、選択した UI テストだけで全体の成功を判断しない。
 [横断検証の記録](Documentation/verification/2026-09-17-release-hardening.md)に
@@ -280,8 +300,10 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > The Finder-style list includes a path bar, tabs, toolbar search, and a status bar.
 > The customizable toolbar offers Extract, Add…, New Folder, Delete, and Quick Look.
-> Images have thumbnails; encrypted images and images larger than 8 MiB keep their
-> regular icons. Show Hidden Files (⇧⌘.) also affects search and status counts.
+> Images have thumbnails; encrypted images, solid 7z / RAR members, and images larger
+> than 8 MiB keep their regular icons. Show Hidden Files (⇧⌘.) also affects search and status counts.
+> View > Show Preview (⇧⌘P) opens the preview sidebar. Files larger than 64 MiB,
+> files with unknown size, and members of solid 7z / RAR archives load only after pressing Show Preview.
 > Hiding items from view does not exclude them from whole-folder extraction or editing.
 > During a file drag, hold over another tab for about 0.6 seconds to select it,
 > then drop into its list. Briefly passing over a tab does not select it.
@@ -326,7 +348,15 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > gzip, bzip2, xz, Zstandard, LZ4, LZMA, and UNIX compress streams. Use Save As… to convert
 > them to a writable format. Icon, column, and gallery views are not implemented;
 > browsing uses the list view. Thumbnails cover images only, with no video or audio
-> thumbnails. SFX creation is not supported; supported SFX archives can be read.
+> thumbnails. Only images up to 8 MiB are eligible; encrypted and solid 7z / RAR members are excluded.
+> Compressed tar archives stage the inner tar when opened; above 64 MiB, staging uses a temporary file
+> and needs roughly the expanded tar size in free space on the startup volume. Opening stops if free space
+> would drop below 1 GiB while staging (KaitoKit's `stagingFreeSpaceReserve`).
+> Remaining KaitoKit reader defaults include 1,000,000 entries / 256 MiB of retained metadata,
+> 128 volumes for RAR / .001 sets, and a 1 GiB codec dictionary. The app no longer caps per-entry
+> or total extracted sizes; destination disk space governs extraction.
+> Entries without stored permissions use platform defaults: 0666 for files and 0777 for folders, with umask applied.
+> SFX creation is not supported; supported SFX archives can be read.
 >
 > ## Distribution
 >

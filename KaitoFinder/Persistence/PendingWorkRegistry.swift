@@ -65,6 +65,18 @@ nonisolated final class PendingWorkRegistry: Sendable {
         }
     }
 
+    /// 削除失敗は次回の sweep に残す。存在確認は symlink を辿らず ENOENT だけを採用する。
+    func removeAndUnregister(_ directory: URL) {
+        do {
+            try FileManager.default.removeItem(at: directory)
+            unregister(directory)
+        } catch {
+            var info = stat()
+            if lstat(directory.path, &info) != 0, errno == ENOENT { unregister(directory) }
+            else { NSLog("作業領域を削除できません: %@", String(describing: error)) }
+        }
+    }
+
     func sweep() throws -> [URL] {
         try withExclusiveAccess {
             let entries = try read()
@@ -82,12 +94,21 @@ nonisolated final class PendingWorkRegistry: Sendable {
                 let name = directory.lastPathComponent
                 guard name.hasPrefix(".KaitoFinder-add-") || name.hasPrefix(".KaitoFinder-new-") else { continue }
                 var info = stat()
-                guard lstat(directory.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
+                guard lstat(directory.path, &info) == 0 else {
+                    if errno != ENOENT { retained.append(entry) }
+                    continue
+                }
+                guard info.st_mode & S_IFMT == S_IFDIR,
                       entry.device == nil || entry.device == Int64(info.st_dev),
                       entry.inode == nil || entry.inode == info.st_ino else { continue }
                 // removeItem は子孫の symlink も辿らず、リンク自身だけを削除する。
-                try FileManager.default.removeItem(at: directory)
-                removed.append(directory)
+                do {
+                    try FileManager.default.removeItem(at: directory)
+                    removed.append(directory)
+                } catch {
+                    NSLog("作業領域を回収できません: %@", String(describing: error))
+                    retained.append(entry)
+                }
             }
             try save(retained)
             return removed

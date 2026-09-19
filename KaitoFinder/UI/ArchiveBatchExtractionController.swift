@@ -128,10 +128,9 @@ import UniformTypeIdentifiers
         guard !report.failures.isEmpty else { return nil }
         let alert = NSAlert()
         alert.messageText = String(localized: "\(report.failures.count)個のアーカイブを展開できませんでした", bundle: bundle)
-        alert.informativeText = report.failures.map { failure in
-            ArchiveAlertText.informativeText(
-                String(localized: "\(failure.archive.lastPathComponent): \(failure.reason)", bundle: bundle), bundle: bundle)
-        }.joined(separator: "\n")
+        alert.informativeText = ArchiveFailureReport.describe(report.failures,
+            name: { $0.archive.lastPathComponent }, reason: \.reason, bundle: bundle,
+            line: { ArchiveAlertText.informativeText($0, bundle: bundle) })
         return alert
     }
 }

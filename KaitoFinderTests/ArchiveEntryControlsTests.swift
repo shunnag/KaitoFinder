@@ -623,6 +623,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         for item in toolbar.items where item.itemIdentifier != .flexibleSpace && item.itemIdentifier != .space {
             XCTAssertEqual(controller.validateToolbarItem(item), item.itemIdentifier.rawValue == "search", item.label)
         }
+        controller.togglePreviewSidebar(nil)
+        XCTAssertFalse(controller.showsPreviewSidebar, "変更処理中はプレビューの表示も開始しない")
         controller.deleteEntries(nil)
         controller.renameEntry(nil)
         XCTAssertFalse(controller.outlineView.isRenaming)

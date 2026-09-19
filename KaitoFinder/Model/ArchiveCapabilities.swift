@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import KaitoKit
 import GyoshukuKit
@@ -44,6 +45,8 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case .gatekeeper(.trailingData, let reason): String(localized: "このZIPは終端の後ろに追加データがあり、安全に変更できません。\(reason)", bundle: bundle)
         case .gatekeeper(.centralDirectoryOffset, let reason):
             String(localized: "このZIPは中央ディレクトリの位置が不正です。4 GiB超の項目をZIP64なしで格納した場合など、安全に変更できません。\(reason)", bundle: bundle)
+        // GyoshukuKit の曖昧な終端の門番。理由は他の門番と同じく GyoshukuKit の文言を添える。
+        case .gatekeeper(.ambiguousEndRecord, let reason): String(localized: "このアーカイブは変更できません。\(reason)", bundle: bundle)
         case .encrypted: String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。", bundle: bundle)
         case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。", bundle: bundle)
         case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)", bundle: bundle)
@@ -51,16 +54,41 @@ nonisolated struct ArchiveCapabilities: Sendable {
         }
     }
 
+    /// reader を持たない呼出側向け。従来どおり、形式の判定と書き込み権限を先に確かめてから一度だけ開く
+    /// （書き込めない形式・権限のない場所・圧縮 tar の外側の判定に、書庫の解析や一時展開を要しない）。
     static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String? = nil) -> Self {
+        inspect(url: url, format: format, password: password) {
+            try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+        }
+    }
+
+    /// 既に開いた reader から編集可否を導く。書庫を開き直さず、一覧（entries）と形式だけを読む。
+    /// ZIP は GyoshukuKit の `ArchiveUpdater.probe`（終端の門番、reader を作らない）で entry 数を照合する。
+    /// tar / 7z / LHA は `ArchiveRewriter.probe(entries:format:)` で表現可能性を検査する。
+    /// G4 の中央ディレクトリの照合は公開時（`ArchiveUpdater.open`）に行うため、終端の門番を通っても
+    /// その照合に失敗する ZIP は、最初の編集で拒否される。reader はスレッドセーフではないので、
+    /// 呼出側（ArchiveSession の actor 内）が所有したまま呼ぶ。
+    static func inspect(reader: ArchiveReader, url: URL, password: String? = nil,
+                        format: KaitoKit.ArchiveFormat? = nil) -> Self {
+        inspect(url: url, format: format ?? reader.format, password: password) { reader }
+    }
+
+    // 拒否の優先順は従来のまま: 一時コピー → 形式（tar は外側の圧縮）→ [ZIP: 暗号化 → 終端の門番] →
+    // 書き込み権限 → [書き直し形式: 表現可能性 → 暗号化]。reader は必要になった時点で一度だけ得る。
+    private static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String?,
+                                reader open: () throws -> ArchiveReader) -> Self {
         if ArchiveTemporaryCopy.contains(url) { return Self(refusal: .temporaryCopy) }
         do {
             let mode: Mode
             switch format {
             case .zip:
-                let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
+                let reader = try open()
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
-                // open は検査のみ。最初の add まで updater は作業ファイルを作らない。
-                _ = try ArchiveUpdater.open(url: url)
+                // 従来の updater open と同じ門番と照合。原本が通常ファイルであることも同じ経路で確かめる。
+                let probe = try ArchiveUpdater.probe(url: url)
+                guard probe.entryCount == UInt64(reader.entries.count) else {
+                    throw UpdaterError.invalidArchive("KaitoKit の entry 数と EOCD が一致しません")
+                }
                 mode = .inPlace
             case .tar:
                 // ArchiveReader は圧縮 tar の内側を報告する。外側の判定もエンジンに任せ、
@@ -85,20 +113,28 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
             if case .rewrite(let outputFormat) = mode {
-                // 全 entry の表現可能性を検査するだけで、最初の add / commit まで
-                // ファイルもディレクトリも作らない。開いて破棄するのが副作用のない probe。
-                let rewriter = try ArchiveRewriter.open(url: url, password: password, output: nil, format: outputFormat)
-                if rewriter.hasEncryptedEntries, password == nil { return Self(refusal: .encrypted) }
+                // 従来の rewriter open と同じく、原本が通常ファイル（symlink でない）であることを確かめてから
+                // 全 entry の表現可能性を検査する。ファイルもディレクトリも作らず、書庫も開き直さない。
+                var info = stat()
+                guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
+                    throw RewriterError.invalidArchive("通常ファイルではありません")
+                }
+                let reader = try open()
+                try ArchiveRewriter.probe(entries: reader.entries, format: outputFormat)
+                if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
             }
             return Self(mode: mode)
-        } catch UpdaterError.editingRefused(let gatekeeper, let reason) {
-            return Self(refusal: .gatekeeper(gatekeeper, reason))
-        } catch RewriterError.password {
-            return Self(refusal: .encrypted)
-        } catch KaitoError.passwordRequired {
-            return Self(refusal: .encrypted)
-        } catch RewriterError.unrepresentable(let entry, let reason) {
-            return Self(refusal: .unrepresentable("\(entry): \(reason)"))
-        } catch { return Self(refusal: .unavailable(ArchiveErrorText.describe(error))) }
+        } catch { return Self(refusal: refusal(for: error)) }
+    }
+
+    private static func refusal(for error: any Error) -> Refusal {
+        switch error {
+        case UpdaterError.editingRefused(let gatekeeper, let reason): .gatekeeper(gatekeeper, reason)
+        case RewriterError.password: .encrypted
+        // 従来は rewriter open が KaitoError を RewriterError.password に写していた。url 版でも同じ拒否にする。
+        case KaitoError.passwordRequired, KaitoError.wrongPassword: .encrypted
+        case RewriterError.unrepresentable(let entry, let reason): .unrepresentable("\(entry): \(reason)")
+        default: .unavailable(ArchiveErrorText.describe(error))
+        }
     }
 }

@@ -257,6 +257,6 @@ nonisolated struct ArchiveBatchPlan: Sendable {
             if status != 0, errno != ENOENT { reasons.append(ExtractionFailure.system(errno).description) }
         }
         guard !reasons.isEmpty else { return nil }
-        return String(localized: "キャンセルしたアーカイブの出力を削除できませんでした: \(reasons.joined(separator: "\n"))。")
+        return String(localized: "キャンセルしたアーカイブの出力を削除できませんでした: \(ArchiveFailureReport.describe(reasons, name: { _ in "" }, reason: { $0 }))。")
     }
 }

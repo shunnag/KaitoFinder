@@ -9,6 +9,7 @@ enum ArchiveMenuSymbols {
         #selector(ArchiveWindowController.openEntry(_:)): "doc",
         #selector(ArchiveWindowController.openWithEntry(_:)): "arrow.up.forward.app",
         #selector(ArchiveWindowController.togglePreviewPanel(_:)): "eye",
+        #selector(ArchiveWindowController.togglePreviewSidebar(_:)): "sidebar.right",
         #selector(ArchiveWindowController.saveArchiveAs(_:)): "square.and.arrow.down",
         #selector(ArchiveWindowController.newFolder(_:)): "folder.badge.plus",
         #selector(ArchiveWindowController.deleteEntries(_:)): "trash",

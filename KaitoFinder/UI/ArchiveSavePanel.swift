@@ -115,11 +115,31 @@ final class ArchiveSavePanelController {
         return UTType(identifier) ?? UTType(filenameExtension: suffix) ?? .data
     }
 
+    static func explicitFilenameContentType(for format: GyoshukuKit.ArchiveFormat) -> UTType {
+        // 拡張子を表示する場合、AppKit は最後の一要素で一致を判定する。
+        // .tar.gz などを再度追加させず、手入力済みの完全な名前を受理する。
+        switch format {
+        case .tarGzip: .gzip
+        case .tarBzip2: UTType("public.bzip2-archive")!
+        case .tarXZ: UTType("org.tukaani.xz-archive")!
+        default: contentType(for: format)
+        }
+    }
+
     static func filenameStem(_ filename: String, format: GyoshukuKit.ArchiveFormat) -> String {
         let suffix = ArchiveCreationPlan.acceptedExtensions(for: format)
             .sorted { $0.count > $1.count }
             .first { filename.lowercased().hasSuffix("." + $0) }
         return suffix.map { String(filename.dropLast($0.count + 1)) } ?? filename
+    }
+
+    static func filenameByChangingFormat(_ filename: String, to format: GyoshukuKit.ArchiveFormat) -> String {
+        guard !filename.isEmpty else { return filename }
+        let suffix = formats.flatMap { ArchiveCreationPlan.acceptedExtensions(for: $0) }
+            .sorted { $0.count > $1.count }
+            .first { filename.count > $0.count + 1 && filename.lowercased().hasSuffix("." + $0) }
+        let stem = suffix.map { String(filename.dropLast($0.count + 1)) } ?? filename
+        return stem + "." + ArchiveCreationPlan.filenameExtension(for: format)
     }
 
     func selectFormat(at index: Int) {
@@ -248,6 +268,35 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     private let reducesMotion: () -> Bool
     private var layoutGeneration = 0
     private var resizeAnimation: ArchiveSaveResizeAnimation?
+    private struct FilenameChange {
+        let name: String
+        let directory: URL?
+        let tags: [String]?
+        let frame: NSRect
+        let accessoryHeight: CGFloat
+    }
+    private var pendingFilenameChange: FilenameChange?
+    private weak var parentWindow: NSWindow?
+    private var completionHandler: ((NSApplication.ModalResponse) -> Void)?
+    private var parentCloseObserver: NSObjectProtocol?
+    private var initialAnimationBehavior: NSWindow.AnimationBehavior = .default
+    private var extensionHiddenObservation: NSKeyValueObservation?
+    var isReconfiguring: Bool { pendingFilenameChange != nil }
+
+    #if DEBUG
+    // Replace only native presentation so tests can drive the real completion/async hop.
+    var presentationHandlerForTesting: ((@escaping (NSApplication.ModalResponse) -> Void) -> Void)?
+
+    func stageFilenameChangeForTesting() {
+        pendingFilenameChange = FilenameChange(name: "review.tar.gz", directory: panel.directoryURL,
+            tags: panel.tagNames, frame: panel.frame, accessoryHeight: 0)
+    }
+    #endif
+
+
+    isolated deinit {
+        if let parentCloseObserver { NotificationCenter.default.removeObserver(parentCloseObserver) }
+    }
 
     convenience init(sources: [URL], existingURL: URL? = nil, defaults: UserDefaults, bundle: Bundle = .main) {
         self.init(sources: sources, existingURL: existingURL, store: ArchivePreferencesStore(defaults: defaults), bundle: bundle)
@@ -300,6 +349,15 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         panel.accessoryView = Self.makeAccessoryView(formatPopup: formatPopup, levelPopup: levelPopup,
                                                      fixedLevelNote: fixedLevelNote, encryptionCheckbox: encryptionCheckbox,
                                                      passwordFields: passwordFields, encryptionNote: encryptionNote, bundle: bundle)
+        extensionHiddenObservation = panel.observe(\.isExtensionHidden, options: [.new]) { [weak self] panel, _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.isReconfiguring, panel.isVisible, panel.isExtensionHidden,
+                      panel.currentContentType != self.controller.allowedContentTypes.first else { return }
+                // 拡張子を消して名前を入力し直したら、完全な拡張子の自動補完へ戻す。
+                // 名前の通知時点では hidden が旧値なので、その更新を直接観察する。
+                panel.currentContentType = self.controller.allowedContentTypes.first
+            }
+        }
     }
 
     static func minimumLabelWidth(bundle: Bundle) -> CGFloat {
@@ -566,23 +624,112 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     }
 
     @objc func changeFormat(_ sender: NSPopUpButton) {
+        guard !isReconfiguring, ArchiveSavePanelController.formats.indices.contains(sender.indexOfSelectedItem) else { return }
+        let changesFormat = ArchiveSavePanelController.formats[sender.indexOfSelectedItem] != controller.format
+        // 名前を明示した後は、末尾一つだけを置換する標準パネルに任せると .tar が残る。
+        // 表示後の nameFieldStringValue は変更できないため、同じパネルを再構成する。
+        // 確定URLの後処理は行わず、画面と標準の上書き確認も正しい名前に揃える。
+        let enteredName = changesFormat && panel.isVisible && !panel.isExtensionHidden && completionHandler != nil
+            ? panel.nameFieldStringValue : nil
         controller.selectFormat(at: sender.indexOfSelectedItem)
-        // 表示中の名前の setter は XPC パネルが受け付けないため、型だけを変更する。
-        if !panel.isExtensionHidden {
-            // 手入力済みの完全な名前では、AppKit は最後の拡張子だけを置き換える。
-            // 単一の短縮拡張子なら、切り替え後に名前を再編集しても不足・重複しない。
-            let alias: String? = switch controller.format {
-            case .tarGzip: "org.gnu.gnu-zip-tar-archive"
-            case .tarBzip2: "com.shunnag.KaitoFinder.save-tbz"
-            case .tarXZ: "org.tukaani.tar-xz-archive"
-            default: nil
-            }
-            panel.currentContentType = alias.flatMap { UTType($0) } ?? controller.allowedContentTypes.first
-        } else {
-            panel.currentContentType = controller.allowedContentTypes.first
+        guard changesFormat else {
+            refreshLevel()
+            refreshEncryption()
+            return
         }
+        if let enteredName {
+            pendingFilenameChange = FilenameChange(
+                name: ArchiveSavePanelController.filenameByChangingFormat(enteredName, to: controller.format),
+                directory: panel.directoryURL, tags: panel.tagNames, frame: panel.frame,
+                accessoryHeight: (panel.accessoryView as? ArchiveSaveAccessoryView)?.contentSize.height ?? 0)
+            resizeAnimation?.stop()
+            resizeAnimation = nil
+            layoutGeneration += 1
+            formatPopup.isEnabled = false
+            panel.animationBehavior = .none
+            panel.cancel(nil)
+            return
+        }
+        panel.currentContentType = controller.allowedContentTypes.first
         refreshLevel()
         refreshEncryption()
+    }
+
+    func begin(on parent: NSWindow? = nil, completionHandler: @escaping (NSApplication.ModalResponse) -> Void) {
+        precondition(self.completionHandler == nil)
+        self.completionHandler = completionHandler
+        parentWindow = parent
+        initialAnimationBehavior = panel.animationBehavior
+        if let parent {
+            parentCloseObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification,
+                object: parent, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.cancel() }
+                }
+        }
+        presentPanel()
+    }
+
+    private func presentPanel() {
+        let completed: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self, self.completionHandler != nil else { return }
+            if response == .cancel, self.pendingFilenameChange != nil {
+                // 終了コールバックを抜け、configuration phase に戻ってから設定する。
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.completionHandler != nil, let change = self.pendingFilenameChange else { return }
+                    let accessory = self.panel.accessoryView as? ArchiveSaveAccessoryView
+                    self.panel.accessoryView = nil
+                    self.panel.directoryURL = change.directory
+                    self.panel.tagNames = change.tags
+                    self.suggestedStem = ArchiveSavePanelController.filenameStem(change.name, format: self.controller.format)
+                    self.panel.currentContentType = ArchiveSavePanelController.explicitFilenameContentType(for: self.controller.format)
+                    self.panel.nameFieldStringValue = change.name
+                    self.panel.isExtensionHidden = false
+                    self.configuredFilename = change.name
+                    self.refreshLevel()
+                    self.refreshEncryption(animateResize: false)
+                    accessory?.viewportHeight = nil
+                    accessory?.viewportHeightInPanel = nil
+                    if let accessory { ArchivePasswordLayout.size(accessory) }
+                    self.panel.accessoryView = accessory
+                    self.pendingFilenameChange = nil
+                    self.formatPopup.isEnabled = true
+                    self.presentPanel()
+                    if let accessory {
+                        let height = max(self.panel.minSize.height,
+                                         change.frame.height + accessory.contentSize.height - change.accessoryHeight)
+                        let anchoredY = self.parentWindow == nil ? change.frame.maxY - height : change.frame.midY - height / 2
+                        let y = self.panel.screen.map {
+                            min(max(anchoredY, $0.visibleFrame.minY), $0.visibleFrame.maxY - height)
+                        } ?? anchoredY
+                        self.panel.setFrame(NSRect(x: change.frame.minX, y: y, width: change.frame.width, height: height), display: false)
+                    }
+                }
+            } else {
+                self.finishPresentation(response)
+            }
+        }
+        #if DEBUG
+        if let presentationHandlerForTesting { presentationHandlerForTesting(completed); return }
+        #endif
+        if let parentWindow { panel.beginSheetModal(for: parentWindow, completionHandler: completed) }
+        else { panel.begin(completionHandler: completed) }
+    }
+
+    private func finishPresentation(_ response: NSApplication.ModalResponse) {
+        let completed = completionHandler
+        completionHandler = nil
+        pendingFilenameChange = nil
+        parentWindow = nil
+        formatPopup.isEnabled = true
+        panel.animationBehavior = initialAnimationBehavior
+        if let parentCloseObserver { NotificationCenter.default.removeObserver(parentCloseObserver) }
+        parentCloseObserver = nil
+        completed?(response)
+    }
+
+    func cancel() {
+        if isReconfiguring { finishPresentation(.cancel) }
+        panel.cancel(nil)
     }
 
     func destination(on parent: NSWindow?) async throws -> URL? {
@@ -595,14 +742,10 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         let response: NSApplication.ModalResponse = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 guard !Task.isCancelled else { continuation.resume(returning: .cancel); return }
-                if let parent {
-                    panel.beginSheetModal(for: parent) { continuation.resume(returning: $0) }
-                } else {
-                    panel.begin { continuation.resume(returning: $0) }
-                }
+                begin(on: parent) { continuation.resume(returning: $0) }
             }
         } onCancel: {
-            Task { @MainActor [weak self] in self?.panel.cancel(nil) }
+            Task { @MainActor [weak self] in self?.cancel() }
         }
         try Task.checkCancellation()
         return response == .OK ? panel.url : nil

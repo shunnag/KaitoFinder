@@ -355,6 +355,26 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         }
     }
 
+    @MainActor func testFormatChangesReplaceOneWholeArchiveExtension() {
+        for initial in ArchivePreferences.formats {
+            for suffix in ArchiveCreationPlan.acceptedExtensions(for: initial) {
+                for spelling in [suffix, suffix.uppercased()] {
+                    for target in ArchivePreferences.formats {
+                        XCTAssertEqual(ArchiveSavePanelController.filenameByChangingFormat(
+                            "写真.2026.backup." + spelling, to: target),
+                            "写真.2026.backup." + ArchiveCreationPlan.filenameExtension(for: target))
+                    }
+                }
+            }
+        }
+        for name in ["photo.jpg", "report.backup", ".gitignore", ".zip", ".tar.gz", "日本語🗃️"] {
+            XCTAssertEqual(ArchiveSavePanelController.filenameByChangingFormat(name, to: .tarXZ), name + ".tar.xz")
+        }
+        XCTAssertEqual(ArchiveSavePanelController.filenameByChangingFormat("source.zip.zip", to: .tarGzip), "source.zip.tar.gz")
+        XCTAssertEqual(ArchiveSavePanelController.filenameByChangingFormat("source.tar.gz.zip", to: .sevenZip), "source.tar.gz.7z")
+        XCTAssertEqual(ArchiveSavePanelController.filenameByChangingFormat("", to: .tarXZ), "")
+    }
+
     @MainActor func testPresentedCompressedTarSavePanelAcceptsExactFilenameAndSwitchesFromEncryption() async throws {
         guard let request = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
@@ -369,8 +389,8 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             let accessory = try XCTUnwrap(save.panel.accessoryView)
             var response: NSApplication.ModalResponse?
             let initialHeight = accessory.fittingSize.height
-            save.panel.begin { response = $0 }
-            defer { save.panel.cancel(nil) }
+            save.begin { response = $0 }
+            defer { save.cancel() }
             try await scenarioWait { save.panel.isVisible && abs(accessory.frame.height - initialHeight) < 0.5 }
             save.encryptionCheckbox.performClick(nil)
             try await scenarioWait { save.passwordFields.passwordField.currentEditor() != nil }
@@ -429,8 +449,8 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             save.panel.prompt = "Save"
             let accessory = try XCTUnwrap(save.panel.accessoryView), height = accessory.fittingSize.height
             var response: NSApplication.ModalResponse?
-            save.panel.begin { response = $0 }
-            defer { save.panel.cancel(nil) }
+            save.begin { response = $0 }
+            defer { save.cancel() }
             try await scenarioWait { save.panel.isVisible && abs(accessory.frame.height - height) < 0.5 }
             for format in ArchivePreferences.formats + [.tarGzip, .tarXZ, .tarBzip2, .zip, initial] {
                 save.formatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: format)))
@@ -476,8 +496,8 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
                 save.panel.directoryURL = directory.url
                 save.panel.prompt = "Save"
                 var response: NSApplication.ModalResponse?
-                save.panel.begin { response = $0 }
-                defer { save.panel.cancel(nil) }
+                save.begin { response = $0 }
+                defer { save.cancel() }
                 try await scenarioWait { save.panel.isVisible }
                 var payload: [String: Any] = ["pid": getpid(), "saveTitle": "Save", "expectedName": "review", "enteredName": enteredName]
                 if overwrite { payload["confirmationText"] = enteredName }
@@ -496,48 +516,60 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let request = URL(fileURLWithPath: path), completed = request.deletingPathExtension().appendingPathExtension("done")
-        // Explicit names use native one-component extension replacement. Keep the
-        // entered basename and use short extensions that also survive re-editing.
-        let shortExtensions: [GyoshukuKit.ArchiveFormat: String] = [.tarGzip: "tgz", .tarBzip2: "tbz2", .tarXZ: "txz"]
-        for initial in [GyoshukuKit.ArchiveFormat.zip, .tarGzip, .tarBzip2, .tarXZ] {
-            for target in [GyoshukuKit.ArchiveFormat.tarGzip, .tarBzip2, .tarXZ] where target != initial {
-                let outputExtension = try XCTUnwrap(shortExtensions[target])
-                let enteredStem = initial == .zip ? "edited.report" : "edited.report.tar"
+        // Check the actual visible name and the confirmed URL, including the
+        // native overwrite confirmation, after replacing the complete suffix.
+        for initial in ArchivePreferences.formats {
+            for target in ArchivePreferences.formats where target != initial {
+                let outputExtension = ArchiveCreationPlan.filenameExtension(for: target)
+                let enteredStem = initial == .sevenZip && target == .lha ? "写真.2026🗃️" : "edited.report"
+                let enteredSuffix: String
+                if target == .zip {
+                    enteredSuffix = try XCTUnwrap(ArchiveCreationPlan.acceptedExtensions(for: initial).last).uppercased()
+                } else if initial == .tarBzip2 && target == .tarXZ {
+                    enteredSuffix = "TBZ2"
+                } else {
+                    enteredSuffix = ArchiveCreationPlan.filenameExtension(for: initial).uppercased()
+                }
                 let directory = try ArchiveTestDirectory()
                 let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
                 store.preferences.defaultFormat = initial
                 let save = ArchiveSavePanel(sources: [directory.url.appendingPathComponent("review")], store: store)
                 save.panel.prompt = "Save"
+                save.panel.tagNames = ["Archive verification"]
                 var response: NSApplication.ModalResponse?
-                save.panel.begin { response = $0 }
-                defer { save.panel.cancel(nil) }
+                save.begin { response = $0 }
+                defer { save.cancel() }
                 try await scenarioWait { save.panel.isVisible }
                 let payload: [String: Any] = ["pid": getpid(), "saveTitle": "Save", "expectedName": "review", "editOnly": true,
                                              "initialFormat": ArchiveSavePanelController.title(for: initial),
                                              "selectedFormat": ArchiveSavePanelController.title(for: target),
-                                             "enteredName": "edited.report." + ArchiveCreationPlan.filenameExtension(for: initial)]
+                                             "enteredName": enteredStem + "." + enteredSuffix]
                 try JSONSerialization.data(withJSONObject: payload).write(to: request, options: .atomic)
                 try await scenarioWait { FileManager.default.fileExists(atPath: completed.path) }
                 try FileManager.default.removeItem(at: completed)
-                try await scenarioWait { save.controller.format == target }
+                try await scenarioWait { save.controller.format == target && !save.isReconfiguring && save.panel.isVisible }
                 XCTAssertEqual(save.controller.format, target)
+                XCTAssertNil(response, "Changing formats must not end the save operation")
+                XCTAssertEqual(save.panel.directoryURL?.resolvingSymlinksInPath(), directory.url.resolvingSymlinksInPath())
+                XCTAssertEqual(save.panel.tagNames, ["Archive verification"])
                 if initial == .zip, target == .tarGzip {
                     var selected = target
                     for next in [GyoshukuKit.ArchiveFormat.tarBzip2, .tarXZ, .tarGzip] {
                         let change: [String: Any] = ["pid": getpid(), "saveTitle": "Save", "editOnly": true,
-                                                   "expectedName": "edited.report." + (try XCTUnwrap(shortExtensions[selected])),
+                                                   "expectedName": "edited.report." + ArchiveCreationPlan.filenameExtension(for: selected),
                                                    "initialFormat": ArchiveSavePanelController.title(for: selected),
                                                    "selectedFormat": ArchiveSavePanelController.title(for: next)]
                         try JSONSerialization.data(withJSONObject: change).write(to: request, options: .atomic)
                         try await scenarioWait { FileManager.default.fileExists(atPath: completed.path) }
                         try FileManager.default.removeItem(at: completed)
-                        try await scenarioWait { save.controller.format == next }
+                        try await scenarioWait { save.controller.format == next && !save.isReconfiguring && save.panel.isVisible }
                         selected = next
                     }
                 }
                 let renameWithoutExtension = (initial == .zip && target == .tarXZ)
                     || (initial == .tarGzip && target == .tarBzip2)
-                if renameWithoutExtension {
+                let renameAndSaveImmediately = initial == .zip && target == .tarXZ
+                if renameWithoutExtension && !renameAndSaveImmediately {
                     let edit: [String: Any] = ["pid": getpid(), "saveTitle": "Save", "editOnly": true,
                                               "expectedName": enteredStem + "." + outputExtension,
                                               "enteredName": "retitled"]
@@ -551,7 +583,9 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
                 let sentinel = Data("Original verification file".utf8)
                 if overwrite { try sentinel.write(to: destination) }
                 var confirmation: [String: Any] = ["pid": getpid(), "saveTitle": "Save",
-                                                   "expectedName": renameWithoutExtension ? "retitled" : finalName]
+                    "expectedName": renameAndSaveImmediately ? enteredStem + "." + outputExtension
+                        : renameWithoutExtension ? "retitled" : finalName]
+                if renameAndSaveImmediately { confirmation["enteredName"] = "retitled" }
                 if overwrite { confirmation["confirmationText"] = finalName }
                 try JSONSerialization.data(withJSONObject: confirmation)
                     .write(to: request, options: .atomic)
@@ -563,4 +597,144 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         }
     }
 
+    @MainActor func testPresentedSavePanelPreservesSettingsAndCancellationAcrossFilenameChanges() async throws {
+        guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
+            throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
+        }
+        let request = URL(fileURLWithPath: path), completed = request.deletingPathExtension().appendingPathExtension("done")
+        func edit(_ values: [String: Any]) async throws {
+            var payload = values
+            payload["pid"] = getpid()
+            payload["saveTitle"] = "Save"
+            payload["editOnly"] = true
+            try JSONSerialization.data(withJSONObject: payload).write(to: request, options: .atomic)
+            try await scenarioWait { FileManager.default.fileExists(atPath: completed.path) }
+            try FileManager.default.removeItem(at: completed)
+        }
+        let defaults = UserDefaults.standard
+        let registration = defaults.volatileDomain(forName: UserDefaults.registrationDomain)
+        defaults.register(defaults: ["NSAutomaticWindowAnimationsEnabled": true])
+        defer { defaults.setVolatileDomain(registration, forName: UserDefaults.registrationDomain) }
+        let expandedKey = "NSNavPanelExpandedStateForSaveMode", previousExpanded = defaults.object(forKey: "NSNavPanelExpandedStateForSaveMode")
+        defer {
+            if let previousExpanded { defaults.set(previousExpanded, forKey: expandedKey) }
+            else { defaults.removeObject(forKey: expandedKey) }
+            defaults.synchronize()
+        }
+        // Standalone and sheet cancellation after a round trip; task cancellation
+        // and closing the parent while the old panel is ending for reconfiguration.
+        for ending in 0..<6 {
+            defaults.set(ending == 2 || ending == 3, forKey: expandedKey)
+            defaults.synchronize()
+            let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
+            let store = ArchivePreferencesStore(defaults: suite.defaults)
+            store.preferences.defaultFormat = .zip
+            let save = ArchiveSavePanel(sources: [directory.url.appendingPathComponent("review")], store: store,
+                                        encryption: .init(password: "Archive verification password"))
+            save.panel.prompt = "Save"
+            save.panel.tagNames = ["Archive verification"]
+            let parent = ending.isMultiple(of: 2) ? nil : NSWindow(
+                contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
+                styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            parent?.isReleasedWhenClosed = false
+            parent?.center()
+            parent?.makeKeyAndOrderFront(nil)
+            var returned = false
+            let destination = Task {
+                defer { returned = true }
+                return try await save.destination(on: parent)
+            }
+            defer { destination.cancel(); save.cancel(); parent?.close() }
+            try await scenarioWait { save.panel.isVisible }
+            try await Task.sleep(for: .seconds(1))
+            if parent == nil {
+                let origin = save.panel.frame.origin
+                save.panel.setFrameOrigin(NSPoint(x: origin.x + 24, y: origin.y - 16))
+            }
+            let initialFrame = save.panel.frame, expanded = save.panel.isExpanded
+            try await edit(["expectedName": "review", "enteredName": "keep.tar.gz"])
+            if ending < 4 {
+                let changes: [(GyoshukuKit.ArchiveFormat, GyoshukuKit.ArchiveFormat)] = [(.zip, .tarGzip), (.tarGzip, .zip)]
+                for (from, to) in changes {
+                    try await edit(["expectedName": "keep.tar.gz",
+                                    "initialFormat": ArchiveSavePanelController.title(for: from),
+                                    "selectedFormat": ArchiveSavePanelController.title(for: to)])
+                    try await scenarioWait { save.controller.format == to && !save.isReconfiguring && save.panel.isVisible }
+                    XCTAssertFalse(returned)
+                }
+                try await Task.sleep(for: .milliseconds(400))
+                XCTAssertEqual(save.encryptionSettings.password, "Archive verification password")
+                XCTAssertEqual(save.passwordFields.verifyField.stringValue, "Archive verification password")
+                XCTAssertEqual(save.panel.directoryURL?.resolvingSymlinksInPath(), directory.url.resolvingSymlinksInPath())
+                XCTAssertEqual(save.panel.tagNames, ["Archive verification"])
+                XCTAssertEqual(save.panel.isExpanded, expanded)
+                XCTAssertEqual(save.panel.frame.width, initialFrame.width, accuracy: 1)
+                // AppKit can raise the browser's minimum height when reopening.
+                // Preserve the requested size while respecting that native limit.
+                XCTAssertEqual(save.panel.frame.height, max(initialFrame.height, save.panel.minSize.height), accuracy: 1)
+                XCTAssertTrue(UISnapshot.overflowViolations(in: try XCTUnwrap(save.panel.accessoryView)).isEmpty)
+                XCTAssertEqual(save.panel.frame.minX, initialFrame.minX, accuracy: 1)
+                XCTAssertEqual(save.panel.frame.maxY, initialFrame.maxY, accuracy: 1)
+                if let parent { XCTAssertTrue(save.panel.sheetParent === parent) }
+                else { XCTAssertNil(save.panel.sheetParent) }
+                save.cancel()
+            } else {
+                save.formatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .tarXZ)))
+                XCTAssertTrue(save.formatPopup.sendAction(save.formatPopup.action, to: save.formatPopup.target))
+                XCTAssertTrue(save.isReconfiguring)
+                if ending == 4 { destination.cancel() }
+                else { parent?.close() }
+            }
+            do {
+                let result = try await destination.value
+                XCTAssertNotEqual(ending, 4, "Task cancellation must propagate")
+                XCTAssertNil(result)
+            } catch is CancellationError {
+                XCTAssertEqual(ending, 4)
+            }
+            try await scenarioWait { !save.panel.isVisible && !save.isReconfiguring }
+            try await Task.sleep(for: .milliseconds(200))
+            XCTAssertFalse(save.panel.isVisible, "A canceled panel must not reopen")
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.url.path), ["tmp"])
+        }
+    }
+
+}
+
+
+extension ArchiveCreationUITests {
+    @MainActor func testCancelExtractionFinishesReconfiguringSavePanelExactlyOnce() async throws {
+        preserveArchiveWindowFrame()
+        let fixture = try ArchiveTestDirectory(), archive = fixture.url.appendingPathComponent("source.zip")
+        try ReleaseReviewFixtures.zip([("a.txt", Data("a".utf8))]).write(to: archive)
+        let document = ArchiveDocument()
+        try document.read(from: archive, ofType: "zip")
+        let session = try XCTUnwrap(document.session), controller = ArchiveWindowController()
+        document.addWindowController(controller)
+        controller.display(EntryNode.tree(from: await session.entries()), session: session)
+        let creator = ArchiveCreationController()
+        creator.destinationHandler = { save, _ in
+            var presentations = 0, responses: [NSApplication.ModalResponse] = []
+            var ended: ((NSApplication.ModalResponse) -> Void)?
+            save.presentationHandlerForTesting = { completed in presentations += 1; ended = completed }
+            save.begin { responses.append($0) }
+            save.stageFilenameChangeForTesting()
+            ended?(.cancel) // The real completion schedules the main-queue re-presentation.
+            XCTAssertTrue(save.isReconfiguring)
+            controller.cancelExtraction()
+            XCTAssertFalse(save.isReconfiguring, "cancelExtraction must finish a pending filename change synchronously")
+            XCTAssertEqual(responses, [.cancel], "Save completion must be called once with cancel")
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.async { continuation.resume() }
+            }
+            XCTAssertEqual(presentations, 1, "A cancelled save panel must not re-present")
+            XCTAssertEqual(responses, [.cancel])
+            save.cancel()
+            return nil
+        }
+        try await controller.saveArchiveAs(using: creator)
+        document.close()
+        await document.sessionCleanup?.value
+        await document.undoCleanup?.value
+    }
 }

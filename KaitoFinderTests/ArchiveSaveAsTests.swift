@@ -393,9 +393,19 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
     }
 
     @MainActor func testCommittedOutputStillBecomesBackingFileAfterLateCancellation() async throws {
-        let (directory, document, _, _) = try await interface()
+        try await assertLateCancellationKeepsCommittedOutput(gzip: false)
+    }
+
+    // 圧縮 tar は KaitoKit が一時展開の途中で Task の取消しを検査する（K2）。公開後の再オープンは
+    // 取消し済み Task でも成功しなければならない。
+    @MainActor func testCommittedCompressedTarStillBecomesBackingFileAfterLateCancellation() async throws {
+        try await assertLateCancellationKeepsCommittedOutput(gzip: true)
+    }
+
+    @MainActor private func assertLateCancellationKeepsCommittedOutput(gzip: Bool) async throws {
+        let (directory, document, _, _) = try await interface(gzip: gzip)
         let source = try XCTUnwrap(document.fileURL)
-        let destination = directory.url.appendingPathComponent("committed.zip")
+        let destination = directory.url.appendingPathComponent(gzip ? "committed.tgz" : "committed.zip")
         try FileManager.default.copyItem(at: source, to: destination)
         let task = Task { @MainActor in
             withUnsafeCurrentTask { $0?.cancel() }

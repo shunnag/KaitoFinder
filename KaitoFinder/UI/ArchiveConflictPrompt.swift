@@ -14,7 +14,7 @@ final class ArchiveConflictPrompt: NSObject {
     private(set) var preview: ArchiveConflictPreview?
 
     init(conflict: ArchiveImportConflict, session: ArchiveSession, existingLocation: String? = nil,
-         incomingLocation: String? = nil, bundle: Bundle = .main) {
+         incomingLocation: String? = nil, canUndo: Bool = true, bundle: Bundle = .main) {
         self.conflict = conflict
         self.session = session
         self.bundle = bundle
@@ -28,6 +28,7 @@ final class ArchiveConflictPrompt: NSObject {
         if conflict.existing.kind == .directory || conflict.incoming.kind == .directory {
             alert.informativeText += "\n" + String(localized: "フォルダは中の項目もすべて置き換えられます。", bundle: bundle)
         }
+        if !canUndo { alert.informativeText += "\n" + String(localized: "この操作は取り消せません。", bundle: bundle) }
         alert.addButton(withTitle: String(localized: "置き換える", bundle: bundle))
         alert.addButton(withTitle: String(localized: "スキップ", bundle: bundle))
         alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
@@ -165,13 +166,13 @@ final class ArchiveConflictPresenter {
 
     func response(to conflict: ArchiveImportConflict, on window: NSWindow, session: ArchiveSession,
                   existingLocation: String? = nil,
-                  incomingLocation: String? = nil, bundle: Bundle = .main) async throws -> ArchiveConflictDecision {
+                  incomingLocation: String? = nil, canUndo: Bool = true, bundle: Bundle = .main) async throws -> ArchiveConflictDecision {
         try Task.checkCancellation()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 guard !Task.isCancelled else { continuation.resume(throwing: CancellationError()); return }
                 let prompt = ArchiveConflictPrompt(conflict: conflict, session: session, existingLocation: existingLocation,
-                                                   incomingLocation: incomingLocation, bundle: bundle)
+                                                   incomingLocation: incomingLocation, canUndo: canUndo, bundle: bundle)
                 self.prompt = prompt
                 self.continuation = continuation
                 prompt.alert.beginSheetModal(for: window) { [weak self, weak prompt] response in

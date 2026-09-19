@@ -18,35 +18,77 @@ nonisolated final class ArchiveUndoStack: Sendable {
     }
 
     typealias Clone = @Sendable (URL, URL) -> Int32
+    typealias CloneSupportQuery = @Sendable (URL) -> Bool?
     let maximumCount: Int
     let maximumBytes: UInt64
     private let clone: Clone
+    private let cloneSupportQuery: CloneSupportQuery
+    private enum CloneSupport { case unknown, supported, unsupported }
     private struct State {
         var slots: [Slot] = []
-        var cloningSupported = true
+        var cloneSupport = CloneSupport.unknown
+        var queriedCloneSupport = false
         var closed = false
     }
     private let storage = Mutex(State())
 
     init(maximumCount: Int = 10, maximumBytes: UInt64 = 2 * 1024 * 1024 * 1024,
-         clone: @escaping Clone = ArchiveUndoStack.cloneFile) {
+         clone: @escaping Clone = ArchiveUndoStack.cloneFile,
+         cloneSupportQuery: @escaping CloneSupportQuery = ArchiveUndoStack.volumeSupportsCloning) {
         self.maximumCount = min(10, max(0, maximumCount))
         self.maximumBytes = maximumBytes
         self.clone = clone
+        self.cloneSupportQuery = cloneSupportQuery
     }
 
     var slots: [Slot] { storage.withLock { $0.slots } }
     var retainedBytes: UInt64 { storage.withLock { Self.bytes(in: $0.slots) } }
     var canUndoNextMutation: Bool {
-        storage.withLock { !$0.closed && $0.cloningSupported && maximumCount > 0 }
+        storage.withLock { !$0.closed && $0.cloneSupport == .supported && maximumCount > 0 }
     }
 
     func canUndoNextMutation(archiveSize: UInt64) -> Bool {
         canUndoNextMutation && archiveSize <= maximumBytes
     }
 
+    /// Resolve before a confirmation decision, once for this backing archive. Unknown is conservative.
+    func resolveCloneSupport(for archive: URL) {
+        storage.withLock { state in
+            guard !state.closed, state.cloneSupport == .unknown, !state.queriedCloneSupport else { return }
+            state.queriedCloneSupport = true
+            switch cloneSupportQuery(archive) {
+            case true?: state.cloneSupport = .supported
+            case false?: state.cloneSupport = .unsupported
+            case nil: break
+            }
+        }
+    }
+
     func emptyCopy() -> ArchiveUndoStack {
-        ArchiveUndoStack(maximumCount: maximumCount, maximumBytes: maximumBytes, clone: clone)
+        ArchiveUndoStack(maximumCount: maximumCount, maximumBytes: maximumBytes,
+                         clone: clone, cloneSupportQuery: cloneSupportQuery)
+    }
+
+    /// Menu validation queries volume metadata only; the capture closure is never used as a probe.
+    static func volumeSupportsCloning(at archive: URL) -> Bool? {
+        guard archive.isFileURL else { return nil }
+        var attributes = attrlist()
+        attributes.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+        attributes.volattr = UInt32(ATTR_VOL_INFO) | UInt32(ATTR_VOL_CAPABILITIES)
+        // getattrlist returns a UInt32 length, then capabilities[4] and valid[4] (sys/attr.h).
+        let wordsPerSet = MemoryLayout<vol_capabilities_set_t>.size / MemoryLayout<UInt32>.size
+        var buffer = [UInt32](repeating: 0, count: 1 + 2 * wordsPerSet)
+        let status = archive.deletingLastPathComponent().withUnsafeFileSystemRepresentation { path in
+            guard let path else { return Int32(-1) }
+            return buffer.withUnsafeMutableBytes {
+                getattrlist(path, &attributes, $0.baseAddress!, $0.count, 0)
+            }
+        }
+        guard status == 0, buffer[0] >= buffer.count * MemoryLayout<UInt32>.size else { return nil }
+        let interfaces = Int(VOL_CAPABILITIES_INTERFACES), clone = UInt32(VOL_CAP_INT_CLONE)
+        let capabilities = buffer[1 + interfaces], valid = buffer[1 + wordsPerSet + interfaces]
+        guard valid & clone != 0 else { return nil }
+        return capabilities & valid & clone != 0
     }
 
     static func cloneFile(from source: URL, to destination: URL) -> Int32 {
@@ -68,13 +110,13 @@ nonisolated final class ArchiveUndoStack: Sendable {
         try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         let code = clone(archive, url)
         if code == ENOTSUP || code == EXDEV {
-            storage.withLock { $0.cloningSupported = false }
+            storage.withLock { $0.cloneSupport = .unsupported }
             return nil
         }
         guard code == 0 else { throw ExtractionFailure.system(code) }
         // 作業用の mode が原本へ戻らないよう、swap 側で置換直前の mode を復元する。
         try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-        storage.withLock { $0.cloningSupported = true }
+        storage.withLock { $0.cloneSupport = .supported }
         kept = true
         return Slot(id: id, directory: directory, url: url, byteCount: UInt64(info.st_size), isRedo: isRedo, encryption: encryption)
     }

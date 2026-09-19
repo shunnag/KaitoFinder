@@ -24,6 +24,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var revealsExtractedItemsInFinder = false
     var showsHiddenFiles = false
     var showsWelcomeWindowAtLaunch = true
+    var renamesOnClick = true
     var openingBehavior: OpeningBehavior = .system
     var excludesDSStore = true
     var excludesHiddenFiles = false
@@ -72,6 +73,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let revealsExtractedItemsInFinder = "ArchiveRevealsExtractedItems"
         static let showsHiddenFiles = "ArchiveShowsHiddenFiles"
         static let showsWelcomeWindowAtLaunch = "ArchiveShowsWelcomeAtLaunch"
+        static let renamesOnClick = "ArchiveRenamesOnClick"
         static let openingBehavior = "ArchiveOpeningBehavior"
         static let excludesDSStore = "ArchiveExcludesDSStore"
         static let excludesHiddenFiles = "ArchiveExcludesHiddenFiles"
@@ -106,6 +108,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.showsHiddenFiles = boolean(forKey: Key.showsHiddenFiles, fallback: value.showsHiddenFiles)
             value.showsWelcomeWindowAtLaunch = boolean(forKey: Key.showsWelcomeWindowAtLaunch,
                                                       fallback: value.showsWelcomeWindowAtLaunch)
+            value.renamesOnClick = boolean(forKey: Key.renamesOnClick, fallback: value.renamesOnClick)
             value.openingBehavior = defaults.string(forKey: Key.openingBehavior)
                 .flatMap(ArchivePreferences.OpeningBehavior.init(rawValue:)) ?? value.openingBehavior
             value.excludesDSStore = boolean(forKey: Key.excludesDSStore, fallback: value.excludesDSStore)
@@ -126,6 +129,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.revealsExtractedItemsInFinder, forKey: Key.revealsExtractedItemsInFinder)
             defaults.set(newValue.showsHiddenFiles, forKey: Key.showsHiddenFiles)
             defaults.set(newValue.showsWelcomeWindowAtLaunch, forKey: Key.showsWelcomeWindowAtLaunch)
+            defaults.set(newValue.renamesOnClick, forKey: Key.renamesOnClick)
             defaults.set(newValue.openingBehavior.rawValue, forKey: Key.openingBehavior)
             defaults.set(newValue.excludesDSStore, forKey: Key.excludesDSStore)
             defaults.set(newValue.excludesHiddenFiles, forKey: Key.excludesHiddenFiles)
