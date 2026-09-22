@@ -18,6 +18,7 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStrin
     case indexMismatch(Int)
     case staleSelection
     case archiveChanged
+    case splitArchive
     case conflictingSelection
 
     var description: String { errorDescription! }
@@ -32,6 +33,7 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStrin
         case .indexMismatch: String(localized: "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。")
         case .staleSelection: String(localized: "選択した項目が変更されています。アーカイブを開き直してください。")
         case .archiveChanged: String(localized: "アーカイブが変更されています。開き直してください。")
+        case .splitArchive: ArchiveCapabilities(refusal: .splitArchive).readOnlyReason
         case .conflictingSelection: String(localized: "同じ項目への変更が重複しています。")
         }
     }
@@ -444,6 +446,7 @@ nonisolated enum ArchiveImportTransaction {
                         additionalQuarantine: Data? = nil,
                         registry: PendingWorkRegistry = .shared,
                         mutate: (any ArchiveEditing) throws -> Void) throws {
+        if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         try ArchiveImportPlan.checkCancellation(progress)
         let original = try identity(archive)
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
@@ -500,6 +503,8 @@ nonisolated enum ArchiveImportTransaction {
         guard try identity(archive) == original else {
             throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
         }
+        // 作業中に兄弟が現れた場合も、一巻だけの置換を拒否する。
+        if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }

@@ -63,6 +63,7 @@ Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連�
 書き込み可能なアーカイブには、Finder や他のアプリから drag in / paste in で追加できる。
 削除・改名・新規フォルダの作成と、同じウインドウ内でのドラッグによるフォルダ間の移動に対応する。
 ⌥ を押しながらドラッグするとコピーになる。
+分割（マルチボリューム）アーカイブは、現在は読み取り専用。
 
 編集は ⌘Z で取り消し、⇧⌘Z でやり直せる。
 編集前の原本を同じボリュームの一時領域へ `clonefile` で退避し、取り消し時に戻す。
@@ -271,6 +272,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Drag or paste files into writable archives. Delete, rename, create folders, and
 > drag items between folders in the same window; hold ⌥ to copy instead of move.
+> Split (multi-volume) archives are read-only for now.
 > When names conflict, compare size, modification date, kind, and location before
 > choosing Replace or Skip. Compare Contents opens both files side by side in Quick Look.
 > Apply a choice to the remaining files in a batch; folders and type changes require

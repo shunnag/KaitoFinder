@@ -412,7 +412,16 @@ actor ArchiveSession {
             capabilitiesStorage.withLock { $0 = refusal }
             if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
             throw UpdaterError.invalidArchive(reason)
+        } catch ArchiveEditError.splitArchive {
+            throw splitArchiveRefusal()
         }
+    }
+
+    private func splitArchiveRefusal() -> ExtractionFailure {
+        let refusal = ArchiveCapabilities(refusal: .splitArchive)
+        capabilitiesStorage.withLock { $0 = refusal }
+        if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
+        return .refused(refusal.readOnlyReason!)
     }
 
     private func refreshCapabilities() {
@@ -468,6 +477,7 @@ actor ArchiveSession {
 
     // append と同じ actor で置換と fresh open を連続させ、旧 inode の reader を渡さない。
     func restoreUndoSlot(_ id: UUID, from stack: ArchiveUndoStack) throws {
+        if ArchiveSplitVolume.isSplitVolumeMember(sourceURL) { throw splitArchiveRefusal() }
         // Finder の情報パネルによる権限変更は内容を変えず、mode は swap 自身が読み直すため比較から除く。
         func contentIdentity(_ identity: [Int64]) -> [Int64] {
             var identity = identity

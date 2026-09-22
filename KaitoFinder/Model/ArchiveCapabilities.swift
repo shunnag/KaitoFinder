@@ -16,6 +16,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case unrepresentable(String)
         case unavailable(String)
         case temporaryCopy
+        case splitArchive
     }
     let mode: Mode?
     let refusal: Refusal?
@@ -49,6 +50,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case .gatekeeper(.ambiguousEndRecord, let reason): String(localized: "このアーカイブは変更できません。\(reason)", bundle: bundle)
         case .encrypted: String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。", bundle: bundle)
         case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。", bundle: bundle)
+        case .splitArchive: String(localized: "分割されたアーカイブは変更できません。", bundle: bundle)
         case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)", bundle: bundle)
         case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)", bundle: bundle)
         }
@@ -73,11 +75,12 @@ nonisolated struct ArchiveCapabilities: Sendable {
         inspect(url: url, format: format ?? reader.format, password: password) { reader }
     }
 
-    // 拒否の優先順は従来のまま: 一時コピー → 形式（tar は外側の圧縮）→ [ZIP: 暗号化 → 終端の門番] →
+    // 拒否の優先順: 一時コピー → 分割 → 形式（tar は外側の圧縮）→ [ZIP: 暗号化 → 終端の門番] →
     // 書き込み権限 → [書き直し形式: 表現可能性 → 暗号化]。reader は必要になった時点で一度だけ得る。
     private static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String?,
                                 reader open: () throws -> ArchiveReader) -> Self {
         if ArchiveTemporaryCopy.contains(url) { return Self(refusal: .temporaryCopy) }
+        if ArchiveSplitVolume.isSplitVolumeMember(url) { return Self(refusal: .splitArchive) }
         do {
             let mode: Mode
             switch format {

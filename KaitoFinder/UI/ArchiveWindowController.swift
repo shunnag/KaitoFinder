@@ -1132,6 +1132,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         switch error as? ArchiveEditError {
         case .archiveChanged:
             String(localized: "アーカイブが変更されています。開き直してください。", bundle: bundle)
+        case .splitArchive:
+            ArchiveCapabilities(refusal: .splitArchive).readOnlyReason(bundle: bundle)!
         case .collision:
             String(localized: "同じ名前の項目が既にあります。別の名前を入力してください。", bundle: bundle)
         case .invalidName:
