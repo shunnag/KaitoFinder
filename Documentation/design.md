@@ -623,9 +623,9 @@ Wave D は 16 言語・4,672 訳を追加し、既存 10 言語の 2,920 訳と�
 | Apple Disk Image | `com.apple.disk-image-udif` | Alternate |
 | UDF | `com.shunnag.KaitoFinder.udf-image` | Alternate |
 | WIM | `com.shunnag.KaitoFinder.wim-archive` | Default |
-| Compound File | `com.shunnag.KaitoFinder.msi-archive` | Default |
+| Compound File | `com.shunnag.KaitoFinder.msi-archive`、`com.microsoft.msi-installer` | Default |
 | CHM | `com.shunnag.KaitoFinder.chm-archive` | Default |
-| ARJ | `com.shunnag.KaitoFinder.arj-archive` | Default |
+| ARJ | `com.shunnag.KaitoFinder.arj-archive`、`cx.c3.arj-archive` | Default |
 | MacBinary | `com.apple.macbinary-archive` | Alternate |
 | AppleSingle | `com.apple.applesingle-archive` | Alternate |
 | BinHex | `com.apple.binhex-archive` | Alternate |
@@ -683,6 +683,16 @@ pbzx Payload は関連付けない。`tlz` は従来の LZMA import を維持し
 既定の `.merge` による sidecar 除去・resource fork 擬似項目化・index の詰め直しを避け、
 GyoshukuKit の削除 index と編集能力の entry 数照合を一致させる。Finder 製 ZIP の一覧は
 0.1.0 と同じに保つ。[今回の検証記録](verification/2026-09-22-kaitokit-0.8.0.md)を参照。
+
+2026-09-22 追補: オーケストレータが export した 0.2.0 の app を引数付きで起動したところ、
+`.arj` / `.msi` は `NSDocumentController` の型不一致で開けなかった。この Mac では他アプリの
+exported 型 `cx.c3.arj-archive` / `com.microsoft.msi-installer` が自前の imported 型より優先され、
+既存の `LSItemContentTypes` のどれにも一致・準拠しないためである。`.txz` / `.zipx` / `.deb` と
+同じ方式で、ARJ / Compound File の別識別子として追加する。自前識別子は残し、追加した二識別子も
+`public.data` / `public.archive` に準拠する imported type として `arj` / `msi` とともに宣言する。
+これにより、他アプリが未インストールの環境でも識別子が意味を持つ。説明はそれぞれ ARJ / Compound File、
+文書型の数は 33 件を維持し、展開サービスも全 39 識別子へ揃える。
+この Mac で動的な型に解決される `udf` / `wim` / `swm` / `chm` / `lz` / `br` / `tbr` / `pbzx` の宣言は変更しない。
 
 
 ## 6. 取り出しと取り込み

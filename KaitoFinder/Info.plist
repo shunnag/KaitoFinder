@@ -105,8 +105,10 @@
 				<string>com.shunnag.KaitoFinder.udf-image</string>
 				<string>com.shunnag.KaitoFinder.wim-archive</string>
 				<string>com.shunnag.KaitoFinder.msi-archive</string>
+				<string>com.microsoft.msi-installer</string>
 				<string>com.shunnag.KaitoFinder.chm-archive</string>
 				<string>com.shunnag.KaitoFinder.arj-archive</string>
+				<string>cx.c3.arj-archive</string>
 				<string>com.apple.macbinary-archive</string>
 				<string>com.apple.applesingle-archive</string>
 				<string>com.apple.binhex-archive</string>
@@ -473,6 +475,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.shunnag.KaitoFinder.msi-archive</string>
+				<string>com.microsoft.msi-installer</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -501,6 +504,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.shunnag.KaitoFinder.arj-archive</string>
+				<string>cx.c3.arj-archive</string>
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
@@ -1214,6 +1218,24 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.microsoft.msi-installer</string>
+			<key>UTTypeDescription</key>
+			<string>Compound File</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>msi</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.shunnag.KaitoFinder.chm-archive</string>
 			<key>UTTypeDescription</key>
 			<string>CHM</string>
@@ -1233,6 +1255,24 @@
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>com.shunnag.KaitoFinder.arj-archive</string>
+			<key>UTTypeDescription</key>
+			<string>ARJ</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>arj</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>cx.c3.arj-archive</string>
 			<key>UTTypeDescription</key>
 			<string>ARJ</string>
 			<key>UTTypeConformsTo</key>

@@ -40,9 +40,9 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             .dmg: ["com.apple.disk-image-udif"],
             .udf: ["com.shunnag.KaitoFinder.udf-image"],
             .wim: ["com.shunnag.KaitoFinder.wim-archive"],
-            .compoundFile: ["com.shunnag.KaitoFinder.msi-archive"],
+            .compoundFile: ["com.shunnag.KaitoFinder.msi-archive", "com.microsoft.msi-installer"],
             .chm: ["com.shunnag.KaitoFinder.chm-archive"],
-            .arj: ["com.shunnag.KaitoFinder.arj-archive"],
+            .arj: ["com.shunnag.KaitoFinder.arj-archive", "cx.c3.arj-archive"],
             .macBinary: ["com.apple.macbinary-archive"],
             .appleSingle: ["com.apple.applesingle-archive"],
             .binHex: ["com.apple.binhex-archive"],
@@ -59,7 +59,10 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             XCTAssertTrue(Set(identifiers).isSubset(of: declared), format.rawValue)
         }
         XCTAssertEqual(declared, Set(expected.values.flatMap { $0 }))
-        for (name, identifiers) in ["ZIP": expected[.zip], "XZ": expected[.xz], "ar": expected[.ar]] {
+        for (name, identifiers) in [
+            "ZIP": expected[.zip], "XZ": expected[.xz], "ar": expected[.ar],
+            "Compound File": expected[.compoundFile], "ARJ": expected[.arj]
+        ] {
             let document = try XCTUnwrap(documents.first { $0["CFBundleTypeName"] as? String == name })
             XCTAssertEqual(document["LSItemContentTypes"] as? [String], identifiers, name)
         }
@@ -84,8 +87,10 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "com.shunnag.KaitoFinder.udf-image": ["udf"],
             "com.shunnag.KaitoFinder.wim-archive": ["wim", "swm"],
             "com.shunnag.KaitoFinder.msi-archive": ["msi"],
+            "com.microsoft.msi-installer": ["msi"],
             "com.shunnag.KaitoFinder.chm-archive": ["chm"],
             "com.shunnag.KaitoFinder.arj-archive": ["arj"],
+            "cx.c3.arj-archive": ["arj"],
             "com.shunnag.KaitoFinder.lzip-archive": ["lz"],
             "com.shunnag.KaitoFinder.brotli-archive": ["br", "tbr"],
             "com.shunnag.KaitoFinder.pbzx-archive": ["pbzx"]

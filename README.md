@@ -28,6 +28,8 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 - gzip、bzip2、xz、Zstandard (`.zst`)、LZ4 (`.lz4`)、LZMA (`.lzma`)、UNIX compress (`.Z`)、lzip (`.lz`)、Brotli (`.br`)、pbzx (`.pbzx`)
 - 圧縮 tar: tar.gz / tgz、tar.bz2 / tbz / tbz2、tar.xz / txz、tar.zst / tzst、tar.lz4、tar.lzma / tlz、tar.lz、tar.br / tbr、tar.Z
 
+`.msi` / `.arj` は、他のアプリがファイル型を登録している環境での関連付けにも対応する。
+
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
 LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
 
