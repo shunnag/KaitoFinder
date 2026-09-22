@@ -143,6 +143,7 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 「設定…」（⌘,）は **一般 / 圧縮 / 展開 / アップデート** の四つのタブ。
 書庫の開き方、既定の作成形式、隠しファイルやようこその表示、圧縮方式・レベル、展開先・フォルダ作成方針、
 展開成功後に元のアーカイブをゴミ箱へ移すかどうかを設定できる。
+この設定をオンにした分割アーカイブの一括展開では、展開中にどの巻も変更されていないことを確認し、全巻をゴミ箱へ移す。
 追加・新規作成時の **`.DS_Store` の除外は既定でオン、隠しファイル全体の除外は既定でオフ**。
 これらの除外設定は、既存の項目の展開や形式変換には適用しない。
 
@@ -330,7 +331,9 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > Settings… (⌘,) has General, Compression, Extract, and Updates tabs. Choose the default
 > archive format, hidden-file and welcome display, compression methods and levels,
 > extraction destinations and folder rules, and whether to trash an archive after
-> successful extraction. When adding files or creating archives, excluding `.DS_Store`
+> successful extraction. When enabled for split archives, batch extraction checks that
+> no volume changed during extraction, then moves every volume to the Trash.
+> When adding files or creating archives, excluding `.DS_Store`
 > is on by default; excluding all hidden files is off. These exclusions do not apply
 > to extracting or converting existing entries.
 >

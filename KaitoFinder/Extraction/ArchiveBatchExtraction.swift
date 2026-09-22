@@ -151,7 +151,8 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                 extracted.append(archive)
                 if preferences.trashesArchiveAfterExtraction {
                     try Self.checkCancellation(progress)
-                    try await Self.trashArchive(archive, expectedIdentity: opened.sourceIdentity, using: trash)
+                    try await Self.trashArchive(archive, layout: opened.volumeLayout,
+                                               expectedIdentity: opened.sourceIdentity, using: trash)
                 }
             } catch {
                 await session?.close()
@@ -217,13 +218,20 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         guard mkdir(url.path, 0o755) == 0 else { throw ExtractionFailure.system(errno) }
     }
 
-    @concurrent private static func trashArchive(_ url: URL, expectedIdentity: [Int64],
+    @concurrent private static func trashArchive(_ url: URL, layout: ArchiveVolumeLayout?, expectedIdentity: ArchiveSetIdentity,
                                                 using trash: @Sendable (URL) throws -> Void) async throws {
         try Task.checkCancellation()
-        guard try ArchiveImportTransaction.identity(url) == expectedIdentity else {
+        let current: ArchiveSetIdentity?
+        if let layout { current = try? ArchiveSetIdentity.capture(layout: layout) }
+        else { current = try ArchiveSetIdentity.capture(url: url) }
+        // 一巻でも変わっていたら何も移さない。移動を始めた後の失敗はそこで止めて報告する。
+        guard current == expectedIdentity else {
             throw ExtractionFailure.refused(String(localized: "展開中にアーカイブが変更されたため、ゴミ箱に入れませんでした。"))
         }
-        try trash(url)
+        for volume in layout?.volumes.map(\.url) ?? [url] {
+            try Task.checkCancellation()
+            try trash(volume)
+        }
     }
 
     @concurrent private static func removeEmptyFolder(_ url: URL) async {

@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -122,10 +123,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        Self.raiseFileDescriptorLimit()
         startLaunchSweeps()
         documentController = NSDocumentController.shared
         NSApp.servicesProvider = self
         NSApp.mainMenu = makeMenu()
+    }
+
+    nonisolated static func raiseFileDescriptorLimit() {
+        var limit = rlimit()
+        guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else {
+            NSLog("RLIMIT_NOFILE の取得に失敗しました: %d", errno)
+            return
+        }
+        // 分割巻は reader ごとに fd を持つ。既に十分高い上限は下げない。
+        let target = min(limit.rlim_max, rlim_t(OPEN_MAX))
+        guard limit.rlim_cur < target else { return }
+        limit.rlim_cur = target
+        if setrlimit(RLIMIT_NOFILE, &limit) != 0 {
+            NSLog("RLIMIT_NOFILE の引き上げに失敗しました: %d", errno)
+        }
     }
 
     @discardableResult func startLaunchSweeps() -> Task<Void, Never> {

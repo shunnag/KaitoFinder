@@ -242,6 +242,13 @@ ZIP の `.z01` / `.zx01` 系は名前だけで、終巻の `.zip` / `.zipx` は�
 `inspect` では一時コピーの次に検査し、公開処理の開始時と置換の直前にも再検査する。
 開いた後に兄弟が現れた場合は編集と Undo を拒否し、一巻だけを書き換えない。
 
+reader が返す `volumeSet` から巻順・入口・巻サイズの予定表を `ArchiveVolumeLayout` に保持し、
+分割の判定にも使う。`ArchiveSetIdentity` は全巻の名前・ボリューム UUID（取得できない場合は device）・
+inode・size・mode・mtime（秒とナノ秒）と、次の番号の名前が存在しないことを照合する。
+開くときは reader の保持 fd の属性とも一致させ、読み出し・別名で保存・公開・Undo で外部変更を検出する
+（Undo は従来どおり mode を除く）。一括展開後のゴミ箱移動も全巻を先に照合し、一巻でも変わっていれば
+何も移さない。成功した分割セットは全巻を移し、途中の移動が失敗したらそこで止めて残りを残す。
+
 ```swift
 struct ArchiveCapabilities: Sendable {
     var canEdit: Bool // 追加・削除・改名・移動の共通門番

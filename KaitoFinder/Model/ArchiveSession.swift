@@ -62,7 +62,9 @@ actor ArchiveSession {
         }
     }
     private var encryptsSevenZipHeaders = false
-    private(set) var sourceIdentity: [Int64]
+    private(set) var sourceIdentity: ArchiveSetIdentity
+    nonisolated private let volumeLayoutStorage: Mutex<ArchiveVolumeLayout?>
+    nonisolated var volumeLayout: ArchiveVolumeLayout? { volumeLayoutStorage.withLock { $0 } }
     nonisolated let writerOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions
     nonisolated private let importOptions: @Sendable () -> ArchiveImportPlan.Options
     private(set) var quarantine: Data?
@@ -74,9 +76,17 @@ actor ArchiveSession {
         self.password = password
         self.writerOptions = writerOptions
         self.importOptions = importOptions
-        sourceIdentity = try ArchiveImportTransaction.identity(url)
-        quarantine = try ExtractionQuarantine.read(from: url)
+        let original = try ArchiveSetIdentity.capture(url: url)
         let reader = try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+        let layout = reader.volumeSet.map { ArchiveVolumeLayout(volumeSet: $0) }
+        let identity = try Self.currentIdentity(url: url, layout: layout)
+        // 後からパスを調べるだけでは、reader の組み立て中に差し替わった巻を採用してしまう。
+        guard identity == (reader.volumeSet.map { ArchiveSetIdentity(volumeSet: $0) } ?? original) else {
+            throw ArchiveEditError.archiveChanged
+        }
+        sourceIdentity = identity
+        volumeLayoutStorage = Mutex(layout)
+        quarantine = try ExtractionQuarantine.firstValue(from: layout?.volumes.map(\.url) ?? [url]) {}
         self.reader = reader
         formatStorage = Mutex(reader.format)
         // 開いたばかりの reader を渡し、編集可否のために書庫を開き直さない（actor 内で所有したまま読む）。
@@ -84,7 +94,7 @@ actor ArchiveSession {
         encryptionStorage = Mutex(EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted),
                                                   hasKnownPassword: password != nil))
         encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: url, format: reader.format, password: password)
-        guard try ArchiveImportTransaction.identity(url) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
+        guard try Self.currentIdentity(url: url, layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
     }
 
     func extractionReader() throws -> sending ArchiveReader {
@@ -110,8 +120,15 @@ actor ArchiveSession {
         guard !closed, let reader else { throw CancellationError() }
         guard !invalidated else { throw ExtractionFailure.refused(String(localized: "変更後のアーカイブを読み直せませんでした。")) }
         // reopenは旧inodeを保持する。文書を開いてからの置換・削除を先に検出する。
-        guard try ArchiveImportTransaction.identity(sourceURL) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
+        guard try Self.currentIdentity(url: sourceURL, layout: volumeLayout) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
         return reader
+    }
+
+    private static func currentIdentity(url: URL, layout: ArchiveVolumeLayout?) throws -> ArchiveSetIdentity {
+        guard let layout else { return try ArchiveSetIdentity.capture(url: url) }
+        do { return try ArchiveSetIdentity.capture(layout: layout) }
+        // 巻の削除や次の巻の出現も、開いているセットの外部変更として扱う。
+        catch { throw ArchiveEditError.archiveChanged }
     }
 
     nonisolated func setPasswordPrompt(_ prompt: PasswordPrompt?) {
@@ -151,6 +168,10 @@ actor ArchiveSession {
                         let replacement = try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: candidate))
                         guard replacement.entries == (try requireCurrentReader().entries) else {
                             throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
+                        }
+                        if let volumeSet = replacement.volumeSet,
+                           ArchiveSetIdentity(volumeSet: volumeSet) != sourceIdentity {
+                            throw ArchiveEditError.archiveChanged
                         }
                         let verified = try verify(encrypted, using: replacement)
                         try checkReadRequest(generation: expectedGeneration)
@@ -453,14 +474,20 @@ actor ArchiveSession {
         invalidated = true
         verifiedEntries.removeAll()
         capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(String(localized: "変更後のアーカイブを読み直せませんでした。"))) }
-        let identity = try ArchiveImportTransaction.identity(sourceURL)
+        let original = try ArchiveSetIdentity.capture(url: sourceURL)
         let replacement = try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: password))
-        let updatedQuarantine = try ExtractionQuarantine.read(from: sourceURL)
+        let layout = replacement.volumeSet.map { ArchiveVolumeLayout(volumeSet: $0) }
+        let identity = try Self.currentIdentity(url: sourceURL, layout: layout)
+        guard identity == (replacement.volumeSet.map { ArchiveSetIdentity(volumeSet: $0) } ?? original) else {
+            throw ArchiveEditError.archiveChanged
+        }
+        let updatedQuarantine = try ExtractionQuarantine.firstValue(from: layout?.volumes.map(\.url) ?? [sourceURL]) {}
+        let updatedCapabilities = ArchiveCapabilities.inspect(reader: replacement, url: sourceURL, password: password)
+        guard try Self.currentIdentity(url: sourceURL, layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
         reader = replacement
         quarantine = updatedQuarantine
-        let updatedCapabilities = ArchiveCapabilities.inspect(reader: replacement, url: sourceURL, password: password)
-        guard try ArchiveImportTransaction.identity(sourceURL) == identity else { throw ArchiveEditError.archiveChanged }
         sourceIdentity = identity
+        volumeLayoutStorage.withLock { $0 = layout }
         formatStorage.withLock { $0 = replacement.format }
         capabilitiesStorage.withLock { $0 = updatedCapabilities }
         encryptionStorage.withLock {
@@ -477,14 +504,9 @@ actor ArchiveSession {
 
     // append と同じ actor で置換と fresh open を連続させ、旧 inode の reader を渡さない。
     func restoreUndoSlot(_ id: UUID, from stack: ArchiveUndoStack) throws {
-        if ArchiveSplitVolume.isSplitVolumeMember(sourceURL) { throw splitArchiveRefusal() }
+        if volumeLayout != nil || ArchiveSplitVolume.isSplitVolumeMember(sourceURL) { throw splitArchiveRefusal() }
         // Finder の情報パネルによる権限変更は内容を変えず、mode は swap 自身が読み直すため比較から除く。
-        func contentIdentity(_ identity: [Int64]) -> [Int64] {
-            var identity = identity
-            identity.remove(at: 3)
-            return identity
-        }
-        guard try contentIdentity(ArchiveImportTransaction.identity(sourceURL)) == contentIdentity(sourceIdentity)
+        guard try Self.currentIdentity(url: sourceURL, layout: volumeLayout).contentEquals(sourceIdentity)
         else { throw ArchiveEditError.archiveChanged }
         guard let slot = stack.slots.first(where: { $0.id == id }) else { throw ArchiveUndoStack.Failure.missingSlot }
         let restorationFailure = try stack.swap(id, archive: sourceURL, encryption: encryptionSettings())

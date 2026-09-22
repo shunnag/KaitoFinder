@@ -70,7 +70,7 @@ final class ArchiveCreationController {
         let snapshot = await session.snapshot()
         try ArchiveImportPlan.checkCancellation(progress)
         return .init(url: session.sourceURL, password: password, entries: snapshot.entries,
-                     identity: try ArchiveImportTransaction.identity(session.sourceURL),
+                     identity: await session.sourceIdentity, volumeLayout: session.volumeLayout,
                      encryption: await session.encryptionSettings())
     }
 

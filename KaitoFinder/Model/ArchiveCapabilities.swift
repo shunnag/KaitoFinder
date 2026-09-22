@@ -72,7 +72,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
     /// 呼出側（ArchiveSession の actor 内）が所有したまま呼ぶ。
     static func inspect(reader: ArchiveReader, url: URL, password: String? = nil,
                         format: KaitoKit.ArchiveFormat? = nil) -> Self {
-        inspect(url: url, format: format ?? reader.format, password: password) { reader }
+        if ArchiveTemporaryCopy.contains(url) { return Self(refusal: .temporaryCopy) }
+        if reader.volumeSet != nil { return Self(refusal: .splitArchive) }
+        return inspect(url: url, format: format ?? reader.format, password: password) { reader }
     }
 
     // 拒否の優先順: 一時コピー → 分割 → 形式（tar は外側の圧縮）→ [ZIP: 暗号化 → 終端の門番] →
@@ -86,6 +88,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
             switch format {
             case .zip:
                 let reader = try open()
+                if reader.volumeSet != nil { return Self(refusal: .splitArchive) }
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
                 // 従来の updater open と同じ門番と照合。原本が通常ファイルであることも同じ経路で確かめる。
                 let probe = try ArchiveUpdater.probe(url: url)
@@ -125,6 +128,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                     throw RewriterError.invalidArchive("通常ファイルではありません")
                 }
                 let reader = try open()
+                if reader.volumeSet != nil { return Self(refusal: .splitArchive) }
                 try ArchiveRewriter.probe(entries: reader.entries, format: outputFormat)
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
             }

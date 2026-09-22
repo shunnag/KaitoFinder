@@ -12,6 +12,13 @@ M7 までは `.zNN` / `.zip`（`.z01` あり）のセットは読み取り専用
 5. file provider・同期フォルダ、FAT / exFAT、ネットワークボリューム上の分割セットの公開は、既定では拒否し、明示的な同意で許可する。
 6. ZIP 本来の分割は M7 で作る。結果が 1 巻に収まるなら単一のアーカイブにする（M7、今回は範囲外）。
 
+## リリース時の確認事項
+
+- KaitoKit の tag（0.10.0、`ArchiveVolumeSet` を含む）を GyoshukuKit の tag より先に打つ。
+- GyoshukuKit の Package.swift の fallback（`from: "0.8.1"`）を 0.10.0 に上げる。隣に KaitoKit がない環境
+  （利用側の SwiftPM 解決、CI、release）では、0.8.1 に `ArchiveVolumeSet` がないためビルドできない。
+- KaitoFinder は `../KaitoKit` / `../GyoshukuKit` の path 依存のまま。release の手順に従い参照先を確認する。
+
 以下の本文は調査時点（KaitoKit 0.9.0 / GyoshukuKit 0.4.2 / KaitoFinder c2c1572）の設計。付録 2 は本文より優先する。
 行番号は調査時点のもので、実装とともにずれる。
 

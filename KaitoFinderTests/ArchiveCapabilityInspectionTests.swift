@@ -49,6 +49,19 @@ nonisolated final class ArchiveCapabilityInspectionTests: XCTestCase {
         }
     }
 
+    func testAssembledVolumeSetRefusesEditingEvenWhenNameCheckNoLongerFindsSiblings() throws {
+        let fixture = try SplitArchiveFixture(.tar)
+        let reader = try ArchiveReader.open(url: fixture.archive, options: .kaitoFinder())
+        XCTAssertNotNil(reader.volumeSet)
+        for volume in fixture.volumes.dropFirst() {
+            try FileManager.default.moveItem(at: volume, to: volume.appendingPathExtension("held"))
+        }
+        XCTAssertFalse(ArchiveSplitVolume.isSplitVolumeMember(fixture.archive))
+        let opens = openCount()
+        XCTAssertEqual(ArchiveCapabilities.inspect(reader: reader, url: fixture.archive).refusal, .splitArchive)
+        XCTAssertEqual(openCount(), opens)
+    }
+
     func testReaderBasedInspectKeepsRefusals() throws {
         let directory = try ArchiveTestDirectory(), zipFixture = try ScenarioFixture()
         // 終端の後ろに追加データ: GyoshukuKit の門番（probe が同じ拒否を返す）。

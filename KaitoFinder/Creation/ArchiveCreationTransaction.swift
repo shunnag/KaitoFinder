@@ -62,11 +62,7 @@ nonisolated enum ArchiveCreationTransaction {
         let output = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: plan.format))
         do {
             if let existing = plan.existing {
-                if let identity = existing.identity {
-                    guard try ArchiveImportTransaction.identity(existing.url) == identity else {
-                        throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
-                    }
-                }
+                try verifySource(existing)
                 let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
                                                         output: output, format: plan.format, options: plan.options)
                 try add(imported.items, progress: progress, directory: rewriter.addDirectory,
@@ -87,7 +83,7 @@ nonisolated enum ArchiveCreationTransaction {
             // RewriterError は二種類の認証失敗をまとめる。入力した鍵の有無から UI の型へ戻す。
             throw plan.existing?.password == nil ? KaitoError.passwordRequired : KaitoError.wrongPassword
         }
-        let quarantineSources = plan.sources + (plan.existing.map { [$0.url] } ?? [])
+        let quarantineSources = plan.sources + (plan.existing.map { $0.volumeLayout?.volumes.map(\.url) ?? [$0.url] } ?? [])
             + imported.items.map(\.url)
         // フォルダ自体にだけ印の付いた app や空フォルダも対象にする。
         let quarantine = try ExtractionQuarantine.firstValue(from: quarantineSources) {
@@ -97,10 +93,19 @@ nonisolated enum ArchiveCreationTransaction {
         _ = try ArchiveReader.open(url: output, options: .kaitoFinder(password: plan.options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
+        // 書き直しの間に変わった巻も、保存先へ公開する直前に検出する。
+        if let existing = plan.existing { try verifySource(existing) }
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }
         // rewriter が省く root directory record も含め、公開後は必ず完了を示す。
         progress.completedUnitCount = progress.totalUnitCount
         return plan.destination
+    }
+
+    private static func verifySource(_ existing: ArchiveCreationPlan.Existing) throws {
+        guard let identity = existing.identity else { return }
+        guard try ArchiveSetIdentity.capture(url: existing.url, layout: existing.volumeLayout) == identity else {
+            throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
+        }
     }
 
     private static func isSameFile(_ source: URL, _ destination: URL) -> Bool {
