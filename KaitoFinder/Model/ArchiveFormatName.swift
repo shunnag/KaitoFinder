@@ -24,6 +24,18 @@ extension KaitoKit.ArchiveFormat {
         case .lz4: "LZ4"
         case .lzma: "LZMA"
         case .compress: "UNIX compress"
+        case .udf: "UDF"
+        case .wim: "WIM"
+        case .compoundFile: "Compound File"
+        case .chm: "CHM"
+        case .arj: "ARJ"
+        case .dmg: "Apple Disk Image"
+        case .macBinary: "MacBinary"
+        case .appleSingle: "AppleSingle"
+        case .binHex: "BinHex"
+        case .lzip: "lzip"
+        case .brotli: "Brotli"
+        case .pbzx: "pbzx"
         }
     }
 }

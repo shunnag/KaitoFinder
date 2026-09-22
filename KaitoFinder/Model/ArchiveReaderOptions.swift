@@ -15,6 +15,11 @@ nonisolated extension ReaderOptions {
         #if DEBUG
         kaitoFinderOpenCount.withLock { $0 += 1 }
         #endif
-        return ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max), password: password)
+        // .merge は __MACOSX/._name を隠して index を詰め直し、resource fork を
+        // name/..namedfork/rsrc として公開する。削除で ArchiveUpdater.remove(entriesAt:) に
+        // 渡す index と ArchiveCapabilities の entry 数を GyoshukuKit（.expose）に合わせる。
+        // 表示と編集を .expose に統一し、Finder 製 ZIP の一覧も 0.1.0 と同じに保つ。
+        return ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max),
+                             password: password, appleDoublePolicy: .expose)
     }
 }
