@@ -23,13 +23,19 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 - ZIP / ZIP64、7z、RAR4 / RAR5、LHA / LZH
 - StuffIt (`.sit` / `.sea`)、StuffIt X (`.sitx`)
 - tar、cpio、ar (`.deb`)、ISO 9660、xar (`.pkg`)、CAB、RPM
-- gzip、bzip2、xz、Zstandard (`.zst`)、LZ4 (`.lz4`)、LZMA (`.lzma`)、UNIX compress (`.Z`)
-- 圧縮 tar: tar.gz / tgz、tar.bz2 / tbz / tbz2、tar.xz / txz、tar.zst / tzst、tar.lz4、tar.lzma / tlz、tar.Z
+- Apple Disk Image (`.dmg`)、UDF (`.udf`)、WIM (`.wim` / `.swm`)、Compound File（`.msi` など）、CHM (`.chm`)、ARJ (`.arj`)
+- MacBinary (`.bin`)、AppleSingle (`.as`)、BinHex (`.hqx`)
+- gzip、bzip2、xz、Zstandard (`.zst`)、LZ4 (`.lz4`)、LZMA (`.lzma`)、UNIX compress (`.Z`)、lzip (`.lz`)、Brotli (`.br`)、pbzx (`.pbzx`)
+- 圧縮 tar: tar.gz / tgz、tar.bz2 / tbz / tbz2、tar.xz / txz、tar.zst / tzst、tar.lz4、tar.lzma / tlz、tar.lz、tar.br / tbr、tar.Z
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
 LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
 
-ZIP 内の XZ（method 95）と旧 Zstandard（method 20）の展開・プレビューにも対応する。
+ZIP 内の XZ（method 95）と旧 Zstandard（method 20）、旧方式 Shrink / Reduce 1〜4 / Implode、
+7z の Zstandard coder の展開・プレビューにも対応する。
+KaitoKit 0.8.0 で追加された形式と tar.lz / tar.br は読み取り専用。未対応の亜種や圧縮方式もある。
+Finder 製 ZIP は 0.1.0 と同じく `__MACOSX` の付随ファイルを保った一覧で表示・編集する。
+Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連付けず、「ファイル > 開く…」から開く。
 対応する圧縮方式・暗号・分割方法の範囲は [KaitoKit の対応状況](https://github.com/shunnag/KaitoKit#対応状況)を参照。
 パスワードは必要なときに入力し、「このパスワードを記憶」で次回から自動使用できる（記憶は既定でオフ）。
 
@@ -155,10 +161,10 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 
 ## 制限
 
-- tar.zst / tar.lz4 / tar.lzma / tar.Z と、RAR / ISO 9660 / cpio / ar / xar / pkg /
+- tar.zst / tar.lz4 / tar.lzma / tar.lz / tar.br / tar.Z と、RAR / ISO 9660 / cpio / ar / xar / pkg /
   CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZ4・LZMA・UNIX compress は
   読み取り専用。「別名で保存…」で書き込み可能な形式へ変換できる。
-- 圧縮 tar（tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz4 / tar.lzma / tar.Z）は、開くときに内側の tar を一時展開する。
+- 圧縮 tar（tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz4 / tar.lzma / tar.lz / tar.br / tar.Z）は、開くときに内側の tar を一時展開する。
   64 MiB を超えると一時ファイルへ保存するため、起動ボリュームに展開後の tar とほぼ同じ空き容量が必要。
   一時ファイルの書き込み中に空き容量が 1 GiB を下回ると、開く操作を中止する（KaitoKit の `stagingFreeSpaceReserve`）。
 - KaitoKit 既定の reader 制限は、1,000,000 項目 / 保持するメタデータ 256 MiB、

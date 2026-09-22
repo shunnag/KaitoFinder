@@ -36,7 +36,19 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             .zstd: ["org.zstandard.zstd-archive"],
             .lz4: ["com.shunnag.KaitoFinder.lz4-archive"],
             .lzma: ["org.tukaani.lzma-archive"],
-            .compress: ["public.z-archive"]
+            .compress: ["public.z-archive"],
+            .dmg: ["com.apple.disk-image-udif"],
+            .udf: ["com.shunnag.KaitoFinder.udf-image"],
+            .wim: ["com.shunnag.KaitoFinder.wim-archive"],
+            .compoundFile: ["com.shunnag.KaitoFinder.msi-archive"],
+            .chm: ["com.shunnag.KaitoFinder.chm-archive"],
+            .arj: ["com.shunnag.KaitoFinder.arj-archive"],
+            .macBinary: ["com.apple.macbinary-archive"],
+            .appleSingle: ["com.apple.applesingle-archive"],
+            .binHex: ["com.apple.binhex-archive"],
+            .lzip: ["com.shunnag.KaitoFinder.lzip-archive"],
+            .brotli: ["com.shunnag.KaitoFinder.brotli-archive"],
+            .pbzx: ["com.shunnag.KaitoFinder.pbzx-archive"]
         ]
         XCTAssertEqual(Set(expected.keys), Set(KaitoKit.ArchiveFormat.allCases))
         let documents = try XCTUnwrap(declaration()["CFBundleDocumentTypes"] as? [[String: Any]])
@@ -55,6 +67,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
 
     func testImportedExtensionsAndFallbackBindings() throws {
         let imports = try XCTUnwrap(declaration()["UTImportedTypeDeclarations"] as? [[String: Any]])
+        let documents = try XCTUnwrap(declaration()["CFBundleDocumentTypes"] as? [[String: Any]])
         let expected = [
             "org.zstandard.zstd-archive": ["zst", "tzst"],
             "com.shunnag.KaitoFinder.lz4-archive": ["lz4"],
@@ -67,7 +80,15 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "public.zip-archive": ["zip", "zipx", "cbz"],
             "org.tukaani.xz-archive": ["xz", "txz"],
             "org.tukaani.lzma-archive": ["lzma", "tlz"],
-            "com.shunnag.KaitoFinder.ar-archive": ["ar", "a", "deb"]
+            "com.shunnag.KaitoFinder.ar-archive": ["ar", "a", "deb"],
+            "com.shunnag.KaitoFinder.udf-image": ["udf"],
+            "com.shunnag.KaitoFinder.wim-archive": ["wim", "swm"],
+            "com.shunnag.KaitoFinder.msi-archive": ["msi"],
+            "com.shunnag.KaitoFinder.chm-archive": ["chm"],
+            "com.shunnag.KaitoFinder.arj-archive": ["arj"],
+            "com.shunnag.KaitoFinder.lzip-archive": ["lz"],
+            "com.shunnag.KaitoFinder.brotli-archive": ["br", "tbr"],
+            "com.shunnag.KaitoFinder.pbzx-archive": ["pbzx"]
         ]
         for (identifier, extensions) in expected {
             let matches = imports.filter { $0["UTTypeIdentifier"] as? String == identifier }
@@ -80,6 +101,12 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             if identifier == "org.zstandard.zstd-archive" {
                 XCTAssertEqual(imported["UTTypeDescription"] as? String, "Zstandard")
             }
+            if identifier.hasPrefix("com.shunnag.KaitoFinder.") {
+                let document = try XCTUnwrap(documents.first {
+                    ($0["LSItemContentTypes"] as? [String] ?? []).contains(identifier)
+                })
+                XCTAssertEqual(imported["UTTypeDescription"] as? String, document["CFBundleTypeName"] as? String, identifier)
+            }
         }
     }
 
@@ -90,7 +117,19 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "ISO 9660": "Alternate", "xar": "Alternate", "Installer Package": "Alternate",
             "7-Zip": "Default", "RAR": "Default", "LHA": "Default", "ar": "Default",
             "CAB": "Default", "RPM": "Default", "LZMA": "Default", "StuffIt": "Default",
-            "StuffIt X": "Default", "Zstandard": "Default", "LZ4": "Default"
+            "StuffIt X": "Default", "Zstandard": "Default", "LZ4": "Default",
+            "Apple Disk Image": "Alternate",
+            "UDF": "Alternate",
+            "WIM": "Default",
+            "Compound File": "Default",
+            "CHM": "Default",
+            "ARJ": "Default",
+            "MacBinary": "Alternate",
+            "AppleSingle": "Alternate",
+            "BinHex": "Alternate",
+            "lzip": "Default",
+            "Brotli": "Default",
+            "pbzx": "Default"
         ]
         let documents = try XCTUnwrap(declaration()["CFBundleDocumentTypes"] as? [[String: Any]])
         XCTAssertEqual(documents.count, expected.count)
@@ -108,11 +147,23 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             .zip: "ZIP", .rar: "RAR", .sevenZip: "7z", .lha: "LHA", .stuffIt: "StuffIt",
             .stuffItX: "StuffIt X", .tar: "tar", .cpio: "cpio", .ar: "ar", .iso: "ISO 9660",
             .cab: "CAB", .rpm: "RPM", .xar: "xar", .gzip: "gzip", .bzip2: "bzip2", .xz: "xz",
-            .zstd: "Zstandard", .lz4: "LZ4", .lzma: "LZMA", .compress: "UNIX compress"
+            .zstd: "Zstandard", .lz4: "LZ4", .lzma: "LZMA", .compress: "UNIX compress",
+            .dmg: "Apple Disk Image",
+            .udf: "UDF",
+            .wim: "WIM",
+            .compoundFile: "Compound File",
+            .chm: "CHM",
+            .arj: "ARJ",
+            .macBinary: "MacBinary",
+            .appleSingle: "AppleSingle",
+            .binHex: "BinHex",
+            .lzip: "lzip",
+            .brotli: "Brotli",
+            .pbzx: "pbzx"
         ]
         XCTAssertEqual(Set(expected.keys), Set(KaitoKit.ArchiveFormat.allCases))
         // 指定表記の LZMA も rawValue の大文字化と一致する。
-        let uppercaseNames: Set<KaitoKit.ArchiveFormat> = [.zip, .rar, .lha, .cab, .rpm, .lzma, .lz4]
+        let uppercaseNames: Set<KaitoKit.ArchiveFormat> = [.zip, .rar, .lha, .cab, .rpm, .lzma, .lz4, .udf, .wim, .chm, .arj]
         for format in KaitoKit.ArchiveFormat.allCases {
             XCTAssertEqual(format.displayName, try XCTUnwrap(expected[format]), format.rawValue)
             XCTAssertFalse(format.displayName.isEmpty, format.rawValue)

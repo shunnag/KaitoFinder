@@ -619,6 +619,19 @@ Wave D は 16 言語・4,672 訳を追加し、既存 10 言語の 2,920 訳と�
 | StuffIt | `com.stuffit.archive.sit` | Default |
 | StuffIt X | `com.stuffit.archive.sitx` | Default |
 | Zstandard | `org.zstandard.zstd-archive` | Default |
+| LZ4 | `com.shunnag.KaitoFinder.lz4-archive` | Default |
+| Apple Disk Image | `com.apple.disk-image-udif` | Alternate |
+| UDF | `com.shunnag.KaitoFinder.udf-image` | Alternate |
+| WIM | `com.shunnag.KaitoFinder.wim-archive` | Default |
+| Compound File | `com.shunnag.KaitoFinder.msi-archive` | Default |
+| CHM | `com.shunnag.KaitoFinder.chm-archive` | Default |
+| ARJ | `com.shunnag.KaitoFinder.arj-archive` | Default |
+| MacBinary | `com.apple.macbinary-archive` | Alternate |
+| AppleSingle | `com.apple.applesingle-archive` | Alternate |
+| BinHex | `com.apple.binhex-archive` | Alternate |
+| lzip | `com.shunnag.KaitoFinder.lzip-archive` | Default |
+| Brotli | `com.shunnag.KaitoFinder.brotli-archive` | Default |
+| pbzx | `com.shunnag.KaitoFinder.pbzx-archive` | Default |
 
 Archive Utility が開ける形式は Alternate、macOS に標準の開き手がない形式は Default とする。
 ISO 9660 は Finder がマウントするので Alternate を維持し、Installer Package / xar も
@@ -652,6 +665,25 @@ KaitoFinder が開き手の候補に出るかを実測した。識別子・候�
 拒否・変換の形式名は `Model/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
 圧縮 tar の magic による名前と既存の tar / 7z / SFX ZIP の扱いは維持する。
 Finder の登録・ダブルクリックの実機確認は [手動検証 §13](manual-verification.md#13-finder-のこのアプリケーションで開く)を参照。
+
+2026-09-22: KaitoKit 0.8.0 の新形式 12 件を表と文書型に追加した（使用 checkout は
+0.8.1 のレビュー修正込み）。DMG は DiskImageMounter、UDF は Finder、MacBinary / AppleSingle /
+BinHex は Archive Utility の開き手を尊重して Alternate とする。これら旧 Mac 形式と DMG は
+CoreTypes の識別子を参照し、追加の import は作らない。`.bin` も既存 CoreTypes 宣言の範囲で扱う。
+自前 import は UDF (`udf`)、WIM (`wim` / `swm`)、Compound File (`msi`)、CHM (`chm`)、
+ARJ (`arj`)、lzip (`lz`)、Brotli (`br` / `tbr`)、pbzx (`pbzx`) の 8 件で、
+`public.data` / `public.archive` に準拠する。`.doc` / `.xls` / `.ppt` / `.msg` と拡張子のない
+pbzx Payload は関連付けない。`tlz` は従来の LZMA import を維持し、内容の署名で判定する。
+
+展開サービスも同じ全識別子へ更新した。パネルとようこその判定は既存の共有実装から追従する。
+新形式は読み取り専用、圧縮 tar の編集拒否は `tar.lz` / `tar.br` の外側の名前を表示する。
+一覧だけで読めないと分かる項目はプレビュー・オープンを拒否し、stream 内の制限は読み取り時に報告する。
+
+表示用 reader は `ReaderOptions.kaitoFinder` で `appleDoublePolicy: .expose` を指定する。
+既定の `.merge` による sidecar 除去・resource fork 擬似項目化・index の詰め直しを避け、
+GyoshukuKit の削除 index と編集能力の entry 数照合を一致させる。Finder 製 ZIP の一覧は
+0.1.0 と同じに保つ。[今回の検証記録](verification/2026-09-22-kaitokit-0.8.0.md)を参照。
+
 
 ## 6. 取り出しと取り込み
 

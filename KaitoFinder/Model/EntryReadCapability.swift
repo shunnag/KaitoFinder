@@ -54,14 +54,16 @@ nonisolated struct EntryReadCapability: Sendable {
         let method = entry.methodDescription
         // decoder の対応は CompressionCapabilityTests の実 fixture から展開まで照合する。
         switch format {
-        case .zip: return ["stored", "deflate", "deflate64", "bzip2", "lzma", "zstd", "xz", "ppmd"].contains(method)
+        case .zip:
+            return ["stored", "shrink", "reduce1", "reduce2", "reduce3", "reduce4", "implode",
+                    "deflate", "deflate64", "bzip2", "lzma", "zstd", "xz", "ppmd"].contains(method)
         case .lha:
             return ["-lh0-", "-lh1-", "-lh4-", "-lh5-", "-lh6-", "-lh7-", "-lhx-",
                     "-lz4-", "-lz5-", "-lzs-", "-pm0-"].contains(method)
         case .cab: return ["cab (stored)", "cab (MSZIP)", "cab (LZX)"].contains(method) && entry.formatSpecific["continued"] == nil
         case .xar: return ["xar (stored)", "xar (zlib)", "xar (bzip2)", "xar (lzma)", "xar (xz)"].contains(method)
         case .sevenZip:
-            let supported = ["Copy", "LZMA", "LZMA2", "PPMd7", "Deflate", "BZip2", "7zAES-256",
+            let supported = ["Copy", "LZMA", "LZMA2", "PPMd7", "Deflate", "BZip2", "Zstandard", "7zAES-256",
                              "Delta", "Swap2", "Swap4", "BCJ", "ARM", "ARMT", "ARM64", "PPC", "SPARC", "IA64", "BCJ2"]
             return method.isEmpty || method.split(separator: "+").allSatisfy {
                 $0.split(separator: ":").first.map { supported.contains(String($0)) } == true
@@ -70,6 +72,22 @@ nonisolated struct EntryReadCapability: Sendable {
             if entry.formatSpecific["rarVersion"] == "7", method != "RAR5 stored" { return false }
             return ["stored", "RAR4 fastest", "RAR4 fast", "RAR4 normal", "RAR4 good", "RAR4 best",
                     "RAR5 stored", "RAR5 method 1", "RAR5 method 2", "RAR5 method 3", "RAR5 method 4", "RAR5 method 5"].contains(method)
+        case .arj:
+            // ARJReader の method 4・未知の方式、garbled、分割継続は一覧だけが可能。
+            return ["stored", "compressed most", "compressed", "compressed faster", "no data"].contains(method)
+                && !entry.isEncrypted
+                && entry.formatSpecific["continuesInNextVolume"] == nil
+                && entry.formatSpecific["extendedFilePosition"] == nil
+        case .wim, .iso, .udf:
+            // 各 reader が stream の unsupportedMethod と同じ理由を一覧に公開する。
+            // ISO の zisofs2 / multi-extent、WIM の他巻 resource、UDF の未対応 allocation 等。
+            return entry.formatSpecific["unsupported"] == nil
+        case .dmg:
+            // DMGReader は ISO / UDF の一覧を委譲する場合もある。HFS+ の decmpfs は読めない。
+            return entry.formatSpecific["unsupported"] == nil && entry.formatSpecific["hfsCompressed"] != "true"
+        case .chm:
+            // CHMReader は未対応 section の非空ファイルを unknown として公開する。
+            return method != "unknown"
         default: return true
         }
     }

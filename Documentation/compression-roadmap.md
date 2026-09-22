@@ -1,4 +1,4 @@
-# 圧縮形式の棚卸しと追加計画（2026-09-18 更新）
+# 圧縮形式の棚卸しと追加計画（2026-09-22 更新）
 
 KaitoFinder、KaitoKit、GyoshukuKit の現在の作業ツリーを照合した。
 「形式を一覧できる」「中身を読める」「新しく作れる」は別の能力として扱う。
@@ -22,7 +22,10 @@ solid逆順・分割・プレビュー・複数ファイル追加とundo/redoを
 続いてlegacy frameの8 MiB block・圧縮tar・現行形式との混在連結を追加した。
 [legacy追補](verification/2026-09-18-lz4-legacy.md)に別途検証結果を記録する。
 UI結合ではタブ、100ファイルのドロップ、同名置換、保存、履歴の再起動を検証した。
-lzip は参考実装を含まない独立仕様の確定が必要なため未追加。
+2026-09-22: KaitoKit 0.8.0 で lzip・Brotli・pbzx とディスクイメージ等の新形式が追加された。
+KaitoFinder 0.2.0 は文書型・一覧・プレビューへ接続し、ZIP の旧方式と 7z Zstandard にも追従する。
+使用 checkout は KaitoKit 0.8.1 のレビュー修正と GyoshukuKit 0.4.2 を含む。
+アプリの検証状況は[追従記録](verification/2026-09-22-kaitokit-0.8.0.md)を参照。
 
 ## 今回つながりを修正した形式
 
@@ -41,15 +44,17 @@ lzip は参考実装を含まない独立仕様の確定が必要なため未追
 
 | 系統 | 読み取り済みの主な範囲 | 残る主な範囲 |
 |---|---|---|
-| ZIP | stored、Deflate、Deflate64、BZip2、LZMA、Zstandard 20/93、XZ 95、PPMd 98、ZipCrypto/AES、ZIP64・split | JPEG 96、WavPack 97、旧 Shrink/Reduce/Implode、Strong Encryption、spanned/split SFX |
-| 7z | LZMA1/2、PPMd7、Deflate、BZip2、Copy、AES、Delta、Swap2/Swap4、各 BCJ/BCJ2、solid・分割 | RISC-V、Zstandard method、その他の拡張 coder |
-| RAR | RAR4 unpack 29、RAR5 compression version 0、対応済み標準 filter、暗号化・多巻 | RAR4 unpack 15/20/26・custom VM、RAR5 version 1・file-copy、SFX と多巻の組合せ |
+| ZIP | stored、Shrink、Reduce 1〜4、Implode、Deflate、Deflate64、BZip2、LZMA、Zstandard 20/93、XZ 95、PPMd 98、ZipCrypto/AES、ZIP64・split | tokenize 7、JPEG 96、WavPack 97、Strong Encryption、spanned/split SFX |
+| 7z | LZMA1/2、PPMd7、Deflate、BZip2、Zstandard、Copy、AES、Delta、Swap2/Swap4、各 BCJ/BCJ2（BCJ / ARM64 修正込み）、solid・分割 | RISC-V、その他の拡張 coder |
+| RAR | RAR4 unpack 29、RAR5 compression version 0・file copy、対応済み標準 filter、暗号化・多巻 | RAR4 unpack 15/20/26・custom VM、RAR5 version 1、SFX と多巻の組合せ |
 | LHA | level 0〜3、lh0/1/4〜7/lhx、lz4/lz5/lzs、pm0、SFX | lh2/lh3/pm1/pm2 の展開、resource fork の個別公開 |
 | CAB | None、MSZIP、LZX。手元の cabinet に収まる file | Quantum、cabinet をまたぐ一つの file |
-| tar・単一ストリーム | tar、gzip、bzip2、XZ、Zstandard、compress、LZMA_Alone、LZ4 modern/legacy frame と圧縮 tar | LZ4外部辞書、lzip、lzop、外部 Zstandard 辞書、XZ の native backend が扱えない filter |
-| StuffIt / StuffIt X | classic/5、主要 codec・暗号・fork、X の JPEG/English/x86 等 | classic method 4/7/9〜12、未記述の暗号 profile、X の Root recovery・一部 JPEG sampling/多層処理 |
-| その他の容器 | ar/deb、cpio、xar/pkg、RPM、ISO9660/Joliet/Rock Ridge | ARJ、ACE、ZOO、ARC/PAK、Compact Pro/PackIt、ALZip、Amiga 系、MSI/NSIS 等。ISO の UDF/raw sector、cpio/RPM の新 profile も別途 |
-| GyoshukuKit 出力 | ZIP stored/Deflate、tar、tar.gz、tar.bz2、tar.xz、non-solid 7z LZMA2、LHA lh5/stored。ZIP/7z 暗号化 | tar.zst、ZIP の追加 codec、7z solid、多巻出力、Mac の fork/xattr 保存 |
+| tar・単一ストリーム | tar、GNU sparse pax 0.0 / 0.1 / 1.0、gzip、bzip2、XZ、Zstandard、compress、LZMA_Alone、LZ4 modern/legacy、lzip、Brotli、pbzx。tar.lz / tar.br と圧縮 cpio も読み取る | 旧 GNU `S` 型・star / Solaris sparse、LZ4 外部辞書、lzop、外部 Zstandard 辞書、未対応 XZ filter、lzip version 0、shared dictionary Brotli |
+| StuffIt / StuffIt X・旧 Mac wrapper | classic/5、主要 codec・暗号・fork、X の JPEG/English/x86 等、MacBinary / AppleSingle / BinHex | classic method 4/7/9〜12、未記述の暗号 profile、X の Root recovery・一部 JPEG sampling/多層処理 |
+| ISO / UDF / DMG | ISO9660/Joliet/Rock Ridge・zisofs、UDF、DMG の HFS+ / HFSX・ISO / UDF、raw / zlib / bzip2 / lzfse / lzma chunk | zisofs2 / multi-extent zisofs、UDF の ext_ad・他 volume、DMG の ADC / APFS / decmpfs |
+| WIM / Compound File / CHM / ARJ | WIM stored / XPRESS / LZX、CFB の stream と MSI 名、CHM stored / LZX、ARJ stored / method 1〜3・no data | WIM solid / LZMS・他 part・EFS、CHM の未対応 section、ARJ method 4・garbled・multi-volume の続き |
+| その他の容器 | ar/deb、cpio、xar/pkg、RPM | ACE、ZOO、ARC/PAK、Compact Pro/PackIt、ALZip、Amiga 系、NSIS 等。cpio/RPM の新 profile も別途 |
+| GyoshukuKit 出力 | ZIP stored/Deflate、tar、tar.gz、tar.bz2、tar.xz、non-solid 7z LZMA2、LHA lh5/stored。ZIP/7z 暗号化 | tar.zst / tar.lz / tar.br、ZIP の追加 codec、7z solid、多巻出力、Mac の fork/xattr 保存 |
 
 これは実装の差分表で、各容器に存在する全亜種の一覧ではない。
 ISO/UDF や MSI は「圧縮 codec」ではなく容器・ファイルシステムの追加。
@@ -60,10 +65,10 @@ ISO/UDF や MSI は「圧縮 codec」ではなく容器・ファイルシステ�
 | 順位 | 追加内容・規模 | 実装方針 | 完了を判断する検証 |
 |---|---|---|---|
 | 1 | ZIP 20 の互換読み取り / 追加済み | 旧 method ID を既存 Zstandard へ接続。保存形式は従来の stored/Deflate | 独立生成93のpayloadを保ちIDのみ20へ変更。CRC、AES actual method、local/central不一致、split、プレビュー。歴史的20書庫との直接比較は未確認 |
-| 2 | ZIP XZ 95 / 追加済み | `ZipReader` の範囲付き入力を XZ に接続。AESでは認証済み圧縮入力を上限付きで一時保持 | 7-Zip生成書庫との全バイト一致、0 byte、連結、ZIP64/split、CRC/辞書上限、暗号化、プレビュー・編集。新規XZ圧縮出力は追加していない |
+| 2 | ZIP XZ 95 / 追加済み | `ZipReader` の範囲付き入力を XZ に接続。AESでは認証済み圧縮入力を上限付きで一時保持 | Windows 系のツールで生成した書庫との全バイト一致、0 byte、連結、ZIP64/split、CRC/辞書上限、暗号化、プレビュー・編集。新規XZ圧縮出力は追加していない |
 | 3 | tar.xz / tar.bz2 出力 / 実装済み・画面検証中 | TarWriter の出力先へストリーム compressor を挟む。XZ は Apple Compression、BZip2 は system libbz2 を候補とする | BSD tar・xz/bzip2・7zz で全項目照合、空書庫、4 GiB、取消し、容量不足、元入力の変更、atomic publish、undo/redo、保存設定 |
 | 4 | 7z Swap2/Swap4 / 追加済み。RISC-V / 未追加 | Swapはcoder graphのfilterとして追加し、readをまたぐ未完単位を保持。RISC-Vは変換規則の独立確定から着手する | Swapは7zz独立生成、端数・極小buffer、solid逆順、AES、truncate、split、アプリの編集を通過。両エンジン全件と160変異入力も成功。アプリ全UIは継続中。RISC-Vは公開規則と独立fixtureが未充足 |
-| 5 | LZ4 modern/legacy frame / 追加済み。lzip / 未追加 | LZ4 blockとframe、XXH32を公開仕様から実装。単体→圧縮tar→UIの順 | 公式ツールの生成物、連結/skippable、checksum、辞書・出力上限、8 MiB境界、disk staging、拡張子判定 |
+| 5 | LZ4 modern/legacy frame、lzip / 追加済み | LZ4 blockとframe、XXH32を公開仕様から実装。lzip は KaitoKit 0.8.0 の reader を単体・圧縮 tar・プレビューへ接続 | 公式ツールの生成物、連結/skippable、checksum、辞書・出力上限、8 MiB境界、disk staging、拡張子判定 |
 | 6 | CAB跨ぎ、RAR5 version 1、LHA旧方式 / 中〜大 | 実書庫を先に集め、volume identity/solid状態/展開上限を設計。新codecは個別の作業単位にする | 複数の独立fixtureとtoolの一致、欠巻・差替え・順不同read、壊れた辞書/距離、暗号化、変異入力 |
 | 7 | ZIP JPEG/WavPack、旧Mac/DOS/Amiga形式等 / 大 | 公開仕様と再配布可能fixtureの入手状況から順番を決める。容器とcodecを別実装にする | 実在書庫と独立decoderによる全バイト一致。自作writerと自作readerの一致だけでは完了にしない |
 

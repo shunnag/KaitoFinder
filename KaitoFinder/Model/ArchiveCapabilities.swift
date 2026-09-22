@@ -102,6 +102,8 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 case .zstd: return Self(refusal: .format("tar.zst"))
                 case .lz4: return Self(refusal: .format("tar.lz4"))
                 case .lzma: return Self(refusal: .format("tar.lzma"))
+                case .lzip: return Self(refusal: .format("tar.lz"))
+                case .brotli: return Self(refusal: .format("tar.br"))
                 default: return Self(refusal: .format(format.displayName))
                 }
             case .sevenZip: mode = .rewrite(.sevenZip)
