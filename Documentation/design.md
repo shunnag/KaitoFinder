@@ -659,7 +659,7 @@ The Unarchiver が export する `org.tukaani.tar-xz-archive`（`.txz`）、
 既存 import の `txz` / `zipx` / `deb` はフォールバックとして残す。
 Zstandard も同じ準拠先で import し、`zst` / `tzst` を登録する（`.tar.zst` は `zst` で対応）。
 StuffIt は CoreTypes の識別子を参照し、`sit` / `sea`、`sitx` の import も明記する。
-`.tbz2` / `.tbz`、`.z01`、`.jar`、`.cbz` は既存型への準拠で対応するため変更しない。
+`.tbz2` / `.tbz`、`.jar`、`.cbz` は既存型への準拠で対応するため変更しない。
 
 開発用 Mac で Release ビルドを `lsregister -f` により登録した後、拡張子ごとに
 KaitoFinder が開き手の候補に出るかを実測した。識別子・候補・既定アプリの表と CAB の
@@ -671,10 +671,22 @@ KaitoFinder が開き手の候補に出るかを実測した。識別子・候�
 宣言は維持し、「ファイル > 開く…」または Dock のアイコンへのドラッグで開く。
 `.taz`（tar.Z）は動的な型に解決され、import の拡張子一覧でシステム型 `public.z-archive` の
 `z` / `Z` を拡張できないため、「ファイル > 開く…」から開く。
-`.001` の分割ボリュームと `.exe` の自己解凍アーカイブも関連付けの対象外とする。
+`.001` / `.zNN` / `.zxNN` の分割ボリュームと `.exe` の自己解凍アーカイブも関連付けの対象外とする。
+分割巻はアプリ内の「開く…」「アーカイブを展開…」とドロップの判定で
+`ArchiveVolumeSet.parse(fileName:)` を併用する。`ArchiveDocumentController` は起動時に
+最初の文書 controller として生成し、通常の型に文書クラスがない分割巻だけを内部型
+`com.shunnag.KaitoFinder.split-volume` で開く。この型は `public.data` / `public.archive` に
+準拠する exported type で、Viewer / `LSHandlerRank = None` とし、拡張子タグを宣言しない。
+Finder / LaunchServices の実ファイルの関連付けは増やさない。途中の番号付き巻は同じ桁幅の
+先頭巻（桁が増えた名前では `.001` も探す）、`.zNN` / `.zxNN` は最終 `.zip` / `.zipx` に
+入口を揃えてから開き、同じ文書と最近使った項目を共有する。入口が lstat で存在しなければ
+元の URL を渡す。一括展開も同じ入口を使い、分割セットの変更拒否は維持する。
 
 展開サービスの `NSSendFileTypes` は全 `LSItemContentTypes` の集合と一致させる。
-一括展開パネルとようこそのドロップ判定もこの宣言を参照する。
+内部の分割巻型も集合に含めるが、その型を持つ実ファイルがないので Finder のサービス対象は増えない。
+`archiveContentTypes()` も全宣言を参照し、パネルの delegate とドロップ判定が分割巻の名前を補う。
+「開く…」と一括展開のパネルは content type による絞り込みを外し、delegate がフォルダへの移動と
+宣言型に準拠するアーカイブ・分割巻を有効にする。選択確定時はそれ以外を標準エラーで拒否する。
 拒否・変換の形式名は `Model/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
 圧縮 tar の magic による名前と既存の tar / 7z / SFX ZIP の扱いは維持する。
 Finder の登録・ダブルクリックの実機確認は [手動検証 §13](manual-verification.md#13-finder-のこのアプリケーションで開く)を参照。

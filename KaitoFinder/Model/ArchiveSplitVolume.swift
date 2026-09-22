@@ -1,8 +1,40 @@
 import Darwin
 import Foundation
+import KaitoKit
 
 /// 名前と同じ親の兄弟だけで判定し、内容や symlink の参照先は読まない。
 nonisolated enum ArchiveSplitVolume {
+    /// 通常の .zip / .zipx は宣言型に任せ、番号付きの巻だけを名前で受け入れる。
+    static func isOpenableName(_ name: String) -> Bool {
+        guard let parsed = ArchiveVolumeSet.parse(fileName: name) else { return false }
+        return parsed.index >= 0
+    }
+
+    /// 途中の巻を単独で開かず、文書・履歴・一括展開で同じ入口を使う。
+    static func gateURL(for url: URL) -> URL {
+        guard url.isFileURL, let parsed = ArchiveVolumeSet.parse(fileName: url.lastPathComponent) else { return url }
+        let names: [String]
+        switch parsed.scheme {
+        case .numbered(let stem, _):
+            guard parsed.index > 0 else { return url }
+            // 見えている桁幅を優先し、.1000 など桁が増えた名前は .001 も探す。
+            names = [parsed.scheme.fileName(forVolumeAt: 0, count: 1), stem + ".001"]
+        case .zipSpanned(let stem, _, let lastExtension):
+            guard parsed.index >= 0 else { return url }
+            let alternate = lastExtension == lastExtension.lowercased()
+                ? lastExtension.uppercased() : lastExtension.lowercased()
+            names = [stem + "." + lastExtension, stem + "." + alternate]
+        }
+        let parent = url.deletingLastPathComponent()
+        for name in names {
+            let gate = parent.appendingPathComponent(name, isDirectory: false)
+            var info = stat()
+            // 切れた symlink も入口として扱い、読み込み時に通常のエラーを返す。
+            if lstat(gate.path, &info) == 0 { return gate }
+        }
+        return url
+    }
+
     static func isSplitVolumeMember(_ url: URL) -> Bool {
         let name = url.lastPathComponent
         guard let dot = name.lastIndex(of: ".") else { return false }

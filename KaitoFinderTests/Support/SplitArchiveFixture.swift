@@ -4,15 +4,16 @@ import GyoshukuKit
 import XCTest
 @testable import KaitoFinder
 
-/// 内容を持つ五巻のセット。外部コマンドに依存せず、途中の巻だけの変更を再現する。
+/// 既定は内容を持つ五巻のセット。外部コマンドに依存せず、途中の巻だけの変更を再現する。
 nonisolated struct SplitArchiveFixture: Sendable {
     let directory: ArchiveTestDirectory
     let volumes: [URL]
     let contents: [String: Data]
     var archive: URL { volumes[0] }
-    var nextVolume: URL { archive.deletingPathExtension().appendingPathExtension("006") }
+    var nextVolume: URL { archive.deletingPathExtension().appendingPathExtension(String(format: "%03d", volumes.count + 1)) }
 
-    init(_ format: GyoshukuKit.ArchiveFormat = .sevenZip) throws {
+    init(_ format: GyoshukuKit.ArchiveFormat = .sevenZip, volumeCount: Int = 5, chunkSize: Int? = nil) throws {
+        precondition(volumeCount > 0 && (chunkSize ?? 1) > 0)
         directory = try ArchiveTestDirectory()
         let whole = directory.url.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: format))
         let writer = try ArchiveWriter.create(url: whole, format: format)
@@ -29,15 +30,15 @@ nonisolated struct SplitArchiveFixture: Sendable {
         }
         try writer.finish()
         contents = files
-        let bytes = try Data(contentsOf: whole), chunkSize = (bytes.count + 4) / 5
+        let bytes = try Data(contentsOf: whole), size = chunkSize ?? (bytes.count + volumeCount - 1) / volumeCount
         var parts: [URL] = []
-        for offset in stride(from: 0, to: bytes.count, by: chunkSize) {
+        for offset in stride(from: 0, to: bytes.count, by: size) {
             let volume = whole.appendingPathExtension(String(format: "%03d", parts.count + 1))
-            try bytes.subdata(in: offset..<min(offset + chunkSize, bytes.count)).write(to: volume)
+            try bytes.subdata(in: offset..<min(offset + size, bytes.count)).write(to: volume)
             parts.append(volume)
         }
         volumes = parts
-        XCTAssertEqual(volumes.count, 5)
+        if chunkSize == nil { XCTAssertEqual(volumes.count, volumeCount) }
         try FileManager.default.removeItem(at: whole)
     }
 

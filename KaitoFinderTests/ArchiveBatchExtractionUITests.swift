@@ -56,8 +56,11 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         XCTAssertTrue(panel.canChooseFiles)
         XCTAssertFalse(panel.canChooseDirectories)
         XCTAssertTrue(panel.allowsMultipleSelection)
+        XCTAssertTrue(panel.allowedContentTypes.isEmpty)
+        XCTAssertTrue(panel.delegate is ArchiveOpenPanelDelegate)
         // UTType は識別子を小文字に正規化する(com.shunnag.KaitoFinder.ar-archive → …kaitofinder…)。
-        XCTAssertEqual(Set(panel.allowedContentTypes.map { $0.identifier.lowercased() }), Set(expected.map { $0.lowercased() }))
+        XCTAssertEqual(Set(ArchiveBatchExtractionController.archiveContentTypes(bundle: app).map { $0.identifier.lowercased() }),
+                       Set(expected.map { $0.lowercased() }))
         XCTAssertEqual(panel.prompt, String(localized: "展開", bundle: app))
         let destination = ArchiveBatchExtractionController.makeDestinationPanel(bundle: app)
         XCTAssertFalse(destination.canChooseFiles)

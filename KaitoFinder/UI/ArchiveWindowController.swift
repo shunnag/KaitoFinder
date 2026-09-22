@@ -1792,8 +1792,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                         }
                     }
                 }
-            } else if let type = UTType(filenameExtension: url.pathExtension),
-                      ArchiveBatchExtractionController.archiveContentTypes().contains(where: { type.conforms(to: $0) }) {
+            } else if ArchiveOpenPanelDelegate.acceptsArchive(url,
+                archiveTypes: ArchiveBatchExtractionController.archiveContentTypes()) {
                 // 書庫内の書庫は同じアプリで開き、一時コピーの変更不可理由を表示する。
                 NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { [weak self] _, _, error in
                     if let error, let self {

@@ -31,6 +31,7 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 `.msi` / `.arj` は、他のアプリがファイル型を登録している環境での関連付けにも対応する。
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
+`.001` / `.zNN` / `.zxNN` の分割巻は Finder には関連付けず、アプリ内の「開く…」やようこそへのドロップで読み取り専用として開き、途中の巻を選んでも入口の巻があればセット全体を表示する。
 LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
 
 ZIP 内の XZ（method 95）と旧 Zstandard（method 20）、旧方式 Shrink / Reduce 1〜4 / Implode、
@@ -254,6 +255,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > extraction and previews. See [KaitoKit's format support](https://github.com/shunnag/KaitoKit#対応状況)
 > for supported methods, encryption, and volume layouts. Passwords are requested when
 > needed; “Remember this password” enables automatic reuse and is off by default.
+> Split volumes (`.001` / `.zNN` / `.zxNN`) open read-only through File > Open… or the welcome drop zone without Finder associations, and selecting a later volume opens the whole set when its entry volume exists.
 >
 > ## Extract
 >

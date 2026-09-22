@@ -23,6 +23,6 @@
   ApplicationTerminationTests）: 179 件実行、失敗 0、skip 1。
 - 全体: 906 件実行、skip 20、失敗 16（9 テスト）。失敗はすべて GUI 操作のテスト（ArchivePasswordUITests 6、
   ArchiveConflictUITests 1、ArchivePreviewSidebarTests 1、ArchiveTabTests 1）で、「シーンの状態遷移が時間切れ」
-  「無効なメニュー項目」。実行中に macOS がロックされていた（`swift Tools/verify_gui_session.swift` が
-  "macOS is locked" を返した）ための環境要因で、M0 の全体実行では同じテストが通っている。
-  ロック解除後にこの 9 件を再実行して結果を追記する。
+  「無効なメニュー項目」。GUI 以外の失敗はない。実行後に `swift Tools/verify_gui_session.swift` が
+  "macOS is locked" を返した（実行中のロックは直接は確認していない）。M0 の全体実行では同じ 9 件が通っており、
+  本変更は GUI の経路に触れていない。ロックを解除したセッションで 9 件を再実行し、結果をここに追記する（M6 の後）。

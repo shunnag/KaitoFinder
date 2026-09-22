@@ -86,6 +86,28 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         XCTAssertEqual(errno, ENOENT, file: file, line: line)
     }
 
+    @MainActor func testSplitSevenZipBatchExtractionUsesGateAndExtractsEachSetOnce() async throws {
+        let fixture = try SplitArchiveFixture(volumeCount: 3)
+        let before = try fixture.volumes.map { try Data(contentsOf: $0) }
+        let extractor = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .never),
+            passwordPrompt: { _, _ in
+                XCTFail("暗号化していないアーカイブは入力を求めない")
+                throw CancellationError()
+            }, reveal: { _ in })
+        for (index, archives) in [[fixture.archive], [fixture.volumes[2], fixture.archive]].enumerated() {
+            let destination = fixture.directory.url.appendingPathComponent("out\(index)")
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+            let progress = Progress()
+            let report = await extractor.run(archives: archives, base: destination, progress: progress)
+            XCTAssertFalse(report.cancelled)
+            XCTAssertTrue(report.failures.isEmpty, report.failures.map(\.reason).description)
+            XCTAssertEqual(report.extracted, [fixture.archive])
+            XCTAssertEqual(progress.totalUnitCount, 1)
+            try assertContents(destination, fixture.contents)
+        }
+        XCTAssertEqual(try fixture.volumes.map { try Data(contentsOf: $0) }, before)
+    }
+
     func testDestinationFolderPoliciesForSingleAndMultipleTopLevelNames() throws {
         let directory = try ArchiveTestDirectory(), base = directory.url
         let archive = base.appendingPathComponent("photos.zip")

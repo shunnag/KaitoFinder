@@ -113,11 +113,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     static func main() {
         // umask の取得中に他の worker がファイルを作らないよう、AppKit 起動前に確定する。
         _ = ExtractionPermissions.processMask
+        // 最初の instance が shared になるため、NSApplication やメニューの生成より先に置く。
+        let documentController = ArchiveDocumentController()
+        precondition(NSDocumentController.shared === documentController)
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
         application.setActivationPolicy(.regular)
-        withExtendedLifetime(delegate) {
+        withExtendedLifetime((delegate, documentController)) {
             application.run()
         }
     }

@@ -64,6 +64,9 @@ nonisolated struct ArchiveBatchPlan: Sendable {
     }
 
     func run(archives: [URL], base: URL?, progress: Progress) async -> Report {
+        // 複数の巻を選んでも同じセットは一度だけ展開し、認証・結果も入口の URL に揃える。
+        var seen = Set<URL>()
+        let archives = archives.map { ArchiveSplitVolume.gateURL(for: $0) }.filter { seen.insert($0).inserted }
         progress.totalUnitCount = Int64(archives.count)
         progress.completedUnitCount = 0
         let operation = Task { await extractArchives(archives, base: base, progress: progress) }

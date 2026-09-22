@@ -58,7 +58,7 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             XCTAssertFalse(identifiers.isEmpty, format.rawValue)
             XCTAssertTrue(Set(identifiers).isSubset(of: declared), format.rawValue)
         }
-        XCTAssertEqual(declared, Set(expected.values.flatMap { $0 }))
+        XCTAssertEqual(declared, Set(expected.values.flatMap { $0 }).union([ArchiveDocumentController.splitVolumeType]))
         for (name, identifiers) in [
             "ZIP": expected[.zip], "XZ": expected[.xz], "ar": expected[.ar],
             "Compound File": expected[.compoundFile], "ARJ": expected[.arj]
@@ -134,7 +134,8 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             "BinHex": "Alternate",
             "lzip": "Default",
             "Brotli": "Default",
-            "pbzx": "Default"
+            "pbzx": "Default",
+            ArchiveDocumentController.splitVolumeType: "None"
         ]
         let documents = try XCTUnwrap(declaration()["CFBundleDocumentTypes"] as? [[String: Any]])
         XCTAssertEqual(documents.count, expected.count)
@@ -145,6 +146,35 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             XCTAssertEqual(document["CFBundleTypeRole"] as? String, "Viewer", name)
             XCTAssertEqual(document["NSDocumentClass"] as? String, "$(PRODUCT_MODULE_NAME).ArchiveDocument", name)
         }
+    }
+
+    func testSplitVolumeTypeIsExportedWithoutFinderExtensionTags() throws {
+        let plist = try declaration(), identifier = ArchiveDocumentController.splitVolumeType
+        let documents = try XCTUnwrap(plist["CFBundleDocumentTypes"] as? [[String: Any]])
+        let matches = documents.filter { ($0["LSItemContentTypes"] as? [String] ?? []).contains(identifier) }
+        XCTAssertEqual(matches.count, 1)
+        let document = try XCTUnwrap(matches.first)
+        XCTAssertEqual(document["LSItemContentTypes"] as? [String], [identifier])
+        XCTAssertNil(document["CFBundleTypeExtensions"])
+        let exports = try XCTUnwrap(plist["UTExportedTypeDeclarations"] as? [[String: Any]])
+        let exported = exports.filter { $0["UTTypeIdentifier"] as? String == identifier }
+        XCTAssertEqual(exported.count, 1)
+        let type = try XCTUnwrap(exported.first)
+        XCTAssertEqual(Set(try XCTUnwrap(type["UTTypeConformsTo"] as? [String])), Set(["public.data", "public.archive"]))
+        XCTAssertNil(type["UTTypeTagSpecification"])
+        let imports = try XCTUnwrap(plist["UTImportedTypeDeclarations"] as? [[String: Any]])
+        XCTAssertFalse(imports.contains { $0["UTTypeIdentifier"] as? String == identifier })
+        for declaration in imports + exports {
+            let tags = declaration["UTTypeTagSpecification"] as? [String: Any]
+            for suffix in tags?["public.filename-extension"] as? [String] ?? [] {
+                XCTAssertFalse(ArchiveSplitVolume.isOpenableName("archive." + suffix), suffix)
+            }
+        }
+        // 実ファイルに付かない内部型も含め、既存の Services と文書型の集合の一致を保つ。
+        let services = try XCTUnwrap(plist["NSServices"] as? [[String: Any]])
+        let service = try XCTUnwrap(services.first { $0["NSMessage"] as? String == "extractArchives" })
+        XCTAssertEqual(Set(try XCTUnwrap(service["NSSendFileTypes"] as? [String])),
+                       Set(documents.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] }))
     }
 
     func testDisplayNamesCoverEveryReadableFormat() throws {

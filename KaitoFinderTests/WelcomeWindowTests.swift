@@ -222,6 +222,18 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         XCTAssertEqual(calls, 0)
     }
 
+    @MainActor func testOpenDropAcceptsSplitVolumeNamesWithoutDeclaredFileTypes() throws {
+        let directory = try ArchiveTestDirectory(), zone = zone(.open)
+        for name in ["x.7z.001", "x.tar.gz.001", "x.zip.003", "x.z01", "x.ZX02"] {
+            let url = directory.url.appendingPathComponent(name)
+            try Data().write(to: url)
+            XCTAssertTrue(zone.accepts([url]), name)
+        }
+        let folder = directory.url.appendingPathComponent("folder.001")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+        XCTAssertFalse(zone.accepts([folder]))
+    }
+
     @MainActor func testDragUpdatedExitAndEndClearHighlightAndRevalidateTheDrop() throws {
         let urls = try fixtureURLs()
         var calls = 0
