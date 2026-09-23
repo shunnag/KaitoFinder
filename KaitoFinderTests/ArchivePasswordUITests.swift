@@ -147,7 +147,11 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         save.passwordFields.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
         XCTAssertTrue(save.passwordFields.notice.stringValue.isEmpty)
         XCTAssertEqual(accessory.frame.height, expandedHeight, accuracy: 0.5)
-        XCTAssertTrue(UISnapshot.overflowViolations(in: accessory).isEmpty)
+        // フォームは表示中のパネルの高さに上端を合わせる。付属ビューが先に伸び切っても、
+        // パネル本体の伸縮が終わるまでは上端がずれるので、配置が落ち着いてから切れを検査する。
+        try? await scenarioWait { UISnapshot.overflowViolations(in: accessory).isEmpty }
+        let violations = UISnapshot.overflowViolations(in: accessory)
+        XCTAssertTrue(violations.isEmpty, violations.joined(separator: "\n"))
         try UISnapshot.render(accessory, name: "save-encryption-on")
         save.passwordFields.verifyField.stringValue = "different"
         save.passwordFields.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
@@ -222,7 +226,9 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                     + (save.splitControls.map { [$0.choices, $0.number, $0.units] } ?? [])
                 XCTAssertEqual(save.splitControls != nil, split)
                 let collapsedHeight = accessory.fittingSize.height
-                let parent = asSheet ? NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
+                // 分割の行で伸びたシートは 550 pt の親では上端がタイトルバーを越え、AppKit が寄せて中心がずれる。
+                // 親を高くして、伸縮中もシートが中央基準のままになる大きさで測る。
+                let parent = asSheet ? NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: split ? 600 : 550),
                     styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false) : nil
                 parent?.isReleasedWhenClosed = false
                 parent?.center()

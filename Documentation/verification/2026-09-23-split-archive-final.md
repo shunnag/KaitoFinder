@@ -5,17 +5,26 @@
 
 ## 全体テスト
 
-`xcodebuild … test-without-building`（build-for-testing 済み、`KaitoFinder.debug.dylib` に `ArchiveSaveSplitControls` のシンボルを確認）:
-1187 件実行、skip 18、失敗 2（1 テスト）。
+1 回目（ロック解除、da5e81e のビルド）: 1187 件実行、skip 18、失敗 2（1 テスト）。
+ArchivePasswordUITests.testSplitSavePanelResizesWithoutSlidingContents で、保存シート（保存先一覧を閉じた状態）に
+「分割」の行があると、暗号化の行の伸縮中にシートの中心が 2.0 pt 動いた（3 回とも同じ）。
 
-- 失敗: ArchivePasswordUITests.testSplitSavePanelResizesWithoutSlidingContents（M6 で追加した GUI テスト）。
-  保存シート（保存先一覧を閉じた状態）で「分割」の行があると、暗号化の行の伸縮中にシートの中心が 2.0 pt 動く（3 回とも同じ）。
-  他の組み合わせと、分割の行のない従来の testSavePanelResizesWithoutSlidingContents は 0.0 pt。
-- 原因（読み取り専用の診断）: テストの親ウインドウの内容の高さが 550 pt で、分割の行を含む展開後のシート（522 pt）を中央に置くと
-  上端が 552 pt になり、AppKit がタイトルバーの下（550 pt）へ寄せるため中心が 2 pt ずれる。アプリの配置の不具合ではなく、
-  テストの親ウインドウが低いことによる。提案される修正はテストの親の高さを 600 pt にすること（判定の 0.01 pt は緩めない）。
-- 未適用: 書き込み権限つきの Codex の起動が自動許可の判定で拒否されたため、この 1 行は変更していない。
-- 以前に環境依存で失敗していた ArchivePreviewSidebarTests と ArchiveTabSpringLoadingTests は今回はすべて通った。
+テストの修正（ユーザーの許可を得てオーケストレータが直接変更）:
+
+- 親ウインドウの高さ: テストの親の内容の高さ 550 pt では、分割の行を含む展開後のシート（522 pt）を中央に置くと上端が 552 pt になり、
+  AppKit がタイトルバーの下（550 pt）へ寄せるため中心が 2 pt ずれる（読み取り専用の診断）。分割の行がある場合だけ親を 600 pt にした。
+  判定の 0.01 pt は変えていない。修正後は 16 通りの組み合わせすべてで 0.0 pt。
+- 配置が落ち着くまで待つ: 修正中に、testPresentedSplitSavePanelAnimatesEncryptionAndCancelsWithoutSaving が単独実行で
+  必ず失敗することを見つけた（全体実行では通る。変更前のコミットでも単独実行で失敗）。暗号化の行を開いた直後、
+  付属ビュー（319 pt）の中のフォームが y = 6 に置かれ 6 pt はみ出していた。フォームは表示中のパネルの高さ
+  （`viewportHeightInPanel`、この時点で 313 pt）に上端を合わせるため、付属ビューが先に伸び切ってもパネル本体の伸縮が
+  終わるまでずれる。検査の前に、はみ出しがなくなるまで待つようにした（待っても消えなければ詳細付きで失敗する）。
+  修正後、単独実行 3 回とクラス全体 2 回が通った。**未確認**: 分割の行のない従来の保存パネルにも同じ一時的なずれがあるのか、
+  分割の行に固有で 1 フレーム程度 6 pt のはみ出しが見えうるのかは、画面がロックされたため確かめていない（追跡項目）。
+
+2 回目（修正後のビルド）: 1187 件実行、skip 18、失敗 3（2 テスト）。ArchivePreviewSidebarTests.testMenuToolbarAndKeyboardToggleTheActiveArchive と
+ArchiveTabTests.testOpeningPreferenceChangesOnlyNewWindowsAndKeepsNativeTabCommands は、実行中に画面がロックされたための
+「無効なメニュー項目」で、1 回目（ロック解除）ではどちらも通っている。保存パネルの 2 テストは 2 回目も通った。
 
 ## 各リポジトリ
 
