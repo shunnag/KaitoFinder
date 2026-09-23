@@ -1,6 +1,7 @@
 # 分割アーカイブの編集と「保存時にまとめて書き込む」モード（設計）
 
-状態: 実装中（ブランチ feature/split-archive-editing）。M0〜M6 を今回の範囲とし、M7（ZIP 本来の分割 .z01…/.zip の書き込み）は範囲外。
+状態: M0〜M6 を実装済み（ブランチ feature/split-archive-editing、未 push）。M7（ZIP 本来の分割 .z01…/.zip の書き込み）は範囲外。
+最終の全体テストと残る 1 件は [最終検証](../verification/2026-09-23-split-archive-final.md) を参照。
 M7 までは `.zNN` / `.zip`（`.z01` あり）のセットは読み取り専用のままとする。
 
 ## 決定事項（2026-09-23）
