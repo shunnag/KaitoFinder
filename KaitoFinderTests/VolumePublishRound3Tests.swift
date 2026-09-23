@@ -34,7 +34,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         let fixture = try VolumePublishFixture()
         let probed = Mutex(false), unblock = DispatchSemaphore(value: 0)
         var operations = noTrash()
-        operations.mountedVolumes = {
+        operations.mountedVolumes = { _ in
             probed.withLock { $0 = true }
             _ = unblock.wait(timeout: .now() + 0.1)
             return []
@@ -48,7 +48,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         transaction.journal.release()
         let probes = Mutex<[URL]>([]), mount = fixture.root
         var operations = noTrash()
-        operations.mountedVolumes = { XCTFail("didMount must not enumerate other mounts"); return [] }
+        operations.mountedVolumes = { _ in XCTFail("didMount must not enumerate other mounts"); return [] }
         operations.volumeInfo = { directory in
             probes.withLock { $0.append(directory.url) }
             return try VolumePublishFS.volumeInfo(directory)
@@ -66,7 +66,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         try fixture.index.register(url, volumeUUID: volume.uuid, gateName: fixture.plan.gateName)
         let calls = Mutex(0)
         var operations = noTrash()
-        operations.mountedVolumes = {
+        operations.mountedVolumes = { _ in
             calls.withLock { $0 += 1 }
             let lock = try VolumePublishLock.setLock(volumeUUID: volume.uuid, gateInode: nil, parent: fixture.root,
                 gate: fixture.plan.gateName, directory: fixture.index.setLocksURL)
@@ -124,7 +124,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         }
     }
 
-    func testUnknownUUIDStoredJournalRecoversWithoutDroppingHint() throws {
+    func testUnknownUUIDStoredJournalRecoversAndRemovesCompletedHint() throws {
         let fixture = try VolumePublishFixture()
         var operations = noTrash()
         operations.volumeInfo = { directory in
@@ -134,11 +134,11 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         }
         let transaction = try staged(fixture, operations: operations)
         transaction.journal.release()
-        operations.mountedVolumes = { [] }
+        operations.mountedVolumes = { _ in [] }
         let results = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertTrue(results.contains { if case .recovered = $0 { return true }; return false }, "\(results)")
         XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
-        XCTAssertEqual(try fixture.index.entries().count, 1, "An unknown UUID never authorizes dropping the hint")
+        XCTAssertTrue(try fixture.index.entries().isEmpty, "Completed recovery removes the hint even with an unknown UUID")
         try fixture.assertOld()
     }
 
@@ -210,13 +210,13 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         else { return XCTFail("Prepared recovery failed") }
     }
 
-    func testMountCandidatesExcludeUnrelatedNetworkVirtualAndFSKitRoots() {
+    func testMountCandidatesExcludeUnrelatedNetworkAndVirtualRootsButIncludeFSKitFAT() {
         XCTAssertTrue(VolumePublishFS.shouldProbeMount(flags: UInt32(MNT_LOCAL), extendedFlags: 0, kind: "apfs", includeNonLocal: false))
         for kind in ["autofs", "devfs", "nullfs", "devicefs", "fskit"] {
             XCTAssertFalse(VolumePublishFS.shouldProbeMount(flags: UInt32(MNT_LOCAL), extendedFlags: 0, kind: kind, includeNonLocal: false))
         }
         XCTAssertFalse(VolumePublishFS.shouldProbeMount(flags: 0, extendedFlags: 0, kind: "smbfs", includeNonLocal: false))
-        XCTAssertFalse(VolumePublishFS.shouldProbeMount(flags: UInt32(MNT_LOCAL), extendedFlags: UInt32(MNT_EXT_FSKIT), kind: "msdos", includeNonLocal: false))
+        XCTAssertTrue(VolumePublishFS.shouldProbeMount(flags: UInt32(MNT_LOCAL), extendedFlags: UInt32(MNT_EXT_FSKIT), kind: "msdos", includeNonLocal: false))
         XCTAssertTrue(VolumePublishFS.shouldProbeMount(flags: 0, extendedFlags: 0, kind: "smbfs", includeNonLocal: true))
     }
 
@@ -253,7 +253,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         XCTAssertEqual(calls.withLock { $0.count }, 1)
         unblock.signal()
         for _ in 0..<12 { XCTAssertEqual(finished.wait(timeout: .now() + 2), .success) }
-        XCTAssertEqual(calls.withLock { $0 }, [fixture.root, other])
+        XCTAssertEqual(calls.withLock { $0 }, [fixture.root, fixture.root, other])
     }
 
     func testDuplicateUUIDStoredJournalRecoversAndMissingHintIsRetained() throws {
@@ -261,26 +261,25 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         transaction.journal.release()
         let volume = try VolumePublishFS.volumeInfo(transaction.parent), root = try VolumePublishFS.volumeRoot(transaction.parent)
         var operations = noTrash()
-        operations.mountedVolumes = { [.init(root: root, uuid: volume.uuid), .init(root: fixture.root, uuid: volume.uuid)] }
+        operations.mountedVolumes = { _ in [.init(root: root, uuid: volume.uuid), .init(root: fixture.root, uuid: volume.uuid)] }
         let recovery = VolumePublishRecovery(index: fixture.index, operations: operations)
         XCTAssertTrue(recovery.recoverAll().contains { if case .recovered = $0 { return true }; return false })
         XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
-        XCTAssertEqual(try fixture.index.entries().count, 1)
-        XCTAssertNotEqual(try fixture.index.entries().first?.cleanupAuthorized, true)
+        XCTAssertTrue(try fixture.index.entries().isEmpty, "Completed work does not retain a clone hint")
+        // Absence alone still cannot identify which clone held an unresolved staging.
+        try fixture.index.register(transaction.staging.url, volumeUUID: volume.uuid, gateName: fixture.plan.gateName)
         _ = recovery.recoverAll()
         XCTAssertEqual(try fixture.index.entries().count, 1, "Clone ambiguity must not prune a missing hint")
     }
 
-    func testStoredPathRecoveryDoesNotEnumerateAndUniqueLaterPassPrunesHint() throws {
+    func testStoredPathRecoveryRemovesHintWithoutEnumeratingOnEitherPass() throws {
         let fixture = try VolumePublishFixture(), transaction = try staged(fixture)
         transaction.journal.release()
         var operations = noTrash()
-        operations.mountedVolumes = { XCTFail("An existing stored staging needs no mount enumeration"); return [] }
+        operations.mountedVolumes = { _ in XCTFail("An existing stored staging needs no mount enumeration"); return [] }
         _ = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
-        XCTAssertEqual(try fixture.index.entries().count, 1)
-        let volume = try VolumePublishFS.volumeInfo(transaction.parent), root = try VolumePublishFS.volumeRoot(transaction.parent)
-        operations.mountedVolumes = { [.init(root: root, uuid: volume.uuid)] }
+        XCTAssertTrue(try fixture.index.entries().isEmpty)
         _ = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertTrue(try fixture.index.entries().isEmpty)
     }
@@ -292,7 +291,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         try fixture.index.removeCompleted(transaction.staging.url)
         try fixture.index.register(transaction.staging.url, volumeUUID: "unknown-volume", gateName: "another.tar.001")
         var operations = noTrash()
-        operations.mountedVolumes = { XCTFail("An unknown UUID cannot be resolved by enumeration"); return [] }
+        operations.mountedVolumes = { _ in XCTFail("An unknown UUID cannot be resolved by enumeration"); return [] }
         _ = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertTrue(FileManager.default.fileExists(atPath: entry.stagingPath))
         XCTAssertEqual(try fixture.index.entries().count, 1)
@@ -312,7 +311,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
                 var transaction = try staged(fixture, operations: operations)
                 try transaction.retireOld(hook: { _ in }); transaction.journal.release()
                 let before = try VolumePublishFixture.snapshot(fixture.root), coordinated = Mutex(false)
-                operations.mountedVolumes = { [.init(root: fixture.root, uuid: uuid), .init(root: fixture.root.appendingPathComponent("clone"), uuid: uuid)] }
+                operations.mountedVolumes = { _ in [.init(root: fixture.root, uuid: uuid), .init(root: fixture.root.appendingPathComponent("clone"), uuid: uuid)] }
                 operations.willCoordinate = { _ in coordinated.withLock { $0 = true }; throw Fault.io }
                 _ = VolumePublishRecovery(index: fixture.index, operations: operations)
                     .recoverAll(mountedVolume: mountNotification ? fixture.root : nil)
@@ -355,7 +354,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
             let url = URL(fileURLWithPath: entry.stagingPath, isDirectory: true)
             XCTAssertEqual(VolumePublishRecovery(index: fixture.index).recover(staging: url), .owned(url))
             var operations = VolumePublishOperations()
-            operations.mountedVolumes = { XCTFail("A live S1 owner needs no mount resolution"); return [] }
+            operations.mountedVolumes = { _ in XCTFail("A live S1 owner needs no mount resolution"); return [] }
             operations.volumeInfo = { _ in XCTFail("A live S1 owner needs no volume probe"); throw Fault.io }
             XCTAssertEqual(VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll(), [.owned(url)])
         }

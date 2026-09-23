@@ -97,8 +97,9 @@ nonisolated final class VolumeSetPublication: Sendable {
             guard previous.map({ $0.stem == stem }) ?? (indexedGate == plan.gateName) else { continue }
             let result = VolumePublishRecovery(index: index, operations: operations).recover(staging: url,
                 alreadyLockedGate: plan.gateName, options: options, presenter: target.filePresenter,
-                volume: volume, volumeRoot: volumeRoot)
+                volume: volume, volumeRoot: volumeRoot, parent: parent)
             if case .recovered = result { continue }
+            if case .owned = result { throw VolumePublishError.ownerAlive }
             // Re-read after cleanup: only a still-readable, valid done journal exempts this backup.
             if let completed = try? VolumePublishJournal.inspect(parent.directory(name)), completed.phase == .done {
                 try completed.validate(stagingName: base)
@@ -123,10 +124,13 @@ nonisolated final class VolumeSetPublication: Sendable {
         let stagingName = VolumePublishFS.stagingPrefix + UUID().uuidString
         let stagingURL = parent.url.appendingPathComponent(stagingName, isDirectory: true)
         let stagingLock = try VolumePublishLock.stagingLock(stagingName, directory: index.stagingLocksURL)
-        defer { withExtendedLifetime(stagingLock) {} }
+        defer {
+            try? stagingLock.removeIfResolved(stagingName, parent: parent, index: index)
+            withExtendedLifetime(stagingLock) {}
+        }
         // mkdir より先に索引へ。S1 途中の crash でも launch/didMount が発見できる。
         try index.register(stagingURL, volumeUUID: volume.uuid, gateName: plan.gateName, nonLocalVolume: !volume.isLocal,
-                           stagingLockName: stagingName, volumeRoot: volumeRoot)
+                           stagingLockName: stagingName, volumeRoot: volumeRoot, fileSystem: volume.fileSystem)
         var createdStaging: VolumePublishDirectory?
         do {
             try fault(.registered)

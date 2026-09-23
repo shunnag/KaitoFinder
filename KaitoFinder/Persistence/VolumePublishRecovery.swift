@@ -11,6 +11,11 @@ nonisolated struct VolumePublishRecovery: Sendable {
         case owned(URL)
     }
     private static let mutex = Mutex(())
+    private struct Discovery: Sendable {
+        let parent: VolumePublishDirectory
+        let volume: VolumePublishFS.VolumeInfo
+        let root: URL
+    }
     let index: RecoverableWorkIndex
     let operations: VolumePublishOperations
     init(index: RecoverableWorkIndex = .shared, operations: VolumePublishOperations = .init()) {
@@ -24,87 +29,104 @@ nonisolated struct VolumePublishRecovery: Sendable {
         var scanParents: [URL: (VolumePublishFS.VolumeInfo, URL)] = [:]
         do {
             let entries = try index.entries() // Empty launch/didMount must never touch a mount root.
+            if mountedVolume == nil { try VolumePublishLock.sweepStagingLocks(index: index) }
             let notified = try entries.isEmpty ? nil : mountedVolume.map { root in
-                (root, try operations.volumeInfo(VolumePublishDirectory(root)))
+                (root, try VolumePublishMountProbe.run(root: root) { try operations.volumeInfo(VolumePublishDirectory(root)) })
             }
             var unresolved: [RecoverableWorkIndex.Entry] = []
+            var discoveryFailures: [String: String] = [:]
             for entry in entries {
                 let stored = URL(fileURLWithPath: entry.stagingPath, isDirectory: true)
                 do {
-                    let ownership = try VolumePublishLock.stagingLock(stored.lastPathComponent, directory: index.stagingLocksURL)
-                    ownership.release()
+                    if try VolumePublishLock.stagingIsOwned(stored.lastPathComponent, directory: index.stagingLocksURL) {
+                        results.append(.owned(stored)); continue
+                    }
                     if let (root, volume) = notified {
                         // Never examine an unrelated stored path on a mount notification.
                         let candidate = VolumePublishFS.relativePath(stored, on: root) != nil ? stored
                             : entry.resolved(on: root, uuid: volume.uuid)
                         guard let candidate, !VolumePublishFS.knownUUID(entry.volumeUUID) || entry.volumeUUID == volume.uuid else { continue }
-                        let parent = try VolumePublishDirectory(candidate.deletingLastPathComponent())
-                        guard try Self.hasStaging(candidate, in: parent) else { continue }
-                        try Self.requireAttribution(candidate, entry: entry, parent: parent)
+                        guard let found = try discover(candidate, entry: entry, volume: volume, root: root, requireStaging: true) else { continue }
                         results.append(recover(staging: candidate, alreadyLockedGate: nil, indexedEntry: entry,
-                            volume: volume, volumeRoot: root, mounts: [], retainIndexHint: true))
-                        visited.insert(candidate); scanParents[parent.url] = (volume, root)
+                            volume: volume, volumeRoot: root, mounts: [], parent: found.parent))
+                        visited.insert(candidate); scanParents[found.parent.url] = (volume, root)
                         continue
                     }
                     // The stored path is the cheapest and least ambiguous discovery hint, including clones.
-                    let parent = try VolumePublishDirectory(stored.deletingLastPathComponent())
-                    guard try Self.hasStaging(stored, in: parent) else { unresolved.append(entry); continue }
-                    let volume = try operations.volumeInfo(parent)
+                    guard let found = try discover(stored, entry: entry, requireStaging: true) else { unresolved.append(entry); continue }
+                    let volume = found.volume, root = found.root
                     guard !VolumePublishFS.knownUUID(entry.volumeUUID) || entry.volumeUUID == volume.uuid else {
                         unresolved.append(entry); continue
                     }
-                    try Self.requireAttribution(stored, entry: entry, parent: parent)
-                    let root = try VolumePublishFS.volumeRoot(parent)
                     results.append(recover(staging: stored, alreadyLockedGate: nil, indexedEntry: entry,
-                        volume: volume, volumeRoot: root, mounts: [], retainIndexHint: true))
-                    visited.insert(stored); scanParents[parent.url] = (volume, root)
+                        volume: volume, volumeRoot: root, mounts: [], parent: found.parent))
+                    visited.insert(stored); scanParents[found.parent.url] = (volume, root)
                 } catch VolumePublishError.ownerAlive { results.append(.owned(stored)) }
                 catch {
-                    if notified == nil { unresolved.append(entry) }
+                    if notified == nil { unresolved.append(entry); discoveryFailures[entry.stagingPath] = String(describing: error) }
                     else { results.append(.held(staging: stored, reason: "Volume unavailable: \(error)")) }
                 }
             }
             // Resolve only the remaining hints, once, outside every recovery/set lock.
             let resolvable = unresolved.filter { VolumePublishFS.knownUUID($0.volumeUUID) }
-            let mounts = try resolvable.isEmpty ? [] : (resolvable.contains { $0.nonLocalVolume == true }
-                ? operations.nonLocalMountedVolumes() : operations.mountedVolumes())
+            let types = Set(resolvable.compactMap(\.fileSystem).map { $0.lowercased() })
+            let mounts: VolumePublishFS.MountScan = try resolvable.isEmpty ? [] : (resolvable.contains { $0.nonLocalVolume == true }
+                ? operations.nonLocalMountedVolumes(types) : operations.mountedVolumes(types))
+            for failure in mounts.failures { results.append(.held(staging: failure.root, reason: "Mount probe skipped: \(failure.reason)")) }
             for entry in unresolved {
                 let stored = URL(fileURLWithPath: entry.stagingPath, isDirectory: true)
-                let roots = Set(mounts.filter { $0.uuid == entry.volumeUUID }.map(\.root))
+                let roots = Set(mounts.volumes.filter { $0.uuid == entry.volumeUUID }.map(\.root))
                 guard VolumePublishFS.knownUUID(entry.volumeUUID), roots.count == 1, let root = roots.first,
                       let resolved = entry.resolved(on: root, uuid: entry.volumeUUID) else {
-                    results.append(.held(staging: stored, reason: "Volume UUID is unavailable or ambiguous")); continue
+                    let diagnostic = discoveryFailures[entry.stagingPath].map { "; stored-path probe: \($0)" } ?? ""
+                    results.append(.held(staging: stored, reason: "Volume UUID is unavailable or ambiguous\(diagnostic)")); continue
                 }
                 do {
-                    let parent = try VolumePublishDirectory(resolved.deletingLastPathComponent())
-                    let volume = try operations.volumeInfo(parent)
+                    guard let found = try discover(resolved, entry: entry) else { throw VolumePublishError.system(ENOENT) }
+                    let volume = found.volume
                     guard volume.uuid == entry.volumeUUID else { throw VolumePublishError.setChanged }
                     results.append(recover(staging: resolved, alreadyLockedGate: nil, indexedEntry: entry,
-                        volume: volume, volumeRoot: root, mounts: mounts))
-                    visited.insert(resolved); scanParents[parent.url] = (volume, root)
+                        volume: volume, volumeRoot: root, mounts: mounts, parent: found.parent))
+                    visited.insert(resolved); scanParents[found.parent.url] = (volume, root)
                 } catch { results.append(.held(staging: stored, reason: "Volume unavailable: \(error)")) }
             }
         } catch { results.append(.held(staging: index.fileURL, reason: "Recovery discovery: \(error)")) }
         for url in parents where scanParents[url] == nil {
             do {
-                let parent = try VolumePublishDirectory(url)
-                scanParents[url] = (try operations.volumeInfo(parent), try VolumePublishFS.volumeRoot(parent))
+                scanParents[url] = try VolumePublishMountProbe.run(root: url) {
+                    let parent = try VolumePublishDirectory(url)
+                    return (try operations.volumeInfo(parent), try VolumePublishFS.volumeRoot(parent))
+                }
             } catch { results.append(.held(staging: url, reason: "Parent unavailable: \(error)")) }
         }
         for (parentURL, metadata) in scanParents {
             do {
-                let parent = try VolumePublishDirectory(parentURL)
-                for name in try parent.names() where VolumePublishRemoval.stagingName(name) != nil {
+                let names = try VolumePublishMountProbe.run(root: parentURL) { try VolumePublishDirectory(parentURL).names() }
+                for name in names where VolumePublishRemoval.stagingName(name) != nil {
                     let url = parentURL.appendingPathComponent(name, isDirectory: true)
                     guard !visited.contains(url), !visited.contains(parentURL.appendingPathComponent(VolumePublishRemoval.stagingName(name)!, isDirectory: true)) else { continue }
                     results.append(recover(staging: url, alreadyLockedGate: nil, volume: metadata.0,
-                        volumeRoot: metadata.1, mounts: [], retainIndexHint: true))
+                        volumeRoot: metadata.1, mounts: []))
                     visited.insert(url)
                 }
             } catch { results.append(.held(staging: parentURL, reason: "Parent unavailable: \(error)")) }
         }
         for case .held(let url, let reason, _) in results { NSLog("分割アーカイブの回復を保留: %@ (%@)", url.path, reason) }
         return results
+    }
+
+    /// Only read-only discovery runs on the bounded worker. A timed-out worker cannot recover/delete later.
+    private func discover(_ url: URL, entry: RecoverableWorkIndex.Entry? = nil,
+                          volume: VolumePublishFS.VolumeInfo? = nil, root: URL? = nil,
+                          requireStaging: Bool = false) throws -> Discovery? {
+        try VolumePublishMountProbe.run(root: url) {
+            let parent = try VolumePublishDirectory(url.deletingLastPathComponent())
+            let present = try Self.hasStaging(url, in: parent)
+            if requireStaging && !present { return nil as Discovery? }
+            let info = try volume ?? operations.volumeInfo(parent)
+            if present, let entry { try Self.requireAttribution(url, entry: entry, parent: parent) }
+            return Discovery(parent: parent, volume: info, root: try root ?? VolumePublishFS.volumeRoot(parent))
+        }
     }
 
     private static func hasStaging(_ url: URL, in parent: VolumePublishDirectory) throws -> Bool {
@@ -130,59 +152,72 @@ nonisolated struct VolumePublishRecovery: Sendable {
     /// begin passes its S0 metadata, so no mount probe runs while its set lock is held.
     func recover(staging url: URL, alreadyLockedGate: String?, options: ReaderOptions = .kaitoFinder(), presenter: (any NSFilePresenter)? = nil,
                  indexedEntry: RecoverableWorkIndex.Entry? = nil, volume suppliedVolume: VolumePublishFS.VolumeInfo? = nil,
-                 volumeRoot suppliedRoot: URL? = nil, mounts suppliedMounts: [VolumePublishFS.MountedVolume]? = nil,
-                 retainIndexHint: Bool = false) -> Result {
+                 volumeRoot suppliedRoot: URL? = nil, mounts suppliedMounts: VolumePublishFS.MountScan? = nil,
+                 parent suppliedParent: VolumePublishDirectory? = nil) -> Result {
         do {
             guard let baseName = VolumePublishRemoval.stagingName(url.lastPathComponent) else {
                 throw VolumePublishError.unsafePath(url.path)
             }
             // S1 ownership is visible before mkdir or the journal. No mount probe is needed to skip it.
-            do {
-                let ownership = try VolumePublishLock.stagingLock(baseName, directory: index.stagingLocksURL)
-                ownership.release()
-            } catch VolumePublishError.ownerAlive { return .owned(url) }
-            let parent = try VolumePublishDirectory(url.deletingLastPathComponent())
-            let volume = try suppliedVolume ?? operations.volumeInfo(parent)
-            let root = try suppliedRoot ?? VolumePublishFS.volumeRoot(parent)
+            if try VolumePublishLock.stagingIsOwned(baseName, directory: index.stagingLocksURL) { return .owned(url) }
+            let metadata: Discovery
+            if let suppliedParent, let suppliedVolume, let suppliedRoot {
+                metadata = Discovery(parent: suppliedParent, volume: suppliedVolume, root: suppliedRoot)
+            } else {
+                guard let found = try discover(url, volume: suppliedVolume, root: suppliedRoot) else { throw VolumePublishError.system(ENOENT) }
+                metadata = found
+            }
+            let parent = metadata.parent, volume = metadata.volume, root = metadata.root
             let originalURL = parent.url.appendingPathComponent(baseName, isDirectory: true)
-            let entry = try indexedEntry ?? index.entries().first { $0.matches(originalURL, volumeUUID: volume.uuid, root: root) }
-            let mounts: [VolumePublishFS.MountedVolume]
+            var parentInfo = stat()
+            guard fstat(parent.fd, &parentInfo) == 0 else { throw VolumePublishError.system(errno) }
+            let entry = try indexedEntry ?? index.entries().first {
+                $0.matches(originalURL, volumeUUID: volume.uuid, root: root, parentInode: parentInfo.st_ino)
+            }
+            let mounts: VolumePublishFS.MountScan
             if let suppliedMounts { mounts = suppliedMounts }
             else if alreadyLockedGate == nil, let entry, VolumePublishFS.knownUUID(entry.volumeUUID),
                     try !Self.hasStaging(originalURL, in: parent) {
-                mounts = try entry.nonLocalVolume == true ? operations.nonLocalMountedVolumes() : operations.mountedVolumes()
+                let types = Set([entry.fileSystem].compactMap { $0?.lowercased() })
+                mounts = try entry.nonLocalVolume == true ? operations.nonLocalMountedVolumes(types) : operations.mountedVolumes(types)
+                for failure in mounts.failures { NSLog("Volume recovery mount probe skipped: %@ (%@)", failure.root.path, failure.reason) }
             } else { mounts = [] }
             return recoverLocked(staging: url, baseName: baseName, parent: parent, volume: volume, entry: entry,
-                mounts: mounts, retainIndexHint: retainIndexHint || !VolumePublishFS.knownUUID(volume.uuid),
+                mounts: mounts,
                 alreadyLockedGate: alreadyLockedGate, options: options, presenter: presenter)
         } catch { return .held(staging: url, reason: String(describing: error)) }
     }
 
     private func recoverLocked(staging url: URL, baseName: String, parent: VolumePublishDirectory,
                                volume: VolumePublishFS.VolumeInfo, entry: RecoverableWorkIndex.Entry?,
-                               mounts: [VolumePublishFS.MountedVolume], retainIndexHint: Bool, alreadyLockedGate: String?,
+                               mounts: VolumePublishFS.MountScan, alreadyLockedGate: String?,
                                options: ReaderOptions, presenter: (any NSFilePresenter)?) -> Result {
         Self.mutex.withLock { _ in
             do {
+                // Read the key without ownership, then acquire in the publisher's order: set → staging.
+                let preview = try? VolumePublishJournal.inspect(parent.directory(baseName))
+                let gate = preview?.newGate ?? entry?.gateName ?? alreadyLockedGate ?? baseName
+                let setLock = try gate == alreadyLockedGate ? nil : VolumePublishLock.setLock(
+                    volumeUUID: volume.uuid, gateInode: nil, parent: parent.url, gate: gate, directory: index.setLocksURL)
+                defer { setLock?.release() }
                 let stagingLock = try VolumePublishLock.stagingLock(baseName, directory: index.stagingLocksURL)
-                defer { stagingLock.release() }
+                defer {
+                    do { try stagingLock.removeIfResolved(baseName, parent: parent, index: index) }
+                    catch { NSLog("Volume recovery lock cleanup pending: %@ (%@)", url.path, String(describing: error)) }
+                    stagingLock.release()
+                }
                 let originalURL = parent.url.appendingPathComponent(baseName, isDirectory: true)
                 let indexedURL = entry.map { URL(fileURLWithPath: $0.stagingPath, isDirectory: true) } ?? originalURL
                 if try url.lastPathComponent.hasSuffix(".discard") || (parent.info(baseName) == nil && parent.info(baseName + ".discard") != nil) {
                     try VolumePublishRemoval.remove(baseName + ".discard", from: parent, operations: operations)
                     try parent.sync(full: true)
-                    if !retainIndexHint, try parent.info(baseName) == nil { try index.removeCompleted(indexedURL) }
+                    if try parent.info(baseName) == nil { try index.removeCompleted(indexedURL) }
                     return .recovered(staging: url, direction: .cleanup, disposal: .removed)
                 }
                 if try parent.info(url.lastPathComponent) == nil {
                     guard let entry else { return .recovered(staging: url, direction: .cleanup, disposal: .none) }
-                    let lock = try entry.gateName.flatMap { gate in
-                        try gate == alreadyLockedGate ? nil : VolumePublishLock.setLock(volumeUUID: volume.uuid,
-                            gateInode: nil, parent: parent.url, gate: gate, directory: index.setLocksURL)
-                    }
-                    defer { lock?.release() }
-                    let roots = Set(mounts.filter { $0.uuid == entry.volumeUUID }.map(\.root))
-                    guard !retainIndexHint, VolumePublishFS.knownUUID(entry.volumeUUID), entry.volumeUUID == volume.uuid,
+                    let roots = Set(mounts.volumes.filter { $0.uuid == entry.volumeUUID }.map(\.root))
+                    guard mounts.isComplete, VolumePublishFS.knownUUID(entry.volumeUUID), entry.volumeUUID == volume.uuid,
                           roots.count == 1, let root = roots.first,
                           let resolved = entry.resolved(on: root, uuid: entry.volumeUUID) else { throw VolumePublishError.system(ENOENT) }
                     let resolvedParent = try VolumePublishDirectory(resolved.deletingLastPathComponent())
@@ -196,11 +231,6 @@ nonisolated struct VolumePublishRecovery: Sendable {
                     return .recovered(staging: url, direction: .cleanup, disposal: .none)
                 }
                 let staging = try parent.directory(url.lastPathComponent)
-                let preview = try? VolumePublishJournal.inspect(staging)
-                let gate = preview?.newGate ?? entry?.gateName ?? alreadyLockedGate ?? url.lastPathComponent
-                let setLock = try gate == alreadyLockedGate ? nil : VolumePublishLock.setLock(
-                    volumeUUID: volume.uuid, gateInode: nil, parent: parent.url, gate: gate, directory: index.setLocksURL)
-                defer { setLock?.release() }
                 let journal: VolumePublishJournal
                 let record: VolumePublishJournalRecord
                 var openedJournal: VolumePublishJournal?
@@ -215,17 +245,18 @@ nonisolated struct VolumePublishRecovery: Sendable {
                     openedJournal?.release()
                     guard try Self.incompletePreparation(staging) else { throw error }
                     try staging.verifyPath()
-                    if !retainIndexHint { try index.authorizeCleanup(indexedURL) }
+                    try index.authorizeCleanup(indexedURL)
                     try VolumePublishRemoval.discard(staging, parent: parent, operations: operations, isNetworkVolume: !volume.isLocal)
                     try parent.sync(full: true)
-                    if !retainIndexHint { try index.removeCompleted(indexedURL) }
+                    try index.removeCompleted(indexedURL)
                     return .recovered(staging: url, direction: .discardedPreparation, disposal: .removed)
                 }
                 defer { journal.release() }
+                guard record.newGate == gate else { throw VolumePublishError.setChanged }
                 var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
                     renamer: VolumeExclusiveRename(usesFallback: record.usesExclusiveRenameFallback, verifiesPaths: false), index: index,
                     record: record, operations: operations, stagingLock: stagingLock, isNetworkVolume: !volume.isLocal,
-                    retainIndexHint: retainIndexHint, indexedURL: indexedURL)
+                    indexedURL: indexedURL)
                 if record.phase == .done || entry?.cleanupAuthorized == true {
                     // Never resurrect an old set after commit. Unlink needs a fresh live-copy proof.
                     var allowRemoval = false

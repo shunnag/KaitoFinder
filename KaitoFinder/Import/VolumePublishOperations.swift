@@ -21,8 +21,8 @@ nonisolated struct VolumePublishOperations: Sendable {
     /// Opt-in, post-commit reader diagnostic; nil means do not open a reader during recovery.
     var recoveryReaderDiagnostic: (@Sendable (String?) -> Void)? = nil
     var volumeInfo: @Sendable (VolumePublishDirectory) throws -> VolumePublishFS.VolumeInfo = { try VolumePublishFS.volumeInfo($0) }
-    var mountedVolumes: @Sendable () throws -> [VolumePublishFS.MountedVolume] = { try VolumePublishFS.mountedVolumes() }
-    var nonLocalMountedVolumes: @Sendable () throws -> [VolumePublishFS.MountedVolume] = { try VolumePublishFS.mountedVolumes(includeNonLocal: true) }
+    var mountedVolumes: @Sendable (Set<String>) throws -> VolumePublishFS.MountScan = { try VolumePublishFS.mountedVolumes(fileSystems: $0) }
+    var nonLocalMountedVolumes: @Sendable (Set<String>) throws -> VolumePublishFS.MountScan = { try VolumePublishFS.mountedVolumes(includeNonLocal: true, fileSystems: $0) }
     var renameStaging: @Sendable (Int32, String, String, UInt32) -> Int32 = { fd, from, to, flags in
         renameatx_np(fd, from, fd, to, flags)
     }

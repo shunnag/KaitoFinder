@@ -284,7 +284,7 @@ nonisolated final class VolumePublishRecoveryTests: XCTestCase {
         await delegate.startLaunchSweeps().value
         try fixture.assertNew()
         XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path))
-        XCTAssertEqual(try fixture.index.entries().count, 1, "Stored-path recovery retains the hint without probing unrelated mounts")
+        XCTAssertTrue(try fixture.index.entries().isEmpty, "Stored-path recovery removes the completed hint without probing unrelated mounts")
     }
 
     func testLegacyPendingRegistryNeverSweepsVolumePublicationPrefix() throws {

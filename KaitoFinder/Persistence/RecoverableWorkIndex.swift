@@ -14,10 +14,13 @@ nonisolated final class RecoverableWorkIndex: Sendable {
         var parentInode: UInt64? = nil
         var nonLocalVolume: Bool? = nil
         var stagingLockName: String? = nil
+        var fileSystem: String? = nil
 
-        func matches(_ staging: URL, volumeUUID: String, root: URL) -> Bool {
+        func matches(_ staging: URL, volumeUUID: String, root: URL, parentInode: UInt64? = nil) -> Bool {
             self.volumeUUID == volumeUUID && (stagingPath == staging.path
-                || (relativeStagingPath != nil && relativeStagingPath == VolumePublishFS.relativePath(staging, on: root)))
+                || (relativeStagingPath != nil && relativeStagingPath == VolumePublishFS.relativePath(staging, on: root))
+                || (self.parentInode != nil && self.parentInode == parentInode
+                    && URL(fileURLWithPath: stagingPath).lastPathComponent == staging.lastPathComponent))
         }
 
         func resolved(on root: URL, uuid: String) -> URL? {
@@ -35,7 +38,7 @@ nonisolated final class RecoverableWorkIndex: Sendable {
 
     func entries() throws -> [Entry] { try access { try read($0) } }
     func register(_ staging: URL, volumeUUID: String, gateName: String? = nil, nonLocalVolume: Bool? = nil,
-                  stagingLockName: String? = nil, volumeRoot: URL? = nil) throws {
+                  stagingLockName: String? = nil, volumeRoot: URL? = nil, fileSystem: String? = nil) throws {
         let parent = try VolumePublishDirectory(staging.deletingLastPathComponent())
         var parentInfo = stat()
         guard fstat(parent.fd, &parentInfo) == 0 else { throw VolumePublishError.system(errno) }
@@ -46,7 +49,7 @@ nonisolated final class RecoverableWorkIndex: Sendable {
             if !entries.contains(where: { $0.stagingPath == staging.path }) {
                 entries.append(Entry(stagingPath: staging.path, volumeUUID: volumeUUID, registeredAt: Date(),
                                      relativeStagingPath: relative, gateName: gateName, parentInode: parentInfo.st_ino,
-                                     nonLocalVolume: nonLocalVolume, stagingLockName: stagingLockName))
+                                     nonLocalVolume: nonLocalVolume, stagingLockName: stagingLockName, fileSystem: fileSystem))
             }
             try save(entries, in: directory)
         }

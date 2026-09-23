@@ -13,7 +13,6 @@ nonisolated struct VolumePublishTransaction: Sendable {
     var operations = VolumePublishOperations()
     var stagingLock: VolumePublishLock? = nil
     var isNetworkVolume = false
-    var retainIndexHint = false
     var indexedURL: URL? = nil
     var oldProof: [String: Stamp] = [:]
     var newProof: [String: Stamp] = [:]
@@ -380,12 +379,17 @@ nonisolated struct VolumePublishTransaction: Sendable {
     }
     func discardPrepared() throws -> VolumeDisposal {
         // 呼び出し元が pre-S5 または prepared の無移動を証明した領域。旧巻の変更は無関係。
+        let ownership = try stagingLock ?? VolumePublishLock.stagingLock(staging.url.lastPathComponent, directory: index.stagingLocksURL)
+        defer { withExtendedLifetime(ownership) {} }
         try discardStaging()
         try parent.sync(full: true)
-        if !retainIndexHint { try index.removeCompleted(indexedURL ?? staging.url) }
+        try index.removeCompleted(indexedURL ?? staging.url)
+        try ownership.removeIfResolved(staging.url.lastPathComponent, parent: parent, index: index)
         return .removed
     }
     func removeEmptyStaging(hook: (VolumePublishStep) throws -> Void = { _ in }) throws {
+        let ownership = try stagingLock ?? VolumePublishLock.stagingLock(staging.url.lastPathComponent, directory: index.stagingLocksURL)
+        defer { withExtendedLifetime(ownership) {} }
         for name in ["old", "new", "abandoned"] {
             if let directory = try optionalDirectory(name) {
                 let names = name == "old" ? record.oldVolumes.map(\.name) : record.newVolumes.map(\.name)
@@ -396,17 +400,16 @@ nonisolated struct VolumePublishTransaction: Sendable {
             guard info.st_mode & S_IFMT == S_IFREG, info.st_size == 0, info.st_nlink == 1 else { throw VolumePublishError.unsafePath(record.workName) }
         }
         try staging.verifyPath(); try journal.verifyPath(staging)
-        if !retainIndexHint { try index.authorizeCleanup(indexedURL ?? staging.url) }
+        try index.authorizeCleanup(indexedURL ?? staging.url)
         try discardStaging()
         try parent.sync(full: true)
         try hook(.stagingRemoved)
-        if !retainIndexHint { try index.removeCompleted(indexedURL ?? staging.url) }
+        try index.removeCompleted(indexedURL ?? staging.url)
         try hook(.indexRemoved)
+        try ownership.removeIfResolved(staging.url.lastPathComponent, parent: parent, index: index)
     }
 
     private func discardStaging() throws {
-        let ownership = try stagingLock ?? VolumePublishLock.stagingLock(staging.url.lastPathComponent, directory: index.stagingLocksURL)
-        defer { withExtendedLifetime(ownership) {} }
         try journal.verifyPath(staging)
         journal.release() // SMB may refuse to rename a directory containing our open journal.
         try VolumePublishRemoval.discard(staging, parent: parent, operations: operations, isNetworkVolume: isNetworkVolume)

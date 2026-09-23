@@ -169,7 +169,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
             try fixture.index.register(url, volumeUUID: uuid, gateName: fixture.plan.gateName)
             var operations = noTrash()
             operations.volumeInfo = { _ in .init(uuid: uuid, cacheIdentity: uuid, fileSystem: "apfs", available: .max, hazard: nil) }
-            operations.mountedVolumes = { [.init(root: fixture.root, uuid: uuid), .init(root: fixture.root.appendingPathComponent("clone"), uuid: uuid)] }
+            operations.mountedVolumes = { _ in [.init(root: fixture.root, uuid: uuid), .init(root: fixture.root.appendingPathComponent("clone"), uuid: uuid)] }
             _ = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: url)
             XCTAssertEqual(try fixture.index.entries().count, 1, "Unknown/ambiguous UUID must never authorize pruning")
         }
@@ -183,7 +183,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         try fixture.index.rebase(entry, to: stale)
         var operations = noTrash()
         let root = try VolumePublishFS.volumeRoot(transaction.parent)
-        operations.mountedVolumes = { [.init(root: root, uuid: entry.volumeUUID)] }
+        operations.mountedVolumes = { _ in [.init(root: root, uuid: entry.volumeUUID)] }
         let results = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertTrue(results.contains { if case .recovered = $0 { return true }; return false }, "\(results)")
         try fixture.assertRemoved(url); try fixture.assertOld()
@@ -473,7 +473,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         XCTAssertTrue(results.contains { if case .recovered = $0 { return true }; return false }, "\(results)")
         try fixture.assertOld()
         XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
-        XCTAssertEqual(try fixture.index.entries().count, 1, "Existing boot-volume paths do not need mount enumeration")
+        XCTAssertTrue(try fixture.index.entries().isEmpty, "Existing boot-volume paths finish without mount enumeration")
     }
 
     func testOptionalReaderDiagnosticUsesCallerOptionsWithoutHoldingCommit() throws {

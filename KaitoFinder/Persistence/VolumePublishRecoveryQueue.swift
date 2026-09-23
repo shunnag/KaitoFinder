@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-/// Mount I/O never occupies a Swift cooperative-pool thread. Repeated notifications share one job.
+/// Mount I/O never occupies a Swift cooperative-pool thread. Only pending notifications share a job.
 nonisolated final class VolumePublishRecoveryQueue: Sendable {
     static let shared = VolumePublishRecoveryQueue()
     private struct Key: Hashable { let index: URL; let mount: URL? }
@@ -44,16 +44,14 @@ nonisolated final class VolumePublishRecoveryQueue: Sendable {
     }
 
     private func drain() {
-        while let next = state.withLock({ state -> (Key, RecoverableWorkIndex)? in
+        while let next = state.withLock({ state -> (Key, Job)? in
             guard let key = state.order.first else { state.running = false; return nil }
-            return (key, state.jobs[key]!.index)
+            state.order.removeFirst()
+            return (key, state.jobs.removeValue(forKey: key)!)
         }) {
-            perform(next.1, next.0.mount)
-            let completions = state.withLock { state in
-                state.order.removeFirst()
-                return state.jobs.removeValue(forKey: next.0)!.completions
-            }
-            for completion in completions { completion() }
+            // Removing before perform lets a trigger during the running job queue one more pass.
+            perform(next.1.index, next.0.mount)
+            for completion in next.1.completions { completion() }
         }
     }
 }

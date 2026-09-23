@@ -239,12 +239,24 @@ nonisolated enum VolumePublishFS {
     }
 
     struct MountedVolume: Sendable { let root: URL; let uuid: String }
-    private static let mountMutex = Mutex(())
-    static func shouldProbeMount(flags: UInt32, extendedFlags: UInt32, kind: String, includeNonLocal: Bool) -> Bool {
-        includeNonLocal || (flags & UInt32(MNT_LOCAL) != 0 && extendedFlags & UInt32(MNT_EXT_FSKIT) == 0
-            && !["autofs", "devfs", "nullfs", "devicefs", "fskit"].contains(kind.lowercased()))
+    struct MountScan: Sendable, ExpressibleByArrayLiteral {
+        struct Failure: Sendable { let root: URL; let reason: String }
+        var volumes: [MountedVolume] = []
+        var failures: [Failure] = []
+        var isComplete: Bool { failures.isEmpty }
+        init(arrayLiteral elements: MountedVolume...) { volumes = elements }
     }
-    static func mountedVolumes(includeNonLocal: Bool = false) throws -> [MountedVolume] {
+    private static let mountMutex = Mutex(())
+    static func shouldProbeMount(flags: UInt32, extendedFlags: UInt32, kind: String, includeNonLocal: Bool,
+                                 fileSystems: Set<String> = []) -> Bool {
+        let kind = kind.lowercased()
+        guard !["autofs", "devfs", "nullfs", "devicefs", "fskit"].contains(kind),
+              includeNonLocal || flags & UInt32(MNT_LOCAL) != 0 else { return false }
+        // FAT/exFAT use FSKit too. Recorded types also admit future data filesystem modules.
+        return extendedFlags & UInt32(MNT_EXT_FSKIT) == 0 || fileSystems.contains(kind)
+            || ["msdos", "exfat", "fat", "fat32", "apfs", "hfs"].contains(kind)
+    }
+    static func mountedVolumes(includeNonLocal: Bool = false, fileSystems: Set<String> = []) throws -> MountScan {
         let roots: [URL] = try mountMutex.withLock { _ in
             var mounts: UnsafeMutablePointer<statfs>?
             let count = getmntinfo(&mounts, MNT_NOWAIT)
@@ -254,7 +266,7 @@ nonisolated enum VolumePublishFS {
                     $0.withMemoryRebound(to: CChar.self, capacity: 16) { String(cString: $0) }
                 }
                 guard shouldProbeMount(flags: mounts[index].f_flags, extendedFlags: mounts[index].f_flags_ext,
-                                       kind: kind, includeNonLocal: includeNonLocal) else { return nil }
+                                       kind: kind, includeNonLocal: includeNonLocal, fileSystems: fileSystems) else { return nil }
                 return withUnsafePointer(to: &mounts[index].f_mntonname) {
                     $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) {
                         URL(fileURLWithPath: String(cString: $0), isDirectory: true)
@@ -262,14 +274,27 @@ nonisolated enum VolumePublishFS {
                 }
             }
         }
-        return try roots.compactMap { root in
-            try VolumePublishMountProbe.run(root: root) {
-                let directory = try VolumePublishDirectory(root)
-                guard let uuid = volumeUUID(directory) ?? (try? root.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString),
-                      knownUUID(uuid) else { return nil }
-                return MountedVolume(root: root, uuid: uuid)
+        return probeMounts(roots) { root in
+            let directory = try VolumePublishDirectory(root)
+            guard let uuid = volumeUUID(directory) ?? (try? root.resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString),
+                  knownUUID(uuid) else { return nil }
+            return MountedVolume(root: root, uuid: uuid)
+        }
+    }
+
+    static func probeMounts(_ roots: [URL], timeout: TimeInterval = 1,
+                            probe: @escaping @Sendable (URL) throws -> MountedVolume?) -> MountScan {
+        var scan: MountScan = []
+        for root in roots {
+            do {
+                if let volume = try VolumePublishMountProbe.run(root: root, timeout: timeout, probe: { try probe(root) }) {
+                    scan.volumes.append(volume)
+                }
+            } catch {
+                scan.failures.append(.init(root: root, reason: String(describing: error)))
             }
         }
+        return scan
     }
     static func knownUUID(_ uuid: String) -> Bool { !uuid.isEmpty && uuid.lowercased() != "unknown-volume" }
 
@@ -313,49 +338,105 @@ nonisolated enum VolumePublishFS {
 /// A stuck syscall cannot be cancelled. Bound the wait and retain at most four outstanding workers;
 /// repeat sweeps reuse a stuck root's worker. An incomplete scan must never authorize pruning.
 nonisolated enum VolumePublishMountProbe {
+    private struct Key: Hashable { let root: URL; let valueType: ObjectIdentifier }
     private final class Request: Sendable {
-        let result = Mutex<Result<VolumePublishFS.MountedVolume?, any Error>?>(nil)
+        let result = Mutex<Result<any Sendable, any Error>?>(nil)
         let finished = DispatchSemaphore(value: 0)
     }
-    private static let pending = Mutex<[URL: Request]>([:])
+    private static let pending = Mutex<[Key: Request]>([:])
 
-    static func run(root: URL, timeout: TimeInterval = 1,
-                    probe: @escaping @Sendable () throws -> VolumePublishFS.MountedVolume?) throws -> VolumePublishFS.MountedVolume? {
+    static func run<Value: Sendable>(root: URL, timeout: TimeInterval = 1,
+                    probe: @escaping @Sendable () throws -> Value) throws -> Value {
+        let key = Key(root: root, valueType: ObjectIdentifier(Value.self))
         let (request, start) = try pending.withLock { state in
-            if let existing = state[root] { return (existing, false) }
+            if let existing = state[key] { return (existing, false) }
             guard state.count < 4 else { throw VolumePublishError.system(ETIMEDOUT) }
             let request = Request()
-            state[root] = request
+            state[key] = request
             return (request, true)
         }
         if start {
             Thread.detachNewThread {
-                let result = Result { try probe() }
+                let result: Result<any Sendable, any Error> = Result { try probe() }
                 request.result.withLock { $0 = result }
                 request.finished.signal()
-                _ = pending.withLock { $0.removeValue(forKey: root) }
+                _ = pending.withLock { $0.removeValue(forKey: key) }
             }
         }
-        if let result = request.result.withLock({ $0 }) { return try result.get() }
-        _ = request.finished.wait(timeout: .now() + timeout)
+        if request.result.withLock({ $0 == nil }) { _ = request.finished.wait(timeout: .now() + timeout) }
         guard let result = request.result.withLock({ $0 }) else { throw VolumePublishError.system(ETIMEDOUT) }
-        return try result.get()
+        // The type is part of the request key; distinct read-only probe kinds cannot share a result.
+        guard let value = try result.get() as? Value else { throw VolumePublishError.validationFailed }
+        return value
     }
 }
 
 nonisolated final class VolumePublishLock: Sendable {
     private let descriptor: Mutex<Int32>
-    init(directory: VolumePublishDirectory, name: String) throws {
-        let fd = try directory.openFile(name, flags: O_RDWR | O_CREAT)
+    private let directory: VolumePublishDirectory
+    private let name: String
+    init(directory: VolumePublishDirectory, name: String, create: Bool = true) throws {
+        let fd = try directory.openFile(name, flags: O_RDWR | (create ? O_CREAT : 0))
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
             let error = errno; close(fd)
             if error == EWOULDBLOCK { throw VolumePublishError.ownerAlive }
             throw VolumePublishError.system(error)
         }
-        descriptor = Mutex(fd)
+        // A sweep may unlink an unlocked file after open but before flock. Never own an old inode.
+        var held = stat()
+        do {
+            guard fstat(fd, &held) == 0, let current = try directory.info(name),
+                  held.st_dev == current.st_dev, held.st_ino == current.st_ino else { throw VolumePublishError.ownerAlive }
+        } catch { close(fd); throw error }
+        self.directory = directory; self.name = name; descriptor = Mutex(fd)
     }
     func release() { descriptor.withLock { if $0 >= 0 { close($0); $0 = -1 } } }
     deinit { release() }
+
+    private func remove() throws {
+        try descriptor.withLock { fd in
+            var held = stat()
+            guard fd >= 0, fstat(fd, &held) == 0 else { throw VolumePublishError.alreadyUsed }
+            guard let current = try directory.info(name) else { return }
+            guard held.st_dev == current.st_dev, held.st_ino == current.st_ino else { throw VolumePublishError.setChanged }
+            guard unlinkat(directory.fd, name, 0) == 0 else { throw VolumePublishError.system(errno) }
+            try directory.sync()
+        }
+    }
+
+    func removeIfResolved(_ stagingName: String, parent: VolumePublishDirectory, index: RecoverableWorkIndex) throws {
+        guard let base = VolumePublishRemoval.stagingName(stagingName),
+              try parent.info(base) == nil, try parent.info(base + ".discard") == nil,
+              try !index.entries().contains(where: { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }) else { return }
+        try remove() // Unlink before releasing flock, after both work and hint have gone.
+    }
+
+    /// This is a released, read-only ownership probe, never a staging lock held across set acquisition.
+    static func stagingIsOwned(_ name: String, directory: URL) throws -> Bool {
+        guard let base = VolumePublishRemoval.stagingName(name) else { throw VolumePublishError.unsafePath(name) }
+        do {
+            let lock = try VolumePublishLock(directory: VolumePublishFS.supportDirectory(directory), name: base + ".lock", create: false)
+            lock.release()
+            return false
+        } catch VolumePublishError.ownerAlive { return true }
+        catch VolumePublishError.system(ENOENT) { return false }
+    }
+
+    static func sweepStagingLocks(index: RecoverableWorkIndex) throws {
+        let directory = try VolumePublishFS.supportDirectory(index.stagingLocksURL)
+        for name in try directory.names() where name.hasSuffix(".lock") {
+            let base = String(name.dropLast(5))
+            guard VolumePublishRemoval.stagingName(base) == base else { continue }
+            do {
+                let lock = try VolumePublishLock(directory: directory, name: name, create: false)
+                defer { lock.release() }
+                // Registration precedes mkdir. An indexed or live pre-S1 staging must retain its lock.
+                guard try !index.entries().contains(where: { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }) else { continue }
+                try lock.remove()
+            } catch VolumePublishError.ownerAlive { continue }
+            catch VolumePublishError.system(ENOENT) { continue }
+        }
+    }
 
     /// Local support lock survives journal closure, path rebasing, and the entire S1 window.
     static func stagingLock(_ name: String, directory: URL) throws -> VolumePublishLock {
