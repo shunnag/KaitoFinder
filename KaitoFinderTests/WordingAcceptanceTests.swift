@@ -42,6 +42,42 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    func testSplitSaveWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        let keys = [
+            "巻サイズを選択",
+            "元の巻サイズを再現する",
+            "最も多い巻サイズにそろえる",
+            "1つのファイルにする",
+            "サイズを指定…",
+            "64 KB以上のサイズを指定してください。",
+            "書き込む",
+            "分割アーカイブへの書き込みを許可",
+            "分割アーカイブの巻が混在しています。",
+            "ZIP本来の分割アーカイブは変更できません。",
+            "分割アーカイブの保存が中断されています",
+            "中断した保存を完了して開く",
+            "分割アーカイブの回復を完了できませんでした",
+            "保存すると1つのファイルにします。",
+            "保存すると元の巻サイズを再現します。",
+            "巻サイズが揃っていません。保存時に選びます。",
+            "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。",
+            "分割数が上限（128）を超えるため保存できません。巻サイズを大きくしてください。",
+            "別の保存または回復処理中です。しばらくしてからもう一度保存してください。",
+            "保存のためのファイル調整が時間切れになりました。原本は変更されていません。もう一度保存してください。",
+            "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。編集を続けるには、アーカイブを開き直してください。",
+            "分割アーカイブの保存を完了できませんでした。未保存の変更は保持されています。回復するまで編集できません。アーカイブを開き直してください。",
+            "この場所では、保存が中断されると回復が必要になる場合があります。保存中にほかのアプリが読み込むと、新旧の巻が混在する場合があります。",
+            "このZIPはそのまま更新できないため、アーカイブ全体を再圧縮しました。",
+            "変更は保存されましたが、作業フォルダの後片付けが残っています。",
+            "分割アーカイブ（%lld個・各%@）。保存すると同じ巻サイズで分割し直します。",
+        ]
+        for key in keys {
+            let entry = try XCTUnwrap(catalog.strings[key], key)
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages), key)
+        }
+    }
+
     func testDeferredSaveWordingHasAllTwentySixTranslations() throws {
         let catalog = try LocalizationAcceptance.catalog()
         for key in ["変更の書き込み:", "すぐに書き込む", "保存時にまとめて書き込む", "次に開くアーカイブから有効になります。",

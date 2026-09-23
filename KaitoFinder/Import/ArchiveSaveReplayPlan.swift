@@ -144,5 +144,9 @@ nonisolated final class ArchiveSavePublication: Sendable {
         let acquired = try counter.enter { try ArchiveImportPlan.checkCancellation(progress) }
         lease.withLock { $0 = acquired }
     }
+    func enterSplitBoundary() throws {
+        let acquired = try counter.enter()
+        lease.withLock { $0 = acquired }
+    }
     func finish() { lease.withLock { $0 = nil } }
 }

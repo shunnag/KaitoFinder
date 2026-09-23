@@ -15,7 +15,8 @@ nonisolated enum ArchiveDeferredTarWriter {
     }
 
     static func write(source: URL, password: String?, output: URL, format: GyoshukuKit.ArchiveFormat,
-                      options: WriterOptions, plan: ArchiveSaveReplayPlan, progress: Progress) throws {
+                      options: WriterOptions, plan: ArchiveSaveReplayPlan, progress: Progress,
+                      verifyAssembledInput: (ArchiveVolumeSet?) throws -> Void = { _ in }) throws {
         let intermediate = output.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".tar")
         defer { try? FileManager.default.removeItem(at: intermediate) }
         var interimOptions = options
@@ -23,6 +24,7 @@ nonisolated enum ArchiveDeferredTarWriter {
         interimOptions.preserveOwnerIDs = false
         let writer = try ArchiveRewriter.open(url: source, password: password, output: intermediate,
                                              format: .tar, options: interimOptions)
+        try verifyAssembledInput(writer.volumeSet)
         try plan.replay(on: writer, progress: progress)
         try writer.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
         try applyOwners(to: intermediate, plan: plan, progress: progress)

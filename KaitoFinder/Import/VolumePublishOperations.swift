@@ -29,6 +29,8 @@ nonisolated struct VolumePublishOperations: Sendable {
     var didHash: @Sendable (URL) -> Void = { _ in }
     var didBarrier: @Sendable (VolumePublishBarrier) -> Void = { _ in }
     var willCoordinate: @Sendable (URL) throws -> Void = { _ in }
+    /// Nil always uses Foundation. Tests can withhold the callback to exercise the real timeout.
+    var coordinate: VolumePublishCoordination.Request? = nil
 }
 
 /// DispatchQueue.sync は同じ thread で実行しうる。別 thread で Task の取消状態を切り離す。

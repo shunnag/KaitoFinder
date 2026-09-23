@@ -664,6 +664,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             if session?.capabilities.readOnlyReason == nil, session?.capabilities.rewriteNotice != nil {
                 notice = String(localized: "保存するとアーカイブ全体を再圧縮します", bundle: bundle)
             }
+            if session?.capabilities.readOnlyReason == nil, let split = document.splitArchiveNotice(bundle: bundle) { notice = split }
+            if let extra = document.splitSaveNotice { notice += (notice.isEmpty ? "" : "\n") + extra }
             let count = document.pendingChanges.count
             if count > 0 || document.isDocumentEdited {
                 if !notice.isEmpty { notice += "\n" }

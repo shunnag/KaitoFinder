@@ -4,7 +4,7 @@ import KaitoKit
 
 /// 全巻の同一性と、連結される続きの巻がないことをひとまとまりで照合する。
 nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
-    struct Volume: Sendable, Equatable {
+    struct Volume: Codable, Sendable, Equatable {
         let fileName: String
         let volumeUUID: String
         let inode: UInt64
@@ -12,6 +12,12 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
         let mode: UInt16
         let modificationSeconds: Int64
         let modificationNanoseconds: Int64
+
+        func contentEquals(_ other: Self) -> Bool {
+            fileName == other.fileName && volumeUUID == other.volumeUUID && inode == other.inode
+                && size == other.size && modificationSeconds == other.modificationSeconds
+                && modificationNanoseconds == other.modificationNanoseconds
+        }
     }
 
     let volumes: [Volume]
@@ -52,11 +58,7 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
 
     func contentEquals(_ other: Self) -> Bool {
         guard nextVolumeName == other.nextVolumeName, volumes.count == other.volumes.count else { return false }
-        return zip(volumes, other.volumes).allSatisfy { lhs, rhs in
-            lhs.fileName == rhs.fileName && lhs.volumeUUID == rhs.volumeUUID && lhs.inode == rhs.inode
-                && lhs.size == rhs.size && lhs.modificationSeconds == rhs.modificationSeconds
-                && lhs.modificationNanoseconds == rhs.modificationNanoseconds
-        }
+        return zip(volumes, other.volumes).allSatisfy { $0.contentEquals($1) }
     }
 
     // NSDocument が追跡した単一ファイルの移動だけに用いる。別 inode への置換は許さない。

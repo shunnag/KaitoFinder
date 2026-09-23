@@ -17,6 +17,8 @@ nonisolated struct ArchiveVolumeLayout: Sendable, Equatable {
     let volumes: [Volume]
     let openedVolumeIndex: Int
     let schedule: Schedule
+    /// The intended schedule survives a short last volume, including a one-volume set.
+    var savedSchedule: VolumePlan.Schedule? = nil
 
     init(volumeSet: ArchiveVolumeSet) {
         self.init(scheme: volumeSet.scheme,
@@ -62,4 +64,13 @@ nonisolated struct ArchiveVolumeLayout: Sendable, Equatable {
     }
 
     var nextVolumeURL: URL { gateURL.deletingLastPathComponent().appendingPathComponent(nextVolumeName) }
+
+    func publicationLayout() throws -> Self {
+        let parent = try VolumePublishFS.canonicalParent(of: gateURL)
+        var result = Self(scheme: scheme, volumes: volumes.map {
+            Volume(url: parent.appendingPathComponent($0.url.lastPathComponent), length: $0.length)
+        }, openedVolumeIndex: openedVolumeIndex)
+        result.savedSchedule = savedSchedule
+        return result
+    }
 }

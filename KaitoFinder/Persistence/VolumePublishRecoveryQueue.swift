@@ -43,6 +43,16 @@ nonisolated final class VolumePublishRecoveryQueue: Sendable {
         }
     }
 
+    func recover(stagings: [URL], index: RecoverableWorkIndex,
+                 metadataStore: ArchiveVolumeMetadataStore = .shared) async -> [VolumePublishRecovery.Result] {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let recovery = VolumePublishRecovery(index: index, metadataStore: metadataStore)
+                continuation.resume(returning: stagings.map { recovery.recover(staging: $0) })
+            }
+        }
+    }
+
     private func drain() {
         while let next = state.withLock({ state -> (Key, Job)? in
             guard let key = state.order.first else { state.running = false; return nil }

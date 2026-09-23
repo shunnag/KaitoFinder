@@ -152,7 +152,7 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
         let (document, alreadyOpen) = try await open(member, in: fixture.directory)
         XCTAssertFalse(alreadyOpen)
         XCTAssertEqual(document.fileURL, fixture.archive)
-        try await assertSplitContents(document, names: ["note.txt"])
+        try await assertSplitContents(document, names: ["note.txt"], refusal: .nativeSplitArchive)
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), ["note.txt": Data("native split contents".utf8)])
         for url in [member, fixture.archive] {
             let (reopened, wasOpen) = try await NSDocumentController.shared.openDocument(withContentsOf: url, display: false)
@@ -202,14 +202,17 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
     }
 
     @MainActor private func assertSplitContents(_ document: ArchiveDocument, names: Set<String>,
+                                                refusal: ArchiveCapabilities.Refusal = .splitArchive,
                                                 file: StaticString = #filePath, line: UInt = #line) async throws {
         let session = try XCTUnwrap(document.session, file: file, line: line)
         let entries = await session.entries()
         XCTAssertEqual(Set(entries.map(\.name)), names, file: file, line: line)
         XCTAssertFalse(session.capabilities.canEdit, file: file, line: line)
         XCTAssertNil(session.capabilities.mode, file: file, line: line)
-        XCTAssertEqual(session.capabilities.refusal, .splitArchive, file: file, line: line)
-        XCTAssertEqual(session.capabilities.readOnlyReason, String(localized: "分割されたアーカイブは変更できません。"),
-                       file: file, line: line)
+        XCTAssertEqual(session.capabilities.refusal, refusal, file: file, line: line)
+        let reason = refusal == .nativeSplitArchive
+            ? String(localized: "ZIP本来の分割アーカイブは変更できません。")
+            : String(localized: "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。")
+        XCTAssertEqual(session.capabilities.readOnlyReason, reason, file: file, line: line)
     }
 }

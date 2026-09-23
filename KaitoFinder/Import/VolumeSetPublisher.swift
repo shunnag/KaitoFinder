@@ -12,6 +12,8 @@ nonisolated struct VolumeSetTarget: @unchecked Sendable {
     let schedule: VolumePlan.Schedule
     let allowHazardousVolume: Bool
     let filePresenter: (any NSFilePresenter)?
+    var writesVolumeMetadata = false
+    var additionalQuarantine: Data? = nil
 
     init(parent: URL, layout: ArchiveVolumeLayout, expected: ArchiveSetIdentity,
          schedule: VolumePlan.Schedule, allowHazardousVolume: Bool = false, filePresenter: (any NSFilePresenter)? = nil) {
@@ -45,6 +47,7 @@ nonisolated final class VolumeSetPublication: Sendable {
     private let hook: @Sendable (VolumePublishStep) throws -> Void
     private let criticalSection: VolumePublishCriticalSection
     private let operations: VolumePublishOperations
+    private let metadataStore: ArchiveVolumeMetadataStore
 
     var stagingURL: URL { staging.url }
     var workURL: URL { staging.url.appendingPathComponent("work", isDirectory: true).appendingPathComponent(initialRecord.workName) }
@@ -54,18 +57,19 @@ nonisolated final class VolumeSetPublication: Sendable {
                  isNetworkVolume: Bool, index: RecoverableWorkIndex,
                  renamer: VolumeExclusiveRename, record: VolumePublishJournalRecord, options: ReaderOptions,
                  coordinationTimeout: TimeInterval, criticalSection: VolumePublishCriticalSection, operations: VolumePublishOperations,
+                 metadataStore: ArchiveVolumeMetadataStore,
                  hook: @escaping @Sendable (VolumePublishStep) throws -> Void) {
         self.target = target; self.parent = parent; self.staging = staging; self.journal = journal
         self.setLock = setLock; self.index = index; self.renamer = renamer; initialRecord = record
         self.stagingLock = stagingLock; self.isNetworkVolume = isNetworkVolume
         self.options = options; self.coordinationTimeout = coordinationTimeout
-        self.criticalSection = criticalSection; self.hook = hook; self.operations = operations
+        self.criticalSection = criticalSection; self.hook = hook; self.operations = operations; self.metadataStore = metadataStore
     }
 
     static func begin(_ target: VolumeSetTarget, estimatedOutputLength: UInt64,
                       progress: Progress = Progress(), index: RecoverableWorkIndex = .shared, options: ReaderOptions = .kaitoFinder(),
                       coordinationTimeout: TimeInterval = 10, criticalSection: VolumePublishCriticalSection = .shared,
-                      operations: VolumePublishOperations = .init(),
+                      operations: VolumePublishOperations = .init(), metadataStore: ArchiveVolumeMetadataStore = .shared,
                       fault: @escaping @Sendable (VolumePublishStep) throws -> Void = { _ in }) throws -> VolumeSetPublication {
         func checkCancellation() throws {
             if progress.isCancelled || Task.isCancelled { throw CancellationError() }
@@ -95,7 +99,7 @@ nonisolated final class VolumeSetPublication: Sendable {
             let indexedGate = indexedWork.first { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }?.gateName
             // An unreadable, unattributed sibling is not evidence of an unresolved publication of this stem.
             guard previous.map({ $0.stem == stem }) ?? (indexedGate == plan.gateName) else { continue }
-            let result = VolumePublishRecovery(index: index, operations: operations).recover(staging: url,
+            let result = VolumePublishRecovery(index: index, operations: operations, metadataStore: metadataStore).recover(staging: url,
                 alreadyLockedGate: plan.gateName, options: options, presenter: target.filePresenter,
                 volume: volume, volumeRoot: volumeRoot, parent: parent)
             if case .recovered = result { continue }
@@ -157,7 +161,7 @@ nonisolated final class VolumeSetPublication: Sendable {
             return VolumeSetPublication(target: target, parent: parent, staging: staging, journal: journal, setLock: setLock,
                 stagingLock: stagingLock, isNetworkVolume: !volume.isLocal, index: index, renamer: renamer, record: record,
                 options: options, coordinationTimeout: coordinationTimeout,
-                criticalSection: criticalSection, operations: operations, hook: fault)
+                criticalSection: criticalSection, operations: operations, metadataStore: metadataStore, hook: fault)
         } catch is SimulatedCrash { throw SimulatedCrash() }
         catch {
             // S5 より前の生成物は原本の状態や Trash に依存せず削除する。
@@ -185,35 +189,16 @@ nonisolated final class VolumeSetPublication: Sendable {
         }
     }
 
-    /// .zip.001 用の連結。各 fd を読む前後で確認し、別の巻への差し替えも検出する。
+    var input: ArchiveVolumeInput? {
+        guard let layout = target.layout, let expected = target.expected else { return nil }
+        return ArchiveVolumeInput(layout: layout, expected: expected, oldVolumes: initialRecord.oldVolumes,
+                                  usesHashes: initialRecord.hashesOldVolumes)
+    }
+
+    /// Kept for M2 callers; the same input copier also serves a different-stem Save As.
     func copyInputToWork(progress: Progress) throws {
-        guard target.layout != nil else { throw VolumePublishError.invalidPlan }
-        try Self.verifyExpected(target, parent: parent)
-        let work = try staging.directory("work")
-        let output = try work.openFile(initialRecord.workName, flags: O_WRONLY | O_CREAT | O_EXCL)
-        defer { close(output) }
-        var offset: UInt64 = 0
-        for volume in initialRecord.oldVolumes {
-            try checkCancellation(progress)
-            guard try volume.matches(in: parent, useHash: initialRecord.hashesOldVolumes) else { throw VolumePublishError.setChanged }
-            let input = try parent.openFile(volume.name)
-            defer { close(input) }
-            var before = stat(), after = stat()
-            guard fstat(input, &before) == 0, let path = try parent.info(volume.name),
-                  VolumePublishFS.sameFile(before, path) else { throw VolumePublishError.setChanged }
-            var copied: UInt64 = 0
-            while copied < volume.size {
-                try checkCancellation(progress)
-                let data = try VolumePublishFS.read(input, length: Int(min(1024 * 1024, volume.size - copied)), offset: copied)
-                try VolumePublishFS.write(output, data: data, offset: offset + copied)
-                copied += UInt64(data.count)
-            }
-            guard fstat(input, &after) == 0, VolumePublishFS.sameFile(before, after),
-                  try volume.matches(in: parent, useHash: initialRecord.hashesOldVolumes) else { throw VolumePublishError.setChanged }
-            offset += copied
-        }
-        try Self.verifyExpected(target, parent: parent)
-        try VolumePublishFS.sync(output)
+        guard let input else { throw VolumePublishError.invalidPlan }
+        try input.copy(to: workURL, progress: progress)
     }
 
     func publish(progress: Progress, validation: (@Sendable (ArchiveReader) throws -> Void)? = nil) throws -> PublishedVolumeSet {
@@ -224,7 +209,7 @@ nonisolated final class VolumeSetPublication: Sendable {
         defer { journal.release(); stagingLock.release(); setLock.release(); state.withLock { $0.finished = true } }
         var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
             renamer: renamer, index: index, record: initialRecord, operations: operations,
-            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume)
+            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume, metadataStore: metadataStore)
         var critical = false
         do {
             try checkCancellation(progress)
@@ -234,15 +219,26 @@ nonisolated final class VolumeSetPublication: Sendable {
             let plan = try VolumePlan(totalLength: UInt64(info.st_size), schedule: target.schedule, scheme: target.scheme, layout: target.layout)
             try Self.checkOccupancy(plan: plan, oldCount: initialRecord.oldVolumes.count, parent: parent)
             try Self.checkSpace(requiredOutput: 0, largest: plan.largestVolume, available: operations.volumeInfo(parent).available)
+            if target.writesVolumeMetadata {
+                if let layout = target.layout, try VolumePublishFS.usesAppleDouble(parent) {
+                    transaction.record.previousMetadata = try metadataStore.entry(for: layout.gateURL)?.publication
+                }
+                transaction.record.metadata = try ArchiveVolumeMetadata.prepare(plan: plan, schedule: target.schedule,
+                    oldLayout: target.layout, work: workURL, store: metadataStore, additionalQuarantine: target.additionalQuarantine,
+                    checkCancellation: { try self.checkCancellation(progress) })
+            }
             transaction.record.newVolumes = try VolumeSplitter.split(workURL: workURL, into: staging.directory("new"),
-                plan: plan, oldLayout: target.layout, checkCancellation: { try self.checkCancellation(progress) })
+                plan: plan, oldLayout: target.layout,
+                avoidsAppleDouble: target.writesVolumeMetadata && (try VolumePublishFS.usesAppleDouble(parent)),
+                additionalQuarantine: target.additionalQuarantine, checkCancellation: { try self.checkCancellation(progress) })
             transaction.record.totalLength = plan.totalLength
+            if let metadata = transaction.record.metadata { try ArchiveVolumeMetadata.writeNative(metadata, in: staging.directory("new")) }
             try transaction.validateNew(in: staging.directory("new"), options: options, validation: validation)
             try transaction.phase(.prepared)
             try Self.verifyExpected(target, parent: parent)
             let gateURL = parent.url.appendingPathComponent(plan.gateName)
             try operations.willCoordinate(gateURL)
-            let coordinator = VolumePublishCoordination(gate: gateURL, presenter: target.filePresenter)
+            let coordinator = VolumePublishCoordination(gate: gateURL, presenter: target.filePresenter, request: operations.coordinate)
             return try coordinator.withAccess(gate: gateURL, timeout: coordinationTimeout) {
                 try checkCancellation(progress)
                 try Self.verifyExpected(target, parent: parent)
@@ -286,13 +282,15 @@ nonisolated final class VolumeSetPublication: Sendable {
                         } catch { cleanupFailure = String(describing: error) }
                         throw VolumePublishError.rolledBack(underlying: underlying, cleanupFailed: cleanupFailure, disposal: disposal)
                     }
-                    let layout = ArchiveVolumeLayout(scheme: plan.scheme, volumes: plan.volumes.map {
+                    var layout = ArchiveVolumeLayout(scheme: plan.scheme, volumes: plan.volumes.map {
                         .init(url: parent.url.appendingPathComponent($0.name), length: $0.length)
                     }, openedVolumeIndex: 0)
+                    layout.savedSchedule = target.schedule
                     let identity: ArchiveSetIdentity
                     // この durable な境界以降は cleanup のみ。失敗しても新しい identity を返す。
                     do {
                         identity = try ArchiveSetIdentity.capture(layout: layout)
+                        try transaction.persistMetadata()
                         try transaction.phase(.done)
                     } catch {
                         throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
@@ -347,7 +345,7 @@ nonisolated final class VolumeSetPublication: Sendable {
         defer { journal.release(); stagingLock.release(); setLock.release() }
         let transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
             renamer: renamer, index: index, record: initialRecord, operations: operations,
-            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume)
+            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume, metadataStore: metadataStore)
         _ = try? transaction.discardPrepared()
     }
 
@@ -364,13 +362,14 @@ nonisolated final class VolumeSetPublication: Sendable {
         } else if target.expected != nil || target.layout != nil { throw VolumePublishError.setChanged }
     }
 
-    private static func checkOldPermissions(_ target: VolumeSetTarget, parent: VolumePublishDirectory) throws {
+    static func checkOldPermissions(_ target: VolumeSetTarget, parent: VolumePublishDirectory) throws {
         var directoryInfo = stat()
         guard fstat(parent.fd, &directoryInfo) == 0, faccessat(parent.fd, ".", W_OK | X_OK, 0) == 0 else {
             throw VolumePublishError.system(errno)
         }
         for old in target.expected?.volumes ?? [] {
             guard let info = try parent.info(old.fileName), info.st_mode & S_IFMT == S_IFREG,
+                  faccessat(parent.fd, old.fileName, W_OK, 0) == 0,
                   info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
                   directoryInfo.st_mode & S_ISVTX == 0 || info.st_uid == geteuid() else { throw VolumePublishError.setChanged }
         }

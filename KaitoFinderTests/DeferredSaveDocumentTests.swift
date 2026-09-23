@@ -354,7 +354,7 @@ extension DeferredSaveDocumentTests {
         XCTAssertEqual(try DeferredSaveFixture.contents(fixture.archive)["folder/a.txt"], Data("A".utf8))
     }
 
-    @MainActor func testSplitSetsRemainReadOnlyInDeferredMode() async throws {
+    @MainActor func testSplitReservationsLeaveEveryVolumeUnchangedUntilSave() async throws {
         let fixture = try SplitArchiveFixture(), defaults = try ArchivePreferencesTestDefaults()
         let store = ArchivePreferencesStore(defaults: defaults.defaults)
         store.preferences.saveBehavior = .onSave
@@ -362,9 +362,9 @@ extension DeferredSaveDocumentTests {
         defer { document.close() }
         try document.read(from: fixture.archive, ofType: "public.data")
         let before = try fixture.volumes.map { try Data(contentsOf: $0) }
-        do { _ = try await document.createFolder(in: "", progress: Progress()); XCTFail("M3 must refuse split editing") } catch { }
-        XCTAssertTrue(document.pendingChanges.isEmpty)
-        XCTAssertFalse(document.isDocumentEdited)
+        _ = try await document.createFolder(in: "", progress: Progress())
+        XCTAssertFalse(document.pendingChanges.isEmpty)
+        XCTAssertTrue(document.isDocumentEdited)
         XCTAssertEqual(try fixture.volumes.map { try Data(contentsOf: $0) }, before)
     }
 

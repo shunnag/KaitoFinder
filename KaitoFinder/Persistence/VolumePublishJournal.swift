@@ -91,11 +91,23 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
     let appVersion: String
     var owner: VolumePublishProcessIdentity?
     var keptOldVolumes: Bool? = nil
+    var metadata: ArchiveVolumeMetadata.Publication? = nil
+    var previousMetadata: ArchiveVolumeMetadata.Publication? = nil
 
     var scheme: ArchiveVolumeSet.Scheme { .numbered(stem: stem, width: width) }
     var nextName: String { scheme.fileName(forVolumeAt: newVolumes.count, count: newVolumes.count + 1) }
 
     func validate(stagingName: String) throws {
+        if let metadata {
+            try metadata.validate()
+            guard metadata.layout.scheme == scheme, metadata.count == newVolumes.count else { throw VolumePublishError.journalUnreadable }
+        }
+        if let previousMetadata {
+            try previousMetadata.validate()
+            guard previousMetadata.layout.scheme == scheme, previousMetadata.count == oldVolumes.count else {
+                throw VolumePublishError.journalUnreadable
+            }
+        }
         guard schemeTag == "numbered", self.stagingName == stagingName, stagingName.hasPrefix(VolumePublishFS.stagingPrefix),
               VolumePublishFS.isName(stagingName), VolumePublishFS.isName(stem), VolumePublishFS.isName(workName),
               width >= 3, width <= 255, stem.utf8.count + 1 + width <= 255, oldVolumes.count <= ReadLimits().maxVolumeCount,
@@ -130,7 +142,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case phase, stagingName, stem, width, volumeUUID, hashesOldVolumes, usesExclusiveRenameFallback
-        case oldVolumes, newVolumes, oldGate, newGate, workName, totalLength, createdAt, appVersion, owner, keptOldVolumes
+        case oldVolumes, newVolumes, oldGate, newGate, workName, totalLength, createdAt, appVersion, owner, keptOldVolumes, metadata, previousMetadata
         case schemeTag = "scheme"
     }
 }

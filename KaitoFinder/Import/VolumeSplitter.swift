@@ -36,11 +36,14 @@ nonisolated enum VolumeSplitter {
             xattrs = values
         }
 
-        func apply(to fd: Int32, quarantine: Data?) throws {
+        func apply(to fd: Int32, quarantine: Data?, avoidsAppleDouble: Bool = false) throws {
             var values = xattrs
+            values.removeValue(forKey: ArchiveVolumeMetadata.layoutKey)
+            values.removeValue(forKey: ArchiveVolumeMetadata.setKey)
             values.removeValue(forKey: "com.apple.quarantine")
             values["com.apple.quarantine"] = quarantine
-            if quarantine == nil {
+            if avoidsAppleDouble { values.removeAll() }
+            if quarantine == nil, !avoidsAppleDouble {
                 let result = fremovexattr(fd, "com.apple.quarantine", 0)
                 if result != 0, errno != ENOATTR { throw VolumePublishError.system(errno) }
             }
@@ -54,7 +57,8 @@ nonisolated enum VolumeSplitter {
 
     /// 末尾から切り出し、巻を同期してから W を縮める。追加領域は約一巻に抑える。
     static func split(workURL: URL, into newDirectory: VolumePublishDirectory, plan: VolumePlan,
-                      oldLayout: ArchiveVolumeLayout?, checkCancellation: () throws -> Void = {}) throws
+                      oldLayout: ArchiveVolumeLayout?, avoidsAppleDouble: Bool = false,
+                      additionalQuarantine: Data? = nil, checkCancellation: () throws -> Void = {}) throws
         -> [VolumePublishJournalRecord.NewVolume] {
         let work = try VolumePublishDirectory(workURL.deletingLastPathComponent())
         guard work.url.lastPathComponent == "work",
@@ -72,7 +76,7 @@ nonisolated enum VolumeSplitter {
         } else {
             attributes = [try Attributes(directory: work, name: workURL.lastPathComponent)]
         }
-        let quarantine = attributes.lazy.compactMap { $0.xattrs["com.apple.quarantine"] }.first
+        let quarantine = attributes.lazy.compactMap { $0.xattrs["com.apple.quarantine"] }.first ?? additionalQuarantine
         var records: [VolumePublishJournalRecord.NewVolume] = []
         for index in plan.volumes.indices.reversed() {
             try checkCancellation()
@@ -88,7 +92,8 @@ nonisolated enum VolumeSplitter {
                     hash.update(data: data)
                     copied += UInt64(data.count)
                 }
-                try attributes[index < attributes.count ? index : 0].apply(to: output, quarantine: quarantine)
+                try attributes[index < attributes.count ? index : 0].apply(to: output, quarantine: quarantine,
+                                                                        avoidsAppleDouble: avoidsAppleDouble)
                 try VolumePublishFS.sync(output)
                 records.append(.init(name: volume.name, length: volume.length,
                                      sha256: hash.finalize().map { String(format: "%02x", $0) }.joined()))

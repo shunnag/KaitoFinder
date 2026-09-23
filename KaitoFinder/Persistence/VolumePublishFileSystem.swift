@@ -107,6 +107,14 @@ nonisolated enum VolumePublishFS {
         guard isName(name) else { throw VolumePublishError.unsafePath(name) }
     }
 
+    /// Resolve directory aliases (including macOS /var and /tmp) before choosing the publisher's
+    /// namespace. The member itself is never resolved; all subsequent I/O remains NOFOLLOW.
+    static func canonicalParent(of member: URL) throws -> URL {
+        guard let path = realpath(member.deletingLastPathComponent().path, nil) else { throw VolumePublishError.system(errno) }
+        defer { free(path) }
+        return URL(fileURLWithPath: String(cString: path), isDirectory: true)
+    }
+
     static func sync(_ fd: Int32, full: Bool = false) throws {
         if full, fcntl(fd, F_FULLFSYNC) == 0 { return }
         while fsync(fd) != 0 {

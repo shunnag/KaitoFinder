@@ -9,7 +9,8 @@ KaitoFinder は「書庫を一覧できる圧縮ソフト」ではなく、**名
 既定は操作ごとに「すぐに書き込む」。一般設定で明示的に選ぶ「保存時にまとめて書き込む」は、
 Finder の即時操作からの opt-in の例外とする。`ArchiveSaveBehavior` を文書の生成時に一度だけ読み、
 開いている文書では切り替えない。「次に開くアーカイブから有効になります。」と設定画面に示す。
-M3 は単一ファイルのみ。分割セットの読み取り専用理由は変更せず、保存対応は M5 とする。
+単一ファイルに加え、M5 では番号付きバイト分割セットも保存時モードで編集できる。
+即時モードの分割編集は M6、ZIP 本来の分割出力は M7 とする。
 
 - Finder と同じ見た目・操作感で、書庫内のフォルダ / ファイル構成を表示する。
 - 書庫内の項目を Finder や他アプリへ **drag & drop** と **copy & paste** で取り出す。
@@ -258,11 +259,65 @@ drop 後の処理をここから駆動する。drop のハイライトは、在�
 変換提案につながることを示す。書けない書庫も受け入れ、元の書庫を変えない
 変換を提案する。使えない編集動詞は、どの形式制限が原因かを言う。
 
-分割書庫は全巻を読み取り専用にする。3 桁以上の数字拡張子は同じ親の先頭巻などの存在で、
+即時モードの分割書庫は全巻を読み取り専用にする。3 桁以上の数字拡張子は同じ親の先頭巻などの存在で、
 ZIP の `.z01` / `.zx01` 系は名前だけで、終巻の `.zip` / `.zipx` は先頭巻の存在で判定する。
 兄弟の存在は `lstat` で確かめ、symlink の参照先や内容は読まない。単独の `.001` は従来どおり扱う。
 `inspect` では一時コピーの次に検査し、公開処理の開始時と置換の直前にも再検査する。
 開いた後に兄弟が現れた場合は編集と Undo を拒否し、一巻だけを書き換えない。
+
+保存時モードでは `.numbered` の 7z / tar / tar.gz / tar.bz2 / tar.xz / LHA / ZIP に
+`ArchiveCapabilities.splitSave` を立てる。ZIP 本来の分割、書けない内側の形式、未認証の暗号化、
+表現できない項目、いずれかの巻または親の書き込み権限不足は拒否する。通常の単一ファイル publisher の
+名前による分割拒否は残し、必ず M2 の `VolumeSetPublication` を通す。
+
+#### 分割セットの保存（M5）
+
+予約・投影・staging・undo・保存後の change-count token は単一ファイルの保存時モードと共通。
+M4 の取り出し・Quick Look・file promise は組み立て済み reader と staging を使う。
+巻サイズが一様なら S を保ち、不揃いなら保存シートで次のいずれかを選ぶ（閉じる・終了からの保存でも同じ）。
+
+- 元の巻サイズ: i < n は Li、以後は max(L(n−1), Ln)。
+- 最も多い巻サイズ: 同数なら大きい方。
+- 1 ファイル: `<stem>.001` のみ。次回も単一巻にする選択として保持する。
+- 指定サイズ: KB / MB / GB は 1024 の累乗、最小 64 KiB。
+
+選択は文書を閉じるまで保持し、公開した予定表は再オープン時にも復元する。128 巻を超える見込みなら
+begin 前のサイズシートで選び直す。実際の W が上限を超えた場合は S5 前に失敗し、サイズの選択を次の保存に
+持ち越す。一つの保存で begin を二度呼ばない。FAT/exFAT、ネットワーク、file provider・同期フォルダでは
+中断時の回復と他アプリが新旧の巻を混在して読む可能性を説明し、文書ごとに一度だけ明示的な同意を得る。
+既定のボタンはキャンセル。同意も巻サイズも begin 前に確定する。
+
+`ArchiveSplitWorkProducer.produce(source:workURL:mode:password:options:plan:progress:verifyAssembledInput:)`
+は出力の stem・命名・予定表と独立して W を生成する。rewriter の `volumeSet` を publication の
+`verifyAssembledInput` で照合してから replay する。`.zip.001` は `ArchiveVolumeInput.copy(to:progress:)`
+で各巻の fd・パス・同一性を前後に照合しながら連結し、Updater で既存項目を再圧縮せず編集する。
+Updater の gatekeeper 拒否だけは ZIP rewriter へ切り替え、保存後の通知欄で知らせる。
+W と切り出したセットを KaitoKit で開き、予定した名前の集合と照合する。
+
+調整の presenter は必ず ArchiveDocument 自身。取得待ちは S5 の外にあり、時間切れは原本を変えず失敗する。
+公開中の presentedItemDidMove は無視し、終了時に fileURL を元の gate URL の綴りへ戻す。
+reader が `/private/var` を `/var` に正規化しても文書の URL は置き換えない。成功後は新 gate の mtime を採用する。
+M2 の committed（後片付けの警告を含む）は保存成功として予約・staging・undo を消す。rolledBack は失敗として
+予約と dirty を保ち、再オープンまで編集を無効にする。rollbackIncomplete / held / publishedReaderFailed /
+publishedVerificationPending も失敗として予約を保持し、再オープンまで編集を無効にする。残った staging には
+「Finderで表示」を提供する。ownerAlive は原本を変えず再試行の案内。
+
+APFS/HFS+ では gate に `com.shunnag.KaitoFinder.volume-layout`（stem / width / schedule の JSON）、各巻に
+`com.shunnag.KaitoFinder.volume-set`（setUUID / generation / index / count / totalSHA256 の JSON）を書く。
+一巻に縮んでも gate の予定表を読んで再分割できる。setUUID・世代・巻数・順序の不一致は読み取りを残して編集を拒否する。
+他ツールの印のない巻は印の比較から除く。
+
+M2 の `usesAppleDouble` が真のファイルシステムではこれらの xattr を書かず、既存の継承属性も公開巻に
+AppleDouble として作らない。Application Support/KaitoFinder/volume-metadata.json に、volume UUID +
+volume-relative gate path + gate inode を鍵として、予定表・世代・全巻の識別・継承属性を保存する。
+flock と fsync 済みの atomic JSON 置換を使い、quarantine は開いた session に戻す。journal に新旧の記録を含め、
+回復の前進時もこのストアを確定してから done にする。後退時は完全な旧セットを証明してから gate inode を
+付け直すため、FAT/SMB の rename で識別子が変わっても一巻の予定表を失わない。セットの隣には新たな `._*` を作らない。
+
+開く controller は、gate の正規化や型判定より先に、指定巻と同じ stem の未完了 journal を探す。
+`.003` を指定して gate が staging に隠れていても単独では開かない。`read(from:)` も同じ読み取りだけの発見を行い、
+「中断した保存を完了して開く」を持つ RecoverableError を返す。選択後に専用 recovery queue で非同期に回復し、
+gate を開き直す。HELD は staging の「Finderで表示」、owned は再試行の案内を出す。read 内で回復・rename はしない。
 
 reader が返す `volumeSet` から巻順・入口・巻サイズの予定表を `ArchiveVolumeLayout` に保持し、
 分割の判定にも使う。`ArchiveSetIdentity` は全巻の名前・ボリューム UUID（取得できない場合は device）・
@@ -725,7 +780,8 @@ KaitoFinder が開き手の候補に出るかを実測した。識別子・候�
 Finder / LaunchServices の実ファイルの関連付けは増やさない。途中の番号付き巻は同じ桁幅の
 先頭巻（桁が増えた名前では `.001` も探す）、`.zNN` / `.zxNN` は最終 `.zip` / `.zipx` に
 入口を揃えてから開き、同じ文書と最近使った項目を共有する。入口が lstat で存在しなければ
-元の URL を渡す。一括展開も同じ入口を使い、分割セットの変更拒否は維持する。
+同じ stem の未解決 journal があれば回復を提案し、それもなければ元の URL を渡す。
+一括展開も同じ入口を使う。即時モードと ZIP 本来の分割セットの変更拒否は維持する。
 
 展開サービスの `NSSendFileTypes` は全 `LSItemContentTypes` の集合と一致させる。
 内部の分割巻型も集合に含めるが、その型を持つ実ファイルがないので Finder のサービス対象は増えない。

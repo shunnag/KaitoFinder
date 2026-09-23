@@ -29,9 +29,10 @@ nonisolated enum VolumePublishError: Error, Equatable {
 
 /// 不揃いな予定表の選択は呼び出し側の仕事。推測して自動採用しない。
 nonisolated struct VolumePlan: Sendable, Equatable {
-    enum Schedule: Sendable, Equatable {
+    enum Schedule: Codable, Sendable, Equatable {
         case uniform(size: UInt64)
         case explicit([UInt64])
+        case single
     }
 
     struct Volume: Sendable, Equatable {
@@ -56,6 +57,7 @@ nonisolated struct VolumePlan: Sendable, Equatable {
         }
         let prefix: [UInt64], repeating: UInt64
         switch schedule {
+        case .single: prefix = []; repeating = UInt64(Int64.max)
         case .uniform(let size): prefix = []; repeating = size
         case .explicit(let lengths):
             guard !lengths.isEmpty, lengths.allSatisfy({ $0 > 0 }) else { throw VolumePublishError.invalidPlan }

@@ -58,15 +58,19 @@ nonisolated final class VolumePublishCriticalSection: Sendable {
 
 /// accessor を保持する間だけ書き込み意図が有効。取得待ちは臨界区間の外で打ち切れる。
 nonisolated final class VolumePublishCoordination: @unchecked Sendable {
+    typealias Request = @Sendable (NSFileCoordinator, [NSFileAccessIntent], OperationQueue,
+                                   @escaping @Sendable ((any Error)?) -> Void) -> Void
     private struct State { var expired = false; var error: (any Error)? }
     private let state = Mutex(State())
     private let acquired = DispatchSemaphore(value: 0)
     private let release = DispatchSemaphore(value: 0)
     private let coordinator: NSFileCoordinator
     private let queue = OperationQueue()
+    private let request: Request?
 
-    init(gate: URL, presenter: (any NSFilePresenter)?) {
+    init(gate: URL, presenter: (any NSFilePresenter)?, request: Request? = nil) {
         coordinator = NSFileCoordinator(filePresenter: presenter)
+        self.request = request
         queue.maxConcurrentOperationCount = 1
         queue.qualityOfService = .userInitiated
     }
@@ -74,11 +78,13 @@ nonisolated final class VolumePublishCoordination: @unchecked Sendable {
     func withAccess<T>(gate: URL, additional: [URL] = [], timeout: TimeInterval, body: () throws -> T) throws -> T {
         // Foundation は writing option を一つだけ許す。入口全体の置き換えとして取得する。
         let intents = Set([gate] + additional).map { NSFileAccessIntent.writingIntent(with: $0, options: .forReplacing) }
-        coordinator.coordinate(with: intents, queue: queue) { [self] error in
+        let accessor: @Sendable ((any Error)?) -> Void = { [self] error in
             let expired = state.withLock { value in value.error = error; return value.expired }
             acquired.signal()
             if !expired, error == nil { release.wait() }
         }
+        if let request { request(coordinator, intents, queue, accessor) }
+        else { coordinator.coordinate(with: intents, queue: queue, byAccessor: accessor) }
         guard acquired.wait(timeout: .now() + timeout) == .success else {
             state.withLock { $0.expired = true }
             release.signal()

@@ -45,20 +45,23 @@ nonisolated final class ArchiveSplitVolumeTests: XCTestCase {
         }
     }
 
-    private func assertSplit(_ capabilities: ArchiveCapabilities, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertEqual(capabilities.refusal, .splitArchive, file: file, line: line)
+    private func assertSplit(_ capabilities: ArchiveCapabilities, refusal: ArchiveCapabilities.Refusal = .splitArchive,
+                             file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(capabilities.refusal, refusal, file: file, line: line)
         XCTAssertFalse(capabilities.canEdit, file: file, line: line)
         XCTAssertNil(capabilities.mode, file: file, line: line)
         XCTAssertNil(capabilities.rewriteNotice, file: file, line: line)
-        XCTAssertEqual(capabilities.readOnlyReason, String(localized: "分割されたアーカイブは変更できません。"),
-                       file: file, line: line)
+        let reason = refusal == .nativeSplitArchive
+            ? String(localized: "ZIP本来の分割アーカイブは変更できません。")
+            : String(localized: "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。")
+        XCTAssertEqual(capabilities.readOnlyReason, reason, file: file, line: line)
     }
 
     private func assertRefused(_ error: any Error, file: StaticString = #filePath, line: UInt = #line) {
         guard case ExtractionFailure.refused(let reason) = error else {
             return XCTFail("Expected split refusal, got \(error)", file: file, line: line)
         }
-        XCTAssertEqual(reason, String(localized: "分割されたアーカイブは変更できません。"), file: file, line: line)
+        XCTAssertEqual(reason, String(localized: "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。"), file: file, line: line)
     }
 
     private func assertUnchanged(_ volumes: [URL], bytes: [Data], in directory: URL,
@@ -171,11 +174,15 @@ nonisolated final class ArchiveSplitVolumeTests: XCTestCase {
         let fixture = try Fixture(.zip, name: "n.zip")
         try Data().write(to: fixture.directory.url.appendingPathComponent("n.z01"))
         let reader = try ArchiveReader.open(url: fixture.archive, options: .kaitoFinder())
-        assertSplit(ArchiveCapabilities.inspect(url: fixture.archive, format: .zip))
-        assertSplit(ArchiveCapabilities.inspect(reader: reader, url: fixture.archive))
+        assertSplit(ArchiveCapabilities.inspect(url: fixture.archive, format: .zip), refusal: .nativeSplitArchive)
+        assertSplit(ArchiveCapabilities.inspect(reader: reader, url: fixture.archive), refusal: .nativeSplitArchive)
         let session = try ArchiveSession(url: fixture.archive)
-        assertSplit(session.capabilities)
+        assertSplit(session.capabilities, refusal: .nativeSplitArchive)
         XCTAssertEqual(ArchiveConversionNotice.formatName(for: session), session.format.displayName)
+        do { _ = try await session.createFolder(in: "", progress: Progress()); XCTFail("Native split ZIP stays read-only") }
+        catch ExtractionFailure.refused(let reason) {
+            XCTAssertEqual(reason, String(localized: "ZIP本来の分割アーカイブは変更できません。"))
+        }
         await session.close()
     }
 
@@ -343,10 +350,10 @@ nonisolated final class ArchiveSplitVolumeTests: XCTestCase {
     }
 
     func testSplitReasonHasTwentySixTranslationsWithMatchingPunctuation() throws {
-        let key = "分割されたアーカイブは変更できません。"
+        let key = "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。"
         let entry = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key])
         XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages))
-        XCTAssertEqual(entry.localizations["en"]?.stringUnit.value, "Split archives can’t be edited.")
+        XCTAssertEqual(entry.localizations["en"]?.stringUnit.value, "Split archives can be edited by choosing “Together When Saving” in Settings.")
         for language in LocalizationAcceptance.languages {
             let unit = try XCTUnwrap(entry.localizations[language]?.stringUnit)
             XCTAssertEqual(unit.state, "translated", language)

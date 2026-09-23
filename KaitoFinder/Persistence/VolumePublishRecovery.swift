@@ -18,8 +18,10 @@ nonisolated struct VolumePublishRecovery: Sendable {
     }
     let index: RecoverableWorkIndex
     let operations: VolumePublishOperations
-    init(index: RecoverableWorkIndex = .shared, operations: VolumePublishOperations = .init()) {
-        self.index = index; self.operations = operations
+    let metadataStore: ArchiveVolumeMetadataStore
+    init(index: RecoverableWorkIndex = .shared, operations: VolumePublishOperations = .init(),
+         metadataStore: ArchiveVolumeMetadataStore = .shared) {
+        self.index = index; self.operations = operations; self.metadataStore = metadataStore
     }
     static func recoverAll(parents: [URL] = [], mountedVolume: URL? = nil) -> [Result] {
         Self().recoverAll(parents: parents, mountedVolume: mountedVolume)
@@ -256,7 +258,7 @@ nonisolated struct VolumePublishRecovery: Sendable {
                 var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
                     renamer: VolumeExclusiveRename(usesFallback: record.usesExclusiveRenameFallback, verifiesPaths: false), index: index,
                     record: record, operations: operations, stagingLock: stagingLock, isNetworkVolume: !volume.isLocal,
-                    indexedURL: indexedURL)
+                    metadataStore: metadataStore, indexedURL: indexedURL)
                 if record.phase == .done || entry?.cleanupAuthorized == true {
                     // Never resurrect an old set after commit. Unlink needs a fresh live-copy proof.
                     var allowRemoval = false
@@ -382,6 +384,7 @@ nonisolated struct VolumePublishRecovery: Sendable {
         }
     }
     private func finishForward(_ transaction: inout VolumePublishTransaction, options: ReaderOptions) throws -> Result {
+        try transaction.persistMetadata()
         try transaction.phase(.done)
         // Format checking is an optional diagnostic AFTER commit, never a recovery requirement.
         if let report = operations.recoveryReaderDiagnostic {
@@ -397,6 +400,7 @@ nonisolated struct VolumePublishRecovery: Sendable {
         return .recovered(staging: transaction.staging.url, direction: .forward, disposal: disposal)
     }
     private func finishBackward(_ transaction: inout VolumePublishTransaction) throws -> Result {
+        try transaction.persistRestoredMetadata()
         let disposal = try transaction.dispose("abandoned")
         if case .kept = disposal { return .held(staging: transaction.staging.url, reason: "Old set restored; cleanup pending", disposal: disposal) }
         try transaction.removeEmptyStaging()

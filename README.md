@@ -31,7 +31,7 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 `.msi` / `.arj` は、他のアプリがファイル型を登録している環境での関連付けにも対応する。
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
-`.001` / `.zNN` / `.zxNN` の分割巻は Finder には関連付けず、アプリ内の「開く…」やようこそへのドロップで読み取り専用として開き、途中の巻を選んでも入口の巻があればセット全体を表示する。
+`.001` / `.zNN` / `.zxNN` の分割巻は Finder には関連付けず、アプリ内の「開く…」やようこそへのドロップで開く。途中の巻を選んでも入口の巻があればセット全体を表示する。
 LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
 
 ZIP 内の XZ（method 95）と旧 Zstandard（method 20）、旧方式 Shrink / Reduce 1〜4 / Implode、
@@ -64,7 +64,11 @@ Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連�
 書き込み可能なアーカイブには、Finder や他のアプリから drag in / paste in で追加できる。
 削除・改名・新規フォルダの作成と、同じウインドウ内でのドラッグによるフォルダ間の移動に対応する。
 ⌥ を押しながらドラッグするとコピーになる。
-分割（マルチボリューム）アーカイブは、現在は読み取り専用。
+設定で「保存時にまとめて書き込む」を選んでから開くと、番号付きのバイト分割アーカイブ
+（7z、tar、tar.gz、tar.bz2、tar.xz、LHA、ZIP の `.001…`）も編集できる。
+保存するまでは原本を変えず、保存時に同じ巻サイズで分割し直す。巻サイズが揃っていないときは保存時に選ぶ。
+FAT/exFAT・ネットワーク・同期フォルダへの保存は確認が必要。中断した保存は、次に開くときに回復を提案する。
+「すぐに書き込む」モードと ZIP 本来の分割（`.z01…/.zip`）は読み取り専用のまま。
 
 編集は ⌘Z で取り消し、⇧⌘Z でやり直せる。
 編集前の原本を同じボリュームの一時領域へ `clonefile` で退避し、取り消し時に戻す。
@@ -275,7 +279,11 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Drag or paste files into writable archives. Delete, rename, create folders, and
 > drag items between folders in the same window; hold ⌥ to copy instead of move.
-> Split (multi-volume) archives are read-only for now.
+> Choose “Together When Saving” in Settings before opening to edit numbered byte-split archives
+> (`.001…` for 7z, tar, tar.gz, tar.bz2, tar.xz, LHA, and ZIP). Changes remain pending until Save,
+> which splits the updated archive using the original volume size. Uneven sets offer a size choice.
+> Saving on FAT/exFAT, network volumes, or sync folders requires consent. Interrupted saves offer
+> recovery when reopening. Immediate mode and native split ZIP (`.z01…/.zip`) remain read-only.
 > When names conflict, compare size, modification date, kind, and location before
 > choosing Replace or Skip. Compare Contents opens both files side by side in Quick Look.
 > Apply a choice to the remaining files in a batch; folders and type changes require

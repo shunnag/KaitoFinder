@@ -13,6 +13,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
     var operations = VolumePublishOperations()
     var stagingLock: VolumePublishLock? = nil
     var isNetworkVolume = false
+    var metadataStore = ArchiveVolumeMetadataStore.shared
     var indexedURL: URL? = nil
     var oldProof: [String: Stamp] = [:]
     var newProof: [String: Stamp] = [:]
@@ -108,6 +109,23 @@ nonisolated struct VolumePublishTransaction: Sendable {
     mutating func phase(_ value: VolumePublishJournalRecord.Phase) throws {
         record.phase = value
         try journal.write(record)
+    }
+
+    func persistMetadata() throws {
+        guard let metadata = record.metadata, try VolumePublishFS.usesAppleDouble(parent) else { return }
+        let layout = ArchiveVolumeLayout(scheme: record.scheme, volumes: record.newVolumes.map {
+            .init(url: parent.url.appendingPathComponent($0.name), length: $0.length)
+        }, openedVolumeIndex: 0)
+        try metadataStore.save(metadata, layout: layout)
+    }
+    func persistRestoredMetadata() throws {
+        guard let metadata = record.previousMetadata, try VolumePublishFS.usesAppleDouble(parent),
+              try record.oldVolumes.allSatisfy({ try $0.matches(in: parent, useHash: record.hashesOldVolumes) }) else { return }
+        // FAT/SMB can change a synthetic inode on rename. Re-key only a proved complete old set.
+        let layout = ArchiveVolumeLayout(scheme: record.scheme, volumes: record.oldVolumes.map {
+            .init(url: parent.url.appendingPathComponent($0.name), length: $0.size)
+        }, openedVolumeIndex: 0)
+        try metadataStore.save(metadata, layout: layout)
     }
     mutating func markOldKept() throws {
         guard record.phase == .done, record.keptOldVolumes != true else { return }
@@ -294,6 +312,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         }
         try phase(.abandoned)
         if allowLiveMoves { try restoreOld() }
+        try persistRestoredMetadata()
     }
     private mutating func restoreOld() throws {
         // Nothing retired means no restoration is owed, even if live names changed independently.
