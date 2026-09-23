@@ -153,8 +153,15 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
                 }
             }) { XCTAssertTrue($0 is SimulatedCrash) }
             let staging = URL(fileURLWithPath: try XCTUnwrap(fixture.index.entries().first).stagingPath)
-            let results = VolumePublishRecovery(index: fixture.index).recoverAll()
+            let parent = try VolumePublishDirectory(fixture.root), volume = try VolumePublishFS.volumeInfo(parent)
+            let root = try VolumePublishFS.volumeRoot(parent)
+            var operations = VolumePublishOperations()
+            operations.mountedVolumes = { [.init(root: root, uuid: volume.uuid)] }
+            let recovery = VolumePublishRecovery(index: fixture.index, operations: operations)
+            let results = recovery.recoverAll()
             XCTAssertTrue(results.contains { if case .recovered = $0 { return true }; return false }, "\(results)")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: staging.path))
+            _ = recovery.recoverAll() // A later unique-volume proof prunes a hint retained by stored-path cleanup.
             try fixture.assertRemoved(staging)
             let retry = try fixture.begin(); retry.cancel()
         }
@@ -458,7 +465,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         for volume in fixture.plan.volumes { joined.append(try Data(contentsOf: root.appendingPathComponent(volume.name))) }
         XCTAssertEqual(joined, fixture.newBytes)
         XCTAssertFalse(FileManager.default.fileExists(atPath: rebased.path))
-        XCTAssertTrue(try fixture.index.entries().isEmpty)
+        XCTAssertEqual(try fixture.index.entries().count, 1, "didMount alone cannot exclude a cloned UUID")
     }
 
     // 12a: intermediate symlink を差し替えても、保持 fd の xattr だけが読み書きされる。

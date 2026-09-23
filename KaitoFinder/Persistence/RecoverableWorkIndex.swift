@@ -12,6 +12,13 @@ nonisolated final class RecoverableWorkIndex: Sendable {
         var gateName: String? = nil
         var cleanupAuthorized: Bool? = nil
         var parentInode: UInt64? = nil
+        var nonLocalVolume: Bool? = nil
+        var stagingLockName: String? = nil
+
+        func matches(_ staging: URL, volumeUUID: String, root: URL) -> Bool {
+            self.volumeUUID == volumeUUID && (stagingPath == staging.path
+                || (relativeStagingPath != nil && relativeStagingPath == VolumePublishFS.relativePath(staging, on: root)))
+        }
 
         func resolved(on root: URL, uuid: String) -> URL? {
             guard VolumePublishFS.knownUUID(uuid), uuid == volumeUUID, let relativeStagingPath, !relativeStagingPath.hasPrefix("/"),
@@ -23,21 +30,23 @@ nonisolated final class RecoverableWorkIndex: Sendable {
     private static let mutex = Mutex(())
     let fileURL: URL
     var setLocksURL: URL { fileURL.deletingLastPathComponent().appendingPathComponent("set-locks", isDirectory: true) }
+    var stagingLocksURL: URL { fileURL.deletingLastPathComponent().appendingPathComponent("staging-locks", isDirectory: true) }
     init(fileURL: URL) { self.fileURL = fileURL }
 
     func entries() throws -> [Entry] { try access { try read($0) } }
-    func register(_ staging: URL, volumeUUID: String, gateName: String? = nil) throws {
+    func register(_ staging: URL, volumeUUID: String, gateName: String? = nil, nonLocalVolume: Bool? = nil,
+                  stagingLockName: String? = nil, volumeRoot: URL? = nil) throws {
         let parent = try VolumePublishDirectory(staging.deletingLastPathComponent())
         var parentInfo = stat()
         guard fstat(parent.fd, &parentInfo) == 0 else { throw VolumePublishError.system(errno) }
-        let root = try VolumePublishFS.volumeRoot(parent)
-        let prefix = root.path == "/" ? "/" : root.path + "/"
-        let relative = staging.path.hasPrefix(prefix) ? String(staging.path.dropFirst(prefix.count)) : nil
+        let root = try volumeRoot ?? VolumePublishFS.volumeRoot(parent)
+        let relative = VolumePublishFS.relativePath(staging, on: root)
         try access { directory in
             var entries = try read(directory)
             if !entries.contains(where: { $0.stagingPath == staging.path }) {
                 entries.append(Entry(stagingPath: staging.path, volumeUUID: volumeUUID, registeredAt: Date(),
-                                     relativeStagingPath: relative, gateName: gateName, parentInode: parentInfo.st_ino))
+                                     relativeStagingPath: relative, gateName: gateName, parentInode: parentInfo.st_ino,
+                                     nonLocalVolume: nonLocalVolume, stagingLockName: stagingLockName))
             }
             try save(entries, in: directory)
         }

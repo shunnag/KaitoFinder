@@ -90,6 +90,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
     let createdAt: Date
     let appVersion: String
     var owner: VolumePublishProcessIdentity?
+    var keptOldVolumes: Bool? = nil
 
     var scheme: ArchiveVolumeSet.Scheme { .numbered(stem: stem, width: width) }
     var nextName: String { scheme.fileName(forVolumeAt: newVolumes.count, count: newVolumes.count + 1) }
@@ -129,7 +130,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case phase, stagingName, stem, width, volumeUUID, hashesOldVolumes, usesExclusiveRenameFallback
-        case oldVolumes, newVolumes, oldGate, newGate, workName, totalLength, createdAt, appVersion, owner
+        case oldVolumes, newVolumes, oldGate, newGate, workName, totalLength, createdAt, appVersion, owner, keptOldVolumes
         case schemeTag = "scheme"
     }
 }

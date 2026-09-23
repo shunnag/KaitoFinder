@@ -35,6 +35,8 @@ nonisolated final class VolumeSetPublication: Sendable {
     private let staging: VolumePublishDirectory
     private let journal: VolumePublishJournal
     private let setLock: VolumePublishLock
+    private let stagingLock: VolumePublishLock
+    private let isNetworkVolume: Bool
     private let index: RecoverableWorkIndex
     private let renamer: VolumeExclusiveRename
     private let initialRecord: VolumePublishJournalRecord
@@ -48,12 +50,14 @@ nonisolated final class VolumeSetPublication: Sendable {
     var workURL: URL { staging.url.appendingPathComponent("work", isDirectory: true).appendingPathComponent(initialRecord.workName) }
 
     private init(target: VolumeSetTarget, parent: VolumePublishDirectory, staging: VolumePublishDirectory,
-                 journal: VolumePublishJournal, setLock: VolumePublishLock, index: RecoverableWorkIndex,
+                 journal: VolumePublishJournal, setLock: VolumePublishLock, stagingLock: VolumePublishLock,
+                 isNetworkVolume: Bool, index: RecoverableWorkIndex,
                  renamer: VolumeExclusiveRename, record: VolumePublishJournalRecord, options: ReaderOptions,
                  coordinationTimeout: TimeInterval, criticalSection: VolumePublishCriticalSection, operations: VolumePublishOperations,
                  hook: @escaping @Sendable (VolumePublishStep) throws -> Void) {
         self.target = target; self.parent = parent; self.staging = staging; self.journal = journal
         self.setLock = setLock; self.index = index; self.renamer = renamer; initialRecord = record
+        self.stagingLock = stagingLock; self.isNetworkVolume = isNetworkVolume
         self.options = options; self.coordinationTimeout = coordinationTimeout
         self.criticalSection = criticalSection; self.hook = hook; self.operations = operations
     }
@@ -71,6 +75,7 @@ nonisolated final class VolumeSetPublication: Sendable {
                                   scheme: target.scheme, layout: target.layout)
         let parent = try VolumePublishDirectory(target.parent)
         let volume = try operations.volumeInfo(parent)
+        let volumeRoot = try VolumePublishFS.volumeRoot(parent)
         try checkWorkLength(estimatedOutputLength, fileSystem: volume.fileSystem)
         if let hazard = volume.hazard, !target.allowHazardousVolume { throw VolumePublishError.hazardousVolume(hazard) }
         let setLock = try VolumePublishLock.setLock(volumeUUID: volume.uuid, gateInode: target.expected?.volumes.first?.inode,
@@ -90,15 +95,14 @@ nonisolated final class VolumeSetPublication: Sendable {
             let indexedGate = indexedWork.first { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }?.gateName
             // An unreadable, unattributed sibling is not evidence of an unresolved publication of this stem.
             guard previous.map({ $0.stem == stem }) ?? (indexedGate == plan.gateName) else { continue }
-            let result = VolumePublishRecovery(index: index, operations: operations).recover(staging: url, alreadyLockedGate: plan.gateName, options: options, presenter: target.filePresenter)
+            let result = VolumePublishRecovery(index: index, operations: operations).recover(staging: url,
+                alreadyLockedGate: plan.gateName, options: options, presenter: target.filePresenter,
+                volume: volume, volumeRoot: volumeRoot)
             if case .recovered = result { continue }
-            if let previous, previous.phase == .done, !previous.newVolumes.isEmpty {
-                try previous.validate(stagingName: base)
-                try parent.requireAbsent(previous.nextName)
-                if try previous.newVolumes.allSatisfy({ try $0.matches(in: parent) }) {
-                    try parent.requireAbsent(previous.nextName)
-                    continue // Superseded backup cleanup cannot prevent another save of the proven live set.
-                }
+            // Re-read after cleanup: only a still-readable, valid done journal exempts this backup.
+            if let completed = try? VolumePublishJournal.inspect(parent.directory(name)), completed.phase == .done {
+                try completed.validate(stagingName: base)
+                continue // A later publication may already have replaced this generation's new set.
             }
             throw VolumePublishError.unresolvedPublication(url)
         }
@@ -118,8 +122,11 @@ nonisolated final class VolumeSetPublication: Sendable {
         // S1: probe には staging が必要。S0 の全 read-only 検査後、W を受け取る前に実行する。
         let stagingName = VolumePublishFS.stagingPrefix + UUID().uuidString
         let stagingURL = parent.url.appendingPathComponent(stagingName, isDirectory: true)
+        let stagingLock = try VolumePublishLock.stagingLock(stagingName, directory: index.stagingLocksURL)
+        defer { withExtendedLifetime(stagingLock) {} }
         // mkdir より先に索引へ。S1 途中の crash でも launch/didMount が発見できる。
-        try index.register(stagingURL, volumeUUID: volume.uuid, gateName: plan.gateName)
+        try index.register(stagingURL, volumeUUID: volume.uuid, gateName: plan.gateName, nonLocalVolume: !volume.isLocal,
+                           stagingLockName: stagingName, volumeRoot: volumeRoot)
         var createdStaging: VolumePublishDirectory?
         do {
             try fault(.registered)
@@ -144,13 +151,14 @@ nonisolated final class VolumeSetPublication: Sendable {
             try staging.sync(); try parent.sync()
             try checkCancellation()
             return VolumeSetPublication(target: target, parent: parent, staging: staging, journal: journal, setLock: setLock,
-                index: index, renamer: renamer, record: record, options: options, coordinationTimeout: coordinationTimeout,
+                stagingLock: stagingLock, isNetworkVolume: !volume.isLocal, index: index, renamer: renamer, record: record,
+                options: options, coordinationTimeout: coordinationTimeout,
                 criticalSection: criticalSection, operations: operations, hook: fault)
         } catch is SimulatedCrash { throw SimulatedCrash() }
         catch {
             // S5 より前の生成物は原本の状態や Trash に依存せず削除する。
             if let staging = createdStaging {
-                try VolumePublishRemoval.discard(staging, parent: parent, operations: operations)
+                try VolumePublishRemoval.discard(staging, parent: parent, operations: operations, isNetworkVolume: !volume.isLocal)
                 try parent.sync(full: true)
             }
             try index.removeCompleted(stagingURL)
@@ -209,9 +217,10 @@ nonisolated final class VolumeSetPublication: Sendable {
             guard !state.started, !state.finished else { throw VolumePublishError.alreadyUsed }
             state.started = true
         }
-        defer { journal.release(); setLock.release(); state.withLock { $0.finished = true } }
+        defer { journal.release(); stagingLock.release(); setLock.release(); state.withLock { $0.finished = true } }
         var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
-            renamer: renamer, index: index, record: initialRecord, operations: operations)
+            renamer: renamer, index: index, record: initialRecord, operations: operations,
+            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume)
         var critical = false
         do {
             try checkCancellation(progress)
@@ -290,7 +299,10 @@ nonisolated final class VolumeSetPublication: Sendable {
                         try hook(.committed)
                         disposal = try transaction.dispose("old")
                         try hook(.oldDisposed)
-                        if case .kept = disposal { cleanupFailure = "Superseded old volumes retained" }
+                        if case .kept = disposal {
+                            try transaction.markOldKept()
+                            cleanupFailure = "Superseded old volumes retained"
+                        }
                         else { try transaction.removeEmptyStaging(hook: hook) }
                     } catch is SimulatedCrash { throw SimulatedCrash() }
                     catch { cleanupFailure = String(describing: error) }
@@ -328,9 +340,10 @@ nonisolated final class VolumeSetPublication: Sendable {
             return true
         }
         guard cleanup else { return }
-        defer { journal.release(); setLock.release() }
+        defer { journal.release(); stagingLock.release(); setLock.release() }
         let transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
-            renamer: renamer, index: index, record: initialRecord, operations: operations)
+            renamer: renamer, index: index, record: initialRecord, operations: operations,
+            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume)
         _ = try? transaction.discardPrepared()
     }
 

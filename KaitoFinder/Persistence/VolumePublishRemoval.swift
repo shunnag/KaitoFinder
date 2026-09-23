@@ -19,17 +19,27 @@ nonisolated enum VolumePublishRemoval {
     }
 
     static func discard(_ staging: VolumePublishDirectory, parent: VolumePublishDirectory,
-                        operations: VolumePublishOperations) throws {
+                        operations: VolumePublishOperations, isNetworkVolume: Bool = false) throws {
         let name = staging.url.lastPathComponent
         guard stagingName(name) == name else { throw VolumePublishError.unsafePath(name) }
         let tombstone = name + ".discard"
         try requireIdentity(staging, in: parent, name: name)
         try parent.requireAbsent(tombstone)
-        if renameatx_np(parent.fd, name, parent.fd, tombstone, UInt32(RENAME_EXCL)) != 0 {
-            guard errno == ENOTSUP || errno == EOPNOTSUPP else { throw VolumePublishError.system(errno) }
+        var result = operations.renameStaging(parent.fd, name, tombstone, UInt32(RENAME_EXCL))
+        if result != 0, errno == ENOTSUP || errno == EOPNOTSUPP {
             // Same documented noncooperating-writer race as the volume rename fallback.
             try parent.requireAbsent(tombstone)
-            guard renameat(parent.fd, name, parent.fd, tombstone) == 0 else { throw VolumePublishError.system(errno) }
+            result = operations.renameStaging(parent.fd, name, tombstone, 0)
+        }
+        if result != 0 {
+            let failure = errno
+            guard isNetworkVolume, failure == EBUSY || failure == EACCES else { throw VolumePublishError.system(failure) }
+            // Caller has proved disposal and holds the independent staging lock. Keep journal last
+            // so an interruption can repeat that proof; after journal removal the reserved regions are empty.
+            try requireIdentity(staging, in: parent, name: name)
+            try remove(name, from: parent, operations: operations)
+            try parent.sync(full: true)
+            return
         }
         try requireIdentity(staging, in: parent, name: tombstone)
         try parent.sync(full: true) // Durable deletion authorization, independent of the index/journal.

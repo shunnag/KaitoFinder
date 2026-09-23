@@ -471,7 +471,9 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         let transaction = try staged(fixture); transaction.journal.release()
         let results = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recoverAll()
         XCTAssertTrue(results.contains { if case .recovered = $0 { return true }; return false }, "\(results)")
-        try fixture.assertOld(); try fixture.assertRemoved(transaction.staging.url)
+        try fixture.assertOld()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
+        XCTAssertEqual(try fixture.index.entries().count, 1, "Existing boot-volume paths do not need mount enumeration")
     }
 
     func testOptionalReaderDiagnosticUsesCallerOptionsWithoutHoldingCommit() throws {

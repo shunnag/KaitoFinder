@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import KaitoKit
 import Synchronization
@@ -21,6 +22,10 @@ nonisolated struct VolumePublishOperations: Sendable {
     var recoveryReaderDiagnostic: (@Sendable (String?) -> Void)? = nil
     var volumeInfo: @Sendable (VolumePublishDirectory) throws -> VolumePublishFS.VolumeInfo = { try VolumePublishFS.volumeInfo($0) }
     var mountedVolumes: @Sendable () throws -> [VolumePublishFS.MountedVolume] = { try VolumePublishFS.mountedVolumes() }
+    var nonLocalMountedVolumes: @Sendable () throws -> [VolumePublishFS.MountedVolume] = { try VolumePublishFS.mountedVolumes(includeNonLocal: true) }
+    var renameStaging: @Sendable (Int32, String, String, UInt32) -> Int32 = { fd, from, to, flags in
+        renameatx_np(fd, from, fd, to, flags)
+    }
     var didHash: @Sendable (URL) -> Void = { _ in }
     var didBarrier: @Sendable (VolumePublishBarrier) -> Void = { _ in }
     var willCoordinate: @Sendable (URL) throws -> Void = { _ in }
