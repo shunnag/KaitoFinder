@@ -33,3 +33,12 @@ KaitoFinder の Info.plist を写した実際の .app と標準の NSDocumentCon
   `URLResourceKey.contentTypeKey` で得る。
 - 全体（927bc26 のビルド）: 919 件実行、skip 20、失敗 16（9 テスト）。失敗は M1 の記録と同じ GUI 操作の 9 件だけで、
   画面ロック中の実行による。ロックを解除したセッションで再実行する（M6 の後）。
+
+## GUI テストの再確認（2026-09-23、ロック解除後）
+
+ロックを解除したセッションで GUI のクラスを再実行した。ArchivePasswordUITests（6 件）、ArchiveTabTests、
+DeferredSaveUITests、ArchivePreferencesUITests、ArchiveBatchExtractionUITests は通った。
+ArchivePreviewSidebarTests.testMenuToolbarAndKeyboardToggleTheActiveArchive と ArchiveTabSpringLoadingTests
+（3 テスト）は、M0（4ec3d77）を別の作業ツリーで同じ時刻に実行しても同じく失敗したため、本ブランチの変更によらない
+GUI 環境依存の失敗と判断した（M0 の全体実行時には通っていた）。ArchiveConflictUITests の 1 件は M3 の「保存」メニュー項目で
+「スキップ」の Return が外れる退行で、M1 の時点ではロックによる失敗だった（a1ae9c6 では通る）。修正は別コミット。

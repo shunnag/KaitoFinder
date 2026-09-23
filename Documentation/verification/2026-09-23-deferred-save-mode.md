@@ -42,3 +42,14 @@
   投影の名前規則で打ち消される、外部変更の「破棄して読み直す」が保存の状態機械の外で動く、staging が変更禁止フラグと ACL を
   引き継ぐ）を含む 17 項目を修正した。
 - DeferredSaveUITests（GUI）は画面ロック中のため未実行。ロック解除後に実行する（M6 の後）。
+
+## 追補: 「保存」メニューと確認シートの Return（2026-09-23）
+
+M3 で「ファイル > 保存」を `saveDocument:`（⌘S）として追加すると、同名項目の確認シート（`ArchiveConflictPrompt`）の
+「スキップ」から Return が外れた（ArchiveConflictUITests が a1ae9c6 では通り 25f4f93 では 3 回とも失敗。メニュー項目「保存」だけを
+外すと通ることを作業ツリーで確認）。Return を押しても何も起きず、置き換えは起きない。
+「保存」を独自のセレクタ `saveArchiveDocument:` 経由にして ⌘S と検証は保ち、閉じるときと終了時の保存は従来どおり
+`save(to:ofType:for:)` に届く。確認シートの一時的な回避策は外した。実際の文書ウインドウでの ArchiveConflictUITests、
+DeferredSaveUITests、ArchiveSaveAsTests はロック解除後に通った。新しい ArchiveAlertKeyboardTests はレイアウト時の
+既定ボタンだけを確認する（素のウインドウへシートを出した後の判定は a1ae9c6 でも同じく失敗するため外した）。
+AppKit 内部の仕組みは特定していない。

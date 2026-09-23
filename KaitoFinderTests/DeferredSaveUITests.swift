@@ -10,14 +10,17 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         defer { fixture.document.close(); immediate.document.close() }
         let menu = AppDelegate().makeMenu()
         let file = try XCTUnwrap(menu.items.compactMap(\.submenu).first { submenu in
-            submenu.items.contains { $0.action == #selector(NSDocument.save(_:)) }
+            submenu.items.contains { $0.action == #selector(ArchiveDocument.saveArchiveDocument(_:)) }
         })
-        let save = try XCTUnwrap(file.items.first { $0.action == #selector(NSDocument.save(_:)) })
+        let save = try XCTUnwrap(file.items.first { $0.action == #selector(ArchiveDocument.saveArchiveDocument(_:)) })
         let saveAs = try XCTUnwrap(file.items.first { $0.action == #selector(ArchiveWindowController.saveArchiveAs(_:)) })
         let revert = try XCTUnwrap(file.items.first { $0.action == #selector(NSDocument.revertToSaved(_:)) })
         XCTAssertEqual(file.index(of: save) + 1, file.index(of: saveAs))
         XCTAssertEqual(file.index(of: saveAs) + 1, file.index(of: revert))
         XCTAssertEqual(save.keyEquivalent, "s")
+        XCTAssertEqual(save.keyEquivalentModifierMask, [.command])
+        XCTAssertNil(save.target)
+        XCTAssertFalse(file.items.contains { $0.action == #selector(NSDocument.save(_:)) })
         XCTAssertFalse(save.isHidden)
         XCTAssertFalse(revert.isHidden)
         XCTAssertFalse(fixture.document.validateUserInterfaceItem(save))
@@ -26,6 +29,47 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         XCTAssertTrue(fixture.document.validateUserInterfaceItem(revert))
         XCTAssertFalse(immediate.document.validateUserInterfaceItem(save))
         XCTAssertFalse(immediate.document.validateUserInterfaceItem(revert))
+    }
+
+    @MainActor func testMenuAndNativeSaveEntrypointsPublishPendingChanges() async throws {
+        let routes: [(String, (ArchiveDocument) -> Void)] = [
+            ("File Save", { document in
+                XCTAssertTrue(NSApp.sendAction(#selector(ArchiveDocument.saveArchiveDocument(_:)), to: document, from: nil))
+            }),
+            ("Native Save", { document in
+                XCTAssertTrue(NSApp.sendAction(#selector(NSDocument.save(_:)), to: document, from: nil))
+            }),
+            // NSDocument's close/quit prompts use this native save entry point.
+            ("Native delegate Save", { $0.save(withDelegate: nil, didSave: nil, contextInfo: nil) })
+        ]
+        for (route, startSave) in routes {
+            let fixture = try DeferredSaveFixture(), document = fixture.document, gate = ScenarioGate()
+            defer { gate.release(); document.close() }
+            let items = [#selector(ArchiveDocument.saveArchiveDocument(_:)), #selector(NSDocument.save(_:)),
+                         #selector(NSDocument.revertToSaved(_:))].map {
+                NSMenuItem(title: "", action: $0, keyEquivalent: "")
+            }
+            _ = try await document.append(urls: [fixture.file("added.txt", contents: "pending bytes")],
+                                          to: "", progress: Progress())
+            for item in items { XCTAssertTrue(document.validateUserInterfaceItem(item), route) }
+            document.deferredWillPublish = { gate.pauseOnce() }
+            startSave(document)
+            try await scenarioWait { gate.isEntered }
+            let saving = try XCTUnwrap(document.deferredSaveTask, route)
+            for item in items { XCTAssertFalse(document.validateUserInterfaceItem(item), route) }
+            XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original, route)
+            gate.release()
+            try await saving.value
+            XCTAssertEqual(try DeferredSaveFixture.contents(fixture.archive)["added.txt"], Data("pending bytes".utf8), route)
+            XCTAssertTrue(document.pendingChanges.isEmpty, route)
+            XCTAssertFalse(document.isDocumentEdited, route)
+            XCTAssertNil(document.deferredSaveTask, route)
+            for item in items { XCTAssertFalse(document.validateUserInterfaceItem(item), route) }
+            document.close()
+            for item in items { XCTAssertFalse(document.validateUserInterfaceItem(item), route) }
+            document.saveArchiveDocument(nil)
+            XCTAssertNil(document.deferredSaveTask, route)
+        }
     }
 
     @MainActor func testProjectionRefreshesNoticeAndEnablesPendingExtractionActions() async throws {

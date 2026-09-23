@@ -26,3 +26,12 @@
   「無効なメニュー項目」。GUI 以外の失敗はない。実行後に `swift Tools/verify_gui_session.swift` が
   "macOS is locked" を返した（実行中のロックは直接は確認していない）。M0 の全体実行では同じ 9 件が通っており、
   本変更は GUI の経路に触れていない。ロックを解除したセッションで 9 件を再実行し、結果をここに追記する（M6 の後）。
+
+## GUI テストの再確認（2026-09-23、ロック解除後）
+
+ロックを解除したセッションで GUI のクラスを再実行した。ArchivePasswordUITests（6 件）、ArchiveTabTests、
+DeferredSaveUITests、ArchivePreferencesUITests、ArchiveBatchExtractionUITests は通った。
+ArchivePreviewSidebarTests.testMenuToolbarAndKeyboardToggleTheActiveArchive と ArchiveTabSpringLoadingTests
+（3 テスト）は、M0（4ec3d77）を別の作業ツリーで同じ時刻に実行しても同じく失敗したため、本ブランチの変更によらない
+GUI 環境依存の失敗と判断した（M0 の全体実行時には通っていた）。ArchiveConflictUITests の 1 件は M3 の「保存」メニュー項目で
+「スキップ」の Return が外れる退行で、M1 の時点ではロックによる失敗だった（a1ae9c6 では通る）。修正は別コミット。

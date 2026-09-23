@@ -160,3 +160,8 @@ Round-2 local results (historical):
 - **Not run:** xcodebuild (explicitly prohibited), full hosted application/termination tests, actual network-server sharing violations, and successful disk-image/remount tests. AppDelegate's actual source is parsed; its test-facing declarations are scaffolded only for isolated test compilation, so no full AppDelegate type-check/runtime pass is claimed. The real archive APIs are not scaffolded. No implementation item is omitted.
 
 Round-3 changed/new files: `Import/VolumePublishOperations.swift`, `Import/VolumeSetPublisher.swift`; `Persistence/RecoverableWorkIndex.swift`, `VolumePublishFileSystem.swift`, `VolumePublishJournal.swift`, `VolumePublishRecovery.swift`, `VolumePublishRecoveryQueue.swift` (new), `VolumePublishRemoval.swift`, `VolumePublishTransaction.swift`; only the two recovery entry points in `App/AppDelegate.swift`; `KaitoFinderTests/VolumePublishRound3Tests.swift` (new), `VolumePublishCorrectionTests.swift`, `VolumePublishRecoveryTests.swift`, `VolumePublishRound2Tests.swift`; this report. Baseline sources, standalone harnesses and red/green/strict logs are in `/private/tmp/m2-round3-check`. No generated build/check files were added to the repository.
+
+## 第 4 回の修正のレビュー状況
+
+第 4 回の修正（FSKit の FAT / exFAT の解決、回復キューの再実行、マウントごとの probe、ロック順、ロックファイルと索引の後片付け）は
+VolumePublishRound4Tests の 13 件で確認したが、独立した反証レビューは受けていない。M5 の統合レビューの範囲に含める。

@@ -450,7 +450,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         fileMenu.addItem(withTitle: String(localized: "閉じる", bundle: bundle),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         fileMenu.addItem(withTitle: String(localized: "保存", bundle: bundle),
-                         action: #selector(NSDocument.save(_:)), keyEquivalent: "s")
+                         action: #selector(ArchiveDocument.saveArchiveDocument(_:)), keyEquivalent: "s")
         let saveAs = fileMenu.addItem(withTitle: String(localized: "別名で保存…", bundle: bundle),
                                       action: #selector(ArchiveWindowController.saveArchiveAs(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]

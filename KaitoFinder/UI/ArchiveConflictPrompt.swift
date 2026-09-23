@@ -33,10 +33,6 @@ final class ArchiveConflictPrompt: NSObject {
         alert.addButton(withTitle: String(localized: "スキップ", bundle: bundle))
         alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
         alert.buttons[0].hasDestructiveAction = true
-        // Return を習慣的に押しても置き換えない。明示的なクリックかキー操作で選ぶ。
-        alert.buttons[0].keyEquivalent = ""
-        alert.buttons[1].keyEquivalent = "\r"
-        alert.buttons[2].keyEquivalent = "\u{1b}"
         let cards = NSStackView(views: [
             Self.card(conflict.existing, title: String(localized: "既存の項目", bundle: bundle), location: existingLocation, bundle: bundle),
             Self.card(conflict.incoming, title: String(localized: "新しい項目", bundle: bundle),
@@ -60,8 +56,17 @@ final class ArchiveConflictPrompt: NSObject {
         accessory.layoutSubtreeIfNeeded()
         accessory.setFrameSize(accessory.fittingSize)
         alert.accessoryView = accessory
+        alert.layout()
         alert.window.autorecalculatesKeyViewLoop = true
         alert.window.initialFirstResponder = alert.buttons[1]
+        // Return を習慣的に押しても置き換えない。レイアウト後に第2ボタンを既定にする。
+        let buttons = alert.buttons
+        buttons[0].keyEquivalent = ""
+        buttons[2].keyEquivalent = "\u{1b}"
+        buttons[2].keyEquivalentModifierMask = []
+        alert.window.defaultButtonCell = buttons[1].cell as? NSButtonCell
+        buttons[1].keyEquivalent = "\r"
+        buttons[1].keyEquivalentModifierMask = []
     }
 
     private static func card(_ item: ArchiveConflictItem, title: String, location: String? = nil, bundle: Bundle) -> NSView {

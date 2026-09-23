@@ -19,6 +19,12 @@ M7 までは `.zNN` / `.zip`（`.z01` あり）のセットは読み取り専用
   （利用側の SwiftPM 解決、CI、release）では、0.8.1 に `ArchiveVolumeSet` がないためビルドできない。
 - KaitoFinder は `../KaitoKit` / `../GyoshukuKit` の path 依存のまま。release の手順に従い参照先を確認する。
 
+## 既存の失敗（本変更と無関係）
+
+- ArchivePreviewSidebarTests.testMenuToolbarAndKeyboardToggleTheActiveArchive と ArchiveTabSpringLoadingTests の 3 テストは、
+  2026-09-23 のセッションでは M0（4ec3d77）でもロック解除後に失敗した（GUI 環境依存。M0 の全体実行時には通っていた）。
+  release 前に操作していない GUI セッションで再確認する。
+
 以下の本文は調査時点（KaitoKit 0.9.0 / GyoshukuKit 0.4.2 / KaitoFinder c2c1572）の設計。付録 2 は本文より優先する。
 行番号は調査時点のもので、実装とともにずれる。
 

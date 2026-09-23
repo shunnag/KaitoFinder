@@ -528,10 +528,20 @@ import Synchronization
     @objc func undo(_ sender: Any?) { undoManager?.undo() }
     @objc func redo(_ sender: Any?) { undoManager?.redo() }
 
+    // メニューの selector を分離し、保存の実処理は close/quit と同じ NSDocument の経路に戻す。
+    @objc func saveArchiveDocument(_ sender: Any?) {
+        guard canSavePendingChanges else { return }
+        save(sender)
+    }
+
+    private var canSavePendingChanges: Bool {
+        saveBehavior == .onSave && isDocumentEdited && !hasWorkInFlight && !closed
+    }
+
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         switch item.action {
-        case #selector(NSDocument.save(_:)), #selector(NSDocument.revertToSaved(_:)):
-            return saveBehavior == .onSave && isDocumentEdited && !hasWorkInFlight && !closed
+        case #selector(saveArchiveDocument(_:)), #selector(NSDocument.save(_:)), #selector(NSDocument.revertToSaved(_:)):
+            return canSavePendingChanges
         case #selector(undo(_:)):
             (item as? NSMenuItem)?.title = undoManager?.undoMenuItemTitle ?? String(localized: "取り消す")
             return undoManager?.canUndo == true
