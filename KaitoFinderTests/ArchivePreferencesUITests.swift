@@ -13,6 +13,12 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             expected.defaultFormat = format
             check()
         }
+        for (index, behavior) in PreferencesViewModel.saveBehaviors.enumerated() {
+            model.selectSaveBehavior(at: index)
+            expected.saveBehavior = behavior
+            check()
+            XCTAssertEqual(model.saveBehaviorIndex, index)
+        }
         for (index, behavior) in PreferencesViewModel.openingBehaviors.enumerated() {
             model.selectOpeningBehavior(at: index)
             expected.openingBehavior = behavior
@@ -126,6 +132,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         controller.defaultFormatPopup.selectItem(at: try XCTUnwrap(ArchivePreferences.formats.firstIndex(of: .lha)))
         sendAction(controller.defaultFormatPopup)
         XCTAssertEqual(store.preferences.defaultFormat, .lha)
+        controller.saveBehaviorPopup.selectItem(at: 1)
+        sendAction(controller.saveBehaviorPopup)
+        XCTAssertEqual(store.preferences.saveBehavior, .onSave)
         controller.openingBehaviorPopup.selectItem(at: 1)
         sendAction(controller.openingBehaviorPopup)
         XCTAssertEqual(store.preferences.openingBehavior, .newTab)
@@ -168,6 +177,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertEqual(controller.renamesOnClickCheckbox.state, .on)
         XCTAssertEqual(controller.defaultFormatPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.openingBehaviorPopup.indexOfSelectedItem, 0)
+        XCTAssertEqual(controller.saveBehaviorPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.zipMethodPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(controller.zipLevelSlider.integerValue, 6)
         XCTAssertEqual(controller.zipLevelLabel.stringValue, "6")

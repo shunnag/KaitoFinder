@@ -82,6 +82,11 @@ nonisolated enum ExtractionService {
         progress: Progress = Progress(totalUnitCount: 0),
         didProcess: (@Sendable (Int) -> Void)? = nil
     ) async throws -> ExtractionResult {
+        if session.usesPendingReading {
+            guard let snapshot = session.pendingReadSnapshot else { throw ArchiveEntryPayload.staleSelection }
+            return try await extract(selection.entries.map { snapshot.payload(for: $0, archive: session.sourceURL) },
+                                     from: session, to: destination, progress: progress, didProcess: didProcess)
+        }
         progress.kind = .file
         progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
         progress.setUserInfoObject(destination, forKey: .fileURLKey)
@@ -103,6 +108,10 @@ nonisolated enum ExtractionService {
         didProcess: (@Sendable (Int) -> Void)? = nil
     ) async throws -> ExtractionResult {
         if progress.isCancelled || Task.isCancelled { throw CancellationError() }
+        if session.usesPendingReading || payloads.contains(where: { $0.revision != nil }) {
+            return try await extractPending(payloads, from: session, to: destination, progress: progress,
+                promisedItem: promisedItem, readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
+        }
         let snapshot = try await session.resolveForExtraction(payloads)
         if readOnly {
             for entry in snapshot.selection.entries {
@@ -143,6 +152,53 @@ nonisolated enum ExtractionService {
                        readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
     }
 
+    @concurrent private static func extractPending(
+        _ payloads: [ArchiveEntryPayload], from session: ArchiveSession, to destination: URL,
+        progress: Progress, promisedItem: ArchiveEntryPayload?, readOnly: Bool,
+        didWrite: (@Sendable (Int) -> Void)?, didProcess: (@Sendable (Int) -> Void)?
+    ) async throws -> ExtractionResult {
+        let snapshot = try await session.resolvePendingForExtraction(payloads)
+        defer { withExtendedLifetime(snapshot.lease) {} }
+        let entries = snapshot.selection.entries
+        if readOnly {
+            for entry in entries {
+                if let reason = EntryReadCapability(entry: entry, isDirectory: entry.kind == .directory,
+                                                    format: snapshot.reader.format).reason { throw ExtractionFailure.refused(reason) }
+            }
+        }
+        progress.kind = .file
+        progress.totalUnitCount = Int64(entries.count)
+        progress.completedUnitCount = 0
+        progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
+        progress.setUserInfoObject(destination, forKey: .fileURLKey)
+        progress.setUserInfoObject(entries.count, forKey: .fileTotalCountKey)
+        progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
+        let root: URL, mapping: OutputMapping
+        var virtualRootParent: ExtractionDestination?
+        if let item = promisedItem {
+            guard payloads.contains(item), destination.isFileURL else { throw ArchiveEntryPayload.staleSelection }
+            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: snapshot.quarantine)
+            let leaf = [destination.lastPathComponent]
+            try parent.validate(leaf)
+            if item.isDirectory {
+                try ArchiveImportPlan.checkCancellation(progress)
+                try parent.directory(leaf, explicit: true)
+                root = destination
+                mapping = .subtree(try ExtractionPath.components(item.path))
+                if item.entryIndex == nil { virtualRootParent = parent }
+            } else { root = destination.deletingLastPathComponent(); mapping = .file(leaf) }
+        } else { root = destination; mapping = .archive }
+        let result = try run(entries, reader: snapshot.reader, destination: root, quarantine: snapshot.quarantine,
+                       progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite,
+                       didProcess: didProcess, sources: snapshot.snapshot.sources)
+        if let virtualRootParent {
+            // finalizer の root と同じ実パスを使う。/var と /private/var 等を混在させると
+            // 相対成分の切り出しがずれ、約束したフォルダではなく親の mode を変更してしまう。
+            try virtualRootParent.finishSynthesizedDirectory(virtualRootParent.url([destination.lastPathComponent]))
+        }
+        return result
+    }
+
     private enum OutputMapping {
         case archive, subtree([String]), file([String])
 
@@ -161,7 +217,8 @@ nonisolated enum ExtractionService {
     private static func run(
         _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL,
         quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive,
-        readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?
+        readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?,
+        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil
     ) throws -> ExtractionResult {
         let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, didWrite: didWrite)
         var buffer = [UInt8](repeating: 0, count: 128 * 1024)
@@ -175,8 +232,21 @@ nonisolated enum ExtractionService {
         for entry in entries {
             do {
                 try checkCancellation()
-                guard reader.entries.indices.contains(entry.index), reader.entries[entry.index] == entry else {
-                    throw ExtractionFailure.refused(String(localized: "選択がこのアーカイブのentryと一致しません。"))
+                let original: ArchiveEntry
+                let staged: ArchivePendingChanges.PendingAddition?
+                switch sources?[entry.index] {
+                case .base(let base): original = base; staged = nil; output.useQuarantine(quarantine)
+                case .staged(let addition):
+                    original = entry; staged = addition
+                    try addition.stagedStamp.verify()
+                    output.useQuarantine(quarantine)
+                case .folder: original = entry; staged = nil; output.useQuarantine(quarantine)
+                case nil: original = entry; staged = nil
+                }
+                if sources == nil || original.pendingID == nil {
+                    guard reader.entries.indices.contains(original.index), reader.entries[original.index] == original else {
+                        throw ExtractionFailure.refused(String(localized: "選択がこのアーカイブのentryと一致しません。"))
+                    }
                 }
                 let components = try mapping.components(entry.name)
                 let key = components.joined(separator: "/").precomposedStringWithCanonicalMapping
@@ -191,21 +261,28 @@ nonisolated enum ExtractionService {
                 } else { try output.validate(components) }
                 switch entry.kind {
                 case .directory:
-                    try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
+                    if entry.pendingID == nil { try drain(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation) }
                     if !components.isEmpty { try output.directory(components, explicit: true) }
                     directories.append((entry, components))
                 case .file:
-                    try output.file(components, entry: entry, stream: reader.stream(entry), buffer: &buffer,
-                                    checkCancellation: checkCancellation)
+                    if let staged {
+                        try output.stagedFile(components, entry: entry, addition: staged, buffer: &buffer, checkCancellation: checkCancellation)
+                    } else {
+                        try output.file(components, entry: entry, stream: reader.stream(original), buffer: &buffer,
+                                        checkCancellation: checkCancellation)
+                    }
                     materialized[entry.index] = components
                 case .symlink:
                     let target: String
-                    if let retained = entry.formatSpecific["linkPath"] {
-                        try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
+                    if let staged {
+                        target = try FileManager.default.destinationOfSymbolicLink(atPath: staged.stagedURL.path)
+                        try staged.stagedStamp.verify()
+                    } else if let retained = entry.formatSpecific["linkPath"] {
+                        try drain(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation)
                         target = retained
                     } else if entry.formatSpecific["linkTargetStoredAsData"] == "true" {
                         var data = Data()
-                        try consume(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation) { bytes in
+                        try consume(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation) { bytes in
                             guard data.count + bytes.count <= 16_384 else {
                                 throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが長すぎます。"))
                             }
@@ -218,8 +295,23 @@ nonisolated enum ExtractionService {
                     } else {
                         throw ExtractionFailure.refused(String(localized: "リンクのtargetがありません。"))
                     }
-                    try output.symlink(components, target: target)
+                    try output.symlink(components, target: target, staged: staged)
                 case .hardlink:
+                    if sources != nil {
+                        // 改名・削除済みの target も基底 index で辿る。Save の rewriter と同じ本文を独立して運ぶ。
+                        var target = original
+                        while target.kind == .hardlink, (target.compressedSize ?? target.uncompressedSize ?? 0) == 0 {
+                            guard let index = target.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
+                                  index >= 0, index < target.index, reader.entries.indices.contains(index) else {
+                                throw ArchiveEntryPayload.staleSelection
+                            }
+                            target = reader.entries[index]
+                        }
+                        try output.file(components, entry: entry, stream: reader.stream(target), buffer: &buffer,
+                                        checkCancellation: checkCancellation)
+                        materialized[entry.index] = components
+                        break
+                    }
                     // 本体付き hard link は既存 inode の内容を書き換えず、独立ファイルにする。
                     if (entry.compressedSize ?? entry.uncompressedSize ?? 0) > 0 {
                         try output.file(components, entry: entry, stream: reader.stream(entry), buffer: &buffer,
@@ -255,7 +347,18 @@ nonisolated enum ExtractionService {
         }
         // 取り消し時も作成済みの directory の属性を仕上げる。
         for (entry, components) in directories.sorted(by: { $0.1.count > $1.1.count }) {
-            do { try output.finishDirectory(components, entry: entry) }
+            do {
+                if sources != nil {
+                    switch sources?[entry.index] {
+                    case .staged(let addition):
+                        try addition.stagedStamp.verify()
+                        output.useQuarantine(quarantine)
+                    case .folder: output.useQuarantine(quarantine)
+                    default: output.useQuarantine(quarantine)
+                    }
+                }
+                try output.finishDirectory(components, entry: entry, appliesQuarantine: sources != nil)
+            }
             catch {
                 result.failures.append(.init(entryIndex: entry.index, name: entry.name,
                                              reason: String(localized: "ディレクトリ属性: \(ArchiveErrorText.describe(error))。")))

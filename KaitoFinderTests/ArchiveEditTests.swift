@@ -551,7 +551,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         try await redo(document)
         XCTAssertEqual(try digest(fixture.archive), changed)
         XCTAssertEqual(document.generation, 3)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
     }
 
     @MainActor func testDeleteUndoAndRedoRestoreFullArchiveSHA256() async throws { try await assertUndoRoundTrip(rename: false) }

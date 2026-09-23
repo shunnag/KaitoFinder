@@ -15,6 +15,22 @@ import Synchronization
         init(_ preferences: ArchivePreferences) { value = Mutex(preferences) }
     }
     nonisolated private let preferencesSnapshot: PreferencesSnapshot
+    nonisolated let saveBehavior: ArchivePreferences.SaveBehavior
+    let pendingEditor: ArchivePendingEditor?
+    private(set) var deferredSaveTask: Task<Void, Error>?
+    private(set) var stagingCleanup: Task<Void, Never>?
+    private var deferredProgress: Progress?
+    private var deferredPublication: ArchiveSavePublication?
+    private var deferredCreation: ArchiveCreationController?
+    private var reservationInFlight = false
+    private var externalChangeAlert: NSAlert?
+    private var waitingToClose = false
+    var isDeferredSaveRunning: Bool { deferredSaveTask != nil }
+    var pendingChanges: ArchivePendingChanges { pendingEditor?.changes ?? .init() }
+    // 保存の公開境界をローカル試験で止める。通常の UI は使わない。
+    var deferredWillPublish: (@Sendable () throws -> Void)?
+    var deferredWillReload: (@Sendable () throws -> Void)?
+    private(set) var deferredReloadFailure: String?
     private let preferencesStore: ArchivePreferencesStore
     nonisolated private var sessionWriterOptions: @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions {
         { [preferencesSnapshot] format in preferencesSnapshot.value.withLock { $0.writerOptions(for: format) } }
@@ -51,7 +67,10 @@ import Synchronization
     private final class UndoAction {
         let id: UUID
         let name: String
-        init(id: UUID, name: String) { self.id = id; self.name = name }
+        var pending: ArchivePendingChanges?
+        init(id: UUID, name: String, pending: ArchivePendingChanges? = nil) {
+            self.id = id; self.name = name; self.pending = pending
+        }
     }
 
     override convenience init() { self.init(undoStack: ArchiveUndoStack()) }
@@ -65,7 +84,10 @@ import Synchronization
         archiveUndoStack = undoStack
         self.passwordVault = passwordVault
         self.preferencesStore = preferencesStore
-        preferencesSnapshot = PreferencesSnapshot(preferencesStore.preferences)
+        let preferences = preferencesStore.preferences
+        preferencesSnapshot = PreferencesSnapshot(preferences)
+        saveBehavior = preferences.saveBehavior
+        pendingEditor = preferences.saveBehavior == .onSave ? ArchivePendingEditor() : nil
         super.init()
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: preferencesStore)
@@ -82,6 +104,7 @@ import Synchronization
     }
 
     var canUndoNextMutation: Bool {
+        if saveBehavior == .onSave { return true }
         guard let sourceURL = session?.sourceURL else { return false }
         archiveUndoStack.resolveCloneSupport(for: sourceURL)
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
@@ -90,14 +113,24 @@ import Synchronization
     }
 
     var hasWorkInFlight: Bool {
-        mutationTask != nil || undoTask != nil || switchingBackingFile
+        deferredSaveTask != nil || reservationInFlight || mutationTask != nil || undoTask != nil || switchingBackingFile
             || windowControllers.contains { ($0 as? ArchiveWindowController)?.hasWorkInFlight == true }
     }
 
-    var needsTerminationCleanup: Bool { hasWorkInFlight || !archiveUndoStack.slots.isEmpty }
+    var needsTerminationCleanup: Bool { hasWorkInFlight || !archiveUndoStack.slots.isEmpty || pendingEditor?.staging != nil || stagingCleanup != nil }
 
     override func updateChangeCount(_ change: NSDocument.ChangeType) {
-        // 書き換えは即ディスクへ公開済み。保存不能な文書に未保存状態を作らない。
+        // 即時モードは公開済み。保存前モードだけ AppKit の変更数を使う。
+        if saveBehavior == .onSave {
+            super.updateChangeCount(change)
+            refreshPendingNotices()
+        }
+    }
+
+    private func refreshPendingNotices() {
+        for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
+            controller.refreshCapabilityNotice(session: session)
+        }
     }
 
     func materializationController(
@@ -151,6 +184,7 @@ import Synchronization
                 NSUnderlyingErrorKey: error as NSError
             ])
         }
+        if saveBehavior == .onSave, case .open(let session) = contents { session.setPendingReadSnapshot(nil) }
         let installed = contentsStorage.withLock { state in
             if case .closed = state { return false }
             state = contents
@@ -181,6 +215,7 @@ import Synchronization
             await opened.close()
             throw CancellationError()
         }
+        if saveBehavior == .onSave { opened.setPendingReadSnapshot(nil) }
         contentsStorage.withLock { $0 = .open(opened) }
         if remember {
             await passwordVault.save(password, for: .file(url), generation: vaultGeneration)
@@ -259,15 +294,25 @@ import Synchronization
         loadingTask = Task { [weak self, weak controller] in
             let snapshot = await session.snapshot()
             guard !Task.isCancelled, let self else { return }
-            controller?.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
-                                materializationController: self.materializationController())
+            if self.saveBehavior == .onSave {
+                do {
+                    try self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation)
+                    try self.displayPending()
+                } catch { self.presentError(error) }
+            } else {
+                controller?.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
+                                    materializationController: self.materializationController())
+            }
         }
     }
 
     func append(urls: [URL], to folder: String, progress: Progress,
                 resolveConflict: ArchiveImportConflict.Resolver? = nil,
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
-        try await mutate(progress: progress, actionName: "追加", willPublish: willPublish,
+        if saveBehavior == .onSave {
+            return try await reserveAppend(urls: urls, folder: folder, progress: progress, resolver: resolveConflict)
+        }
+        return try await mutate(progress: progress, actionName: "追加", willPublish: willPublish,
                          published: { !$0.addedPaths.isEmpty }) { session, publish in
             try await session.append(urls: urls, to: folder, progress: progress,
                                      resolveConflict: resolveConflict, willPublish: publish)
@@ -281,7 +326,10 @@ import Synchronization
 
     func createFolder(in folder: String, baseName: String = String(localized: "名称未設定フォルダ"), progress: Progress,
                       willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
-        try await mutate(progress: progress, actionName: "新規フォルダ", willPublish: willPublish,
+        if saveBehavior == .onSave {
+            return try await reserveFolder(in: folder, baseName: baseName, progress: progress)
+        }
+        return try await mutate(progress: progress, actionName: "新規フォルダ", willPublish: willPublish,
                          published: { !$0.addedPaths.isEmpty }) { session, publish in
             try await session.createFolder(in: folder, baseName: baseName, progress: progress, willPublish: publish)
         }
@@ -297,6 +345,9 @@ import Synchronization
               resolveConflict: ArchiveImportConflict.Resolver? = nil,
               willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
         let selections = nodes.map(ArchiveEditSelection.init)
+        if saveBehavior == .onSave {
+            return try await reserveMove(selections, to: folder, progress: progress, resolver: resolveConflict)
+        }
         return try await mutate(progress: progress, actionName: "移動", willPublish: willPublish,
                                 published: { $0.published }) { session, publish in
             try await session.move(selections, to: folder, progress: progress,
@@ -309,6 +360,9 @@ import Synchronization
               willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
         let name = !moving.isEmpty && removing.isEmpty && renaming.isEmpty ? "移動"
             : (renaming.isEmpty ? "削除" : (removing.isEmpty ? "名称変更" : "削除・名称変更"))
+        if saveBehavior == .onSave {
+            return try await reserveEdit(removing: removing, renaming: renaming, moving: moving, progress: progress, name: name)
+        }
         return try await mutate(progress: progress, actionName: name, willPublish: willPublish,
                                 published: { $0.published }) { session, publish in
             try await session.edit(removing: removing, renaming: renaming, moving: moving, progress: progress, willPublish: publish)
@@ -319,6 +373,7 @@ import Synchronization
     func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
                         progress: Progress = Progress(),
                         willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchivePasswordEditResult {
+        if saveBehavior == .onSave { return try await reservePassword(action, settings: settings, progress: progress) }
         let result = try await mutate(progress: progress, actionName: action.actionName, willPublish: willPublish,
                                      published: { _ in true }) { session, publish in
             try await session.updatePassword(action, settings: settings, progress: progress, willPublish: publish)
@@ -406,12 +461,30 @@ import Synchronization
         guard let undoManager else { return }
         let grouping = !undoManager.isUndoing && !undoManager.isRedoing
         if grouping { undoManager.beginUndoGrouping() }
-        undoManager.registerUndo(withTarget: action) { [weak self] action in self?.restore(action) }
+        if action.pending != nil {
+            // UndoManager は target を保持しない。予約値は handler が保持し、履歴破棄と同時に解放する。
+            undoManager.registerUndo(withTarget: self) { [action] document in document.restore(action) }
+        } else {
+            undoManager.registerUndo(withTarget: action) { [weak self] action in self?.restore(action) }
+        }
         undoManager.setActionName(action.name)
         if grouping { undoManager.endUndoGrouping() }
     }
 
     private func restore(_ action: UndoAction) {
+        if let pending = action.pending, let editor = pendingEditor {
+            guard !closed, !isDeferredSaveRunning, !reservationInFlight, let session else { return }
+            do {
+                guard editor.baseGeneration == session.generation else { throw ArchiveEditError.staleSelection }
+                try pending.validate(base: editor.base, generation: session.generation)
+                let previous = editor.changes
+                editor.replace(pending)
+                action.pending = previous
+                registerUndo(action)
+                try displayPending()
+            } catch { undoFailure = error }
+            return
+        }
         guard !closed, let session, let manager = undoManager as? ArchiveUndoManager else { return }
         // isUndoing / isRedoing が立っている同期呼び出し中に逆操作を登録する必要がある。
         registerUndo(action)
@@ -457,6 +530,8 @@ import Synchronization
 
     override func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
         switch item.action {
+        case #selector(NSDocument.save(_:)), #selector(NSDocument.revertToSaved(_:)):
+            return saveBehavior == .onSave && isDocumentEdited && !hasWorkInFlight && !closed
         case #selector(undo(_:)):
             (item as? NSMenuItem)?.title = undoManager?.undoMenuItemTitle ?? String(localized: "取り消す")
             return undoManager?.canUndo == true
@@ -512,6 +587,8 @@ import Synchronization
         disposeUndoStack()
         archiveUndoStack = nextUndoStack
         undoFailure = nil
+        if saveBehavior == .onSave { disposePending() }
+        if saveBehavior == .onSave { opened.setPendingReadSnapshot(nil) }
         contentsStorage.withLock { $0 = .open(opened) }
         fileURL = url
         fileType = ArchiveSavePanelController.contentType(for: format).identifier
@@ -545,6 +622,13 @@ import Synchronization
         guard let session else { return }
         disposeMaterialization()
         let snapshot = await session.snapshot()
+        if saveBehavior == .onSave {
+            do {
+                try pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation)
+                try displayPending()
+            } catch { if !closed { presentError(error) } }
+            return
+        }
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
             controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
                                materializationController: materializationController())
@@ -554,6 +638,15 @@ import Synchronization
     /// 進行中の仕事を取り消し、後始末と一時コピー・undo スロットの破棄を待つ。
     /// 文書は閉じず、状態復元を含む通常の終了処理は AppKit に任せる。
     func prepareForTermination() async {
+        if let deferredSaveTask {
+            if deferredPublication?.hasPublishedBoundary != true {
+                deferredProgress?.cancel()
+                deferredCreation?.savePanel?.cancel()
+                deferredSaveTask.cancel()
+            }
+            _ = await deferredSaveTask.result
+        }
+        pendingEditor?.cancelStaging()
         let controllers = windowControllers.compactMap { $0 as? ArchiveWindowController }
         // 完了時に controller が nil に戻すので、取消し前に Task を保持する。
         let extractions = controllers.compactMap(\.extractionTask)
@@ -570,10 +663,21 @@ import Synchronization
         await undoCleanup?.value
         disposeMaterialization()
         await materializationCleanup?.value
+        if saveBehavior == .onSave { disposePending() }
+        await stagingCleanup?.value
     }
 
     override func close() {
+        guard !closed else { return }
+        if let deferredSaveTask {
+            guard !waitingToClose else { return }
+            waitingToClose = true
+            Task { _ = await deferredSaveTask.result; waitingToClose = false; close() }
+            return
+        }
         closed = true
+        pendingEditor?.cancelStaging()
+        disposePending()
         NotificationCenter.default.removeObserver(self, name: ArchivePreferencesStore.didChange, object: preferencesStore)
         rememberedPayloadPassword = nil
         disposeMaterialization()
@@ -594,7 +698,88 @@ import Synchronization
             await previous?.value
             await session?.close()
         }
+        let staging = stagingCleanup, undo = undoCleanup, materialized = materializationCleanup, reader = sessionCleanup
+        if saveBehavior == .onSave {
+            DocumentCleanupRegistry.shared.track(Task {
+                await staging?.value
+                await undo?.value
+                await materialized?.value
+                await reader?.value
+            })
+        }
         super.close()
+    }
+
+    override func save(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType,
+                       completionHandler: @escaping (Error?) -> Void) {
+        guard saveBehavior == .onSave else {
+            super.save(to: url, ofType: typeName, for: saveOperation, completionHandler: completionHandler)
+            return
+        }
+        let token = changeCountToken(for: .saveOperation)
+        if let deferredSaveTask {
+            Task { switch await deferredSaveTask.result {
+                case .success: completionHandler(nil)
+                case .failure(let error): completionHandler(Self.deferredSaveError(error))
+                } }
+            return
+        }
+        guard !closed, !reservationInFlight, undoTask == nil, !switchingBackingFile,
+              let session, url == (fileURL ?? session.sourceURL), saveOperation == .saveOperation else {
+            completionHandler(ArchiveEditError.staleSelection)
+            return
+        }
+        let progress = Progress(), publication = ArchiveSavePublication()
+        deferredProgress = progress
+        deferredPublication = publication
+        (undoManager as? ArchiveUndoManager)?.isSuspended = true
+        let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "保存"), detail: displayName)
+        if let window = windowControllers.first?.window { sheet.begin(on: window) }
+        deferredSaveTask = Task {
+            do {
+                try await savePendingDocument(token: token, progress: progress, publication: publication)
+                finishDeferredSave(sheet: sheet)
+                if let reason = deferredReloadFailure {
+                    for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
+                        controller.reportDeferredReloadFailure(reason)
+                    }
+                }
+                completionHandler(nil)
+            } catch {
+                finishDeferredSave(sheet: sheet)
+                completionHandler(Self.deferredSaveError(error))
+                throw error
+            }
+        }
+    }
+
+    override func revert(toContentsOf url: URL, ofType typeName: String) throws {
+        guard saveBehavior == .onSave else { try super.revert(toContentsOf: url, ofType: typeName); return }
+        guard !hasWorkInFlight, !closed, url == (fileURL ?? session?.sourceURL) else { throw ArchiveEditError.staleSelection }
+        // NSDocument の入口は同期。main actor の Task なら quit の modal run loop でも進む。
+        let task = beginDeferredRevert()
+        Task { do { try await task.value } catch { if !closed { presentError(error) } } }
+    }
+
+    nonisolated override func presentedItemDidMove(to newURL: URL) {
+        super.presentedItemDidMove(to: newURL)
+        guard saveBehavior == .onSave else { return }
+        Task { @MainActor [weak self] in
+            guard let self, !closed, !isDeferredSaveRunning, !reservationInFlight else { return }
+            do { try await synchronizeDeferredLocation() }
+            catch { checkDeferredIdentityWhenKey() }
+        }
+    }
+
+    override func canClose(withDelegate delegate: Any, shouldClose shouldCloseSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+        guard saveBehavior == .onSave, let deferredSaveTask else {
+            super.canClose(withDelegate: delegate, shouldClose: shouldCloseSelector, contextInfo: contextInfo)
+            return
+        }
+        Task { @MainActor in
+            _ = await deferredSaveTask.result
+            super.canClose(withDelegate: delegate, shouldClose: shouldCloseSelector, contextInfo: contextInfo)
+        }
     }
 
     private func disposeUndoStack() {
@@ -615,5 +800,417 @@ import Synchronization
             await undo?.value
             await stack.dispose()
         }
+    }
+}
+
+extension ArchiveDocument {
+    private func reserve<Result: Sendable>(name: String, progress: Progress,
+        operation: (ArchivePendingEditor, ArchivePendingProjection, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
+    ) async throws -> Result {
+        // UI は無効化する。既に送られたプログラム上の要求は保存後の新しい予約として扱う。
+        if let saving = deferredSaveTask { try await saving.value }
+        try ArchiveImportPlan.checkCancellation(progress)
+        guard !closed, let session, let editor = pendingEditor else { throw CancellationError() }
+        guard !isDeferredSaveRunning, !reservationInFlight, undoTask == nil, !switchingBackingFile else {
+            throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
+        }
+        reservationInFlight = true
+        (undoManager as? ArchiveUndoManager)?.isSuspended = true
+        defer {
+            reservationInFlight = false
+            (undoManager as? ArchiveUndoManager)?.isSuspended = closed || isDeferredSaveRunning
+        }
+        try await verifyReservationIdentity()
+        guard !closed, self.session === session else { throw CancellationError() }
+        let snapshot = try await session.deferredSnapshot()
+        guard !closed, self.session === session else { throw CancellationError() }
+        try editor.install(base: snapshot.entries, generation: snapshot.generation)
+        let previous = editor.changes
+        let stagingCheckpoint = editor.stagingCheckpoint
+        let projection = try editor.projection(generation: snapshot.generation)
+        session.setPendingReadSnapshot(try .init(base: editor.base, generation: snapshot.generation,
+                                                changes: editor.changes, staging: editor.staging))
+        do {
+            let (next, result) = try await operation(editor, projection, session)
+            try ArchiveImportPlan.checkCancellation(progress)
+            guard !closed, self.session === session, generation == snapshot.generation,
+                  editor.changes.revision == previous.revision else { throw ArchiveEditError.staleSelection }
+            let projected = try next.projection(base: editor.base, generation: snapshot.generation)
+            let format: GyoshukuKit.ArchiveFormat
+            switch session.capabilities.mode {
+            case .inPlace: format = .zip
+            case .rewrite(let output): format = output
+            case nil: throw ArchiveEditError.staleSelection
+            }
+            try ArchiveSaveReplayPlan.validateRepresentability(projected, format: format)
+            try await verifyReservationIdentity()
+            if next != previous {
+                editor.replace(next)
+                // groupsByEvent=false なので即時モードと同じ grouping 入口を通す。
+                registerUndo(UndoAction(id: UUID(), name: name, pending: previous))
+                try displayPending()
+            }
+            return result
+        } catch {
+            await editor.discardStaging(after: stagingCheckpoint)
+            throw error
+        }
+    }
+
+    private func reserveAppend(urls: [URL], folder: String, progress: Progress,
+                               resolver: ArchiveImportConflict.Resolver?) async throws -> ArchiveImportResult {
+        try await reserve(name: "追加", progress: progress) { editor, projection, session in
+            var options = preferencesStore.preferences.importOptions
+            options.excludesStagingFiles = true
+            let plan: ArchiveImportPlan
+            if let resolver {
+                plan = try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: projection.planningEntries,
+                    archive: session.sourceURL, generation: generation, progress: progress, options: options,
+                    existingItems: try pendingConflictItems(projection, folder: folder), resolver: resolver)
+            } else {
+                plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: projection.planningEntries,
+                                                  progress: progress, options: options)
+            }
+            guard plan.failures.isEmpty, !plan.items.isEmpty else {
+                return (editor.changes, ArchiveImportResult(addedPaths: [], failures: plan.failures))
+            }
+            guard !closed, self.session === session else { throw CancellationError() }
+            for stamp in plan.sourceStamps { try stamp.verify() }
+            let removals = plan.replacingEntries.map { ArchiveEditPlan.Entry(projection.planningEntries[$0]) }
+            var next = try editor.applying(.init(removals: removals, renames: [], existing: projection.planningEntries), projection: projection)
+            next.additions += try await editor.stage(plan.items, progress: progress)
+            for stamp in plan.sourceStamps { try stamp.verify() }
+            return (next, ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: []))
+        }
+    }
+
+    private func reserveFolder(in folder: String, baseName: String, progress: Progress) async throws -> ArchiveImportResult {
+        try await reserve(name: "新規フォルダ", progress: progress) { editor, projection, _ in
+            let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: projection.planningEntries)
+            var next = editor.changes
+            next.createdFolders.append(.init(id: UUID(), path: plan.path))
+            return (next, ArchiveImportResult(addedPaths: [plan.path], failures: []))
+        }
+    }
+
+    private func reserveEdit(removing: [ArchiveEditSelection], renaming: [ArchiveEditRename], moving: [ArchiveEditMove],
+                             progress: Progress, name: String) async throws -> ArchiveEditResult {
+        try await reserve(name: name, progress: progress) { editor, projection, _ in
+            let plan = try ArchiveEditPlan.build(removing: removing.map { try projection.selection($0) },
+                renaming: renaming.map { .init(selection: try projection.selection($0.selection), name: $0.name) },
+                moving: moving.map { .init(selection: try projection.selection($0.selection), folder: $0.folder) },
+                existing: projection.planningEntries)
+            return (try editor.applying(plan, projection: projection),
+                    ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path)))
+        }
+    }
+
+    private func reserveMove(_ selections: [ArchiveEditSelection], to folder: String, progress: Progress,
+                             resolver: ArchiveImportConflict.Resolver?) async throws -> ArchiveEditResult {
+        guard let resolver else {
+            return try await reserveEdit(removing: [], renaming: [], moving: selections.map { .init(selection: $0, folder: folder) },
+                                         progress: progress, name: "移動")
+        }
+        return try await reserve(name: "移動", progress: progress) { editor, projection, session in
+            let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder)
+            _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: projection.planningEntries, progress: progress)
+            var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
+            for selection in selections {
+                let mapped = try projection.selection(selection)
+                let source = try ArchiveImportPlan.path(selection.path)
+                if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
+                if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
+                    throw ArchiveEditError.destinationInsideSource(source)
+                }
+                let leaf = ArchivePath.components(source).last!
+                let destination = target.isEmpty ? leaf : target + "/" + leaf
+                moving.append(mapped)
+                candidates.append(.init(path: destination, info: try pendingConflictItem(selection.entries, path: source)))
+            }
+            let resolution = try await ArchiveConflictResolution.resolve(candidates,
+                existing: ArchiveConflictResolution.existingGroups(projection.planningEntries, folder: target),
+                archive: session.sourceURL, generation: generation, progress: progress,
+                existingItems: try pendingConflictItems(projection, folder: target), resolver: resolver)
+            let removals = resolution.replaced.map { ArchiveEditSelection(path: $0.name, isDirectory: false, entries: [$0]) }
+            let plan = try ArchiveEditPlan.build(removing: removals, renaming: [],
+                moving: resolution.accepted.map { .init(selection: moving[$0], folder: target) }, existing: projection.planningEntries)
+            return (try editor.applying(plan, projection: projection),
+                    ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path)))
+        }
+    }
+
+    private func pendingConflictItems(_ projection: ArchivePendingProjection, folder: String) throws -> [String: ArchiveConflictItem] {
+        try ArchiveConflictResolution.existingGroups(projection.entries, folder: folder).mapValues { entries in
+            let parts = ArchivePath.components(folder).count + 1
+            let path = entries[0].pathComponents.prefix(parts).joined(separator: "/")
+            return try pendingConflictItem(entries, path: path)
+        }
+    }
+
+    private func pendingConflictItem(_ entries: [ArchiveEntry], path: String) throws -> ArchiveConflictItem {
+        let info = ArchiveConflictItem.archived(entries, path: path, archive: session!.sourceURL, generation: generation)
+        let source: ArchiveConflictItem.Source?
+        var lease: StagingRegistry.ReadLease?
+        if entries.count == 1, let entry = entries.first, let id = entry.pendingID,
+           let addition = pendingChanges.additions.first(where: { $0.id == id }), addition.sourceStamp.kind == .file {
+            lease = try pendingEditor?.staging?.acquireRead()
+            guard lease != nil else { throw ArchiveEntryPayload.staleSelection }
+            source = .file(addition.stagedURL)
+        } else if entries.count == 1, let entry = entries.first, entry.kind == .file, !entry.isIncomplete,
+                  let snapshot = session?.pendingReadSnapshot {
+            source = .archive(snapshot.payload(for: entry, archive: session!.sourceURL))
+        } else { source = nil }
+        return .init(name: info.name, location: info.location, kind: info.kind, size: info.size,
+                     modificationDate: info.modificationDate, entryCount: info.entryCount, source: source, stagingLease: lease)
+    }
+
+    func deferredEncryptionSettings() async -> ArchiveEncryptionSettings {
+        if let output = pendingChanges.outputEncryption { return output }
+        return await session?.encryptionSettings() ?? .init()
+    }
+
+    private func reservePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
+                                 progress: Progress) async throws -> ArchivePasswordEditResult {
+        try await reserve(name: action.actionName, progress: progress) { editor, _, session in
+            guard session.passwordFormat != nil else { throw ArchiveEditError.staleSelection }
+            try await session.validateDeferredPassword()
+            let current = await deferredEncryptionSettings()
+            let encrypted = current.password != nil || (editor.changes.outputEncryption == nil && session.hasEncryptedEntries)
+            guard action == .set ? !encrypted : encrypted else { throw ArchiveEditError.staleSelection }
+            if action != .remove, settings.password?.isEmpty != false {
+                throw ExtractionFailure.refused(String(localized: "パスワードを入力してください。"))
+            }
+            let output = action == .remove ? ArchiveEncryptionSettings() : settings
+            var next = editor.changes
+            next.outputEncryption = output == (await session.encryptionSettings()) ? nil : output
+            return (next, ArchivePasswordEditResult())
+        }
+    }
+
+    func projectedEntries() async throws -> [ArchiveEntry] {
+        guard let session else { return [] }
+        let snapshot = await session.snapshot()
+        guard let editor = pendingEditor else { return snapshot.entries }
+        try editor.install(base: snapshot.entries, generation: snapshot.generation)
+        session.setPendingReadSnapshot(try .init(base: editor.base, generation: snapshot.generation,
+                                                changes: editor.changes, staging: editor.staging))
+        return try editor.projection(generation: snapshot.generation).entries
+    }
+
+    private func displayPending() throws {
+        guard !closed, let editor = pendingEditor, let session else { return }
+        let entries = try editor.projection(generation: session.generation).entries
+        session.setPendingReadSnapshot(try .init(base: editor.base, generation: session.generation,
+                                                changes: editor.changes, staging: editor.staging))
+        disposeMaterialization()
+        for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
+            controller.display(EntryNode.tree(from: entries), session: session, generation: session.generation,
+                               materializationController: materializationController())
+        }
+    }
+
+    private func verifyReservationIdentity() async throws {
+        guard let session else { throw CancellationError() }
+        do { try await synchronizeDeferredLocation(); try await session.verifyDeferredIdentity() }
+        catch {
+            if session.isInvalidated { throw error }
+            if windowControllers.first?.window != nil {
+                await presentExternalChange()
+                throw CancellationError()
+            }
+            throw ArchiveEditError.archiveChanged
+        }
+    }
+
+    func checkDeferredIdentityWhenKey() {
+        guard saveBehavior == .onSave, !closed, !isDeferredSaveRunning, !reservationInFlight,
+              session?.isInvalidated == false else { return }
+        Task { [weak self] in
+            guard let self, let session else { return }
+            do { try await synchronizeDeferredLocation(); try await session.verifyDeferredIdentity() }
+            catch {
+                guard !isDeferredSaveRunning, !reservationInFlight, !closed,
+                      !session.isInvalidated,
+                      windowControllers.first?.window?.attachedSheet == nil else { return }
+                await presentExternalChange()
+            }
+        }
+    }
+
+    private func presentExternalChange() async {
+        guard !closed, externalChangeAlert == nil, let window = windowControllers.first?.window else { return }
+        if let progressSheet = window.attachedSheet {
+            window.endSheet(progressSheet)
+            progressSheet.orderOut(nil)
+        }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "アーカイブが別のアプリで変更されました")
+        alert.addButton(withTitle: String(localized: "キャンセル"))
+        alert.addButton(withTitle: String(localized: "変更を破棄して読み直す"))
+        externalChangeAlert = alert
+        let response = await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+        }
+        externalChangeAlert = nil
+        if response == .alertSecondButtonReturn {
+            do { try await revertPending() }
+            catch { if !closed { presentError(error) } }
+        }
+    }
+
+    private func disposePending() {
+        if saveBehavior == .onSave { session?.setPendingReadSnapshot(nil) }
+        let stagingWrite = pendingEditor?.stagingTask
+        guard let lease = pendingEditor?.reset() else { return }
+        let previous = stagingCleanup
+        let task = Task {
+            await previous?.value
+            _ = await stagingWrite?.result
+            await Self.removeStaging(lease)
+        }
+        stagingCleanup = task
+        DocumentCleanupRegistry.shared.track(task)
+    }
+
+    @concurrent private static func removeStaging(_ lease: StagingRegistry.Lease) async { await lease.removeWhenUnused() }
+}
+
+extension ArchiveDocument {
+    private func finishDeferredSave(sheet: ExtractionProgressSheet? = nil) {
+        sheet?.finish()
+        deferredSaveTask = nil
+        deferredProgress = nil
+        deferredPublication?.finish()
+        deferredPublication = nil
+        deferredCreation = nil
+        (undoManager as? ArchiveUndoManager)?.isSuspended = closed
+    }
+
+    private func savePendingDocument(token: Any, progress: Progress, publication: ArchiveSavePublication) async throws {
+        guard let session, let editor = pendingEditor else { throw CancellationError() }
+        try await synchronizeDeferredLocation()
+        deferredReloadFailure = nil
+        let snapshot = await session.snapshot()
+        try editor.install(base: snapshot.entries, generation: snapshot.generation)
+        let pending = editor.changes
+        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: snapshot.generation, pending: pending)
+        if !plan.isEmpty {
+            // AppKit の外部変更シートを Save anyway で越えても、この照合は省かない。
+            do { try await session.verifyDeferredIdentity() }
+            catch {
+                if session.isInvalidated { throw error }
+                throw Self.deferredExternalChangeError
+            }
+            let result = try await session.savePending(pending, baseGeneration: snapshot.generation,
+                progress: progress, publication: publication, willPublish: deferredWillPublish, willReload: deferredWillReload)
+            deferredReloadFailure = result.reloadFailure
+            if pending.outputEncryption != nil {
+                if let stored = await passwordVault.password(for: .file(session.sourceURL)) {
+                    await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
+                }
+                rememberedPayloadPassword = nil
+            }
+        }
+        let modificationDate = try FileManager.default.attributesOfItem(atPath: session.sourceURL.path)[.modificationDate] as? Date
+        // 予約入口は保存中閉じている。AppKit に後着した変更数は token で保持する。
+        disposePending()
+        undoManager?.removeAllActions()
+        undoActions.removeAll()
+        await stagingCleanup?.value
+        await displayAfterMutation()
+        updateChangeCount(withToken: token, for: .saveOperation)
+        fileModificationDate = modificationDate
+        refreshPendingNotices()
+    }
+
+    private static func deferredSaveError(_ error: any Error) -> NSError {
+        if error is CancellationError { return CocoaError(.userCancelled) as NSError }
+        return NSError(domain: "com.shunnag.KaitoFinder.deferred", code: 2, userInfo: [
+            NSLocalizedDescriptionKey: ArchiveErrorText.describe(error), NSUnderlyingErrorKey: error as NSError
+        ])
+    }
+
+    private static var deferredExternalChangeError: NSError {
+        NSError(domain: "com.shunnag.KaitoFinder.deferred", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: String(localized: "アーカイブが別のアプリで変更されました")
+        ])
+    }
+
+    // XCTest と標準 Revert の共通処理。外部変更がなければ reader・世代を維持する。
+    func revertPending() async throws {
+        if let deferredSaveTask { try await deferredSaveTask.value; return }
+        try await beginDeferredRevert().value
+    }
+
+    private func beginDeferredRevert() -> Task<Void, Error> {
+        let token = changeCountToken(for: .saveOperation)
+        (undoManager as? ArchiveUndoManager)?.isSuspended = true
+        let task = Task {
+            defer { finishDeferredSave() }
+            try await performDeferredRevert(token: token)
+        }
+        deferredSaveTask = task
+        return task
+    }
+
+    private func synchronizeDeferredLocation() async throws {
+        guard let session, let url = fileURL, url != session.sourceURL else { return }
+        try await session.followDeferredMove(to: url)
+        disposeMaterialization()
+    }
+
+    private func performDeferredRevert(token: Any) async throws {
+        guard let session, pendingEditor != nil, !closed else { throw CancellationError() }
+        try await synchronizeDeferredLocation()
+        var changed = false
+        do { try await session.verifyDeferredIdentity() }
+        catch { changed = true }
+        if changed { try await session.reloadAfterMutation() }
+        let modificationDate = try FileManager.default.attributesOfItem(atPath: session.sourceURL.path)[.modificationDate] as? Date
+        disposePending()
+        undoManager?.removeAllActions()
+        undoActions.removeAll()
+        await stagingCleanup?.value
+        updateChangeCount(withToken: token, for: .saveOperation)
+        await displayAfterMutation()
+        fileModificationDate = modificationDate
+    }
+
+    func savePendingAs(using creator: ArchiveCreationController, on window: NSWindow?, progress: Progress) async throws {
+        guard !closed, !isDeferredSaveRunning, !reservationInFlight, let session, let editor = pendingEditor else {
+            throw ArchiveEditError.staleSelection
+        }
+        let token = changeCountToken(for: .saveOperation), publication = ArchiveSavePublication()
+        deferredPublication = publication
+        deferredProgress = progress
+        deferredCreation = creator
+        (undoManager as? ArchiveUndoManager)?.isSuspended = true
+        let task = Task {
+            defer { finishDeferredSave() }
+            do { try await synchronizeDeferredLocation(); try await session.verifyDeferredIdentity() }
+            catch {
+                if session.isInvalidated { throw error }
+                throw Self.deferredExternalChangeError
+            }
+            var existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
+            try editor.install(base: existing.entries, generation: generation)
+            existing.pending = try ArchiveSaveReplayPlan(base: existing.entries, generation: generation, pending: editor.changes)
+            existing.publication = publication
+            existing.encryption = await deferredEncryptionSettings()
+            guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress,
+                                                            willPublish: deferredWillPublish) else { return }
+            let modificationDate = try FileManager.default.attributesOfItem(atPath: destination.path)[.modificationDate] as? Date
+            // switchBackingFile の display が新しい世代へ旧予約を重ねないよう、切り替え時にだけ外す。
+            try await switchBackingFile(to: destination, password: creator.createdEncryption.password)
+            disposePending()
+            undoManager?.removeAllActions()
+            await stagingCleanup?.value
+            await displayAfterMutation()
+            updateChangeCount(withToken: token, for: .saveOperation)
+            fileModificationDate = modificationDate
+            refreshPendingNotices()
+        }
+        deferredSaveTask = task
+        try await task.value
     }
 }

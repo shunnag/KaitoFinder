@@ -75,11 +75,14 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertTrue(condition())
     }
 
-    @MainActor private func interface(_ fixture: Fixture) async throws -> (ArchiveDocument, ArchiveWindowController) {
+    @MainActor private func interface(_ fixture: Fixture, behavior: ArchivePreferences.SaveBehavior = .immediate) async throws
+        -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()
         let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),
                                          directory: fixture.directory.url.appendingPathComponent("vault"))
-        let document = ArchiveDocument(passwordVault: vault)
+        let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
+        store.preferences.saveBehavior = behavior
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), passwordVault: vault, preferencesStore: store)
         try document.read(from: fixture.archive, ofType: "archive")
         document.makeWindowControllers()
         let controller = try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
@@ -93,6 +96,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
             await document.materializationCleanup?.value
             await document.undoCleanup?.value
             withExtendedLifetime(fixture) {}
+            withExtendedLifetime(defaults) {}
         }
         return (document, controller)
     }
@@ -367,6 +371,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertNil(controller.passwordPrompt)
         XCTAssertNil(controller.window?.attachedSheet)
         XCTAssertFalse(document.isPasswordLocked)
+        XCTAssertEqual(document.saveBehavior, .immediate)
         XCTAssertFalse(document.isDocumentEdited)
         XCTAssertEqual(controller.outlineView.numberOfRows, 1)
         try await extractSecret(fixture, session: XCTUnwrap(document.session))
@@ -387,6 +392,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertTrue(prompt.field.stringValue.isEmpty)
         XCTAssertTrue(document.isPasswordLocked)
         XCTAssertNil(document.session)
+        XCTAssertEqual(document.saveBehavior, .immediate)
         XCTAssertFalse(document.isDocumentEdited)
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         controller.unlockArchive(nil)
@@ -395,6 +401,49 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         await controller.unlockTask?.value
         XCTAssertFalse(document.isPasswordLocked)
         try await extractSecret(fixture, session: XCTUnwrap(document.session))
+    }
+
+    @MainActor func testDeferredHeaderUnlockAfterWrongPasswordKeepsDocumentClean() async throws {
+        let fixture = try Fixture(.encryptedHeaders), before = try Data(contentsOf: fixture.archive)
+        let (document, controller) = try await interface(fixture, behavior: .onSave)
+        XCTAssertEqual(document.saveBehavior, .onSave)
+        XCTAssertTrue(document.isPasswordLocked)
+        controller.unlockArchive(nil)
+        try await waitUntil { controller.passwordPrompt != nil }
+        _ = try respond(controller, password: "incorrect")
+        try await waitUntil { controller.passwordPrompt?.challenge == .incorrect }
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(document.pendingChanges.isEmpty)
+        _ = try respond(controller, password: fixture.password)
+        await controller.unlockTask?.value
+        XCTAssertFalse(document.isPasswordLocked)
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(document.pendingChanges.isEmpty)
+        let projected = try await document.projectedEntries()
+        XCTAssertEqual(projected.map(\.name), ["secret.bin"])
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
+    }
+
+    @MainActor func testDeferredCancelHeaderPromptKeepsCleanLockedDocumentAndCanRetry() async throws {
+        let fixture = try Fixture(.encryptedHeaders), before = try Data(contentsOf: fixture.archive)
+        let (document, controller) = try await interface(fixture, behavior: .onSave)
+        controller.unlockArchive(nil)
+        try await waitUntil { controller.passwordPrompt != nil }
+        _ = try respond(controller, password: nil)
+        await controller.unlockTask?.value
+        XCTAssertEqual(document.saveBehavior, .onSave)
+        XCTAssertTrue(document.isPasswordLocked)
+        XCTAssertNil(document.session)
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(document.pendingChanges.isEmpty)
+        controller.unlockArchive(nil)
+        try await waitUntil { controller.passwordPrompt != nil }
+        _ = try respond(controller, password: fixture.password)
+        await controller.unlockTask?.value
+        XCTAssertFalse(document.isPasswordLocked)
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(document.pendingChanges.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 
     @MainActor func testControllerExtractionCancelRemovesTaskAndBothSheets() async throws {

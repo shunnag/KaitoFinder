@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import KaitoKit
 
 /// ファイル属性だけでなく、一時コピーの出自を文書の再オープンにも引き継ぐ。
 nonisolated enum ArchiveTemporaryCopy {
@@ -41,8 +42,14 @@ actor EntryMaterializer {
     @concurrent private static func extract(_ payload: ArchiveEntryPayload, session: ArchiveSession,
                                             documentDirectory: URL, progress: Progress,
                                             didWrite: (@Sendable (Int) -> Void)?) async throws -> URL {
-        let snapshot = await session.snapshot()
-        let entries = try payload.resolve(in: snapshot.entries, generation: snapshot.generation)
+        let entries: [KaitoKit.ArchiveEntry]
+        if session.usesPendingReading {
+            guard let snapshot = session.pendingReadSnapshot else { throw ArchiveEntryPayload.staleSelection }
+            entries = try snapshot.resolve(payload)
+        } else {
+            let snapshot = await session.snapshot()
+            entries = try payload.resolve(in: snapshot.entries, generation: snapshot.generation)
+        }
         let capability = EntryReadCapability(entry: entries.first, isDirectory: payload.isDirectory, format: session.format)
         if let refusal = capability.refusal { throw refusal }
         let leaf = try ExtractionPath.components(payload.path).last!

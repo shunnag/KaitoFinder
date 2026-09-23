@@ -3,7 +3,7 @@ import GyoshukuKit
 import KaitoKit
 
 /// パスワードはセッションと取り消しスロットのメモリだけに保持する。
-nonisolated struct ArchiveEncryptionSettings: Sendable {
+nonisolated struct ArchiveEncryptionSettings: Sendable, Equatable {
     var password: String? = nil
     var zipEncryption: ZipEncryption = .aes256
     var encryptsSevenZipHeaders = false

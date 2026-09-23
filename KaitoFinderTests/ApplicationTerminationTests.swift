@@ -6,6 +6,45 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ApplicationTerminationTests: XCTestCase {
+    @MainActor func testQuitWaitsForCleanupOfAlreadyRemovedDeferredDocument() async throws {
+        let delegate = try delegate(documents: [])
+        let cleanup = DocumentCleanupRegistry()
+        delegate.cleanupRegistry = cleanup
+        var resume: CheckedContinuation<Void, Never>?
+        let work = Task { await withCheckedContinuation { resume = $0 } }
+        cleanup.track(work)
+        let replied = expectation(description: "閉じた文書の退避削除を待つ")
+        var didReply = false
+        delegate.terminationReply = { answer in
+            XCTAssertTrue(answer)
+            XCTAssertFalse(cleanup.hasPendingCleanup)
+            didReply = true
+            replied.fulfill()
+        }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateLater)
+        await Task.yield()
+        XCTAssertFalse(didReply)
+        try await scenarioWait { resume != nil }
+        resume?.resume()
+        await fulfillment(of: [replied], timeout: 2)
+    }
+
+    @MainActor func testDeferredSingleFilePublicationAlsoProtectsTerminationDeadline() async throws {
+        let delegate = try delegate(documents: [])
+        let publication = ArchiveSavePublication(counter: delegate.volumePublishCriticalSection)
+        try publication.enter(progress: Progress())
+        delegate.terminationGracePeriod = .milliseconds(10)
+        delegate.quitConfirmation = { true }
+        var replied = false
+        let finished = expectation(description: "保存の文書同期後に終了")
+        delegate.terminationReply = { _ in replied = true; finished.fulfill() }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateLater)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(replied)
+        publication.finish()
+        await fulfillment(of: [finished], timeout: 2)
+    }
+
     @MainActor func testCriticalVolumePublicationDefersDeadlineAndRepliesWhenLastLeaseEnds() async throws {
         let delegate = try delegate(documents: [])
         let counter = VolumePublishCriticalSection()

@@ -408,7 +408,9 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         XCTAssertEqual(item.keyEquivalent.lowercased(), "s")
         XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .shift])
         XCTAssertNil(item.target)
-        XCTAssertEqual(file.items[file.index(of: item) - 1].action, #selector(NSWindow.performClose(_:)))
+        XCTAssertEqual(file.items[file.index(of: item) - 2].action, #selector(NSWindow.performClose(_:)))
+        XCTAssertEqual(file.items[file.index(of: item) - 1].action, #selector(NSDocument.save(_:)))
+        XCTAssertEqual(file.items[file.index(of: item) + 1].action, #selector(NSDocument.revertToSaved(_:)))
         XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
         XCTAssertTrue(controller.validateMenuItem(item))
         (document.undoManager as? ArchiveUndoManager)?.isSuspended = true

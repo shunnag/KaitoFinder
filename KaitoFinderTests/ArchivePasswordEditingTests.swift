@@ -260,7 +260,8 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let start = try XCTUnwrap(file.items.firstIndex { $0.action == #selector(ArchiveWindowController.saveArchiveAs(_:)) })
         let selectors = [#selector(ArchiveWindowController.setArchivePassword(_:)),
                          #selector(ArchiveWindowController.changeArchivePassword(_:)), #selector(ArchiveWindowController.removeArchivePassword(_:))]
-        let items = Array(file.items[(start + 1)...(start + 3)])
+        XCTAssertEqual(file.items[start + 1].action, #selector(NSDocument.revertToSaved(_:)))
+        let items = Array(file.items[(start + 2)...(start + 4)])
         XCTAssertEqual(items.map(\.action), selectors.map(Optional.some))
         XCTAssertTrue(items.allSatisfy { $0.target == nil && !$0.isHidden })
         for format in [GyoshukuKit.ArchiveFormat.zip, .sevenZip, .tar, .lha] {

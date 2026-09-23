@@ -6,6 +6,11 @@ KaitoFinder は「書庫を一覧できる圧縮ソフト」ではなく、**名
 あるファイルマネージャ**として作る。Finder と同じ外観・操作感が第一の要件であり、
 他のすべてはそれに従属する。
 
+既定は操作ごとに「すぐに書き込む」。一般設定で明示的に選ぶ「保存時にまとめて書き込む」は、
+Finder の即時操作からの opt-in の例外とする。`ArchiveSaveBehavior` を文書の生成時に一度だけ読み、
+開いている文書では切り替えない。「次に開くアーカイブから有効になります。」と設定画面に示す。
+M3 は単一ファイルのみ。分割セットの読み取り専用理由は変更せず、保存対応は M5 とする。
+
 - Finder と同じ見た目・操作感で、書庫内のフォルダ / ファイル構成を表示する。
 - 書庫内の項目を Finder や他アプリへ **drag & drop** と **copy & paste** で取り出す。
 - 他アプリから書庫へ **drag & drop** と **copy & paste** で追加する。
@@ -227,7 +232,24 @@ drag の promise は drag が終わってから発火するので、index を握
 
 - promise / pasteboard の payload には `(archive URL, generation, index, path)` を持たせる。
 - `generation` は書庫を書き換えるたびに増やす。発火時に generation が違えば
-  path で引き直し、見つからなければエラーで完了させる。
+  即時モードでは path で引き直し、見つからなければエラーで完了させる。
+- 保存前モードの予約は `(index, expectedName, baseGeneration)` または安定した追加 UUID を参照する。
+  世代不一致の投影・保存は拒否し、index を別の項目へ付け替えない。表示は基底へ予約を重ねた一覧から
+  `EntryNode.tree(from:)` を作る。既存 planner 用の連続 index は origin へ戻して予約に翻訳する。
+  フォルダの改名は planner が子孫ごとの明示予約へ展開する。投影はその予約だけを適用し、
+  祖先の旧名による prefix の補完はしない。子を元のパスへ戻す予約も尊重する。
+- 保存前モードの読み取り payload は `(generation, revision, origin)` も保持する。
+  予約・取り消し・やり直しで revision が変われば、読み始める前の promise は選択変更エラーにする。
+  名前での引き直しは行わず、改名の交換でも基底 index または追加 UUID の本文だけを返す。
+  展開・コピー・ドラッグアウト・Quick Look・Open・サムネイル・比較は同じ投影を読み、
+  改名した基底は reader の本文と投影の名前、追加は staging、混在フォルダは両方から実体化する。
+  Option コピーもこの実体を新しい追加として退避する。プレビューとサムネイルは版ごとに無効化する。
+  読み始めた promise は複製 reader と投影の値を保持して完走する。staging の read lease が
+  残る間、Save / Revert / close の cleanup は削除を待つ。破棄開始後の新しい lease は拒否する。
+  追加するファイルの mode と秒単位の mtime は即時追加と一致させる。directory は即時追加と同じ
+  0755 とし、mtime は予約時に確定して読み取りと保存の両方へ渡す。新規フォルダも同じ規則。
+  Finder タグ・resource fork など writer が格納しない xattr は保存前の展開にも付けない。
+  quarantine は原本を優先し、なければ最初の追加元の印を使う、保存後と同じ規則で全項目に伝える。
 
 ### 4.3 capabilities
 
@@ -330,12 +352,17 @@ Finderのサービス「KaitoFinderで展開」から、文書を開かずに同
 失敗は最後に名前と理由を一つのアラートにまとめ、すべて成功した場合は通知も表示先の変更もしない。
 展開には画面の「すべて展開」と共通のペイロードと`ExtractionService`を使い、安全性検査と隔離属性の伝播を引き継ぐ。
 
-`NSDocument` は**読み取り専用の器**として使う。`readFromURL:ofType:` を
+即時モードの `NSDocument` は**読み取り専用の器**として使う。`readFromURL:ofType:` を
 override して super を呼ばない(継承実装は NSFileWrapper 経由で書庫全体を
 memory へ載せ、KaitoKit の遅延読みを潰す)。`isEntireFileLoaded` は NO、
 `autosavesInPlace` / `preservesVersions` は NO、`writableTypesForSaveOperation:`
 は空配列。書き換えは NSDocument の保存機構ではなく後述の atomic replace で行い、
-`revertToContentsOfURL:` で同期し直す。
+`session.reloadAfterMutation()` で同期し直す。
+保存前モードは `save(to:ofType:for:completionHandler:)` と `revert(toContentsOf:ofType:)` を使う。
+Viewer 役の文書では標準の検証が Save を拒否するため、Save / Revert を明示的に検証する。
+`writableTypes(for:)` は保存経路で参照されないという実測に従い、両モードで空のままとする。
+保存開始時の change-count token と公開後の fileModificationDate を両方更新して完了する。
+後着した変更数を消す `.changeCleared` は Save では使わない。
 
 日本語 UI の語彙は Finder 自身の `ja.lproj/*.strings` に合わせる(項目、など)。
 文字列は `.xcstrings`。
@@ -369,10 +396,12 @@ Cancel を使う。詳細と自動検証・手動確認の境界は
 > links both AppKit and SwiftUI, and neither column view nor rubber-band
 > selection exists in SwiftUI at any availability level. SwiftUI is used through
 > `NSHostingView` for Settings, Get Info and the inspector. `NSDocument` serves
-> as a read-only shell whose `readFromURL:ofType:` deliberately does not call
+> as a read-only shell in immediate mode whose `readFromURL:ofType:` deliberately does not call
 > super, because the inherited implementation loads the whole archive into memory
 > through `NSFileWrapper` and defeats KaitoKit's lazy reader; mutation happens
-> out of band through atomic replacement, followed by `revertToContentsOfURL:`.
+> out of band through atomic replacement, followed by `session.reloadAfterMutation()`.
+> Opt-in deferred documents use the NSDocument Save and Revert entry points, explicitly
+> validate their Viewer-role menu actions, and synchronize both the save token and file mtime.
 > Japanese vocabulary follows Finder's own `.strings`.
 >
 > Quick Look uses QLPreviewPanel through the window controller's responder chain;
@@ -404,6 +433,22 @@ undo があるからで、確認の有無は「危険だから」ではなく「
 とき — 非 APFS ボリューム(exFAT の USB、SMB 共有)で `clonefile` が ENOTSUP を
 返す場合 — で、そのときだけ「取り消せません」と明示して確認する。
 選択行ごとにモーダルを出すことはしない。
+保存前モードはメモリ上の予約をいつでも取り消せるので、削除の確認は出さない。
+追加の退避は Application Support/KaitoFinder/Staging/<lease UUID>/<batch UUID>/<item UUID>/<元の名前> に
+clone または取消し可能な chunk copy で作る。旧 lease の読み取り待ち中も別の UUID を割り当てる。
+フォルダ列挙から `.KaitoFinder-*` を除く。履歴が参照する退避物は Save / Revert / close まで保持する。
+コピー後の退避物だけから BSD flags と ACL を除く。即時 writer もこれらを格納しないため、
+flags/ACL の保存用記録は持たず、元の項目には触れない。解除できない system flag を複製しないよう
+flag 付き入力は本文をコピーする。旧退避物の削除も flags/ACL を解除して再試行し、symlink は辿らない。
+file provider の保護 xattr など、非必須属性の EPERM/ENOTSUP は予約全体の失敗にしない。
+tar の「所有者 ID を保持」は追加元の lstat の uid/gid を記録して使う。現在の公開 writer API は
+明示的な uid/gid を受け取れないため、保存前モードだけは自分で生成した非圧縮 tar の数値欄へ渡し、
+既存 rewriter で目的の tar 形式へ書き出す。directory の ID は即時 addDirectory と同じ 0。
+取消した予約の部分コピーは即座に回収して台帳から外し、次回起動の孤立通知には残さない。
+台帳は別ファイルの flock と atomic JSON、所有者は文書ごとの lock file を開いて flock を保持する。
+起動時に所有者のいない退避物をゴミ箱へ移し、一度通知する。唯一のコピーかもしれないため削除はしない。
+台帳の inode と一致して lock file だけが消えている場合も、所有者なしとして扱う。
+予約確定前に投影全体の形式表現性を probe し、ZIP は最初の予約時に updater の CD 照合も行う。
 
 **検証は UI で先に行う。** 衝突する名前を打った利用者には、フィールドを編集状態の
 まま検証メッセージを見せる。commit してからエラーシートを出すのは設計ではなく
@@ -908,10 +953,13 @@ M3(書庫内の削除・改名)には取り消しが要る。Finder にはファ
 Finder を名乗る以上期待される。一方 `NSDocument` の編集機構は止めてあるので Cmd-Z が無い。
 実測(`Documentation/verification/2026-09-10-undo-model.md`)の上で以下に決めた。
 
-**単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
+**即時モードの単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
 編集前のファイルが自然な undo 単位になる。当初案の `NSFileVersion` は
 ファイル全体を複製するため 4 GiB 級の書庫で破綻し、entry model 上の undo stack は
-削除された byte を持たないので rename にしか使えない。どちらも採らない。
+削除された byte を持たないので rename にしか使えない。即時モードではどちらも採らない。
+保存前モードでは基底の byte が原本に残るため、値型 `ArchivePendingChanges` の入れ替えが正しい undo になる。
+既存の grouping helper を通して登録し、Undo / Redo はディスクへ書かない。成功した Save の後は
+基底 index が変わるので履歴を消す。
 
 **退避は `clonefile(2)`、置き場所は同一ボリュームの temp。**
 `replaceItemAt` の直前に、原本を `.itemReplacementDirectory` 配下の undo slot へ
@@ -931,11 +979,12 @@ undo の直前に現状態を clone してから戻す。
 上限を持ち、古いものから捨てる。document を閉じたら全部消す(Quick Look の
 後始末と同じ `@concurrent` 経路)。Finder の undo もアプリ終了を跨がない。
 
-**dirty 状態は抑制する。** `NSUndoManager` に登録すると `NSDocument` が
-`updateChangeCount` を呼び、実測で `isDocumentEdited` が true になる。本アプリは
+**即時モードだけ dirty 状態を抑制する。** `NSUndoManager` に登録すると `NSDocument` が
+`updateChangeCount` を呼び、実測で `isDocumentEdited` が true になる。即時モードは
 `writableTypes` が空 — commit は即ディスクに落ちるので「未保存」という状態が
 存在しない — なので、dirty になると閉じる際に**満たせない「保存しますか？」**が出る。
-`updateChangeCount(_:)` を no-op に上書きする。実測で dirty は立たず、
+即時モードの `updateChangeCount(_:)` だけを no-op にする。保存前モードは super を呼び、
+通常の保存確認に従う。即時モードでは実測で dirty は立たず、
 `canUndo` / `canRedo` / メニュー項目名(「取り消す — 削除」)は生きたままになる。
 
 **clone できない書庫は undo を持てない。** 非 APFS ボリューム(exFAT の USB、SMB 共有)
@@ -968,7 +1017,7 @@ UI 層でこれに伴って決めておくこと:
 > and dies with it. Registering with `NSUndoManager` gives real Cmd-Z and Edit-menu
 > titles, but it also makes `NSDocument` mark itself edited — measured — which
 > would raise an unsatisfiable save prompt on a document whose `writableTypes` is
-> empty, so `updateChangeCount` is overridden to a no-op. On a non-APFS volume
+> empty, so immediate mode overrides `updateChangeCount` to a no-op. Deferred mode preserves normal dirty tracking. On a non-APFS volume
 > there is no slot, and the user is told the operation is irreversible *before* it
 > commits rather than being charged a 4 GiB copy silently.
 
@@ -1018,9 +1067,13 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   レベルを変更できない。設定値に最も近い段階から開始し、同距離なら高い方を選ぶ。
   形式を変えるとその形式の設定から選び直す。レベルの選択は今回だけに適用する。
 - ファイル › 別名で保存…(⇧⌘S) は、`ArchiveCreationTransaction` で新しい保存先へ変換し、
+  保存前モードでは削除→循環を一時名で断った改名→任意パスへの追加・新規フォルダを同じ replay plan で反映する。
+  保存前に全 replay の占有と基底の件数・名前・世代、staging の stamp を検証する。
+  ZIP の通常 Save は Updater、書き直し形式と暗号化変更は Rewriter により一作業コピー・一公開とする。
+  空に畳み込める計画は公開しない。出力の新しい鍵は公開成功後にだけ採用する。
   完了後に同じ文書の `fileURL`・型・session・capabilities・identity を更新する。
   Quick Look、実体化、サムネイルと旧 undo 履歴を破棄し、空の undo stack を用意する。
-  最近使った項目にも登録する。元ファイルは変更せず、同一ファイル(path / symlink / hard link)
+  保存前モードでは予約・staging・変更数も消す。最近使った項目にも登録する。元ファイルは変更せず、同一ファイル(path / symlink / hard link)
   への保存は拒否する。読み取り専用形式からも利用できる。暗号化された入力は既知の鍵を保存パネルの両欄へ
   入れ、暗号化を初期選択する。出力の鍵で新しい session を開く。ドロップによる変換は従来どおり別の文書を開く。
 - 未対応言語の fallback は `Info.plist` の `CFBundleDevelopmentRegion = en` で指定する。
@@ -1138,8 +1191,23 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   (3) 進行中の仕事が無くても undo スロットがあれば確認なしで同じ待ちをする。
   (4) 何も無ければ `.terminateNow`(状態復元の経路に触れない)。待ちは 10 秒で打ち切る —
   ネットワークボリュームで止まった後始末が終了を阻むより、残骸を許す方を選ぶ。
-  ⌘W は確認しない: 長い操作は全て進捗シートを窓に付けるので、閉じるボタンも ⌘W も
+  即時モードの ⌘W は確認しない: 長い操作は全て進捗シートを窓に付けるので、閉じるボタンも ⌘W も
   シートが塞ぐ。記録は `verification/2026-09-16-quit-during-work.md`。
+- **保存前モードの終了（2026-09-23 実測）**: AppKit の review → canClose → save → completion →
+  close / removeDocument → applicationShouldTerminate の順。未保存なら標準の Save / Don't Save / Cancel に従う。
+  close は二度呼ばれても何もしない。既に documents から外れた文書の staging cleanup を
+  `DocumentCleanupRegistry` に登録し、終了時にプロセス全体で待つ。
+  保存・別名で保存中は予約 UI、undo / redo、戻す、別名で保存、展開系を停止する。
+  quit は公開前の保存パネル・書き込み・退避コピーを取り消して後始末を待ち、公開後は完了を待つ。
+  外部変更シートの「変更を破棄して読み直す」も Revert と同じ直列化入口を通し、await の前に取得した
+  change-count token でだけ変更数を更新する。後着の編集要求は戻す処理の完了後に予約する。
+  先に送られた予約要求は保存完了後に新しい予約として扱う。main actor の Task を使い modal run loop でも進める。
+  公開の rename 境界から文書の同期完了まで M2 の臨界区間カウンタを保持し、10 秒の期限も取消しも越える。
+  外部変更は予約時・窓が key になったとき・Save 開始時に ArchiveSetIdentity で照合する。
+  自分の公開中は main actor からの照合を止め、外部の新しい内容へ予約を自動的に混ぜない。
+  保存前モードの mode だけの変更は contentEquals で許し、公開側には新しい mode を渡す。
+  NSDocument が追跡した単一ファイルの Finder 移動は inode・volume・size・mtime を確認して追随する。
+  公開後の reload 失敗は既存の読み直し失敗状態と通知にし、自分の公開を外部変更とは表示しない。
 
 ## 10. マイルストーン
 

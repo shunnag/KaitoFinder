@@ -42,6 +42,17 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    func testDeferredSaveWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["変更の書き込み:", "すぐに書き込む", "保存時にまとめて書き込む", "次に開くアーカイブから有効になります。",
+                    "保存", "最後に保存した状態に戻す", "アーカイブが別のアプリで変更されました", "変更を破棄して読み直す",
+                    "保存するとアーカイブ全体を再圧縮します", "未保存の変更%lld件", "未保存の項目をゴミ箱に移動しました",
+                    "前回保存されなかった退避フォルダ%lld個をゴミ箱に移動しました。", "Finderで表示"] {
+            let entry = try XCTUnwrap(catalog.strings[key], key)
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages), key)
+        }
+    }
+
     func testCriticalSplitPublicationQuitMessageHasAllTranslations() throws {
         let key = "分割アーカイブを書き込み中です。書き込みが完了してから終了します。その他の進行中の操作は取り消されます。"
         let entry = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key])

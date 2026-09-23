@@ -35,7 +35,8 @@ final class ArchiveCreationController {
     }
 
     func create(sources: [URL], existing: ArchiveCreationPlan.Existing? = nil,
-                on parent: NSWindow? = nil, progress: Progress = Progress()) async throws -> URL? {
+                on parent: NSWindow? = nil, progress: Progress = Progress(),
+                willPublish: (@Sendable () throws -> Void)? = nil) async throws -> URL? {
         createdEncryption = .init()
         let encryption = existing?.encryption ?? ArchiveEncryptionSettings(
             password: existing?.entries.contains(where: \.isEncrypted) == true ? existing?.password : nil,
@@ -59,7 +60,7 @@ final class ArchiveCreationController {
         defer { sheet.finish(); progressSheet = nil }
         if let parent { sheet.begin(on: parent) }
         else { sheet.beginStandalone() }
-        let result = try await Self.create(plan: plan, progress: progress)
+        let result = try await Self.create(plan: plan, progress: progress, willPublish: willPublish)
         createdEncryption = save.encryptionSettings
         save.passwordFields.clear()
         return result
@@ -74,8 +75,9 @@ final class ArchiveCreationController {
                      encryption: await session.encryptionSettings())
     }
 
-    @concurrent private static func create(plan: ArchiveCreationPlan, progress: Progress) async throws -> URL {
-        try ArchiveCreationTransaction.run(plan: plan, progress: progress)
+    @concurrent private static func create(plan: ArchiveCreationPlan, progress: Progress,
+                                         willPublish: (@Sendable () throws -> Void)?) async throws -> URL {
+        try ArchiveCreationTransaction.run(plan: plan, progress: progress, willPublish: willPublish)
     }
 
     static func presentFailure(_ error: any Error) {

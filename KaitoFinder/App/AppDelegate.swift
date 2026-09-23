@@ -20,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // 終了の確認と返答を、実際のアラートやプロセス終了なしで検証するための境界。
     var terminationDocuments: (() -> [ArchiveDocument])?
     var terminationPromiseRegistry: FilePromiseRegistry = .shared
+    var stagingRegistry: StagingRegistry = .shared
+    var cleanupRegistry: DocumentCleanupRegistry = .shared
     var pendingWorkRegistry: PendingWorkRegistry = .shared
     var recoverableWorkIndex: RecoverableWorkIndex = .shared
     var volumePublishCriticalSection: VolumePublishCriticalSection = .shared
@@ -157,18 +159,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @discardableResult func startLaunchSweeps() -> Task<Void, Never> {
         let extractionSweep = ExtractionTemporaryDirectory().startLaunchSweep()
         guard sweepsPendingWorkAtLaunch else { return extractionSweep }
-        let pending = pendingWorkRegistry.startLaunchSweep(), index = recoverableWorkIndex
-        return Task.detached(priority: .utility) {
-            _ = VolumePublishRecovery(index: index).recoverAll()
+        let pending = pendingWorkRegistry.startLaunchSweep(), index = recoverableWorkIndex, staging = stagingRegistry
+        return Task { @MainActor in
+            await VolumePublishRecoveryQueue.shared.recover(index: index)
+            let recovered = await Task.detached(priority: .utility) {
+                do { return try staging.sweep() }
+                catch { NSLog("保存前の退避領域を回収できません: %@", String(describing: error)); return [URL]() }
+            }.value
             await pending.value
             await extractionSweep.value
+            if !recovered.isEmpty {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "未保存の項目をゴミ箱に移動しました")
+                alert.informativeText = String(localized: "前回保存されなかった退避フォルダ\(recovered.count)個をゴミ箱に移動しました。")
+                alert.addButton(withTitle: String(localized: "閉じる"))
+                alert.addButton(withTitle: String(localized: "Finderで表示"))
+                if alert.runModal() == .alertSecondButtonReturn { NSWorkspace.shared.activateFileViewerSelecting(recovered) }
+            }
         }
     }
 
     @objc private func volumeDidMount(_ notification: Notification) {
         guard sweepsPendingWorkAtLaunch, let volume = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
         let index = recoverableWorkIndex
-        Task.detached(priority: .utility) { _ = VolumePublishRecovery(index: index).recoverAll(mountedVolume: volume) }
+        VolumePublishRecoveryQueue.shared.schedule(index: index, mountedVolume: volume)
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
@@ -181,7 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             || (batchExtractionTask != nil && batchExtractionController?.destinationPanel == nil)
             || promises.hasActiveWrites || volumePublishCriticalSection.count > 0
         if busy, !(quitConfirmation ?? Self.confirmQuit)() { return .terminateCancel }
-        let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup)
+        let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup) || cleanupRegistry.hasPendingCleanup
         if !needsCleanup, volumePublishCriticalSection.closeIfIdle() { return .terminateNow }
 
         archiveCreationTask?.cancel()
@@ -203,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             await creation?.value
             await batch?.value
             await promises.waitUntilNoActiveWrites()
+            await self?.cleanupRegistry.waitUntilEmpty()
             self?.finishTermination()
         }
         terminationDeadline = Task { @MainActor [weak self, grace = terminationGracePeriod] in
@@ -434,9 +449,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                          action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "閉じる", bundle: bundle),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenu.addItem(withTitle: String(localized: "保存", bundle: bundle),
+                         action: #selector(NSDocument.save(_:)), keyEquivalent: "s")
         let saveAs = fileMenu.addItem(withTitle: String(localized: "別名で保存…", bundle: bundle),
                                       action: #selector(ArchiveWindowController.saveArchiveAs(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(withTitle: String(localized: "最後に保存した状態に戻す", bundle: bundle),
+                         action: #selector(NSDocument.revertToSaved(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "パスワードを設定…", bundle: bundle),
                          action: #selector(ArchiveWindowController.setArchivePassword(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "パスワードを変更…", bundle: bundle),

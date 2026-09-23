@@ -11,6 +11,8 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         var identity: ArchiveSetIdentity? = nil
         var volumeLayout: ArchiveVolumeLayout? = nil
         var encryption: ArchiveEncryptionSettings? = nil
+        var pending: ArchiveSaveReplayPlan? = nil
+        var publication: ArchiveSavePublication? = nil
     }
 
     let sources: [URL]

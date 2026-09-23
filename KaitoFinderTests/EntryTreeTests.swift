@@ -260,7 +260,9 @@ nonisolated final class EntryTreeTests: XCTestCase {
             XCTAssertFalse(document.isEntireFileLoaded)
             XCTAssertFalse(ArchiveDocument.autosavesInPlace)
             XCTAssertFalse(ArchiveDocument.preservesVersions)
+            // Viewer の Save は writableTypes を参照しないため、両モードで空のまま。
             XCTAssertTrue(document.writableTypes(for: .saveOperation).isEmpty)
+            if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
             let documentSession = try XCTUnwrap(document.session)
             let documentEntries = await documentSession.entries()
             XCTAssertEqual(documentEntries, entries)

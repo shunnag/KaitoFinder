@@ -25,7 +25,8 @@ nonisolated final class AutosaveIsolationTests: XCTestCase {
             "NSTableView Supports v2 \(ArchiveWindowController.columnsAutosaveName)",
             "NSToolbar Configuration \(ArchiveWindowController.toolbarAutosaveName)",
             "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)",
-            "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)"
+            "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)",
+            "ArchiveSaveBehavior"
         ].sorted())
     }
 }

@@ -63,14 +63,25 @@ nonisolated enum ArchiveCreationTransaction {
         do {
             if let existing = plan.existing {
                 try verifySource(existing)
-                let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
-                                                        output: output, format: plan.format, options: plan.options)
-                try add(imported.items, progress: progress, directory: rewriter.addDirectory,
-                        file: rewriter.add(contentsOf:as:))
-                try ArchiveImportPlan.checkCancellation(progress)
-                try rewriter.commit { _, _ in
-                    progress.completedUnitCount += 1
+                try existing.pending?.validate()
+                if let pending = existing.pending {
+                    try ArchiveSaveReplayPlan.validateRepresentability(pending.projected, format: plan.format)
+                }
+                if let pending = existing.pending, imported.items.isEmpty,
+                   ArchiveDeferredTarWriter.isNeeded(format: plan.format, options: plan.options) {
+                    try ArchiveDeferredTarWriter.write(source: existing.url, password: existing.password, output: output,
+                                                       format: plan.format, options: plan.options, plan: pending, progress: progress)
+                } else {
+                    let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
+                                                            output: output, format: plan.format, options: plan.options)
+                    try existing.pending?.replay(on: rewriter, progress: progress)
+                    try add(imported.items, progress: progress, directory: rewriter.addDirectory,
+                            file: rewriter.add(contentsOf:as:))
                     try ArchiveImportPlan.checkCancellation(progress)
+                    try rewriter.commit { _, _ in
+                        progress.completedUnitCount += 1
+                        try ArchiveImportPlan.checkCancellation(progress)
+                    }
                 }
             } else {
                 let writer = try ArchiveWriter.create(url: output, format: plan.format, options: plan.options)
@@ -84,7 +95,7 @@ nonisolated enum ArchiveCreationTransaction {
             throw plan.existing?.password == nil ? KaitoError.passwordRequired : KaitoError.wrongPassword
         }
         let quarantineSources = plan.sources + (plan.existing.map { $0.volumeLayout?.volumes.map(\.url) ?? [$0.url] } ?? [])
-            + imported.items.map(\.url)
+            + imported.items.map(\.url) + (plan.existing?.pending?.additions.map(\.stagedURL) ?? [])
         // フォルダ自体にだけ印の付いた app や空フォルダも対象にする。
         let quarantine = try ExtractionQuarantine.firstValue(from: quarantineSources) {
             try ArchiveImportPlan.checkCancellation(progress)
@@ -95,6 +106,8 @@ nonisolated enum ArchiveCreationTransaction {
         try ArchiveImportPlan.checkCancellation(progress)
         // 書き直しの間に変わった巻も、保存先へ公開する直前に検出する。
         if let existing = plan.existing { try verifySource(existing) }
+        try plan.existing?.pending?.validate()
+        try plan.existing?.publication?.enter(progress: progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }
         // rewriter が省く root directory record も含め、公開後は必ず完了を示す。
         progress.completedUnitCount = progress.totalUnitCount

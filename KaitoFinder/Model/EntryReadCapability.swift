@@ -51,6 +51,7 @@ nonisolated struct EntryReadCapability: Sendable {
     }
 
     private static func supportsMethod(_ entry: ArchiveEntry, format: ArchiveFormat) -> Bool {
+        if entry.pendingID != nil { return true }
         let method = entry.methodDescription
         // decoder の対応は CompressionCapabilityTests の実 fixture から展開まで照合する。
         switch format {

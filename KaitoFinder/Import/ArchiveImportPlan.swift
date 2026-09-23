@@ -6,9 +6,11 @@ nonisolated struct ArchiveImportPlan: Sendable {
     struct Options: Sendable, Equatable {
         var excludesDSStore = true
         var excludesHiddenFiles = false
+        var excludesStagingFiles = false
 
         func excludes(_ url: URL) -> Bool {
-            (excludesDSStore && url.lastPathComponent == ".DS_Store")
+            (excludesStagingFiles && url.lastPathComponent.hasPrefix(".KaitoFinder-"))
+                || (excludesDSStore && url.lastPathComponent == ".DS_Store")
                 || (excludesHiddenFiles && EntryNode.isHiddenName(url.lastPathComponent))
         }
     }

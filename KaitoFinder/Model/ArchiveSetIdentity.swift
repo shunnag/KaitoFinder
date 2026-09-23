@@ -59,6 +59,16 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
         }
     }
 
+    // NSDocument が追跡した単一ファイルの移動だけに用いる。別 inode への置換は許さない。
+    func contentEqualsAfterMove(_ other: Self) -> Bool {
+        guard nextVolumeName == nil, other.nextVolumeName == nil,
+              volumes.count == 1, other.volumes.count == 1 else { return false }
+        let lhs = volumes[0], rhs = other.volumes[0]
+        return lhs.volumeUUID == rhs.volumeUUID && lhs.inode == rhs.inode && lhs.size == rhs.size
+            && lhs.modificationSeconds == rhs.modificationSeconds
+            && lhs.modificationNanoseconds == rhs.modificationNanoseconds
+    }
+
     private static func captureVolume(_ url: URL) throws -> Volume {
         var info = stat()
         guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { throw refusal }

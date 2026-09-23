@@ -33,6 +33,15 @@ actor ArchiveSession {
     private(set) var password: String?
     private var closed = false
     private var invalidated = false
+    nonisolated private let invalidationStorage = Mutex(false)
+    nonisolated var isInvalidated: Bool { invalidationStorage.withLock { $0 } }
+    private var deferredUpdaterGeneration: UInt64?
+    nonisolated private let pendingReading = Mutex<(enabled: Bool, snapshot: ArchivePendingReadSnapshot?)>((false, nil))
+    nonisolated var usesPendingReading: Bool { pendingReading.withLock { $0.enabled } }
+    nonisolated var pendingReadSnapshot: ArchivePendingReadSnapshot? { pendingReading.withLock { $0.snapshot } }
+    nonisolated func setPendingReadSnapshot(_ snapshot: ArchivePendingReadSnapshot?) {
+        pendingReading.withLock { $0 = (true, snapshot) }
+    }
     private var verifiedEntries: Set<Int> = []
     private var passwordRevision: UInt64 = 0
     // UI の接続だけは同期的に済ませ、display 直後の読み出しとの競合を避ける。
@@ -44,7 +53,8 @@ actor ArchiveSession {
     nonisolated var capabilities: ArchiveCapabilities { capabilitiesStorage.withLock { $0 } }
     nonisolated private let generationStorage = Mutex<UInt64>(0)
     nonisolated var generation: UInt64 { generationStorage.withLock { $0 } }
-    nonisolated let sourceURL: URL
+    nonisolated private let sourceURLStorage: Mutex<URL>
+    nonisolated var sourceURL: URL { sourceURLStorage.withLock { $0 } }
     nonisolated private let formatStorage: Mutex<KaitoKit.ArchiveFormat>
     nonisolated var format: KaitoKit.ArchiveFormat { formatStorage.withLock { $0 } }
     nonisolated private let encryptionStorage: Mutex<EncryptionState>
@@ -72,7 +82,7 @@ actor ArchiveSession {
     init(url: URL, password: String? = nil,
          writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions = { _ in WriterOptions() },
          importOptions: @escaping @Sendable () -> ArchiveImportPlan.Options = { .init() }) throws {
-        sourceURL = url
+        sourceURLStorage = Mutex(url)
         self.password = password
         self.writerOptions = writerOptions
         self.importOptions = importOptions
@@ -120,7 +130,10 @@ actor ArchiveSession {
         guard !closed, let reader else { throw CancellationError() }
         guard !invalidated else { throw ExtractionFailure.refused(String(localized: "変更後のアーカイブを読み直せませんでした。")) }
         // reopenは旧inodeを保持する。文書を開いてからの置換・削除を先に検出する。
-        guard try Self.currentIdentity(url: sourceURL, layout: volumeLayout) == sourceIdentity else { throw ArchiveEditError.archiveChanged }
+        let current = try Self.currentIdentity(url: sourceURL, layout: volumeLayout)
+        guard usesPendingReading ? current.contentEquals(sourceIdentity) : current == sourceIdentity else {
+            throw ArchiveEditError.archiveChanged
+        }
         return reader
     }
 
@@ -372,6 +385,88 @@ actor ArchiveSession {
         return result
     }
 
+    // 保存前モードでも認証と外部変更の門番は session が所有する。
+    func deferredSnapshot() throws -> (entries: [ArchiveEntry], generation: UInt64) {
+        try verifyDeferredIdentity()
+        let reader = try requireCurrentReader()
+        guard capabilities.canEdit else {
+            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
+        }
+        try verifyBeforeEditing()
+        if format == .zip, deferredUpdaterGeneration != generation {
+            // probe は終端だけ。CD と local record の照合は open を一世代につき一度通す。
+            try publishing { _ = try ArchiveUpdater.open(url: sourceURL) }
+            deferredUpdaterGeneration = generation
+        }
+        return (reader.entries, generation)
+    }
+
+    func verifyDeferredIdentity() throws {
+        guard !invalidated else { throw ExtractionFailure.refused(String(localized: "変更後のアーカイブを読み直せませんでした。")) }
+        let current = try Self.currentIdentity(url: sourceURL, layout: volumeLayout)
+        guard current.contentEquals(sourceIdentity) else {
+            throw ArchiveEditError.archiveChanged
+        }
+        // 公開側には最新の mode を渡し、処理中の変更は従来どおり照合する。
+        sourceIdentity = current
+    }
+
+    func followDeferredMove(to url: URL) throws {
+        guard url != sourceURL else { return }
+        guard usesPendingReading, volumeLayout == nil, !invalidated else { throw ArchiveEditError.archiveChanged }
+        let current = try ArchiveSetIdentity.capture(url: url)
+        guard current.contentEqualsAfterMove(sourceIdentity) else { throw ArchiveEditError.archiveChanged }
+        sourceURLStorage.withLock { $0 = url }
+        sourceIdentity = current
+    }
+
+    func validateDeferredPassword() throws {
+        _ = try deferredSnapshot()
+    }
+
+    func savePending(_ pending: ArchivePendingChanges, baseGeneration: UInt64, progress: Progress,
+                     publication: ArchiveSavePublication,
+                     willPublish: (@Sendable () throws -> Void)? = nil,
+                     willReload: (@Sendable () throws -> Void)? = nil) throws -> ArchivePasswordEditResult {
+        let snapshot = try deferredSnapshot()
+        guard snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
+        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending)
+        guard !plan.isEmpty else { return .init() }
+        var mode = capabilities.mode!
+        var output = options(for: mode)
+        if let encryption = plan.outputEncryption {
+            guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
+            mode = .rewrite(format)
+            output = encryption.applying(to: writerOptions(format), format: format)
+            if format == .zip { try publishing { _ = try ArchiveUpdater.open(url: sourceURL) } }
+        }
+        let outputFormat: GyoshukuKit.ArchiveFormat
+        switch mode {
+        case .inPlace: outputFormat = .zip
+        case .rewrite(let format): outputFormat = format
+        }
+        try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: outputFormat)
+        progress.totalUnitCount = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
+        let quarantine = try ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
+            try ArchiveImportPlan.checkCancellation(progress)
+        }
+        try publishing {
+            try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: output, password: password,
+                progress: progress, willPublish: {
+                    try plan.validate()
+                    try willPublish?()
+                }, expectedIdentity: sourceIdentity, additionalQuarantine: quarantine,
+                publication: publication, deferredPlan: plan) { editor in try plan.replay(on: editor, progress: progress) }
+        }
+        if let encryption = plan.outputEncryption {
+            password = encryption.password
+            passwordRevision &+= 1
+            encryptsSevenZipHeaders = encryption.encryptsSevenZipHeaders
+        }
+        do { try reloadAfterMutation(willOpen: willReload); return .init() }
+        catch { return .init(reloadFailure: Self.reloadFailureMessage) }
+    }
+
     private func options(for mode: ArchiveCapabilities.Mode) -> WriterOptions {
         let format: GyoshukuKit.ArchiveFormat
         switch mode {
@@ -467,13 +562,15 @@ actor ArchiveSession {
 
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。
     // reopen() は旧 inode を保持するので、URL から開き直す。
-    func reloadAfterMutation() throws {
+    func reloadAfterMutation(willOpen: (@Sendable () throws -> Void)? = nil) throws {
         guard !closed else { throw CancellationError() }
         // 変更済みなら再オープンの失敗時も世代を進め、旧 reader への要求を拒否する。
         generationStorage.withLock { $0 += 1 }
         invalidated = true
+        invalidationStorage.withLock { $0 = true }
         verifiedEntries.removeAll()
         capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(String(localized: "変更後のアーカイブを読み直せませんでした。"))) }
+        try willOpen?()
         let original = try ArchiveSetIdentity.capture(url: sourceURL)
         let replacement = try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: password))
         let layout = replacement.volumeSet.map { ArchiveVolumeLayout(volumeSet: $0) }
@@ -495,6 +592,7 @@ actor ArchiveSession {
         }
         encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: sourceURL, format: replacement.format, password: password)
         invalidated = false
+        invalidationStorage.withLock { $0 = false }
     }
 
     // ReaderOptions や下位エラーの説明を公開結果へ持ち込まず、秘密を含まない文言に限定する。
@@ -525,6 +623,7 @@ actor ArchiveSession {
     // 入力待ちの間に変更され得るため、reopen の直前に世代をもう一度確かめる。
     func resolveForExtraction(_ payloads: [ArchiveEntryPayload]) async throws
         -> sending (reader: ArchiveReader, selection: ExtractionSelection, quarantine: Data?) {
+        guard !usesPendingReading else { throw ArchiveEntryPayload.staleSelection }
         let reader = try requireCurrentReader()
         let expectedGeneration = generation
         var subtrees: ArchiveEntryPayload.SubtreeIndex?
@@ -544,6 +643,33 @@ actor ArchiveSession {
         try await prepareEncryptedEntries(selection.entries, generation: expectedGeneration)
         try checkReadRequest(generation: expectedGeneration)
         return (try requireCurrentReader().reopen(), selection, quarantine)
+    }
+
+    func resolvePendingForExtraction(_ payloads: [ArchiveEntryPayload]) async throws
+        -> sending (reader: ArchiveReader, selection: ExtractionSelection, quarantine: Data?,
+                    snapshot: ArchivePendingReadSnapshot, lease: StagingRegistry.ReadLease?) {
+        guard let snapshot = pendingReadSnapshot, snapshot.generation == generation else { throw ArchiveEntryPayload.staleSelection }
+        var selected: [Int: ArchiveEntry] = [:]
+        for payload in payloads {
+            guard payload.archiveURL == sourceURL else { throw ArchiveEntryPayload.staleSelection }
+            for entry in try snapshot.resolve(payload) { selected[entry.index] = entry }
+        }
+        let entries = selected.values.sorted { $0.index < $1.index }
+        let usesStaging = !snapshot.stagedURLs.isEmpty
+        let base = entries.compactMap { entry -> ArchiveEntry? in
+            if case .base(let source) = snapshot.sources[entry.index] { return source }
+            return nil
+        }
+        try await prepareEncryptedEntries(base, generation: snapshot.generation)
+        try checkReadRequest(generation: snapshot.generation)
+        guard pendingReadSnapshot?.revision == snapshot.revision else { throw ArchiveEntryPayload.staleSelection }
+        // パスワード待ちの要求はまだ読み始めていない。照合後に lease を取り、破棄との競合を閉じる。
+        let lease = try usesStaging ? snapshot.staging?.acquireRead() : nil
+        if usesStaging, lease == nil { throw ArchiveEntryPayload.staleSelection }
+        // この境界以降は revision が変わっても、複製 reader と退避 lease の内容で完走する。
+        // 即時追加と同じく、原本の印を優先し、なければ最初の追加元の印を全出力へ伝える。
+        let savedQuarantine = try quarantine ?? ExtractionQuarantine.firstValue(from: snapshot.stagedURLs) { try Task.checkCancellation() }
+        return (try requireCurrentReader().reopen(), .init(entries: entries), savedQuarantine, snapshot, lease)
     }
 
     func entries() -> [ArchiveEntry] {

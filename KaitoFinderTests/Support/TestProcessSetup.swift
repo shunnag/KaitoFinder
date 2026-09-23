@@ -9,7 +9,8 @@ nonisolated final class TestProcessSetup: NSObject, XCTestObservation {
         "NSTableView Supports v2 \(ArchiveWindowController.columnsAutosaveName)",
         "NSToolbar Configuration \(ArchiveWindowController.toolbarAutosaveName)",
         "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)",
-        "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)"
+        "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)",
+        "ArchiveSaveBehavior"
     ]
 
     private let savedAutosaveValues: [String: Any]
@@ -22,6 +23,8 @@ nonisolated final class TestProcessSetup: NSObject, XCTestObservation {
         PendingWorkRegistry.shared = PendingWorkRegistry(fileURL: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("KaitoFinderTests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
             .appendingPathComponent("pending-work.json"))
+        StagingRegistry.shared = StagingRegistry(root: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("KaitoFinderTests-\(ProcessInfo.processInfo.processIdentifier)/Staging", isDirectory: true))
         // テストで表示されないウインドウでも、シート表示・文書のcloseは
         // _NSWindowTransformAnimationを開始する。_runBlockingが完了せず、
         // GCDワーカーを占有したまま残る（全件実行でtask_threadsが9→96、うち80が待機）。
