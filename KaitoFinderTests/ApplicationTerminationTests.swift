@@ -6,10 +6,57 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ApplicationTerminationTests: XCTestCase {
+    @MainActor func testCriticalVolumePublicationDefersDeadlineAndRepliesWhenLastLeaseEnds() async throws {
+        let delegate = try delegate(documents: [])
+        let counter = VolumePublishCriticalSection()
+        delegate.volumePublishCriticalSection = counter
+        delegate.terminationGracePeriod = .milliseconds(50)
+        delegate.quitConfirmation = { true }
+        var first: VolumePublishCriticalSection.Lease? = try counter.enter()
+        var second: VolumePublishCriticalSection.Lease? = try counter.enter()
+        defer { first = nil; second = nil }
+        let replied = expectation(description: "最後の分割公開が完了してから終了")
+        replied.assertForOverFulfill = true
+        var replies = 0
+        delegate.terminationReply = { answer in
+            XCTAssertTrue(answer)
+            XCTAssertEqual(counter.count, 0)
+            do {
+                _ = try counter.enter()
+                XCTFail("終了への返答後に分割公開を開始できました")
+            } catch {
+                XCTAssertTrue(error is CancellationError)
+            }
+            replies += 1
+            replied.fulfill()
+        }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateLater)
+        await delegate.terminationTask?.value
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(replies, 0)
+        withExtendedLifetime(first) {}
+        first = nil
+        await Task.yield()
+        XCTAssertEqual(counter.count, 1)
+        XCTAssertEqual(replies, 0)
+        withExtendedLifetime(second) {}
+        second = nil
+        await fulfillment(of: [replied], timeout: 2)
+        await Task.yield()
+        XCTAssertEqual(replies, 1)
+    }
+
+    @MainActor func testImmediateTerminationPreventsLaterPublishEntry() throws {
+        let delegate = try delegate(documents: [])
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateNow)
+        XCTAssertThrowsError(try delegate.volumePublishCriticalSection.enter()) { XCTAssertTrue($0 is CancellationError) }
+    }
+
     @MainActor private func delegate(documents: [ArchiveDocument]) throws -> AppDelegate {
         let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
         let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256), directory: directory.url.appendingPathComponent("vault"))
         let delegate = AppDelegate(passwordVault: vault, preferencesStore: ArchivePreferencesStore(defaults: suite.defaults))
+        delegate.volumePublishCriticalSection = VolumePublishCriticalSection()
         delegate.terminationDocuments = { documents }
         delegate.quitConfirmation = { XCTFail("操作がないのに終了を確認しました"); return false }
         delegate.terminationReply = { _ in XCTFail("遅延していない終了に返答しました") }

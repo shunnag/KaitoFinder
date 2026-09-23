@@ -31,3 +31,5 @@ KaitoFinder の Info.plist を写した実際の .app と標準の NSDocumentCon
 - 途中で直したテストの誤り: `.z01` は既存型で開けるので内部の型に置き換えない。最近使った項目は symlink を解決した
   パス（/private/var）で記録される。`NSDocumentController()` は既存の shared を返すため、システムの型は
   `URLResourceKey.contentTypeKey` で得る。
+- 全体（927bc26 のビルド）: 919 件実行、skip 20、失敗 16（9 テスト）。失敗は M1 の記録と同じ GUI 操作の 9 件だけで、
+  画面ロック中の実行による。ロックを解除したセッションで再実行する（M6 の後）。

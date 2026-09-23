@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     var terminationDocuments: (() -> [ArchiveDocument])?
     var terminationPromiseRegistry: FilePromiseRegistry = .shared
     var pendingWorkRegistry: PendingWorkRegistry = .shared
+    var recoverableWorkIndex: RecoverableWorkIndex = .shared
+    var volumePublishCriticalSection: VolumePublishCriticalSection = .shared
     // テストホストでは台帳の注入前に実ユーザーの作業領域を回収しない。
     var sweepsPendingWorkAtLaunch: Bool = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
         && ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil
@@ -30,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var terminationTask: Task<Void, Never>?
     private var terminationDeadline: Task<Void, Never>?
     private var terminationReplied = false
+    private var terminationAwaitingCriticalSection = false
+    private var criticalSectionObserver: UUID?
 
     override convenience init() { self.init(passwordVault: .shared) }
 
@@ -128,6 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     func applicationWillFinishLaunching(_ notification: Notification) {
         Self.raiseFileDescriptorLimit()
         startLaunchSweeps()
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(volumeDidMount(_:)),
+            name: NSWorkspace.didMountNotification, object: nil)
         documentController = NSDocumentController.shared
         NSApp.servicesProvider = self
         NSApp.mainMenu = makeMenu()
@@ -151,7 +157,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @discardableResult func startLaunchSweeps() -> Task<Void, Never> {
         let extractionSweep = ExtractionTemporaryDirectory().startLaunchSweep()
         guard sweepsPendingWorkAtLaunch else { return extractionSweep }
-        return pendingWorkRegistry.startLaunchSweep()
+        let pending = pendingWorkRegistry.startLaunchSweep(), index = recoverableWorkIndex
+        return Task.detached(priority: .utility) {
+            _ = VolumePublishRecovery(index: index).recoverAll()
+            await pending.value
+            await extractionSweep.value
+        }
+    }
+
+    @objc private func volumeDidMount(_ notification: Notification) {
+        guard sweepsPendingWorkAtLaunch, let volume = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+        let index = recoverableWorkIndex
+        Task.detached(priority: .utility) { _ = VolumePublishRecovery(index: index).recoverAll(mountedVolume: volume) }
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
@@ -162,16 +179,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let promises = terminationPromiseRegistry
         let busy = documents.contains(where: \.hasWorkInFlight) || archiveCreationTask != nil
             || (batchExtractionTask != nil && batchExtractionController?.destinationPanel == nil)
-            || promises.hasActiveWrites
+            || promises.hasActiveWrites || volumePublishCriticalSection.count > 0
         if busy, !(quitConfirmation ?? Self.confirmQuit)() { return .terminateCancel }
         let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup)
-        guard needsCleanup else { return .terminateNow }
+        if !needsCleanup, volumePublishCriticalSection.closeIfIdle() { return .terminateNow }
 
         archiveCreationTask?.cancel()
         batchExtractionTask?.cancel()
         promises.cancelActiveWrites()
         let creation = archiveCreationTask, batch = batchExtractionTask
         terminationReplied = false
+        terminationAwaitingCriticalSection = false
+        if let criticalSectionObserver { volumePublishCriticalSection.removeObserver(criticalSectionObserver) }
+        criticalSectionObserver = volumePublishCriticalSection.observeZero { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.terminationAwaitingCriticalSection else { return }
+                self.finishTermination()
+            }
+        }
         // Task group は取消しに反応しない後始末も暗黙に待つため、独立した Task で上限を設ける。
         terminationTask = Task { @MainActor [weak self] in
             for document in documents { await document.prepareForTermination() }
@@ -189,7 +214,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     private func finishTermination() {
         guard !terminationReplied else { return }
+        // 10 秒の期限でも、gate を退役させた公開を途中で打ち切らない。
+        guard volumePublishCriticalSection.closeIfIdle() else {
+            terminationAwaitingCriticalSection = true
+            return
+        }
+        terminationAwaitingCriticalSection = false
         terminationReplied = true
+        if let criticalSectionObserver {
+            volumePublishCriticalSection.removeObserver(criticalSectionObserver)
+            self.criticalSectionObserver = nil
+        }
         terminationDeadline?.cancel()
         (terminationReply ?? { NSApp.reply(toApplicationShouldTerminate: $0) })(true)
     }
@@ -197,8 +232,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @MainActor static func confirmQuit() -> Bool {
         let alert = NSAlert()
         alert.messageText = String(localized: "KaitoFinderを終了してもよろしいですか？")
-        alert.informativeText = ArchiveAlertText.informativeText(String(localized:
-            "操作が進行中です。終了すると進行中の展開や変更は取り消され、途中まで書き出した項目は削除されます。"))
+        alert.informativeText = ArchiveAlertText.informativeText(VolumePublishCriticalSection.shared.count > 0
+            ? String(localized: "分割アーカイブを書き込み中です。書き込みが完了してから終了します。その他の進行中の操作は取り消されます。")
+            : String(localized: "操作が進行中です。終了すると進行中の展開や変更は取り消され、途中まで書き出した項目は削除されます。"))
         alert.addButton(withTitle: String(localized: "終了"))
         alert.addButton(withTitle: String(localized: "キャンセル")).keyEquivalent = "\u{1b}"
         NSApp.activate()

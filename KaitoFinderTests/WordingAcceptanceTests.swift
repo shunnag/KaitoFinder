@@ -42,6 +42,16 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    func testCriticalSplitPublicationQuitMessageHasAllTranslations() throws {
+        let key = "分割アーカイブを書き込み中です。書き込みが完了してから終了します。その他の進行中の操作は取り消されます。"
+        let entry = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key])
+        XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages))
+        for translation in entry.localizations.values {
+            XCTAssertEqual(translation.stringUnit.state, "translated")
+            XCTAssertFalse(translation.stringUnit.value.isEmpty)
+        }
+    }
+
     func testPasswordWordingHasTwentySixTranslationsAndRetiresEveryOldRefusalTranslation() throws {
         let catalog = try LocalizationAcceptance.catalog()
         let keys = [

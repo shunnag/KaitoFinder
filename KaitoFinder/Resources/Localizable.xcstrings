@@ -1,6 +1,167 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "分割アーカイブを書き込み中です。書き込みが完了してから終了します。その他の進行中の操作は取り消されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割アーカイブを書き込み中です。書き込みが完了してから終了します。その他の進行中の操作は取り消されます。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A split archive is being written. KaitoFinder will quit when writing finishes. Other ongoing operations will be cancelled."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein geteiltes Archiv wird geschrieben. KaitoFinder wird beendet, sobald der Schreibvorgang abgeschlossen ist. Andere laufende Vorgänge werden abgebrochen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une archive fractionnée est en cours d’écriture. KaitoFinder se fermera une fois l’écriture terminée. Les autres opérations en cours seront annulées."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se está escribiendo un archivo comprimido dividido. KaitoFinder se cerrará cuando termine la escritura. Las demás operaciones en curso se cancelarán."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "È in corso la scrittura di un archivio suddiviso. KaitoFinder si chiuderà al termine della scrittura. Le altre operazioni in corso verranno annullate."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um arquivo dividido está sendo gravado. O KaitoFinder será encerrado quando a gravação terminar. As outras operações em andamento serão canceladas."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在写入分卷归档。写入完成后，KaitoFinder 将退出。其他正在进行的操作将被取消。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在寫入分卷封存檔。寫入完成後，KaitoFinder 將結束。其他進行中的操作將會取消。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분할 압축 파일을 쓰는 중입니다. 쓰기가 완료되면 KaitoFinder가 종료됩니다. 진행 중인 다른 작업은 취소됩니다."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังเขียนไฟล์เก็บถาวรแบบแบ่งส่วน KaitoFinder จะออกเมื่อเขียนเสร็จ การดำเนินการอื่นที่กำลังทำอยู่จะถูกยกเลิก"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang ghi tệp lưu trữ chia nhỏ. KaitoFinder sẽ thoát khi ghi xong. Các thao tác khác đang diễn ra sẽ bị hủy."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arsip terbagi sedang ditulis. KaitoFinder akan keluar setelah penulisan selesai. Operasi lain yang sedang berlangsung akan dibatalkan."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkib berpecah sedang ditulis. KaitoFinder akan keluar apabila penulisan selesai. Operasi lain yang sedang berjalan akan dibatalkan."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "विभाजित संग्रह लिखा जा रहा है। लिखना पूरा होने पर KaitoFinder बंद होगा। अन्य चल रही कार्रवाइयाँ रद्द कर दी जाएँगी।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполняется запись многотомного архива. KaitoFinder завершит работу после окончания записи. Остальные выполняемые операции будут отменены."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er wordt een gesplitst archief geschreven. KaitoFinder stopt zodra het schrijven is voltooid. Andere lopende bewerkingen worden geannuleerd."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trwa zapisywanie archiwum wieloczęściowego. KaitoFinder zakończy działanie po ukończeniu zapisu. Pozostałe trwające operacje zostaną anulowane."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bölünmüş arşiv yazılıyor. Yazma tamamlandığında KaitoFinder kapanacak. Devam eden diğer işlemler iptal edilecek."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ett delat arkiv skrivs. KaitoFinder avslutas när skrivningen är klar. Andra pågående åtgärder avbryts."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Et opdelt arkiv er ved at blive skrevet. KaitoFinder afsluttes, når skrivningen er færdig. Andre igangværende handlinger annulleres."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Et delt arkiv skrives. KaitoFinder avsluttes når skrivingen er ferdig. Andre pågående operasjoner avbrytes."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaettua arkistoa kirjoitetaan. KaitoFinder sulkeutuu, kun kirjoitus valmistuu. Muut käynnissä olevat toiminnot perutaan."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Триває запис багатотомного архіву. KaitoFinder завершить роботу після закінчення запису. Інші поточні операції буде скасовано."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probíhá zápis rozděleného archivu. KaitoFinder se ukončí po dokončení zápisu. Ostatní probíhající operace budou zrušeny."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está a ser escrito um arquivo dividido. O KaitoFinder será encerrado quando a escrita terminar. As outras operações em curso serão canceladas."
+          }
+        }
+      }
+    },
     "…他 %@ 件（同じ理由: %@ 件）" : {
       "extractionState" : "manual",
       "localizations" : {
