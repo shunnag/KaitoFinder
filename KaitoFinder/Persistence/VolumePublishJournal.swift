@@ -49,13 +49,14 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
             self.sha256 = sha256
         }
 
-        func matches(in directory: VolumePublishDirectory, useHash: Bool) throws -> Bool {
+        func matches(in directory: VolumePublishDirectory, useHash: Bool, checkCancellation: () throws -> Void = {}) throws -> Bool {
+            try checkCancellation()
             guard let info = try directory.info(name), info.st_mode & S_IFMT == S_IFREG,
                   info.st_size >= 0, UInt64(info.st_size) == size else { return false }
             if useHash {
                 // FAT の inode と 2 秒単位 mtime は参考値。全 byte を読んでから判断する。
                 guard let sha256 else { return false }
-                return try VolumePublishFS.hash(directory, name) == sha256
+                return try VolumePublishFS.hash(directory, name, checkCancellation: checkCancellation) == sha256
             }
             return info.st_ino == inode && Int64(info.st_mtimespec.tv_sec) == modificationSeconds
                 && Int64(info.st_mtimespec.tv_nsec) == modificationNanoseconds
@@ -90,6 +91,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
     let createdAt: Date
     let appVersion: String
     var owner: VolumePublishProcessIdentity?
+    var oldVolumeDisposal: VolumeOldDisposalPolicy? = nil
     var keptOldVolumes: Bool? = nil
     var metadata: ArchiveVolumeMetadata.Publication? = nil
     var previousMetadata: ArchiveVolumeMetadata.Publication? = nil
@@ -142,7 +144,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case phase, stagingName, stem, width, volumeUUID, hashesOldVolumes, usesExclusiveRenameFallback
-        case oldVolumes, newVolumes, oldGate, newGate, workName, totalLength, createdAt, appVersion, owner, keptOldVolumes, metadata, previousMetadata
+        case oldVolumeDisposal, oldVolumes, newVolumes, oldGate, newGate, workName, totalLength, createdAt, appVersion, owner, keptOldVolumes, metadata, previousMetadata
         case schemeTag = "scheme"
     }
 }

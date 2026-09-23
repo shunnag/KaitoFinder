@@ -665,13 +665,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 notice = String(localized: "保存するとアーカイブ全体を再圧縮します", bundle: bundle)
             }
             if session?.capabilities.readOnlyReason == nil, let split = document.splitArchiveNotice(bundle: bundle) { notice = split }
-            if let extra = document.splitSaveNotice { notice += (notice.isEmpty ? "" : "\n") + extra }
             let count = document.pendingChanges.count
             if count > 0 || document.isDocumentEdited {
                 if !notice.isEmpty { notice += "\n" }
                 notice += String(localized: "未保存の変更\(count)件", bundle: bundle)
             }
         }
+        if let extra = (document as? ArchiveDocument)?.splitSaveNotice { notice += (notice.isEmpty ? "" : "\n") + extra }
         capabilityNotice.stringValue = notice
         capabilityNotice.isHidden = notice.isEmpty
     }
@@ -883,7 +883,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return menuItem.action == #selector(setArchivePassword(_:))
                 ? !session.hasEncryptedEntries : session.hasEncryptedEntries && session.hasKnownPassword
         case #selector(saveArchiveAs(_:)):
-            return archiveSession != nil && !isLocked && document is ArchiveDocument && !operationInFlight
+            return archiveSession != nil && archiveSession?.requiresSplitRecovery != true && !isLocked && document is ArchiveDocument && !operationInFlight
         case #selector(newFolder(_:)):
             menuItem.toolTip = editRefusal
             return archiveSession != nil && document is ArchiveDocument && editRefusal == nil && !outlineView.isRenaming
@@ -1004,7 +1004,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
               let window else { return }
         let nodes = selectedNodes
         let state = viewStateAfterRemoving(nodes)
-        if document.canUndoNextMutation {
+        if document.canUndoNextMutation || document.isImmediateSplitMutation {
             startEdit(nodes, name: nil, state: state)
             return
         }
@@ -1423,6 +1423,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionProgress = progress
         let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.adding.title(bundle: bundle),
             detail: urls.count == 1 ? urls[0].lastPathComponent : "", bundle: bundle)
+        editProgressSheet = sheet
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
             let visibility = Self.resumeProgressAfterConflicts(sheet, on: window)
@@ -1430,6 +1431,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 withExtendedLifetime(incoming) {}
                 visibility.cancel()
                 sheet.finish()
+                self?.editProgressSheet = nil
                 self?.extractionCancellation?.cancel()
                 self?.extractionCancellation = nil
                 self?.extractionTask = nil
@@ -1480,7 +1482,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             // 件数は全回答の後に確定する。複数の確認シートの間で進捗を点滅させない。
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
-                if sheet.progress.totalUnitCount > 0 {
+                if sheet.progress.totalUnitCount > 0, window.attachedSheet == nil || window.attachedSheet === sheet.window {
                     if sheet.window?.sheetParent == nil, !sheet.progress.isCancelled { sheet.begin(on: window) }
                     return
                 }
@@ -1630,9 +1632,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             try await document.savePendingAs(using: creator, on: window, progress: progress)
             return
         }
+        try await document.synchronizeDeferredLocation()
+        document.configureSplitCreation(creator)
         let existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
         guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress) else { return }
         try await document.switchBackingFile(to: destination, password: creator.createdEncryption.password)
+        document.adoptSplitCreationNotice(creator)
     }
 
     func prepareForBackingFileSwitch() {

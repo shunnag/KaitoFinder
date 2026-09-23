@@ -21,9 +21,11 @@ import Synchronization
     nonisolated private let splitPublicationActive = Mutex(false)
     var splitSaveHooks = ArchiveSplitSaveHooks()
     var splitScheduleChooser: ((ArchiveVolumeLayout, Bool) async throws -> ArchiveSplitScheduleChoice)?
+    var splitMutationConfirmation: ((NSAlert) async throws -> NSApplication.ModalResponse)?
+    private var suppressSplitMutationConfirmation = false
     var splitHazardConsent: ((String) async throws -> Bool)?
     private(set) var splitSchedule: VolumePlan.Schedule?
-    private var hasSplitHazardConsent = false
+    private var splitHazardConsents: Set<ArchiveSplitHazardLocation> = []
     private(set) var splitSaveNotice: String?
     private(set) var splitSaveFailure: ArchiveSplitSaveFailure?
     private(set) var splitSaveResult: PublishedVolumeSet?
@@ -119,7 +121,7 @@ import Synchronization
 
     var canUndoNextMutation: Bool {
         if saveBehavior == .onSave { return true }
-        guard let sourceURL = session?.sourceURL else { return false }
+        guard session?.volumeLayout == nil, let sourceURL = session?.sourceURL else { return false }
         archiveUndoStack.resolveCloneSupport(for: sourceURL)
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: sourceURL.path),
               let size = attributes[.size] as? NSNumber else { return false }
@@ -185,11 +187,11 @@ import Synchronization
 
     nonisolated override func read(from url: URL, ofType typeName: String) throws {
         if let recovery = try ArchiveVolumeOpenRecovery.discover(url, index: volumeRecoveryIndex, metadataStore: volumeMetadataStore) {
-            throw ArchiveVolumeOpenError(recovery: recovery)
+            throw ArchiveVolumeOpenError(recovery: recovery).presentedError
         }
         // super は NSFileWrapper 経由で全体を読み込むため呼ばない。
         let contents: Contents
-        do { contents = .open(try ArchiveSession(url: url, allowsSplitSave: saveBehavior == .onSave,
+        do { contents = .open(try ArchiveSession(url: url, allowsSplitSave: saveBehavior == .onSave, allowsImmediateSplitSave: saveBehavior == .immediate,
             volumeMetadataStore: volumeMetadataStore, writerOptions: sessionWriterOptions, importOptions: sessionImportOptions)) }
         catch KaitoError.passwordRequired {
             // AppKit の並行 read では UI を出せない。URL だけを渡し、window 側で解除する。
@@ -228,7 +230,7 @@ import Synchronization
     func unlock(password: String, remember: Bool = false, vaultGeneration: UInt64? = nil) async throws {
         guard !closed, let url = lockedURL else { throw CancellationError() }
         let opened = try await Self.openArchive(url, password: password, writerOptions: sessionWriterOptions,
-                                                importOptions: sessionImportOptions, allowsSplitSave: saveBehavior == .onSave,
+                                                importOptions: sessionImportOptions, allowsSplitSave: saveBehavior == .onSave, allowsImmediateSplitSave: saveBehavior == .immediate,
                                                 volumeMetadataStore: volumeMetadataStore)
         guard !closed, !Task.isCancelled, lockedURL == url else {
             await opened.close()
@@ -290,18 +292,18 @@ import Synchronization
         _ url: URL, password: String?,
         writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions,
         importOptions: @escaping @Sendable () -> ArchiveImportPlan.Options,
-        checksCancellation: Bool = true, allowsSplitSave: Bool, volumeMetadataStore: ArchiveVolumeMetadataStore
+        checksCancellation: Bool = true, allowsSplitSave: Bool, allowsImmediateSplitSave: Bool, volumeMetadataStore: ArchiveVolumeMetadataStore
     ) async throws -> ArchiveSession {
         if checksCancellation { try Task.checkCancellation() }
         else {
             // 公開後の再オープンは遅れて届いた取消しに左右されない。KaitoKit は圧縮 tar の一時展開で
             // Task の取消しを検査するため、取消し状態を継承しない detached Task で開く。
             return try await Task.detached(priority: Task.currentPriority) {
-                try ArchiveSession(url: url, password: password, allowsSplitSave: allowsSplitSave, volumeMetadataStore: volumeMetadataStore,
+                try ArchiveSession(url: url, password: password, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, volumeMetadataStore: volumeMetadataStore,
                                    writerOptions: writerOptions, importOptions: importOptions)
             }.value
         }
-        return try ArchiveSession(url: url, password: password, allowsSplitSave: allowsSplitSave, volumeMetadataStore: volumeMetadataStore,
+        return try ArchiveSession(url: url, password: password, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, volumeMetadataStore: volumeMetadataStore,
                                    writerOptions: writerOptions, importOptions: importOptions)
     }
 
@@ -330,8 +332,8 @@ import Synchronization
     func append(urls: [URL], to folder: String, progress: Progress,
                 resolveConflict: ArchiveImportConflict.Resolver? = nil,
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
-        if saveBehavior == .onSave {
-            return try await reserveAppend(urls: urls, folder: folder, progress: progress, resolver: resolveConflict)
+        if saveBehavior == .onSave || isImmediateSplitMutation {
+            return try await reserveAppend(urls: urls, folder: folder, progress: progress, resolver: resolveConflict, willPublish: willPublish)
         }
         return try await mutate(progress: progress, actionName: "追加", willPublish: willPublish,
                          published: { !$0.addedPaths.isEmpty }) { session, publish in
@@ -347,8 +349,8 @@ import Synchronization
 
     func createFolder(in folder: String, baseName: String = String(localized: "名称未設定フォルダ"), progress: Progress,
                       willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
-        if saveBehavior == .onSave {
-            return try await reserveFolder(in: folder, baseName: baseName, progress: progress)
+        if saveBehavior == .onSave || isImmediateSplitMutation {
+            return try await reserveFolder(in: folder, baseName: baseName, progress: progress, willPublish: willPublish)
         }
         return try await mutate(progress: progress, actionName: "新規フォルダ", willPublish: willPublish,
                          published: { !$0.addedPaths.isEmpty }) { session, publish in
@@ -366,8 +368,8 @@ import Synchronization
               resolveConflict: ArchiveImportConflict.Resolver? = nil,
               willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
         let selections = nodes.map(ArchiveEditSelection.init)
-        if saveBehavior == .onSave {
-            return try await reserveMove(selections, to: folder, progress: progress, resolver: resolveConflict)
+        if saveBehavior == .onSave || isImmediateSplitMutation {
+            return try await reserveMove(selections, to: folder, progress: progress, resolver: resolveConflict, willPublish: willPublish)
         }
         return try await mutate(progress: progress, actionName: "移動", willPublish: willPublish,
                                 published: { $0.published }) { session, publish in
@@ -381,8 +383,8 @@ import Synchronization
               willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
         let name = !moving.isEmpty && removing.isEmpty && renaming.isEmpty ? "移動"
             : (renaming.isEmpty ? "削除" : (removing.isEmpty ? "名称変更" : "削除・名称変更"))
-        if saveBehavior == .onSave {
-            return try await reserveEdit(removing: removing, renaming: renaming, moving: moving, progress: progress, name: name)
+        if saveBehavior == .onSave || isImmediateSplitMutation {
+            return try await reserveEdit(removing: removing, renaming: renaming, moving: moving, progress: progress, name: name, willPublish: willPublish)
         }
         return try await mutate(progress: progress, actionName: name, willPublish: willPublish,
                                 published: { $0.published }) { session, publish in
@@ -394,7 +396,7 @@ import Synchronization
     func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
                         progress: Progress = Progress(),
                         willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchivePasswordEditResult {
-        if saveBehavior == .onSave { return try await reservePassword(action, settings: settings, progress: progress) }
+        if saveBehavior == .onSave || isImmediateSplitMutation { return try await reservePassword(action, settings: settings, progress: progress, willPublish: willPublish) }
         let result = try await mutate(progress: progress, actionName: action.actionName, willPublish: willPublish,
                                      published: { _ in true }) { session, publish in
             try await session.updatePassword(action, settings: settings, progress: progress, willPublish: publish)
@@ -411,12 +413,13 @@ import Synchronization
     private func mutate<Result: Sendable>(
         progress: Progress, actionName: String, willPublish: (@Sendable () throws -> Void)?,
         published: @escaping @Sendable (Result) -> Bool,
-        operation: @escaping @Sendable (ArchiveSession, @escaping @Sendable () throws -> Void) async throws -> Result
+        operation: @escaping @MainActor (ArchiveSession, @escaping @Sendable () throws -> Void) async throws -> Result
     ) async throws -> Result {
         guard !closed, let session else { throw ExtractionFailure.refused(String(localized: "アーカイブが閉じられています。")) }
         guard mutationTask == nil, undoTask == nil, !switchingBackingFile else {
             throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
         }
+        let isSplit = session.volumeLayout != nil
         let previousGeneration = session.generation
         let stack = archiveUndoStack
         let pending = Mutex<ArchiveUndoStack.Slot?>(nil)
@@ -425,7 +428,7 @@ import Synchronization
                 let encryption = await session.encryptionSettings()
                 let result = try await operation(session, {
                     // updater が書き換えるのは作業コピー。退避するのは公開直前の原本だけ。
-                    let slot = try stack.capture(session.sourceURL, encryption: encryption)
+                    let slot = try isSplit ? nil : stack.capture(session.sourceURL, encryption: encryption)
                     pending.withLock { $0 = slot }
                     try willPublish?()
                 })
@@ -444,7 +447,7 @@ import Synchronization
             mutationTask = nil
             mutationProgress = nil
             cancelMutation = nil
-            (undoManager as? ArchiveUndoManager)?.isSuspended = closed
+            (undoManager as? ArchiveUndoManager)?.isSuspended = closed || session.requiresSplitRecovery
         }
         do {
             let result = try await withTaskCancellationHandler {
@@ -453,7 +456,10 @@ import Synchronization
                 progress.cancel()
                 task.cancel()
             }
-            if !closed, published(result) { synchronizeUndoActions(registering: actionName) }
+            if !closed, published(result) {
+                if isSplit { undoManager?.removeAllActions(); undoActions.removeAll() }
+                else { synchronizeUndoActions(registering: actionName) }
+            }
             if session.generation != previousGeneration { await displayAfterMutation() }
             return result
         } catch {
@@ -594,7 +600,7 @@ import Synchronization
         // 新しい reader・capabilities・identity が揃うまでは文書の参照先を変えない。
         // 作成 transaction の公開後は、遅れて届いた取消しで成功を隠さない。
         let opened = try await Self.openArchive(url, password: password, writerOptions: sessionWriterOptions,
-                                                importOptions: sessionImportOptions, checksCancellation: false, allowsSplitSave: saveBehavior == .onSave,
+                                                importOptions: sessionImportOptions, checksCancellation: false, allowsSplitSave: saveBehavior == .onSave, allowsImmediateSplitSave: saveBehavior == .immediate,
                                                 volumeMetadataStore: volumeMetadataStore)
         guard !closed, session === oldSession else {
             await opened.close()
@@ -608,6 +614,7 @@ import Synchronization
             await opened.close()
             throw ExtractionFailure.refused(String(localized: "対応していないフォーマットです。"))
         }
+        let newModificationDate = try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
         loadingTask?.cancel()
         loadingTask = nil
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
@@ -621,10 +628,14 @@ import Synchronization
         undoFailure = nil
         if saveBehavior == .onSave { disposePending() }
         if saveBehavior == .onSave { opened.setPendingReadSnapshot(nil) }
-        splitSchedule = nil; hasSplitHazardConsent = false; splitSaveNotice = nil; splitSaveFailure = nil
+        // Both prompts describe this archive/location; Save As starts a new consent scope.
+        splitHazardConsents.removeAll()
+        suppressSplitMutationConfirmation = false
+        splitSchedule = nil; splitSaveNotice = nil; splitSaveFailure = nil
         splitSaveResult = nil
         contentsStorage.withLock { $0 = .open(opened) }
         fileURL = url
+        fileModificationDate = newModificationDate
         fileType = ArchiveSavePanelController.contentType(for: format).identifier
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         let previous = sessionCleanup
@@ -781,7 +792,7 @@ import Synchronization
             } catch {
                 sheet.finish()
                 if let failure = error as? ArchiveSplitSaveFailure {
-                    splitSaveFailure = failure
+                    recordSplitSaveFailure(failure)
                     refreshPendingNotices()
                     if failure.kind == .tooManyVolumes, let layout = session.volumeLayout {
                         // The attempted publication is finished. Remember a new size for the next Save;
@@ -811,7 +822,6 @@ import Synchronization
     nonisolated override func presentedItemDidMove(to newURL: URL) {
         guard !splitPublicationActive.withLock({ $0 }) else { return }
         super.presentedItemDidMove(to: newURL)
-        guard saveBehavior == .onSave else { return }
         Task { @MainActor [weak self] in
             guard let self, !closed, !isDeferredSaveRunning, !reservationInFlight else { return }
             do { try await synchronizeDeferredLocation() }
@@ -852,13 +862,31 @@ import Synchronization
 }
 
 extension ArchiveDocument {
-    private func reserve<Result: Sendable>(name: String, progress: Progress,
+    var isImmediateSplitMutation: Bool { saveBehavior == .immediate && session?.volumeLayout != nil }
+
+    private func reserve<Result: ArchiveMutationResult>(name: String, progress: Progress,
+        willPublish: (@Sendable () throws -> Void)? = nil,
+        operation: @escaping @MainActor (ArchivePendingEditor, ArchivePendingProjection, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
+    ) async throws -> Result {
+        if isImmediateSplitMutation {
+            return try await mutate(progress: progress, actionName: name, willPublish: willPublish,
+                                    published: { $0.didPublishMutation }) { _, publish in
+                try await self.performReservation(name: name, progress: progress, willPublish: publish, operation: operation)
+            }
+        }
+        return try await performReservation(name: name, progress: progress, willPublish: willPublish, operation: operation)
+    }
+
+    private func performReservation<Result: ArchiveMutationResult>(name: String, progress: Progress,
+        willPublish: (@Sendable () throws -> Void)?,
         operation: (ArchivePendingEditor, ArchivePendingProjection, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
     ) async throws -> Result {
         // UI は無効化する。既に送られたプログラム上の要求は保存後の新しい予約として扱う。
         if let saving = deferredSaveTask { try await saving.value }
         try ArchiveImportPlan.checkCancellation(progress)
-        guard !closed, let session, let editor = pendingEditor else { throw CancellationError() }
+        guard !closed, let session else { throw CancellationError() }
+        let immediate = isImmediateSplitMutation
+        let editor = pendingEditor ?? ArchivePendingEditor()
         guard !isDeferredSaveRunning, !reservationInFlight, undoTask == nil, !switchingBackingFile else {
             throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
         }
@@ -872,14 +900,18 @@ extension ArchiveDocument {
         guard !closed, self.session === session else { throw CancellationError() }
         let snapshot = try await session.deferredSnapshot()
         guard !closed, self.session === session else { throw CancellationError() }
+        if immediate { try await confirmSplitMutation(progress: progress) }
         try editor.install(base: snapshot.entries, generation: snapshot.generation)
         let previous = editor.changes
         let stagingCheckpoint = editor.stagingCheckpoint
         let projection = try editor.projection(generation: snapshot.generation)
-        session.setPendingReadSnapshot(try .init(base: editor.base, generation: snapshot.generation,
-                                                changes: editor.changes, staging: editor.staging))
+        if !immediate {
+            session.setPendingReadSnapshot(try .init(base: editor.base, generation: snapshot.generation,
+                                                    changes: editor.changes, staging: editor.staging))
+        }
         do {
-            let (next, result) = try await operation(editor, projection, session)
+            let (next, initialResult) = try await operation(editor, projection, session)
+            var result = initialResult
             try ArchiveImportPlan.checkCancellation(progress)
             guard !closed, self.session === session, generation == snapshot.generation,
                   editor.changes.revision == previous.revision else { throw ArchiveEditError.staleSelection }
@@ -893,21 +925,39 @@ extension ArchiveDocument {
             try ArchiveSaveReplayPlan.validateRepresentability(projected, format: format)
             try await verifyReservationIdentity()
             if next != previous {
-                editor.replace(next)
-                // groupsByEvent=false なので即時モードと同じ grouping 入口を通す。
-                registerUndo(UndoAction(id: UUID(), name: name, pending: previous))
-                try displayPending()
+                if immediate {
+                    let publication = ArchiveSavePublication()
+                    defer { publication.finish() }
+                    let saved = try await publishSplitChanges(next, base: snapshot.entries, generation: snapshot.generation,
+                        progress: progress, publication: publication, willPublish: willPublish)
+                    result.reloadFailure = saved.reloadFailure
+                    fileModificationDate = saved.modificationDate
+                } else {
+                    editor.replace(next)
+                    // groupsByEvent=false なので即時モードと同じ grouping 入口を通す。
+                    registerUndo(UndoAction(id: UUID(), name: name, pending: previous))
+                    try displayPending()
+                }
             }
+            if immediate, let staging = editor.reset() { await staging.removeWhenUnused() }
             return result
         } catch {
+            if immediate, let staging = editor.reset() { await staging.removeWhenUnused() }
+            if let failure = error as? ArchiveSplitSaveFailure {
+                recordSplitSaveFailure(failure)
+                if immediate, failure.requiresReopen || failure.kind == .rolledBack {
+                    await archiveUndoStack.finishMutation(nil, published: true)
+                    undoManager?.removeAllActions(); undoActions.removeAll()
+                }
+            }
             await editor.discardStaging(after: stagingCheckpoint)
             throw error
         }
     }
 
     private func reserveAppend(urls: [URL], folder: String, progress: Progress,
-                               resolver: ArchiveImportConflict.Resolver?) async throws -> ArchiveImportResult {
-        try await reserve(name: "追加", progress: progress) { editor, projection, session in
+                               resolver: ArchiveImportConflict.Resolver?, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
+        try await reserve(name: "追加", progress: progress, willPublish: willPublish) { [self] editor, projection, session in
             var options = preferencesStore.preferences.importOptions
             options.excludesStagingFiles = true
             let plan: ArchiveImportPlan
@@ -932,8 +982,8 @@ extension ArchiveDocument {
         }
     }
 
-    private func reserveFolder(in folder: String, baseName: String, progress: Progress) async throws -> ArchiveImportResult {
-        try await reserve(name: "新規フォルダ", progress: progress) { editor, projection, _ in
+    private func reserveFolder(in folder: String, baseName: String, progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
+        try await reserve(name: "新規フォルダ", progress: progress, willPublish: willPublish) { editor, projection, _ in
             let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: projection.planningEntries)
             var next = editor.changes
             next.createdFolders.append(.init(id: UUID(), path: plan.path))
@@ -942,8 +992,8 @@ extension ArchiveDocument {
     }
 
     private func reserveEdit(removing: [ArchiveEditSelection], renaming: [ArchiveEditRename], moving: [ArchiveEditMove],
-                             progress: Progress, name: String) async throws -> ArchiveEditResult {
-        try await reserve(name: name, progress: progress) { editor, projection, _ in
+                             progress: Progress, name: String, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
+        try await reserve(name: name, progress: progress, willPublish: willPublish) { editor, projection, _ in
             let plan = try ArchiveEditPlan.build(removing: removing.map { try projection.selection($0) },
                 renaming: renaming.map { .init(selection: try projection.selection($0.selection), name: $0.name) },
                 moving: moving.map { .init(selection: try projection.selection($0.selection), folder: $0.folder) },
@@ -954,12 +1004,12 @@ extension ArchiveDocument {
     }
 
     private func reserveMove(_ selections: [ArchiveEditSelection], to folder: String, progress: Progress,
-                             resolver: ArchiveImportConflict.Resolver?) async throws -> ArchiveEditResult {
+                             resolver: ArchiveImportConflict.Resolver?, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
         guard let resolver else {
             return try await reserveEdit(removing: [], renaming: [], moving: selections.map { .init(selection: $0, folder: folder) },
-                                         progress: progress, name: "移動")
+                                         progress: progress, name: "移動", willPublish: willPublish)
         }
-        return try await reserve(name: "移動", progress: progress) { editor, projection, session in
+        return try await reserve(name: "移動", progress: progress, willPublish: willPublish) { [self] editor, projection, session in
             let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder)
             _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: projection.planningEntries, progress: progress)
             var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
@@ -1007,7 +1057,7 @@ extension ArchiveDocument {
         } else if entries.count == 1, let entry = entries.first, entry.kind == .file, !entry.isIncomplete,
                   let snapshot = session?.pendingReadSnapshot {
             source = .archive(snapshot.payload(for: entry, archive: session!.sourceURL))
-        } else { source = nil }
+        } else { source = info.source }
         return .init(name: info.name, location: info.location, kind: info.kind, size: info.size,
                      modificationDate: info.modificationDate, entryCount: info.entryCount, source: source, stagingLease: lease)
     }
@@ -1018,8 +1068,8 @@ extension ArchiveDocument {
     }
 
     private func reservePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
-                                 progress: Progress) async throws -> ArchivePasswordEditResult {
-        try await reserve(name: action.actionName, progress: progress) { editor, _, session in
+                                 progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchivePasswordEditResult {
+        try await reserve(name: action.actionName, progress: progress, willPublish: willPublish) { [self] editor, _, session in
             guard session.passwordFormat != nil else { throw ArchiveEditError.staleSelection }
             try await session.validateDeferredPassword()
             let current = await deferredEncryptionSettings()
@@ -1062,7 +1112,7 @@ extension ArchiveDocument {
         do { try await synchronizeDeferredLocation(); try await session.verifyDeferredIdentity() }
         catch {
             if session.isInvalidated || session.requiresSplitRecovery { throw error }
-            if windowControllers.first?.window != nil {
+            if !isImmediateSplitMutation, windowControllers.first?.window != nil {
                 await presentExternalChange()
                 throw CancellationError()
             }
@@ -1072,13 +1122,13 @@ extension ArchiveDocument {
 
     func checkDeferredIdentityWhenKey() {
         guard saveBehavior == .onSave, !closed, !isDeferredSaveRunning, !reservationInFlight,
-              session?.isInvalidated == false else { return }
+              session?.isInvalidated == false, session?.requiresSplitRecovery == false else { return }
         Task { [weak self] in
             guard let self, let session else { return }
             do { try await synchronizeDeferredLocation(); try await session.verifyDeferredIdentity() }
             catch {
                 guard !isDeferredSaveRunning, !reservationInFlight, !closed,
-                      !session.isInvalidated,
+                      !session.isInvalidated, !session.requiresSplitRecovery,
                       windowControllers.first?.window?.attachedSheet == nil else { return }
                 await presentExternalChange()
             }
@@ -1124,6 +1174,49 @@ extension ArchiveDocument {
 }
 
 extension ArchiveDocument {
+    private func withSplitPrompt<Value>(_ body: (NSWindow?) async throws -> Value) async rethrows -> Value {
+        let controller = windowControllers.compactMap { $0 as? ArchiveWindowController }.first
+        let sheet = controller?.editProgressSheet
+        sheet?.finish()
+        defer {
+            if let sheet, let window = controller?.window, !sheet.progress.isCancelled, !closed { sheet.begin(on: window) }
+        }
+        return try await body(controller?.window)
+    }
+
+    private func recordSplitSaveFailure(_ failure: ArchiveSplitSaveFailure) {
+        splitSaveFailure = failure
+        if failure.kind == .rolledBack, let restored = failure.restoredIdentity {
+            fileModificationDate = restored.modificationDate
+        }
+    }
+
+    private func confirmSplitMutation(progress: Progress) async throws {
+        guard !canUndoNextMutation, isImmediateSplitMutation else { return }
+        guard session?.capabilities.canEdit == true else {
+            throw ExtractionFailure.refused(session?.capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
+        }
+        guard !suppressSplitMutationConfirmation else { return }
+        let alert = ArchiveSplitSaveSheet.mutationAlert(schedule: session?.volumeLayout?.immediateSchedule)
+        let response = try await withSplitPrompt { window in
+            if let splitMutationConfirmation { return try await splitMutationConfirmation(alert) }
+            return try await ArchiveSplitSaveSheet.present(alert, on: window)
+        }
+        try ArchiveImportPlan.checkCancellation(progress)
+        guard response == .alertFirstButtonReturn else { throw CancellationError() }
+        suppressSplitMutationConfirmation = alert.suppressionButton?.state == .on
+    }
+
+    func consentToSplitHazard(_ location: ArchiveSplitHazardLocation) async throws -> Bool {
+        if splitHazardConsents.contains(location) { return true }
+        let consent = try await withSplitPrompt { window in
+            if let splitHazardConsent { return try await splitHazardConsent(location.hazard) }
+            return try await ArchiveSplitSaveSheet.consent(on: window)
+        }
+        if consent { splitHazardConsents.insert(location) }
+        return consent
+    }
+
     private func chooseSplitSchedule(_ layout: ArchiveVolumeLayout, tooMany: Bool) async throws -> VolumePlan.Schedule {
         let choice: ArchiveSplitScheduleChoice
         if let splitScheduleChooser { choice = try await splitScheduleChooser(layout, tooMany) }
@@ -1132,7 +1225,7 @@ extension ArchiveDocument {
     }
 
     private func prepareSplitSave(layout: ArchiveVolumeLayout, plan: ArchiveSaveReplayPlan,
-                                  progress: Progress) async throws -> (VolumePlan.Schedule, UInt64) {
+                                  progress: Progress) async throws -> (VolumePlan.Schedule, UInt64, Bool) {
         let parent = try VolumePublishFS.canonicalParent(of: layout.gateURL)
         let info = try await Self.splitVolumeInfo(parent, operations: splitSaveHooks.operations)
         var estimate = layout.volumes.reduce(UInt64(0)) { $0 + $1.length }
@@ -1142,6 +1235,7 @@ extension ArchiveDocument {
             estimate = next.partialValue
         }
         estimate = max(1, estimate)
+        try VolumeSetPublication.checkWorkLength(estimate, fileSystem: info.fileSystem)
         if splitSchedule == nil {
             if let saved = layout.savedSchedule { splitSchedule = saved }
             else if case .uniform(let size) = layout.schedule { splitSchedule = .uniform(size: size) }
@@ -1149,27 +1243,27 @@ extension ArchiveDocument {
         }
         while true {
             do { _ = try VolumePlan(totalLength: estimate, schedule: splitSchedule!, scheme: layout.scheme); break }
-            catch VolumePublishError.tooManyVolumes {
+            catch let error as VolumePublishError {
+                guard case .tooManyVolumes = error else { throw error }
+                if isImmediateSplitMutation { throw ArchiveSplitSaveFailure.map(error, staging: nil, context: .immediateReplacement) }
                 splitSchedule = try await chooseSplitSchedule(layout, tooMany: true)
             }
         }
-        if let hazard = info.hazard, !hasSplitHazardConsent {
-            let consent: Bool
-            if let splitHazardConsent { consent = try await splitHazardConsent(hazard) }
-            else { consent = try await ArchiveSplitSaveSheet.consent(on: windowControllers.first?.window) }
+        var consent = false
+        if let location = ArchiveSplitHazardLocation(parent: parent, info: info) {
+            consent = try await consentToSplitHazard(location)
             guard consent else { throw CancellationError() }
-            hasSplitHazardConsent = true
         }
         // Non-APFS ZIP updater rebuilds can need joined W plus two additional copies.
         if session?.format == .zip, info.fileSystem != "apfs" {
             let needed = estimate.multipliedReportingOverflow(by: 3)
             let required = needed.partialValue.addingReportingOverflow(VolumePublishFS.margin)
             guard !needed.overflow, !required.overflow, info.available >= required.partialValue else {
-                throw VolumePublishError.insufficientSpace(required: .max, available: info.available)
+                throw VolumePublishError.insufficientSpace(required: needed.overflow || required.overflow ? .max : required.partialValue, available: info.available)
             }
         }
         try ArchiveImportPlan.checkCancellation(progress)
-        return (splitSchedule!, estimate)
+        return (splitSchedule!, estimate, consent)
     }
 
     @concurrent private static func splitVolumeInfo(_ parent: URL, operations: VolumePublishOperations) async throws -> VolumePublishFS.VolumeInfo {
@@ -1203,6 +1297,49 @@ extension ArchiveDocument {
         (undoManager as? ArchiveUndoManager)?.isSuspended = closed || session?.requiresSplitRecovery == true
     }
 
+    private func publishSplitChanges(_ pending: ArchivePendingChanges, base: [ArchiveEntry], generation baseGeneration: UInt64,
+                                     progress: Progress, publication: ArchiveSavePublication,
+                                     sheet: ExtractionProgressSheet? = nil,
+                                     willPublish: (@Sendable () throws -> Void)?) async throws -> ArchiveSplitSaveResult {
+        guard let session, let layout = session.volumeLayout else { throw ArchiveEditError.staleSelection }
+        splitSaveFailure = nil; splitSaveResult = nil; splitSaveNotice = nil
+        let plan = try ArchiveSaveReplayPlan(base: base, generation: baseGeneration, pending: pending)
+        let (schedule, estimatedLength, consent) = try await prepareSplitSave(layout: layout, plan: plan, progress: progress)
+        try await session.verifyDeferredIdentity()
+        let expected = await session.sourceIdentity
+        let publicationLayout = try layout.publicationLayout()
+        var target = VolumeSetTarget(parent: publicationLayout.gateURL.deletingLastPathComponent(), layout: publicationLayout, expected: expected,
+            schedule: schedule, allowHazardousVolume: consent, filePresenter: self)
+        target.oldVolumeDisposal = isImmediateSplitMutation ? .remove : .trash
+        if let window = windowControllers.first?.window { sheet?.begin(on: window) }
+        // KaitoKit standardizes layout URLs (e.g. /private/var -> /var). Keep the
+        // document's original gate spelling so later saves do not look like moves.
+        let documentGate = fileURL ?? session.sourceURL
+        splitPublicationActive.withLock { $0 = true }
+        defer {
+            if fileURL != documentGate { fileURL = documentGate }
+            splitPublicationActive.withLock { $0 = false }
+        }
+        let result = try await session.savePendingSplit(pending, baseGeneration: baseGeneration, target: target,
+            estimatedLength: estimatedLength, progress: progress, publication: publication, index: volumeRecoveryIndex,
+            hooks: splitSaveHooks, willPublish: willPublish, willReload: deferredWillReload)
+        splitSaveResult = result.published
+        if result.recompressedZIP {
+            splitSaveNotice = String(localized: "このZIPはそのまま更新できないため、アーカイブ全体を再圧縮しました。")
+        }
+        if let warning = result.published.warning {
+            splitSaveNotice = (splitSaveNotice.map { $0 + "\n" } ?? "") + warning
+        }
+        if pending.outputEncryption != nil {
+            if let stored = await passwordVault.password(for: .file(session.sourceURL)) {
+                await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
+            }
+            rememberedPayloadPassword = nil
+        }
+        refreshPendingNotices()
+        return result
+    }
+
     private func savePendingDocument(token: Any, progress: Progress, publication: ArchiveSavePublication,
                                      sheet: ExtractionProgressSheet) async throws {
         guard let session, let editor = pendingEditor else { throw CancellationError() }
@@ -1223,35 +1360,11 @@ extension ArchiveDocument {
                 if session.isInvalidated || session.requiresSplitRecovery { throw error }
                 throw Self.deferredExternalChangeError
             }
-            if let layout = session.volumeLayout {
-                let (schedule, estimatedLength) = try await prepareSplitSave(layout: layout, plan: plan, progress: progress)
-                try await session.verifyDeferredIdentity()
-                let expected = await session.sourceIdentity
-                let publicationLayout = try layout.publicationLayout()
-                let target = VolumeSetTarget(parent: publicationLayout.gateURL.deletingLastPathComponent(), layout: publicationLayout, expected: expected,
-                    schedule: schedule, allowHazardousVolume: hasSplitHazardConsent, filePresenter: self)
-                if let window = windowControllers.first?.window { sheet.begin(on: window) }
-                // KaitoKit standardizes layout URLs (e.g. /private/var -> /var). Keep the
-                // document's original gate spelling so later saves do not look like moves.
-                let documentGate = fileURL ?? session.sourceURL
-                splitPublicationActive.withLock { $0 = true }
-                defer {
-                    if fileURL != documentGate { fileURL = documentGate }
-                    splitPublicationActive.withLock { $0 = false }
-                }
-                let result = try await session.savePendingSplit(pending, baseGeneration: snapshot.generation, target: target,
-                    estimatedLength: estimatedLength, progress: progress, publication: publication, index: volumeRecoveryIndex,
-                    hooks: splitSaveHooks, willPublish: deferredWillPublish, willReload: deferredWillReload)
-                splitSaveResult = result.published
+            if session.volumeLayout != nil {
+                let result = try await publishSplitChanges(pending, base: snapshot.entries, generation: snapshot.generation,
+                    progress: progress, publication: publication, sheet: sheet, willPublish: deferredWillPublish)
                 committedDate = result.modificationDate
                 deferredReloadFailure = result.reloadFailure
-                if result.recompressedZIP {
-                    splitSaveNotice = String(localized: "このZIPはそのまま更新できないため、アーカイブ全体を再圧縮しました。")
-                }
-                if case .committed(let warning) = result.published.outcome, warning != nil {
-                    splitSaveNotice = (splitSaveNotice.map { $0 + "\n" } ?? "")
-                        + String(localized: "変更は保存されましたが、作業フォルダの後片付けが残っています。")
-                }
             } else {
                 if let window = windowControllers.first?.window { sheet.begin(on: window) }
                 let result = try await session.savePending(pending, baseGeneration: snapshot.generation,
@@ -1308,8 +1421,9 @@ extension ArchiveDocument {
         return task
     }
 
-    private func synchronizeDeferredLocation() async throws {
-        guard let session, let url = fileURL, url != session.sourceURL else { return }
+    func synchronizeDeferredLocation() async throws {
+        guard let session, let url = fileURL,
+              url.standardizedFileURL.resolvingSymlinksInPath() != session.sourceURL.standardizedFileURL.resolvingSymlinksInPath() else { return }
         try await session.followDeferredMove(to: url)
         disposeMaterialization()
     }
@@ -1331,10 +1445,26 @@ extension ArchiveDocument {
         fileModificationDate = modificationDate
     }
 
+    func adoptSplitCreationNotice(_ creator: ArchiveCreationController) {
+        splitSaveNotice = creator.createdSplitNotice
+        refreshPendingNotices()
+    }
+
+    func configureSplitCreation(_ creator: ArchiveCreationController) {
+        creator.splitSaveHooks = splitSaveHooks
+        creator.volumeRecoveryIndex = volumeRecoveryIndex
+        creator.volumeMetadataStore = volumeMetadataStore
+        creator.splitHazardConsent = { [weak self] location in
+            guard let self else { throw CancellationError() }
+            return try await self.consentToSplitHazard(location)
+        }
+    }
+
     func savePendingAs(using creator: ArchiveCreationController, on window: NSWindow?, progress: Progress) async throws {
         guard !closed, !isDeferredSaveRunning, !reservationInFlight, let session, let editor = pendingEditor else {
             throw ArchiveEditError.staleSelection
         }
+        configureSplitCreation(creator)
         let token = changeCountToken(for: .saveOperation), publication = ArchiveSavePublication()
         deferredPublication = publication
         deferredProgress = progress
@@ -1357,6 +1487,7 @@ extension ArchiveDocument {
             let modificationDate = try FileManager.default.attributesOfItem(atPath: destination.path)[.modificationDate] as? Date
             // switchBackingFile の display が新しい世代へ旧予約を重ねないよう、切り替え時にだけ外す。
             try await switchBackingFile(to: destination, password: creator.createdEncryption.password)
+            adoptSplitCreationNotice(creator)
             disposePending()
             undoManager?.removeAllActions()
             await stagingCleanup?.value

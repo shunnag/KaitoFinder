@@ -127,6 +127,18 @@ nonisolated struct VolumePublishTransaction: Sendable {
         }, openedVolumeIndex: 0)
         try metadataStore.save(metadata, layout: layout)
     }
+    /// Metadata is optional after a verified commit/rollback; quarantine is already on each volume.
+    func persistMetadataWarning(restored: Bool = false) -> String? {
+        do {
+            if restored { try persistRestoredMetadata() } else { try persistMetadata() }
+            return nil
+        } catch {
+            let message = String(localized: "巻サイズの設定を記録できませんでした。次回開くときに巻サイズを確認してください。")
+            NSLog("Volume metadata cache: %@ (%@)", metadataStore.fileURL.path, String(describing: error))
+            return message
+        }
+    }
+
     mutating func markOldKept() throws {
         guard record.phase == .done, record.keptOldVolumes != true else { return }
         record.keptOldVolumes = true
@@ -312,7 +324,6 @@ nonisolated struct VolumePublishTransaction: Sendable {
         }
         try phase(.abandoned)
         if allowLiveMoves { try restoreOld() }
-        try persistRestoredMetadata()
     }
     private mutating func restoreOld() throws {
         // Nothing retired means no restoration is owed, even if live names changed independently.
@@ -354,7 +365,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         try renamer.move(volume.name, from: old, to: parent, verifyPaths: false)
     }
 
-    /// Trash → 証明できる生成物・superseded だけ remove → それ以外は keep。
+    /// Deferred replacement uses Trash; confirmed irreversible edits remove proved old data directly.
     func dispose(_ name: String, allowRemoval: Bool = true) throws -> VolumeDisposal {
         guard let directory = try optionalDirectory(name) else { return .none }
         func volumesAreProven() throws -> Bool {
@@ -375,9 +386,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             try staging.sync()
             return .none
         }
-        let trashed: URL
-        do { trashed = try operations.trash(directory.url) }
-        catch {
+        func removeProvenVolumes() throws -> VolumeDisposal {
             try directory.verifyPath()
             // Trash が失敗するまでの間にも変更されうるので、unlink の直前に証拠を更新する。
             guard allowRemoval, try volumesAreProven() else { return .kept(directory.url) }
@@ -393,6 +402,10 @@ nonisolated struct VolumePublishTransaction: Sendable {
             try staging.sync(full: true)
             return .removed
         }
+        if name == "old", record.oldVolumeDisposal == .remove { return try removeProvenVolumes() }
+        let trashed: URL
+        do { trashed = try operations.trash(directory.url) }
+        catch { return try removeProvenVolumes() }
         try staging.sync(full: true)
         return .trashed(trashed)
     }

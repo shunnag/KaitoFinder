@@ -31,6 +31,7 @@ nonisolated final class DeferredSplitWorkCapture: Sendable {
     init(format: GyoshukuKit.ArchiveFormat = .sevenZip, count: Int = 5, parent: URL? = nil, volumeSize: Int? = nil,
          uneven: Bool = false, trailingZIP: Bool = false, fullLastZIP: Bool = false,
          writerOptions: WriterOptions = WriterOptions(compressionMethod: .stored),
+         behavior: ArchivePreferences.SaveBehavior = .onSave, undoStack: ArchiveUndoStack = ArchiveUndoStack(),
          external: (URL, URL) throws -> Void = { _, _ in }) throws {
         let directory = try ArchiveTestDirectory(), local = try volumePublishTestURL(directory.url)
         let root = (try parent.map(volumePublishTestURL) ?? local).appendingPathComponent("set-" + UUID().uuidString)
@@ -65,10 +66,10 @@ nonisolated final class DeferredSplitWorkCapture: Sendable {
         }
         let gate = root.appendingPathComponent(stem + ".001")
         let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
-        store.preferences.saveBehavior = .onSave
+        store.preferences.saveBehavior = behavior
         let index = RecoverableWorkIndex(fileURL: local.appendingPathComponent("support/index.json"))
         let metadata = ArchiveVolumeMetadataStore(fileURL: local.appendingPathComponent("support/metadata.json"))
-        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store,
+        let document = ArchiveDocument(undoStack: undoStack, preferencesStore: store,
             volumeMetadataStore: metadata, volumeRecoveryIndex: index)
         try document.read(from: gate, ofType: ArchiveDocumentController.splitVolumeType)
         document.fileURL = gate; document.fileType = ArchiveDocumentController.splitVolumeType
@@ -167,9 +168,7 @@ nonisolated final class DeferredSplitWorkCapture: Sendable {
                        gate.resolvingSymlinksInPath().standardizedFileURL, file: file, line: line)
         var gateInfo = stat()
         XCTAssertEqual(lstat(gate.path, &gateInfo), 0, file: file, line: line)
-        let timestamp = Double(gateInfo.st_mtimespec.tv_sec) + Double(gateInfo.st_mtimespec.tv_nsec) / 1_000_000_000
-        let modificationDate = try XCTUnwrap(document.fileModificationDate, file: file, line: line)
-        XCTAssertEqual(modificationDate.timeIntervalSince1970, timestamp, accuracy: 0.000001, file: file, line: line)
+        XCTAssertEqual(document.fileModificationDate, try FileManager.default.attributesOfItem(atPath: gate.path)[.modificationDate] as? Date, file: file, line: line)
         let publishedGate = try XCTUnwrap(document.splitSaveResult?.identity.volumes.first, file: file, line: line)
         XCTAssertEqual(publishedGate.modificationSeconds, Int64(gateInfo.st_mtimespec.tv_sec), file: file, line: line)
         XCTAssertEqual(publishedGate.modificationNanoseconds, Int64(gateInfo.st_mtimespec.tv_nsec), file: file, line: line)
@@ -348,7 +347,7 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
         XCTAssertTrue(document.isDocumentEdited); XCTAssertFalse(document.pendingChanges.isEmpty)
     }
 
-    @MainActor func testProvenRollbackKeepsPendingAndRequiresReopen() async throws {
+    @MainActor func testProvenRollbackKeepsPendingAndCanRetryWithoutReopening() async throws {
         let fixture = try DeferredSplitSaveFixture(), document = fixture.document
         defer { fixture.document.close() }
         _ = try await document.createFolder(in: "", progress: Progress())
@@ -357,14 +356,14 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
         XCTAssertEqual(document.splitSaveFailure?.kind, .rolledBack)
         XCTAssertEqual(try fixture.parts(), fixture.original)
         XCTAssertTrue(document.isDocumentEdited); XCTAssertFalse(document.pendingChanges.isEmpty)
-        XCTAssertFalse(document.session!.capabilities.canEdit)
-        XCTAssertTrue(document.session!.requiresSplitRecovery)
+        XCTAssertTrue(document.session!.capabilities.canEdit)
+        XCTAssertFalse(document.session!.requiresSplitRecovery)
+        XCTAssertTrue(document.validateUserInterfaceItem(NSMenuItem(title: "Save", action: #selector(ArchiveDocument.saveArchiveDocument(_:)), keyEquivalent: "")))
+        try await document.session!.verifyDeferredIdentity()
         document.splitSaveHooks.fault = { _ in }
-        do { try await fixture.save(); XCTFail("Reopen is required after S5") } catch { }
-        XCTAssertTrue(document.isDocumentEdited)
-        XCTAssertEqual(try fixture.parts(), fixture.original)
-        try await fixture.reopen()
-        XCTAssertTrue(fixture.document.session!.capabilities.canEdit)
+        try await fixture.save()
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(document.pendingChanges.isEmpty)
     }
 
     @MainActor func testEncryptedSplitRequiresPasswordBeforeReservations() async throws {
@@ -418,8 +417,9 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
                 XCTAssertNil(opened); continuation.resume(returning: error)
             }
         }
-        let offer = try XCTUnwrap(error as? ArchiveVolumeOpenError)
-        XCTAssertEqual(offer.recovery.gate, fixture.gate)
+        let presented = try XCTUnwrap(error as NSError?)
+        let offer = try XCTUnwrap(presented.userInfo[NSRecoveryAttempterErrorKey] as? ArchiveVolumeRecoveryAttempter).offer
+        XCTAssertEqual(offer.recovery.gate.resolvingSymlinksInPath(), fixture.gate.resolvingSymlinksInPath())
         XCTAssertEqual(offer.recoverySuggestion, String(localized: "中断した保存を完了して開く"))
         document.close(); await document.sessionCleanup?.value
         let results = await offer.recovery.recover()

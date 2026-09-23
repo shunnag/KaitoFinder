@@ -40,6 +40,20 @@ nonisolated struct ArchiveVolumeLayout: Sendable, Equatable {
         }
     }
 
+    /// Prefer the persisted size after a set shrinks to one short member.
+    var uniformSize: UInt64? {
+        guard case .uniform(let size) = immediateSchedule else { return nil }
+        return size
+    }
+
+    /// An explicit saved choice is authoritative even if today's member lengths look uniform.
+    var immediateSchedule: VolumePlan.Schedule? {
+        guard case .numbered = scheme else { return nil }
+        if let savedSchedule { return savedSchedule }
+        if case .uniform(let size) = schedule { return .uniform(size: size) }
+        return nil
+    }
+
     var gateURL: URL {
         switch scheme {
         case .numbered: volumes[0].url

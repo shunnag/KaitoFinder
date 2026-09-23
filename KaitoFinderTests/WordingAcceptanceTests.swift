@@ -42,6 +42,45 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    func testSplitCorrectionWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in [
+            "新しい分割アーカイブを作成できませんでした。元のアーカイブは変更されていません。もう一度保存してください。",
+            "新しい分割アーカイブの作成を完了できませんでした。元のアーカイブは変更されていません。保存先の作業フォルダをFinderで確認してください。",
+            "別の保存または回復処理中です。しばらくしてからもう一度変更してください。",
+            "変更のためのファイル調整が時間切れになりました。原本は変更されていません。もう一度変更してください。",
+            "分割数が上限（128）を超えるため変更できません。「別名で保存」で巻サイズを大きくしてください。",
+            "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。もう一度保存してください。",
+            "保存できなかったため、元の分割アーカイブに戻しました。もう一度変更してください。",
+            "このアーカイブの作業ファイルはFAT32の上限を超えます。APFSまたはexFATのディスクに保存してください。",
+            "保存先の空き容量が足りません。空き容量を増やすか、別の場所に保存してください。",
+            "保存できませんでした。設定、保存先のアクセス権と空き容量を確認して、もう一度試してください。",
+            "巻サイズの設定を記録できませんでした。次回開くときに巻サイズを確認してください。",
+            "別の保存または回復処理中です。しばらくしてからもう一度開いてください。",
+        ] {
+            XCTAssertEqual(Set(try XCTUnwrap(catalog.strings[key], key).localizations.keys), Set(LocalizationAcceptance.languages), key)
+        }
+    }
+
+    func testImmediateSplitAndSaveAsWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in [
+            "保存できなかったため、元の分割アーカイブに戻しました。もう一度変更してください。",
+            "分割アーカイブの保存を完了できませんでした。回復するまで編集できません。アーカイブを開き直してください。",
+            "分割アーカイブへの変更は取り消せません。",
+            "すべての巻を書き直して、同じ巻サイズで分割し直します。",
+            "変更",
+            "今後、このアーカイブでは確認しない",
+            "分割:",
+            "しない",
+            "元と同じ（%@）",
+            "同じ名前の分割ファイルが既にあります。",
+            "巻サイズが揃っていない分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。",
+        ] {
+            XCTAssertEqual(Set(try XCTUnwrap(catalog.strings[key], key).localizations.keys), Set(LocalizationAcceptance.languages), key)
+        }
+    }
+
     func testSplitSaveWordingHasAllTwentySixTranslations() throws {
         let catalog = try LocalizationAcceptance.catalog()
         let keys = [
@@ -65,7 +104,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             "分割数が上限（128）を超えるため保存できません。巻サイズを大きくしてください。",
             "別の保存または回復処理中です。しばらくしてからもう一度保存してください。",
             "保存のためのファイル調整が時間切れになりました。原本は変更されていません。もう一度保存してください。",
-            "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。編集を続けるには、アーカイブを開き直してください。",
+            "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。もう一度保存してください。",
             "分割アーカイブの保存を完了できませんでした。未保存の変更は保持されています。回復するまで編集できません。アーカイブを開き直してください。",
             "この場所では、保存が中断されると回復が必要になる場合があります。保存中にほかのアプリが読み込むと、新旧の巻が混在する場合があります。",
             "このZIPはそのまま更新できないため、アーカイブ全体を再圧縮しました。",

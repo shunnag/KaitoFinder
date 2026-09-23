@@ -95,10 +95,23 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
     }
 
     @MainActor func testPresentedSavePanelAnimatesEncryptionAndCancelsWithoutSaving() async throws {
+        try await checkPresentedSavePanelAnimation(split: false)
+    }
+
+    @MainActor func testPresentedSplitSavePanelAnimatesEncryptionAndCancelsWithoutSaving() async throws {
+        try await checkPresentedSavePanelAnimation(split: true)
+    }
+
+    @MainActor private func checkPresentedSavePanelAnimation(split: Bool) async throws {
         let restoreAnimations = enableNativeWindowAnimations()
         defer { restoreAnimations() }
         let suite = try ArchivePreferencesTestDefaults()
-        let save = ArchiveSavePanel(sources: [], store: ArchivePreferencesStore(defaults: suite.defaults), reducesMotion: { false })
+        let directory = try ArchiveTestDirectory()
+        let source = directory.url.appendingPathComponent("source.zip.001")
+        let layout = ArchiveVolumeLayout(scheme: .numbered(stem: "source.zip", width: 3),
+            volumes: [.init(url: source, length: 65536)], openedVolumeIndex: 0)
+        let save = ArchiveSavePanel(sources: [], existingURL: split ? source : nil, store: ArchivePreferencesStore(defaults: suite.defaults), sourceLayout: split ? layout : nil, reducesMotion: { false })
+        XCTAssertEqual(save.splitControls != nil, split)
         let accessory = try XCTUnwrap(save.panel.accessoryView)
         let collapsedHeight = accessory.fittingSize.height
         var response: NSApplication.ModalResponse?
@@ -152,7 +165,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         XCTAssertFalse(save.passwordFields.passwordField.isEnabled)
         XCTAssertTrue(save.passwordFields.notice.stringValue.isEmpty)
         XCTAssertNil(save.encryptionSettings.password)
-        XCTAssertNoThrow(try save.panel(save.panel, validate: URL(fileURLWithPath: "/tmp/password.zip")))
+        XCTAssertNoThrow(try save.panel(save.panel, validate: directory.url.appendingPathComponent("password.zip")))
         XCTAssertFalse(accessoryWindow.firstResponder === fieldEditor)
         // 伸びている途中に逆転し、さらに開き直しても最後の状態だけを適用する。
         save.encryptionCheckbox.state = .on
@@ -181,6 +194,14 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
     }
 
     @MainActor func testSavePanelResizesWithoutSlidingContents() async throws {
+        try await checkSavePanelResize(split: false)
+    }
+
+    @MainActor func testSplitSavePanelResizesWithoutSlidingContents() async throws {
+        try await checkSavePanelResize(split: true)
+    }
+
+    @MainActor private func checkSavePanelResize(split: Bool) async throws {
         let restoreAnimations = enableNativeWindowAnimations()
         defer { restoreAnimations() }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-SavePanel-" + UUID().uuidString)
@@ -191,10 +212,15 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
             defer { restoreBrowser() }
             for asSheet in [false, true] {
                 let suite = try ArchivePreferencesTestDefaults()
-                let save = ArchiveSavePanel(sources: [], store: ArchivePreferencesStore(defaults: suite.defaults), reducesMotion: { false })
+                let source = directory.appendingPathComponent("source.zip.001")
+                let layout = ArchiveVolumeLayout(scheme: .numbered(stem: "source.zip", width: 3),
+                    volumes: [.init(url: source, length: 65536)], openedVolumeIndex: 0)
+                let save = ArchiveSavePanel(sources: [], existingURL: split ? source : nil, store: ArchivePreferencesStore(defaults: suite.defaults), sourceLayout: split ? layout : nil, reducesMotion: { false })
                 save.panel.directoryURL = directory
                 let accessory = try XCTUnwrap(save.panel.accessoryView)
                 let controls: [NSView] = [save.formatPopup, save.levelPopup, save.encryptionCheckbox]
+                    + (save.splitControls.map { [$0.choices, $0.number, $0.units] } ?? [])
+                XCTAssertEqual(save.splitControls != nil, split)
                 let collapsedHeight = accessory.fittingSize.height
                 let parent = asSheet ? NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
                     styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false) : nil

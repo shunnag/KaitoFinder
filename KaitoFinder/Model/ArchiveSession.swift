@@ -32,6 +32,7 @@ actor ArchiveSession {
     private var reader: ArchiveReader?
     private(set) var password: String?
     private let allowsSplitSave: Bool
+    private let allowsImmediateSplitSave: Bool
     private let volumeMetadataStore: ArchiveVolumeMetadataStore
     nonisolated private let splitRecoveryReason = Mutex<String?>(nil)
     nonisolated var requiresSplitRecovery: Bool { splitRecoveryReason.withLock { $0 != nil } }
@@ -83,11 +84,12 @@ actor ArchiveSession {
     nonisolated private let importOptions: @Sendable () -> ArchiveImportPlan.Options
     private(set) var quarantine: Data?
 
-    init(url: URL, password: String? = nil, allowsSplitSave: Bool = false,
+    init(url: URL, password: String? = nil, allowsSplitSave: Bool = false, allowsImmediateSplitSave: Bool = false,
          volumeMetadataStore: ArchiveVolumeMetadataStore = .shared,
          writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions = { _ in WriterOptions() },
          importOptions: @escaping @Sendable () -> ArchiveImportPlan.Options = { .init() }) throws {
         self.allowsSplitSave = allowsSplitSave
+        self.allowsImmediateSplitSave = allowsImmediateSplitSave
         self.volumeMetadataStore = volumeMetadataStore
         sourceURLStorage = Mutex(url)
         self.password = password
@@ -109,7 +111,7 @@ actor ArchiveSession {
         formatStorage = Mutex(reader.format)
         // 開いたばかりの reader を渡し、編集可否のために書庫を開き直さない（actor 内で所有したまま読む）。
         capabilitiesStorage = Mutex(ArchiveCapabilities.inspect(reader: reader, url: url, password: password,
-            splitLayout: layout, allowsSplitSave: allowsSplitSave, mixedVolumes: metadata.mixed))
+            splitLayout: layout, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, mixedVolumes: metadata.mixed))
         encryptionStorage = Mutex(EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted),
                                                   hasKnownPassword: password != nil))
         encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: url, format: reader.format, password: password)
@@ -398,7 +400,7 @@ actor ArchiveSession {
     func deferredSnapshot() throws -> (entries: [ArchiveEntry], generation: UInt64) {
         try verifyDeferredIdentity()
         let reader = try requireCurrentReader()
-        if allowsSplitSave, volumeLayout != nil { refreshCapabilities() }
+        if allowsSplitSave || allowsImmediateSplitSave, volumeLayout != nil { refreshCapabilities() }
         guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
@@ -424,11 +426,36 @@ actor ArchiveSession {
 
     func followDeferredMove(to url: URL) throws {
         guard url != sourceURL else { return }
-        guard usesPendingReading, volumeLayout == nil, !invalidated else { throw ArchiveEditError.archiveChanged }
+        guard (usesPendingReading || allowsImmediateSplitSave), !invalidated, !requiresSplitRecovery else { throw ArchiveEditError.archiveChanged }
+        if let layout = volumeLayout {
+            guard url.lastPathComponent == sourceURL.lastPathComponent else { throw ArchiveEditError.archiveChanged }
+            var moved = ArchiveVolumeLayout(scheme: layout.scheme, volumes: layout.volumes.map {
+                .init(url: url.deletingLastPathComponent().appendingPathComponent($0.url.lastPathComponent), length: $0.length)
+            }, openedVolumeIndex: layout.openedVolumeIndex)
+            moved.savedSchedule = layout.savedSchedule
+            let current = try ArchiveSetIdentity.capture(layout: moved)
+            // Names are unchanged by a containing-folder move; every member and the absent tail must agree.
+            guard current.contentEquals(sourceIdentity) else { throw ArchiveEditError.archiveChanged }
+            try reanchorSplitReader(at: url, layout: moved, identity: current)
+            return
+        }
         let current = try ArchiveSetIdentity.capture(url: url)
         guard current.contentEqualsAfterMove(sourceIdentity) else { throw ArchiveEditError.archiveChanged }
         sourceURLStorage.withLock { $0 = url }
         sourceIdentity = current
+    }
+
+    /// Neither a proved rollback nor a folder move changes entries or the pending plan's generation.
+    private func reanchorSplitReader(at url: URL, layout: ArchiveVolumeLayout, identity: ArchiveSetIdentity) throws {
+        let replacement = try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+        let assembled = try replacement.volumeSet.map { ArchiveSetIdentity(volumeSet: $0) } ?? ArchiveSetIdentity.capture(url: url)
+        guard assembled.volumes == identity.volumes,
+              try ArchiveSetIdentity.capture(layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
+        reader = replacement
+        sourceURLStorage.withLock { $0 = url }
+        sourceIdentity = identity
+        volumeLayoutStorage.withLock { $0 = layout }
+        refreshCapabilities()
     }
 
     func validateDeferredPassword() throws {
@@ -484,7 +511,7 @@ actor ArchiveSession {
                           index: RecoverableWorkIndex, hooks: ArchiveSplitSaveHooks,
                           willPublish: (@Sendable () throws -> Void)?, willReload: (@Sendable () throws -> Void)?) throws -> ArchiveSplitSaveResult {
         let snapshot = try deferredSnapshot()
-        guard allowsSplitSave, capabilities.splitSave, target.filePresenter != nil,
+        guard capabilities.splitSave, target.filePresenter != nil,
               target.layout == (try volumeLayout?.publicationLayout()), target.expected == sourceIdentity,
               snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending)
@@ -502,32 +529,15 @@ actor ArchiveSession {
         target.additionalQuarantine = try quarantine ?? ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
-        let options = ReaderOptions.kaitoFinder(password: output.password)
-        var started: VolumeSetPublication?
         do {
-            try hooks.willBegin(target)
-            let split = try VolumeSetPublication.begin(target, estimatedOutputLength: estimatedLength, progress: progress,
-                index: index, options: options, coordinationTimeout: hooks.coordinationTimeout,
-                operations: hooks.operations, metadataStore: volumeMetadataStore, fault: { step in
-                    if step == .s5 { try publication.enterSplitBoundary() }
-                    try hooks.fault(step)
-                })
-            started = split
-            defer { split.cancel() } // Only discards a still-preparing transaction; never touches held evidence.
-            guard let input = split.input else { throw VolumePublishError.invalidPlan }
-            let produced = try ArchiveSplitWorkProducer.produce(source: input, workURL: split.workURL, mode: mode,
-                password: password, options: output, plan: plan, progress: progress,
-                verifyAssembledInput: { try split.verifyAssembledInput($0) })
-            try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan)
-            try hooks.didProduceWork(split.workURL)
-            try plan.validate()
-            try willPublish?()
-            let published = try split.publish(progress: progress) { reader in
-                try ArchiveSplitWorkProducer.validate(reader, plan: plan)
-            }
-            switch published.outcome {
-            case .committed: break // cleanup warnings do not keep the document dirty.
-            }
+            let result = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimatedLength, plan: plan,
+                password: output.password, progress: progress, publication: publication, index: index,
+                metadataStore: volumeMetadataStore, hooks: hooks, willPublish: willPublish, keepsPendingChanges: allowsSplitSave) { split in
+                    guard let input = split.input else { throw VolumePublishError.invalidPlan }
+                    return try ArchiveSplitWorkProducer.produce(source: input, workURL: split.workURL, mode: mode,
+                        password: password, options: output, plan: plan, progress: progress,
+                        verifyAssembledInput: { try split.verifyAssembledInput($0, progress: progress) })
+                }
             if let encryption = plan.outputEncryption {
                 password = encryption.password; passwordRevision &+= 1
                 encryptsSevenZipHeaders = encryption.encryptsSevenZipHeaders
@@ -535,10 +545,19 @@ actor ArchiveSession {
             let failure: String?
             do { try reloadAfterMutation(willOpen: willReload); failure = nil }
             catch { failure = Self.reloadFailureMessage }
-            return ArchiveSplitSaveResult(published: published, reloadFailure: failure, recompressedZIP: produced.recompressedZIP)
+            return ArchiveSplitSaveResult(published: result.published, reloadFailure: failure, recompressedZIP: result.recompressedZIP)
         } catch is CancellationError { throw CancellationError() }
         catch {
-            let failure = ArchiveSplitSaveFailure.map(error, staging: started?.stagingURL)
+            var failure = (error as? ArchiveSplitSaveFailure) ?? ArchiveSplitSaveFailure.map(error, staging: nil)
+            if failure.kind == .rolledBack, let layout = volumeLayout {
+                do {
+                    guard let identity = failure.restoredIdentity else { throw ArchiveEditError.archiveChanged }
+                    try reanchorSplitReader(at: sourceURL, layout: layout, identity: identity)
+                } catch {
+                    failure = ArchiveSplitSaveFailure(kind: .held, staging: failure.staging, diagnostic: ArchiveErrorText.describe(error),
+                                                      keepsPendingChanges: allowsSplitSave)
+                }
+            }
             if failure.requiresReopen {
                 let reason = failure.errorDescription!
                 splitRecoveryReason.withLock { $0 = reason }
@@ -627,7 +646,7 @@ actor ArchiveSession {
         if requiresSplitRecovery { return }
         let metadata = try? ArchiveVolumeMetadata.inspect(url: sourceURL, volumeSet: reader.volumeSet, store: volumeMetadataStore)
         let capabilities = ArchiveCapabilities.inspect(reader: reader, url: sourceURL, password: password,
-            splitLayout: volumeLayout, allowsSplitSave: allowsSplitSave, mixedVolumes: metadata?.mixed ?? true)
+            splitLayout: volumeLayout, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, mixedVolumes: metadata?.mixed ?? true)
         capabilitiesStorage.withLock { $0 = capabilities }
         encryptionStorage.withLock {
             $0 = EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted), hasKnownPassword: password != nil)
@@ -667,7 +686,7 @@ actor ArchiveSession {
         }
         let updatedQuarantine = try ExtractionQuarantine.firstValue(from: layout?.volumes.map(\.url) ?? [sourceURL]) {} ?? metadata.quarantine
         let updatedCapabilities = ArchiveCapabilities.inspect(reader: replacement, url: sourceURL, password: password,
-            splitLayout: layout, allowsSplitSave: allowsSplitSave, mixedVolumes: metadata.mixed)
+            splitLayout: layout, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, mixedVolumes: metadata.mixed)
         guard try Self.currentIdentity(url: sourceURL, layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
         reader = replacement
         quarantine = updatedQuarantine

@@ -13,6 +13,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         var encryption: ArchiveEncryptionSettings? = nil
         var pending: ArchiveSaveReplayPlan? = nil
         var publication: ArchiveSavePublication? = nil
+        var quarantine: Data? = nil
     }
 
     let sources: [URL]
@@ -21,6 +22,8 @@ nonisolated struct ArchiveCreationPlan: Sendable {
     let options: WriterOptions
     let existing: Existing?
     let importOptions: ArchiveImportPlan.Options
+    var splitSchedule: VolumePlan.Schedule? = nil
+    var allowHazardousVolume = false
 
     init(sources: [URL], destination: URL, format: GyoshukuKit.ArchiveFormat,
          options: WriterOptions = WriterOptions(), existing: Existing? = nil,

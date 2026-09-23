@@ -241,10 +241,10 @@ nonisolated final class VolumePublishRecoveryTests: XCTestCase {
         XCTAssertThrowsError(try publication.publish(progress: Progress())) { XCTAssertTrue($0 is SimulatedCrash) }
         let result = VolumePublishRecovery(index: fixture.index).recover(staging: publication.stagingURL)
         switch result {
-        case .recovered(_, .forward, _): try fixture.assertRemoved(publication.stagingURL)
-        case .held(_, _, .some(.kept(_))):
+        case .recovered(_, .forward, .kept(_)):
             let record = try VolumePublishJournal.inspect(VolumePublishDirectory(publication.stagingURL))
             XCTAssertEqual(record.phase, .done)
+        case .recovered(_, .forward, _): try fixture.assertRemoved(publication.stagingURL)
         default: XCTFail("An unchanged gate is not an ambiguous occupant: \(result)")
         }
         var joined = Data()

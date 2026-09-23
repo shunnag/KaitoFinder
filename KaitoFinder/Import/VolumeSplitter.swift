@@ -42,7 +42,6 @@ nonisolated enum VolumeSplitter {
             values.removeValue(forKey: ArchiveVolumeMetadata.setKey)
             values.removeValue(forKey: "com.apple.quarantine")
             values["com.apple.quarantine"] = quarantine
-            if avoidsAppleDouble { values.removeAll() }
             if quarantine == nil, !avoidsAppleDouble {
                 let result = fremovexattr(fd, "com.apple.quarantine", 0)
                 if result != 0, errno != ENOATTR { throw VolumePublishError.system(errno) }

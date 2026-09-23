@@ -83,7 +83,7 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
         }
     }
 
-    @MainActor func testThreeVolumeSevenZipOpensAsReadOnlyArchiveDocument() async throws {
+    @MainActor func testThreeVolumeSevenZipOpensAsIrreversibleEditableArchiveDocument() async throws {
         let fixture = try SplitArchiveFixture(volumeCount: 3)
         XCTAssertEqual(fixture.volumes.count, 3)
         let (document, alreadyOpen) = try await open(fixture.archive, in: fixture.directory)
@@ -124,6 +124,13 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
             XCTAssertTrue(reopened === document)
             XCTAssertTrue(wasOpen)
         }
+    }
+
+    @MainActor func testUnevenNumberedSetRequiresDeferredEditing() async throws {
+        let fixture = try DeferredSplitSaveFixture(uneven: true, behavior: .immediate)
+        defer { fixture.document.close() }
+        let (document, _) = try await open(fixture.gate, in: fixture.directory)
+        try await assertSplitContents(document, names: Set(fixture.contents.keys), refusal: .unevenSplitArchive)
     }
 
     @MainActor func testNativeSplitZIPMemberOpensFinalZIPAndReusesDocument() async throws {
@@ -202,17 +209,26 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
     }
 
     @MainActor private func assertSplitContents(_ document: ArchiveDocument, names: Set<String>,
-                                                refusal: ArchiveCapabilities.Refusal = .splitArchive,
+                                                refusal: ArchiveCapabilities.Refusal? = nil,
                                                 file: StaticString = #filePath, line: UInt = #line) async throws {
         let session = try XCTUnwrap(document.session, file: file, line: line)
         let entries = await session.entries()
         XCTAssertEqual(Set(entries.map(\.name)), names, file: file, line: line)
+        guard let refusal else {
+            XCTAssertTrue(session.capabilities.canEdit, file: file, line: line)
+            XCTAssertNotNil(session.capabilities.mode, file: file, line: line)
+            XCTAssertTrue(session.capabilities.splitSave, file: file, line: line)
+            XCTAssertTrue(session.capabilities.splitIrreversible, file: file, line: line)
+            XCTAssertFalse(document.canUndoNextMutation, file: file, line: line)
+            XCTAssertNil(session.capabilities.readOnlyReason, file: file, line: line)
+            return
+        }
         XCTAssertFalse(session.capabilities.canEdit, file: file, line: line)
         XCTAssertNil(session.capabilities.mode, file: file, line: line)
         XCTAssertEqual(session.capabilities.refusal, refusal, file: file, line: line)
         let reason = refusal == .nativeSplitArchive
             ? String(localized: "ZIP本来の分割アーカイブは変更できません。")
-            : String(localized: "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。")
+            : String(localized: "巻サイズが揃っていない分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。")
         XCTAssertEqual(session.capabilities.readOnlyReason, reason, file: file, line: line)
     }
 }

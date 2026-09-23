@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 import KaitoKit
@@ -29,7 +30,7 @@ nonisolated enum ArchiveVolumeMetadata {
         let generation: UInt64
         let count: Int
         let totalSHA256: String
-        // AppleDouble targets keep all carried xattrs here, never beside the published set.
+        // Cache only: security and source xattrs also travel on the actual output volumes.
         var attributes: [[String: Data]]? = nil
         func marker(at index: Int) -> Marker {
             Marker(setUUID: setUUID, generation: generation, index: index, count: count, totalSHA256: totalSHA256)
@@ -66,21 +67,12 @@ nonisolated enum ArchiveVolumeMetadata {
               case .numbered = parsed.scheme, parsed.index == 0 else { return result }
         let parent = try VolumePublishDirectory(VolumePublishFS.canonicalParent(of: url))
         let appleDouble = try VolumePublishFS.usesAppleDouble(parent)
-        let saved: ArchiveVolumeMetadataStore.Entry?
-        let layout: Layout?
-        do {
-            saved = try appleDouble ? store.entry(for: url) : nil
-            layout = try appleDouble ? saved?.publication.layout : read(Layout.self, key: layoutKey, at: url)
-            try layout?.validate()
-        } catch {
-            result.mixed = true
-            return result
-        }
-        if let layout {
-            guard layout.scheme.fileName(forVolumeAt: 0, count: 1) == url.lastPathComponent,
-                  result.layout == nil || result.layout?.scheme == layout.scheme else {
-                result.mixed = true; return result
-            }
+        // An unavailable cache or stale layout is not evidence of mixed physical volumes.
+        let saved = appleDouble ? try? store.entry(for: url) : nil
+        let storedLayout = appleDouble ? saved?.publication.layout : try? read(Layout.self, key: layoutKey, at: url)
+        if let layout = storedLayout, (try? layout.validate()) != nil,
+           layout.scheme.fileName(forVolumeAt: 0, count: 1) == url.lastPathComponent,
+           result.layout == nil || result.layout?.scheme == layout.scheme {
             if result.layout == nil {
                 let identity = try ArchiveSetIdentity.capture(url: url)
                 result.layout = ArchiveVolumeLayout(scheme: layout.scheme,
@@ -104,7 +96,7 @@ nonisolated enum ArchiveVolumeMetadata {
                         result.mixed = true
                     }
                     if let first, first.setUUID != marker.setUUID || first.generation != marker.generation
-                        || first.count != marker.count || first.totalSHA256 != marker.totalSHA256 { result.mixed = true }
+                        || first.count != marker.count { result.mixed = true }
                     if first == nil { first = marker }
                 } catch { result.mixed = true }
             }
@@ -123,7 +115,7 @@ nonisolated enum ArchiveVolumeMetadata {
         if let oldLayout {
             let sourceParent = try VolumePublishDirectory(oldLayout.gateURL.deletingLastPathComponent())
             if try VolumePublishFS.usesAppleDouble(sourceParent) {
-                let entry = try store.entry(for: oldLayout.gateURL)
+                let entry = try? store.entry(for: oldLayout.gateURL)
                 previous = entry?.publication.marker(at: 0)
                 var values: [[String: Data]] = []
                 for (index, volume) in oldLayout.volumes.enumerated() {
@@ -164,12 +156,14 @@ nonisolated enum ArchiveVolumeMetadata {
     }
 }
 
-/// Local, flock-protected atomic JSON. Gate inode prevents a new unrelated .001 inheriting a schedule.
+/// Local, flock-protected cache. FAT can reuse inodes; size and sampled bytes are part of the key.
 nonisolated final class ArchiveVolumeMetadataStore: Sendable {
     struct Entry: Codable, Sendable {
         let volumeUUID: String
         let relativeGatePath: String
         let gateInode: UInt64
+        var gateSize: UInt64? = nil
+        var gateSampleSHA256: String? = nil
         let members: [ArchiveSetIdentity.Volume]
         let publication: ArchiveVolumeMetadata.Publication
     }
@@ -178,30 +172,51 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
     let fileURL: URL
     init(fileURL: URL) { self.fileURL = fileURL }
 
-    private func location(_ gate: URL) throws -> (String, String, UInt64) {
+    private func location(_ gate: URL) throws -> (uuid: String, path: String, inode: UInt64, size: UInt64, hash: String) {
         let parent = try VolumePublishDirectory(VolumePublishFS.canonicalParent(of: gate))
         let volume = try VolumePublishFS.volumeInfo(parent), root = try VolumePublishFS.volumeRoot(parent)
         let canonicalGate = parent.url.appendingPathComponent(gate.lastPathComponent)
         guard let path = VolumePublishFS.relativePath(canonicalGate, on: root), let info = try parent.info(gate.lastPathComponent),
               info.st_mode & S_IFMT == S_IFREG else { throw VolumePublishError.setChanged }
-        return (volume.uuid, path, info.st_ino)
+        let fd = try parent.openFile(gate.lastPathComponent)
+        defer { close(fd) }
+        var before = stat(), after = stat()
+        guard fstat(fd, &before) == 0, VolumePublishFS.sameFile(info, before), before.st_size >= 0 else { throw VolumePublishError.setChanged }
+        let size = UInt64(before.st_size), count = Int(min(size, 64 * 1024))
+        var hash = SHA256()
+        hash.update(data: try VolumePublishFS.read(fd, length: count, offset: 0))
+        hash.update(data: try VolumePublishFS.read(fd, length: count, offset: size - UInt64(count)))
+        guard fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
+              let final = try parent.info(gate.lastPathComponent),
+              VolumePublishTransaction.Stamp(final) == VolumePublishTransaction.Stamp(after) else { throw VolumePublishError.setChanged }
+        return (volume.uuid, path, info.st_ino, size, hash.finalize().map { String(format: "%02x", $0) }.joined())
     }
     func entry(for gate: URL) throws -> Entry? {
         let key = try location(gate)
         return try access { directory in
-            try read(directory).first { $0.volumeUUID == key.0 && $0.relativeGatePath == key.1 && $0.gateInode == key.2 }
+            try read(directory).first {
+                $0.volumeUUID == key.uuid && $0.relativeGatePath == key.path && $0.gateInode == key.inode
+                    && $0.gateSize == key.size && $0.gateSampleSHA256 == key.hash
+            }
         }
     }
     func save(_ publication: ArchiveVolumeMetadata.Publication, layout: ArchiveVolumeLayout) throws {
         try publication.validate()
         let key = try location(layout.gateURL), identity = try ArchiveSetIdentity.capture(layout: layout)
-        let entry = Entry(volumeUUID: key.0, relativeGatePath: key.1, gateInode: key.2,
-                          members: identity.volumes, publication: publication)
+        let entry = Entry(volumeUUID: key.uuid, relativeGatePath: key.path, gateInode: key.inode,
+                          gateSize: key.size, gateSampleSHA256: key.hash, members: identity.volumes, publication: publication)
         try access { directory in
-            var values = try read(directory)
-            values.removeAll { $0.volumeUUID == key.0 && $0.relativeGatePath == key.1 }
+            var values = (try? read(directory)) ?? []
+            values.removeAll { $0.volumeUUID == key.uuid && $0.relativeGatePath == key.path }
             values.append(entry)
-            let bytes = try JSONEncoder().encode(values), name = ".volume-metadata-" + UUID().uuidString
+            var bytes = try JSONEncoder().encode(values)
+            // Keep the newest records within the read limit; legacy/cache corruption never gates publication.
+            while bytes.count >= 16 * 1024 * 1024, values.count > 1 {
+                values.removeFirst()
+                bytes = try JSONEncoder().encode(values)
+            }
+            guard bytes.count < 16 * 1024 * 1024 else { throw VolumePublishError.journalTooLarge }
+            let name = ".volume-metadata-" + UUID().uuidString
             let fd = try directory.openFile(name, flags: O_WRONLY | O_CREAT | O_EXCL)
             defer { close(fd); _ = unlinkat(directory.fd, name, 0) }
             try VolumePublishFS.write(fd, data: bytes, offset: 0)

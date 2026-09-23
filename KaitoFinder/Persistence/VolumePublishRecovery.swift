@@ -266,13 +266,10 @@ nonisolated struct VolumePublishRecovery: Sendable {
                         do { try transaction.validateHashes(in: parent); allowRemoval = true }
                         catch { /* Trash remains recoverable; an unlink is forbidden. */ }
                     }
-                    let disposal = record.phase == .done ? try transaction.dispose("old", allowRemoval: allowRemoval) : .none
-                    if case .kept = disposal {
-                        try transaction.markOldKept()
-                        return .held(staging: url, reason: "Committed; cleanup pending", disposal: disposal)
-                    }
-                    try transaction.removeEmptyStaging()
-                    return .recovered(staging: url, direction: .cleanup, disposal: disposal)
+                    if record.phase == .done, allowRemoval { _ = transaction.persistMetadataWarning() }
+                    return finishCleanup(&transaction, direction: .cleanup,
+                                         area: record.phase == .done ? "old" : nil, allowRemoval: allowRemoval,
+                                         liveSetProven: record.phase != .done || allowRemoval)
                 }
                 if try transaction.preparedIsDisposable() {
                     let disposal = try transaction.discardPrepared()
@@ -384,27 +381,42 @@ nonisolated struct VolumePublishRecovery: Sendable {
         }
     }
     private func finishForward(_ transaction: inout VolumePublishTransaction, options: ReaderOptions) throws -> Result {
-        try transaction.persistMetadata()
         try transaction.phase(.done)
+        _ = transaction.persistMetadataWarning()
         // Format checking is an optional diagnostic AFTER commit, never a recovery requirement.
         if let report = operations.recoveryReaderDiagnostic {
             do { _ = try operations.openReader(transaction.parent.url.appendingPathComponent(transaction.record.newGate), options); report(nil) }
             catch { report(String(describing: error)) }
         }
-        let disposal = try transaction.dispose("old")
-        if case .kept = disposal {
-            try transaction.markOldKept()
-            return .held(staging: transaction.staging.url, reason: "Committed; cleanup pending", disposal: disposal)
-        }
-        try transaction.removeEmptyStaging()
-        return .recovered(staging: transaction.staging.url, direction: .forward, disposal: disposal)
+        return finishCleanup(&transaction, direction: .forward, area: "old")
     }
     private func finishBackward(_ transaction: inout VolumePublishTransaction) throws -> Result {
-        try transaction.persistRestoredMetadata()
-        let disposal = try transaction.dispose("abandoned")
-        if case .kept = disposal { return .held(staging: transaction.staging.url, reason: "Old set restored; cleanup pending", disposal: disposal) }
-        try transaction.removeEmptyStaging()
-        return .recovered(staging: transaction.staging.url, direction: .backward, disposal: disposal)
+        _ = transaction.persistMetadataWarning(restored: true)
+        let oldRestored = try transaction.record.oldVolumes.allSatisfy {
+            try $0.matches(in: transaction.parent, useHash: transaction.record.hashesOldVolumes)
+        }
+        return finishCleanup(&transaction, direction: .backward, area: "abandoned", liveSetProven: oldRestored)
+    }
+
+    /// Only called after commit, rollback, or durable cleanup authorization. Failures retain cleanup work.
+    private func finishCleanup(_ transaction: inout VolumePublishTransaction, direction: Direction,
+                               area: String?, allowRemoval: Bool = true, liveSetProven: Bool = true) -> Result {
+        func result(_ disposal: VolumeDisposal) -> Result {
+            if case .kept = disposal, !liveSetProven {
+                return .held(staging: transaction.staging.url, reason: "Live set is not proved; backup retained", disposal: disposal)
+            }
+            return .recovered(staging: transaction.staging.url, direction: direction, disposal: disposal)
+        }
+        do {
+            let disposal = try area.map { try transaction.dispose($0, allowRemoval: allowRemoval) } ?? .none
+            if case .kept = disposal {
+                if transaction.record.phase == .done { try transaction.markOldKept() }
+            } else { try transaction.removeEmptyStaging() }
+            return result(disposal)
+        } catch {
+            NSLog("Volume recovery cleanup pending: %@ (%@)", transaction.staging.url.path, String(describing: error))
+            return result(.kept(transaction.staging.url))
+        }
     }
     private static func incompletePreparation(_ staging: VolumePublishDirectory) throws -> Bool {
         // journal 不明時は名前の whitelist も不明。空の reserved 領域だけを証拠にする。

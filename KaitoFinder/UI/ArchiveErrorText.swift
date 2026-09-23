@@ -54,6 +54,7 @@ nonisolated enum ArchiveErrorText {
             case .sourceChanged: return String(localized: "アーカイブが変更されています。開き直してください", bundle: bundle)
             case .invalidState: return String(localized: "内部状態が不正です", bundle: bundle)
             }
+        case let error as VolumePublishError: return error.message(bundle: bundle)
         case let error as ArchiveEditError: return error.errorDescription ?? error.localizedDescription
         case let error as ExtractionFailure: return error.description
         default: return error.localizedDescription

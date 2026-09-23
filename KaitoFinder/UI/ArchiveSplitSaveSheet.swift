@@ -60,16 +60,20 @@ nonisolated enum ArchiveSplitScheduleChoice: Sendable, Equatable {
         case 1: return .mostCommon
         case 2: return .single
         default:
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            guard let value = formatter.number(from: number.stringValue)?.doubleValue, value.isFinite, value > 0 else {
-                throw VolumePublishError.invalidPlan
-            }
-            let bytes = value * pow(1024, Double(units.indexOfSelectedItem + 1))
-            guard bytes >= 65536, bytes < Double(Int64.max) else { throw VolumePublishError.invalidPlan }
-            return .size(UInt64(bytes))
+            return .size(try Self.volumeSize(number: number.stringValue, unit: units.indexOfSelectedItem))
         }
     }
+    static func volumeSize(number: String, unit: Int) throws -> UInt64 {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        guard (0...2).contains(unit), let value = formatter.number(from: number)?.doubleValue, value.isFinite, value > 0 else {
+            throw VolumePublishError.invalidPlan
+        }
+        let bytes = value * pow(1024, Double(unit + 1))
+        guard bytes >= 65536, bytes < Double(Int64.max) else { throw VolumePublishError.invalidPlan }
+        return UInt64(bytes)
+    }
+
     func choose(on window: NSWindow?) async throws -> ArchiveSplitScheduleChoice {
         while true {
             guard try await Self.present(alert, on: window) == .alertFirstButtonReturn else { throw CancellationError() }
@@ -90,7 +94,25 @@ nonisolated enum ArchiveSplitScheduleChoice: Sendable, Equatable {
     static func consent(on window: NSWindow?) async throws -> Bool {
         try await present(hazardAlert(), on: window) == .alertSecondButtonReturn
     }
-    private static func present(_ alert: NSAlert, on window: NSWindow?) async throws -> NSApplication.ModalResponse {
+    static func mutationAlert(schedule: VolumePlan.Schedule? = nil, bundle: Bundle = .main) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = String(localized: "分割アーカイブへの変更は取り消せません。", bundle: bundle)
+        switch schedule {
+        case .single: alert.informativeText = String(localized: "保存すると1つのファイルにします。", bundle: bundle)
+        case .explicit: alert.informativeText = String(localized: "保存すると元の巻サイズを再現します。", bundle: bundle)
+        default: alert.informativeText = String(localized: "すべての巻を書き直して、同じ巻サイズで分割し直します。", bundle: bundle)
+        }
+        alert.addButton(withTitle: String(localized: "変更", bundle: bundle))
+        alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = String(localized: "今後、このアーカイブでは確認しない", bundle: bundle)
+        return alert
+    }
+
+    static func present(_ alert: NSAlert, on window: NSWindow?) async throws -> NSApplication.ModalResponse {
         try Task.checkCancellation()
         return try await withTaskCancellationHandler {
             let response: NSApplication.ModalResponse

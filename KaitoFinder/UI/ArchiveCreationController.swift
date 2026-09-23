@@ -1,13 +1,19 @@
 import AppKit
 import GyoshukuKit
 import KaitoKit
+import Synchronization
 
 /// 三つの入口で保存先の選択・進捗・完成した文書の open を共有する。
 final class ArchiveCreationController {
+    var splitSaveHooks = ArchiveSplitSaveHooks()
+    var volumeRecoveryIndex = RecoverableWorkIndex.shared
+    var volumeMetadataStore = ArchiveVolumeMetadataStore.shared
+    var splitHazardConsent: ((ArchiveSplitHazardLocation) async throws -> Bool)?
     private let store: ArchivePreferencesStore
     private(set) var savePanel: ArchiveSavePanel?
     private(set) var progressSheet: ExtractionProgressSheet?
     private(set) var createdEncryption = ArchiveEncryptionSettings()
+    private(set) var createdSplitNotice: String?
     // パネルの確定だけを置き換え、実際の作成・進捗・文書切り替えを検証する。
     var destinationHandler: ((ArchiveSavePanel, NSWindow?) async throws -> URL?)?
 
@@ -38,10 +44,21 @@ final class ArchiveCreationController {
                 on parent: NSWindow? = nil, progress: Progress = Progress(),
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> URL? {
         createdEncryption = .init()
+        createdSplitNotice = nil
         let encryption = existing?.encryption ?? ArchiveEncryptionSettings(
             password: existing?.entries.contains(where: \.isEncrypted) == true ? existing?.password : nil,
             zipEncryption: ArchiveEncryptionSettings.zipMethod(in: existing?.entries ?? []))
-        let save = ArchiveSavePanel(sources: sources, existingURL: existing?.url, store: store, encryption: encryption)
+        let save = ArchiveSavePanel(sources: sources, existingURL: existing?.url, store: store, encryption: encryption, sourceLayout: existing?.volumeLayout)
+        if let existing {
+            var estimate = existing.identity?.volumes.reduce(UInt64(0)) { $0 + $1.size } ?? save.estimatedSplitLength
+            for addition in existing.pending?.additions ?? [] {
+                let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
+                let padded = next.partialValue.addingReportingOverflow(1024)
+                guard !next.overflow, !padded.overflow else { throw VolumePublishError.invalidPlan }
+                estimate = padded.partialValue
+            }
+            save.estimatedSplitLength = max(1, estimate)
+        }
         savePanel = save
         defer { savePanel = nil; save.passwordFields.clear() }
         let destination: URL?
@@ -49,18 +66,38 @@ final class ArchiveCreationController {
         else { destination = try await save.destination(on: parent) }
         guard let destination else { return nil }
         try save.panel(save.panel, validate: destination)
+        let outputDestination = save.baseDestination(destination)
         savePanel = nil
         try ArchiveImportPlan.checkCancellation(progress)
-        let plan = creationPlan(sources: sources, destination: destination,
+        var plan = creationPlan(sources: sources, destination: outputDestination,
                                 format: save.controller.format, existing: existing, level: save.controller.level,
                                 encryption: save.encryptionSettings)
+        plan.splitSchedule = try save.splitControls?.schedule()
+        if plan.splitSchedule != nil {
+            let info = try await Self.volumeInfo(outputDestination, operations: splitSaveHooks.operations)
+            if let location = ArchiveSplitHazardLocation(parent: try VolumePublishFS.canonicalParent(of: outputDestination), info: info) {
+                let consent: Bool
+                if let splitHazardConsent { consent = try await splitHazardConsent(location) }
+                else { consent = try await ArchiveSplitSaveSheet.consent(on: parent) }
+                guard consent else { throw CancellationError() }
+                plan.allowHazardousVolume = true
+            }
+        }
         let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.creatingArchive.title(),
                                             detail: destination.lastPathComponent)
         progressSheet = sheet
         defer { sheet.finish(); progressSheet = nil }
         if let parent { sheet.begin(on: parent) }
         else { sheet.beginStandalone() }
-        let result = try await Self.create(plan: plan, progress: progress, willPublish: willPublish)
+        let warning = Mutex<String?>(nil)
+        var hooks = splitSaveHooks
+        let observer = hooks.didPublish
+        hooks.didPublish = { result in
+            warning.withLock { $0 = result.warning }
+            observer(result)
+        }
+        let result = try await Self.create(plan: plan, progress: progress, willPublish: willPublish, index: volumeRecoveryIndex, metadata: volumeMetadataStore, hooks: hooks)
+        createdSplitNotice = warning.withLock { $0 }
         createdEncryption = save.encryptionSettings
         save.passwordFields.clear()
         return result
@@ -72,12 +109,18 @@ final class ArchiveCreationController {
         try ArchiveImportPlan.checkCancellation(progress)
         return .init(url: session.sourceURL, password: password, entries: snapshot.entries,
                      identity: await session.sourceIdentity, volumeLayout: session.volumeLayout,
-                     encryption: await session.encryptionSettings())
+                     encryption: await session.encryptionSettings(), quarantine: await session.quarantine)
     }
 
     @concurrent private static func create(plan: ArchiveCreationPlan, progress: Progress,
-                                         willPublish: (@Sendable () throws -> Void)?) async throws -> URL {
-        try ArchiveCreationTransaction.run(plan: plan, progress: progress, willPublish: willPublish)
+                                         willPublish: (@Sendable () throws -> Void)?, index: RecoverableWorkIndex,
+                                         metadata: ArchiveVolumeMetadataStore, hooks: ArchiveSplitSaveHooks) async throws -> URL {
+        try ArchiveCreationTransaction.run(plan: plan, progress: progress, willPublish: willPublish,
+            volumeIndex: index, metadataStore: metadata, splitHooks: hooks)
+    }
+
+    @concurrent private static func volumeInfo(_ destination: URL, operations: VolumePublishOperations) async throws -> VolumePublishFS.VolumeInfo {
+        try operations.volumeInfo(VolumePublishDirectory(VolumePublishFS.canonicalParent(of: destination)))
     }
 
     static func presentFailure(_ error: any Error) {

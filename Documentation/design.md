@@ -259,7 +259,7 @@ drop 後の処理をここから駆動する。drop のハイライトは、在�
 変換提案につながることを示す。書けない書庫も受け入れ、元の書庫を変えない
 変換を提案する。使えない編集動詞は、どの形式制限が原因かを言う。
 
-即時モードの分割書庫は全巻を読み取り専用にする。3 桁以上の数字拡張子は同じ親の先頭巻などの存在で、
+単一ファイル用の公開経路では分割書庫を拒否する。3 桁以上の数字拡張子は同じ親の先頭巻などの存在で、
 ZIP の `.z01` / `.zx01` 系は名前だけで、終巻の `.zip` / `.zipx` は先頭巻の存在で判定する。
 兄弟の存在は `lstat` で確かめ、symlink の参照先や内容は読まない。単独の `.001` は従来どおり扱う。
 `inspect` では一時コピーの次に検査し、公開処理の開始時と置換の直前にも再検査する。
@@ -269,6 +269,47 @@ ZIP の `.z01` / `.zx01` 系は名前だけで、終巻の `.zip` / `.zipx` は�
 `ArchiveCapabilities.splitSave` を立てる。ZIP 本来の分割、書けない内側の形式、未認証の暗号化、
 表現できない項目、いずれかの巻または親の書き込み権限不足は拒否する。通常の単一ファイル publisher の
 名前による分割拒否は残し、必ず M2 の `VolumeSetPublication` を通す。
+
+#### 即時編集と別名で保存の分割出力（M6）
+
+「すぐに書き込む」では、番号付き・巻サイズが一様なセットの書き込み可能な形式を
+`splitIrreversible` として編集できる。保存済みの `.single` / `.explicit` / `.uniform` 予定表は
+推定サイズより優先し、即時編集と「元と同じ」の別名保存でもそのまま使う。不揃いで保存済み予定表がない場合は、
+まず形式・暗号化・権限・表現可能性を検査し、保存時モードなら編集できるものだけ設定変更を案内する。
+ZIP 本来の分割は読み取り専用のまま。
+
+追加・ペースト・ドロップ、削除、改名、移動、新規フォルダ、⌥コピー、パスワード変更、衝突時の置き換えの
+すべてで「分割アーカイブへの変更は取り消せません。」を確認する。説明は
+「すべての巻を書き直して、同じ巻サイズで分割し直します。」、ボタンは「変更」「キャンセル」（既定）。
+「今後、このアーカイブでは確認しない」は開いているアーカイブだけに保持し、別名保存の文書切り替えで消す。
+確認前に全巻の同一性と capabilities を検査する。即時モードの外部変更は `archiveChanged` で開き直しを案内し、
+保存時モード専用の「変更を破棄して読み直す」は出さない。親フォルダの移動は同一性を証明して追跡する。
+保存済み単一巻・明示予定表では確認の説明もその選択に合わせる。
+各編集の一時的な予約を M5 と共通の `ArchiveSplitSavePipeline` へ渡し、begin → W → publish を一度だけ実行する。
+W は `ArchiveSplitWorkProducer` に任せ、rewriter の volumeSet 照合や `.zip.001` の連結 → updater を共有する。
+単一ファイル publisher は通さない。`canUndoNextMutation=false`、willPublish で clone せず、成功時に
+`recordMutation(nil)` 相当で履歴を消す（.001 だけの退避は禁止）。証明済みの即時 rollback でも古い Undo slot と登録を消す。
+FAT/exFAT・ネットワーク・同期フォルダの同意は M5 と共通のシートで得るが、保存先の canonical directory・volume identity・
+hazard 種別を鍵にする。別の保存先への失敗した別名保存の同意を原本の編集に流用せず、文書切り替え時には消す。
+即時編集の旧巻は S10 検証と durable done の後に、live set と old/ の内容を再証明して fd 相対で直接除去する。
+保存時モードは従来の Trash 優先を保つ。`VolumeOldDisposalPolicy` を publication ごとに選び journal に保存するため、
+即時編集のクラッシュ回復も Trash を増やさない。旧 journal は従来の Trash 動作。不確かな唯一のコピーは削除しない。
+ZIP 再圧縮・cleanup pending・旧巻残留・メタデータ記録失敗の通知は両モードと別名保存で表示する。
+
+「別名で保存」の付属ビューに「分割:」を追加する。「しない」、一様または保存済み予定表のある分割元の「元と同じ（サイズまたは予定表）」、
+「サイズを指定…」（数値＋KB/MB/GB、最低64 KiB）から選ぶ。分割元は「元と同じ」、単一ファイル元は「しない」が既定。
+行は既存のグリッドに置き、数値欄は無効化で切り替えて自然な高さを保つ。新規アーカイブのパネルには追加しない。
+分割出力は選んだ名前に `.001` からの番号を付け、M2 の new-set target で作る。計画された全巻と次の番号の占有を
+パネル確定・begin・公開時に共通の占有検査を行い、衝突は「同じ名前の分割ファイルが既にあります。」で拒否する。
+保存パネルには実出力の `.001` を示し、delegate の filename callback（標準 Replace 確認の前）も `.001` に揃える。
+書かない裸の stem の上書きを確認しない。transaction へ渡す時だけ末尾の `.001` を除く。
+無効な指定サイズは NSError の localizedDescription で「64 KB以上のサイズを指定してください。」を示し、128巻の上限も確認する。
+ZIP は通常の ZIP のバイト分割。保存時モードでは予約を含め、元セットを変えず、新しい gate（分割なしなら単一ファイル）へ文書を切り替える。
+新セットもネイティブ xattr / AppleDouble ボリューム上のアプリ所有ストアという M5 のメタデータ規則を使う。
+別名保存の numbered 入力は一度だけ各巻を読み、fd・パス・stamp を前後で確認しながら SHA-256 と連結コピーを同時に生成する。
+作業領域の固定コピーを rewriter へ渡すため、FAT/exFAT 元巻の重複した全文 hash 検査を行わない。各 chunk で Progress の取消しを検査し S5 前に中止できる。
+エラー文言は保存時置換・即時置換・新セット作成を区別する。新セットの rollback/held は原本が不変であることと再試行または
+保存先の Finder 確認を案内し、原本の復元・原本を開き直すような案内や source document の held 状態を作らない。
 
 #### 分割セットの保存（M5）
 
@@ -284,21 +325,21 @@ M4 の取り出し・Quick Look・file promise は組み立て済み reader と 
 選択は文書を閉じるまで保持し、公開した予定表は再オープン時にも復元する。128 巻を超える見込みなら
 begin 前のサイズシートで選び直す。実際の W が上限を超えた場合は S5 前に失敗し、サイズの選択を次の保存に
 持ち越す。一つの保存で begin を二度呼ばない。FAT/exFAT、ネットワーク、file provider・同期フォルダでは
-中断時の回復と他アプリが新旧の巻を混在して読む可能性を説明し、文書ごとに一度だけ明示的な同意を得る。
+中断時の回復と他アプリが新旧の巻を混在して読む可能性を説明し、保存先と hazard 種別ごとに明示的な同意を得る。
 既定のボタンはキャンセル。同意も巻サイズも begin 前に確定する。
 
 `ArchiveSplitWorkProducer.produce(source:workURL:mode:password:options:plan:progress:verifyAssembledInput:)`
 は出力の stem・命名・予定表と独立して W を生成する。rewriter の `volumeSet` を publication の
 `verifyAssembledInput` で照合してから replay する。`.zip.001` は `ArchiveVolumeInput.copy(to:progress:)`
 で各巻の fd・パス・同一性を前後に照合しながら連結し、Updater で既存項目を再圧縮せず編集する。
-Updater の gatekeeper 拒否だけは ZIP rewriter へ切り替え、保存後の通知欄で知らせる。
+Updater の構造上の拒否（gatekeeper / invalidArchive / nonRelocatableEntry）は ZIP rewriter へ切り替え、保存後の通知欄で知らせる。
 W と切り出したセットを KaitoKit で開き、予定した名前の集合と照合する。
 
 調整の presenter は必ず ArchiveDocument 自身。取得待ちは S5 の外にあり、時間切れは原本を変えず失敗する。
 公開中の presentedItemDidMove は無視し、終了時に fileURL を元の gate URL の綴りへ戻す。
 reader が `/private/var` を `/var` に正規化しても文書の URL は置き換えない。成功後は新 gate の mtime を採用する。
 M2 の committed（後片付けの警告を含む）は保存成功として予約・staging・undo を消す。rolledBack は失敗として
-予約と dirty を保ち、再オープンまで編集を無効にする。rollbackIncomplete / held / publishedReaderFailed /
+全巻の復元を証明して reader・identity を再接続し、予約・世代・dirty を保って Save と別名で保存を許可する。rollbackIncomplete / held / publishedReaderFailed /
 publishedVerificationPending も失敗として予約を保持し、再オープンまで編集を無効にする。残った staging には
 「Finderで表示」を提供する。ownerAlive は原本を変えず再試行の案内。
 
@@ -307,17 +348,26 @@ APFS/HFS+ では gate に `com.shunnag.KaitoFinder.volume-layout`（stem / width
 一巻に縮んでも gate の予定表を読んで再分割できる。setUUID・世代・巻数・順序の不一致は読み取りを残して編集を拒否する。
 他ツールの印のない巻は印の比較から除く。
 
-M2 の `usesAppleDouble` が真のファイルシステムではこれらの xattr を書かず、既存の継承属性も公開巻に
-AppleDouble として作らない。Application Support/KaitoFinder/volume-metadata.json に、volume UUID +
-volume-relative gate path + gate inode を鍵として、予定表・世代・全巻の識別・継承属性を保存する。
-flock と fsync 済みの atomic JSON 置換を使い、quarantine は開いた session に戻す。journal に新旧の記録を含め、
-回復の前進時もこのストアを確定してから done にする。後退時は完全な旧セットを証明してから gate inode を
-付け直すため、FAT/SMB の rename で識別子が変わっても一巻の予定表を失わない。セットの隣には新たな `._*` を作らない。
+M2 の `usesAppleDouble` が真のファイルシステムでは KaitoFinder の二つの xattr だけを書かない。
+quarantine と旧巻が持っていた他の属性は公開巻にも継承する。属性のない旧巻にアプリの印だけの `._*` は作らない。
+Application Support/KaitoFinder/volume-metadata.json は volume UUID + volume-relative gate path + gate inode +
+gate size + 先頭・末尾各 64 KiB の SHA-256 を鍵にした任意のキャッシュ。古い形式や一致しない記録は無視する。
+flock と fsync 済みの atomic JSON 置換を使い、16 MiB の上限前に古い項目を間引く。journal に新旧の記録を含め、
+done 後または完全な旧セットの復元後に保存する。書き込み失敗は警告で、commit や回復を保留しない。
+quarantine はストアとは独立して実巻に残る。名前を揃えて変更・複製したセットは mixed にせず、古い layout の名前を無視する。
+FAT32 で見積もり W が UInt32.max 以上なら、作業開始前に他の形式のディスクへの保存を案内して拒否する。
 
-開く controller は、gate の正規化や型判定より先に、指定巻と同じ stem の未完了 journal を探す。
-`.003` を指定して gate が staging に隠れていても単独では開かない。`read(from:)` も同じ読み取りだけの発見を行い、
-「中断した保存を完了して開く」を持つ RecoverableError を返す。選択後に専用 recovery queue で非同期に回復し、
-gate を開き直す。HELD は staging の「Finderで表示」、owned は再試行の案内を出す。read 内で回復・rename はしない。
+開く controller は既存文書を最初に選ぶ。gate が保存中に staging に隠れていても同じセットのウインドウへ戻す。
+その後で同じ stem の未完了 journal を探し、live owner の staging は中断と扱わない。`read(from:)` も同じ発見を行う。
+不整合な同一 stem の journal も「中断した保存を完了して開く」で案内する。controller と read が渡す NSError の
+`NSRecoveryAttempterErrorKey` に明示的な NSObject attempter を入れ、Swift bridge の遅延 provider に依存しない。
+userInfo をコピーして NSError を再作成しても同期・delegate の両入口を保つ。
+AppKit の同期 recovery 入口は false を返して非同期処理を開始し、delegate 入口も同じ処理を使って完了後に返答する。
+専用 recovery queue で回復後 gate を開く。done、または全旧巻と次巻の不在を証明した abandoned は開くのを妨げない。
+後片付けだけの失敗は回復成功と残留通知にし、元の回復機構で再試行する。HELD は staging の「Finderで表示」を提供し、
+文書が key になっても外部変更の偽警告を出さない。HELD の別名で保存は無効。read 内で回復・rename はしない。
+fileModificationDate は Foundation と正確に等しい Date（reference date 基準で算出）を使い、別名で保存後は FileManager から読む。
+文書の fileURL は綴りを変えず、親フォルダが移動した場合は新しい親で全巻の同一性と次巻の不在を証明して追跡する。
 
 reader が返す `volumeSet` から巻順・入口・巻サイズの予定表を `ArchiveVolumeLayout` に保持し、
 分割の判定にも使う。`ArchiveSetIdentity` は全巻の名前・ボリューム UUID（取得できない場合は device）・
@@ -781,7 +831,7 @@ Finder / LaunchServices の実ファイルの関連付けは増やさない。�
 先頭巻（桁が増えた名前では `.001` も探す）、`.zNN` / `.zxNN` は最終 `.zip` / `.zipx` に
 入口を揃えてから開き、同じ文書と最近使った項目を共有する。入口が lstat で存在しなければ
 同じ stem の未解決 journal があれば回復を提案し、それもなければ元の URL を渡す。
-一括展開も同じ入口を使う。即時モードと ZIP 本来の分割セットの変更拒否は維持する。
+一括展開も同じ入口を使う。即時モードの番号付き分割は上記 M6 の条件で編集し、ZIP 本来の分割セットの変更拒否は維持する。
 
 展開サービスの `NSSendFileTypes` は全 `LSItemContentTypes` の集合と一致させる。
 内部の分割巻型も集合に含めるが、その型を持つ実ファイルがないので Finder のサービス対象は増えない。
@@ -1009,7 +1059,7 @@ M3(書庫内の削除・改名)には取り消しが要る。Finder にはファ
 Finder を名乗る以上期待される。一方 `NSDocument` の編集機構は止めてあるので Cmd-Z が無い。
 実測(`Documentation/verification/2026-09-10-undo-model.md`)の上で以下に決めた。
 
-**即時モードの単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
+**単一ファイルの即時モードの単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
 編集前のファイルが自然な undo 単位になる。当初案の `NSFileVersion` は
 ファイル全体を複製するため 4 GiB 級の書庫で破綻し、entry model 上の undo stack は
 削除された byte を持たないので rename にしか使えない。即時モードではどちらも採らない。
@@ -1058,7 +1108,7 @@ UI 層でこれに伴って決めておくこと:
    ライブラリを呼ぶ前に UI で弾き、「commit してから拒否された」ではなく
    検証メッセージを見せる。
 
-> **Undo.** The unit of undo is the archive file itself, because every commit
+> **Undo.** For single-file immediate edits, the unit of undo is the archive file itself, because every commit
 > replaces the inode anyway. Both originally-surveyed options were dropped:
 > `NSFileVersion` copies the whole file into `.DocumentRevisions-V100`, which is a
 > disk bomb for the >4 GiB archives we already know exist, and an in-memory entry

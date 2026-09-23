@@ -148,8 +148,16 @@ nonisolated final class DeferredSplitSaveInteropTests: XCTestCase {
         XCTAssertFalse(fixture.document.session!.capabilities.canEdit)
         do { _ = try await fixture.document.createFolder(in: "", progress: Progress()); XCTFail("Read-only member") } catch { }
         XCTAssertEqual(try fixture.parts(), fixture.original)
-        let immediate = try ArchiveSession(url: fixture.gate)
-        XCTAssertEqual(immediate.capabilities.refusal, .splitArchive)
-        XCTAssertEqual(immediate.capabilities.readOnlyReason, String(localized: "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。"))
+        var preferences = fixture.store.preferences
+        preferences.saveBehavior = .immediate
+        fixture.store.preferences = preferences
+        try await fixture.reopen()
+        let immediate = fixture.document
+        XCTAssertEqual(immediate.saveBehavior, .immediate)
+        XCTAssertFalse(immediate.session!.capabilities.canEdit)
+        immediate.splitMutationConfirmation = { _ in XCTFail("Unwritable member"); return .alertFirstButtonReturn }
+        immediate.splitSaveHooks.willBegin = { _ in XCTFail("Unwritable member") }
+        do { _ = try await immediate.createFolder(in: "", progress: Progress()); XCTFail("Read-only") } catch { }
+        XCTAssertEqual(try fixture.parts(), fixture.original)
     }
 }

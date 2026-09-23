@@ -17,16 +17,19 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case unavailable(String)
         case temporaryCopy
         case splitArchive
+        case unevenSplitArchive
         case nativeSplitArchive
         case mixedVolumes
     }
     let mode: Mode?
     let refusal: Refusal?
     let splitSave: Bool
+    let splitIrreversible: Bool
 
-    init(mode: Mode, splitSave: Bool = false) {
+    init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false) {
         self.mode = mode
         self.splitSave = splitSave
+        self.splitIrreversible = splitIrreversible
         refusal = nil
     }
 
@@ -34,6 +37,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         mode = nil
         self.refusal = refusal
         splitSave = false
+        splitIrreversible = false
     }
 
     var canEdit: Bool { refusal == nil }
@@ -56,6 +60,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case .encrypted: String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。", bundle: bundle)
         case .temporaryCopy: String(localized: "一時的なコピーのため変更できません。", bundle: bundle)
         case .splitArchive: String(localized: "分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。", bundle: bundle)
+        case .unevenSplitArchive: String(localized: "巻サイズが揃っていない分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。", bundle: bundle)
         case .nativeSplitArchive: String(localized: "ZIP本来の分割アーカイブは変更できません。", bundle: bundle)
         case .mixedVolumes: String(localized: "分割アーカイブの巻が混在しています。", bundle: bundle)
         case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)", bundle: bundle)
@@ -79,12 +84,18 @@ nonisolated struct ArchiveCapabilities: Sendable {
     /// 呼出側（ArchiveSession の actor 内）が所有したまま呼ぶ。
     static func inspect(reader: ArchiveReader, url: URL, password: String? = nil,
                         format: KaitoKit.ArchiveFormat? = nil, splitLayout: ArchiveVolumeLayout? = nil,
-                        allowsSplitSave: Bool = false, mixedVolumes: Bool = false) -> Self {
+                        allowsSplitSave: Bool = false, allowsImmediateSplitSave: Bool = false, mixedVolumes: Bool = false) -> Self {
         if ArchiveTemporaryCopy.contains(url) { return Self(refusal: .temporaryCopy) }
         if mixedVolumes { return Self(refusal: .mixedVolumes) }
         if let layout = splitLayout ?? reader.volumeSet.map({ ArchiveVolumeLayout(volumeSet: $0) }) {
             if case .zipSpanned = layout.scheme { return Self(refusal: .nativeSplitArchive) }
             if allowsSplitSave { return inspectSplit(reader: reader, layout: layout, password: password) }
+            if allowsImmediateSplitSave {
+                let inspected = inspectSplit(reader: reader, layout: layout, password: password)
+                guard let mode = inspected.mode else { return inspected }
+                guard layout.immediateSchedule != nil else { return Self(refusal: .unevenSplitArchive) }
+                return Self(mode: mode, splitSave: true, splitIrreversible: true)
+            }
             return Self(refusal: .splitArchive)
         }
         return inspect(url: url, format: format ?? reader.format, password: password) { reader }

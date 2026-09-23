@@ -1,9 +1,11 @@
 import AppKit
+import KaitoKit
 
 /// Finder の関連付けを増やさず、アプリ内では分割巻を文書として開く。
 final class ArchiveDocumentController: NSDocumentController {
     var volumeRecoveryIndex = RecoverableWorkIndex.shared
     var volumeMetadataStore = ArchiveVolumeMetadataStore.shared
+    var volumeRecoveryError: (ArchiveVolumeOpenRecovery) -> NSError = { ArchiveVolumeOpenError(recovery: $0).presentedError }
     nonisolated static let splitVolumeType = "com.shunnag.KaitoFinder.split-volume"
 
     override func typeForContents(of url: URL) throws -> String {
@@ -16,9 +18,29 @@ final class ArchiveDocumentController: NSDocumentController {
 
     override func openDocument(withContentsOf url: URL, display displayDocument: Bool,
                                completionHandler: @escaping (NSDocument?, Bool, (any Error)?) -> Void) {
+        // Lookup must precede discovery, even while this document's publisher has hidden the gate.
+        let gate = ArchiveSplitVolume.gateURL(for: url)
+        let canonicalParent = url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL
+        let parsed = ArchiveVolumeSet.parse(fileName: url.lastPathComponent)
+        if let existing = document(for: gate) ?? documents.first(where: { document in
+            guard let source = document.fileURL,
+                  source.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL == canonicalParent,
+                  let parsed, case .numbered(let stem, _) = parsed.scheme,
+                  let sourcePart = ArchiveVolumeSet.parse(fileName: source.lastPathComponent),
+                  case .numbered(let sourceStem, _) = sourcePart.scheme else { return false }
+            return stem == sourceStem && parsed.scheme == sourcePart.scheme
+        }) {
+            if displayDocument {
+                if existing.windowControllers.isEmpty { existing.makeWindowControllers() }
+                existing.showWindows()
+            }
+            if let url = existing.fileURL { noteNewRecentDocumentURL(url) }
+            completionHandler(existing, true, nil)
+            return
+        }
         do {
             if let recovery = try ArchiveVolumeOpenRecovery.discover(url, index: volumeRecoveryIndex, metadataStore: volumeMetadataStore) {
-                completionHandler(nil, false, ArchiveVolumeOpenError(recovery: recovery))
+                completionHandler(nil, false, volumeRecoveryError(recovery))
                 return
             }
         } catch { completionHandler(nil, false, error); return }

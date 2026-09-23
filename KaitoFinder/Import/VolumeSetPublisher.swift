@@ -12,6 +12,7 @@ nonisolated struct VolumeSetTarget: @unchecked Sendable {
     let schedule: VolumePlan.Schedule
     let allowHazardousVolume: Bool
     let filePresenter: (any NSFilePresenter)?
+    var oldVolumeDisposal: VolumeOldDisposalPolicy = .trash
     var writesVolumeMetadata = false
     var additionalQuarantine: Data? = nil
 
@@ -150,11 +151,12 @@ nonisolated final class VolumeSetPublication: Sendable {
             _ = try staging.directory("old", create: true)
             let owner = journal.usesOwnerFallback ? try VolumePublishProcessIdentity.capture() : nil
             if journal.usesOwnerFallback, owner == nil { throw VolumePublishError.journalUnreadable }
-            let record = VolumePublishJournalRecord(phase: .prepared, schemeTag: "numbered", stagingName: stagingName, stem: stem, width: width,
+            var record = VolumePublishJournalRecord(phase: .prepared, schemeTag: "numbered", stagingName: stagingName, stem: stem, width: width,
                 volumeUUID: volume.uuid, hashesOldVolumes: volume.needsOldHashes,
                 usesExclusiveRenameFallback: renamer.usesFallback, oldVolumes: oldRecords, newVolumes: [],
                 oldGate: target.layout?.gateURL.lastPathComponent, newGate: plan.gateName, workName: stem, totalLength: 0,
                 createdAt: Date(), appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown", owner: owner)
+            record.oldVolumeDisposal = target.oldVolumeDisposal
             try journal.write(record)
             try staging.sync(); try parent.sync()
             try checkCancellation()
@@ -175,7 +177,8 @@ nonisolated final class VolumeSetPublication: Sendable {
     }
 
     /// S2: rewriter が URL から再構築した全巻を、編集を再生する前に照合する。
-    func verifyAssembledInput(_ volumeSet: ArchiveVolumeSet?) throws {
+    func verifyAssembledInput(_ volumeSet: ArchiveVolumeSet?, progress: Progress = Progress()) throws {
+        try ArchiveImportPlan.checkCancellation(progress)
         guard let expected = target.expected else {
             guard volumeSet == nil else { throw VolumePublishError.setChanged }
             return
@@ -185,8 +188,19 @@ nonisolated final class VolumeSetPublication: Sendable {
         } else if expected.volumes.count != 1 { throw VolumePublishError.setChanged }
         try Self.verifyExpected(target, parent: parent)
         for old in initialRecord.oldVolumes {
+            guard try old.matches(in: parent, useHash: initialRecord.hashesOldVolumes, checkCancellation: { try ArchiveImportPlan.checkCancellation(progress) }) else { throw VolumePublishError.setChanged }
+        }
+    }
+
+    /// M2 proves the original bytes before the session adopts synthetic inodes changed by rollback.
+    func restoredInputIdentity() throws -> ArchiveSetIdentity {
+        guard let layout = target.layout else { throw VolumePublishError.invalidPlan }
+        let identity = try ArchiveSetIdentity.capture(layout: layout)
+        for old in initialRecord.oldVolumes {
             guard try old.matches(in: parent, useHash: initialRecord.hashesOldVolumes) else { throw VolumePublishError.setChanged }
         }
+        guard try ArchiveSetIdentity.capture(layout: layout) == identity else { throw VolumePublishError.setChanged }
+        return identity
     }
 
     var input: ArchiveVolumeInput? {
@@ -221,7 +235,7 @@ nonisolated final class VolumeSetPublication: Sendable {
             try Self.checkSpace(requiredOutput: 0, largest: plan.largestVolume, available: operations.volumeInfo(parent).available)
             if target.writesVolumeMetadata {
                 if let layout = target.layout, try VolumePublishFS.usesAppleDouble(parent) {
-                    transaction.record.previousMetadata = try metadataStore.entry(for: layout.gateURL)?.publication
+                    transaction.record.previousMetadata = try? metadataStore.entry(for: layout.gateURL)?.publication
                 }
                 transaction.record.metadata = try ArchiveVolumeMetadata.prepare(plan: plan, schedule: target.schedule,
                     oldLayout: target.layout, work: workURL, store: metadataStore, additionalQuarantine: target.additionalQuarantine,
@@ -274,7 +288,7 @@ nonisolated final class VolumeSetPublication: Sendable {
                         do { try transaction.rollback() }
                         catch { throw VolumePublishError.rollbackIncomplete(staging.url) }
                         var disposal: VolumeDisposal = .none
-                        var cleanupFailure: String?
+                        var cleanupFailure = transaction.persistMetadataWarning(restored: true)
                         do {
                             disposal = try transaction.dispose("abandoned")
                             if case .kept = disposal { cleanupFailure = "Generated data retained" }
@@ -290,13 +304,13 @@ nonisolated final class VolumeSetPublication: Sendable {
                     // この durable な境界以降は cleanup のみ。失敗しても新しい identity を返す。
                     do {
                         identity = try ArchiveSetIdentity.capture(layout: layout)
-                        try transaction.persistMetadata()
                         try transaction.phase(.done)
                     } catch {
                         throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
                     }
                     var disposal: VolumeDisposal = .none
-                    var cleanupFailure: String?
+                    let metadataWarning = transaction.persistMetadataWarning()
+                    var cleanupFailure = metadataWarning
                     do {
                         try hook(.committed)
                         disposal = try transaction.dispose("old")
@@ -310,7 +324,7 @@ nonisolated final class VolumeSetPublication: Sendable {
                     catch { cleanupFailure = String(describing: error) }
                     return PublishedVolumeSet(gateURL: layout.gateURL, layout: layout, identity: identity,
                         oldVolumesDisposal: disposal, usedExclusiveRenameFallback: renamer.usesFallback,
-                        outcome: .committed(cleanupFailed: cleanupFailure))
+                        outcome: .committed(cleanupFailed: cleanupFailure), metadataWarning: metadataWarning)
                 }
             }
         } catch is SimulatedCrash { throw SimulatedCrash() }
@@ -375,7 +389,7 @@ nonisolated final class VolumeSetPublication: Sendable {
         }
     }
 
-    private static func checkOccupancy(plan: VolumePlan, oldCount: Int, parent: VolumePublishDirectory) throws {
+    static func checkOccupancy(plan: VolumePlan, oldCount: Int, parent: VolumePublishDirectory) throws {
         for index in oldCount...max(oldCount, plan.volumes.count) {
             try parent.requireAbsent(plan.scheme.fileName(forVolumeAt: index, count: plan.volumes.count + 1))
         }

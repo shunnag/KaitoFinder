@@ -23,6 +23,13 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
     let volumes: [Volume]
     let nextVolumeName: String?
 
+    /// Foundation constructs modification dates relative to 2001, avoiding an extra epoch rounding.
+    var modificationDate: Date {
+        let gate = volumes[0]
+        return Date(timeIntervalSinceReferenceDate: Double(gate.modificationSeconds) - 978_307_200
+                    + Double(gate.modificationNanoseconds) / 1_000_000_000)
+    }
+
     private init(volumes: [Volume], nextVolumeName: String?) {
         self.volumes = volumes
         self.nextVolumeName = nextVolumeName

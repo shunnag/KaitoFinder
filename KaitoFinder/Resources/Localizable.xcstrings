@@ -3221,167 +3221,6 @@
         }
       }
     },
-    "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。編集を続けるには、アーカイブを開き直してください。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。編集を続けるには、アーカイブを開き直してください。"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Saving failed and the original split archive was restored. Unsaved changes are retained. Reopen the archive to continue editing."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Sichern ist fehlgeschlagen; das ursprüngliche geteilte Archiv wurde wiederhergestellt. Ungesicherte Änderungen bleiben erhalten. Zum Fortsetzen der Bearbeitung das Archiv erneut öffnen."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L’enregistrement a échoué et l’archive fractionnée d’origine a été restaurée. Les modifications non enregistrées sont conservées. Rouvrez l’archive pour continuer à la modifier."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El guardado falló y se restauró el archivo comprimido dividido original. Se conservan los cambios sin guardar. Vuelva a abrir el archivo comprimido para seguir editándolo."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Il salvataggio è fallito e l’archivio diviso originale è stato ripristinato. Le modifiche non salvate sono conservate. Riapri l’archivio per continuare a modificarlo."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O salvamento falhou e o arquivo comprimido dividido original foi restaurado. As alterações não salvas foram mantidas. Reabra o arquivo compactado para continuar editando."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保存失败，已恢复原始分卷归档。未保存的更改已保留。请重新打开归档以继续编辑。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "儲存失敗，已復原原始分卷封存檔。未儲存的更動已保留。請重新打開封存檔以繼續編輯。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "저장에 실패하여 원래 분할 아카이브를 복원했습니다. 저장하지 않은 변경 사항은 유지됩니다. 계속 편집하려면 아카이브를 다시 여십시오."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "บันทึกไม่สำเร็จและคืนค่าที่เก็บถาวรแบบแบ่งส่วนเดิมแล้ว การเปลี่ยนแปลงที่ยังไม่บันทึกยังคงอยู่ เปิดไฟล์บีบอัดอีกครั้งเพื่อแก้ไขต่อ"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lưu thất bại và tệp lưu trữ chia phần gốc đã được khôi phục. Các thay đổi chưa lưu được giữ lại. Mở lại tệp lưu trữ để tiếp tục chỉnh sửa."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Penyimpanan gagal dan arsip terpisah asli dipulihkan. Perubahan yang belum disimpan tetap dipertahankan. Buka kembali arsip untuk melanjutkan pengeditan."
-          }
-        },
-        "ms" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Penyimpanan gagal dan arkib berpecah asal dipulihkan. Perubahan belum disimpan dikekalkan. Buka semula arkib untuk meneruskan penyuntingan."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "सहेजना विफल हुआ और मूल विभाजित आर्काइव बहाल कर दिया गया। बिना सहेजे बदलाव रखे गए हैं। संपादन जारी रखने के लिए आर्काइव फिर से खोलें।"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сохранение не удалось, исходный многотомный архив восстановлен. Несохранённые изменения сохранены в памяти. Чтобы продолжить редактирование, откройте архив заново."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bewaren is mislukt en het oorspronkelijke gesplitste archief is hersteld. Niet-bewaarde wijzigingen blijven behouden. Open het archief opnieuw om verder te bewerken."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zachowanie nie powiodło się; przywrócono oryginalne archiwum wieloczęściowe. Niezachowane zmiany zostały zachowane w pamięci. Otwórz archiwum ponownie, aby kontynuować edycję."
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kaydetme başarısız oldu ve özgün bölünmüş arşiv geri yüklendi. Kaydedilmemiş değişiklikler korundu. Düzenlemeye devam etmek için arşivi yeniden açın."
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sparandet misslyckades och det ursprungliga delade arkivet återställdes. Osparade ändringar finns kvar. Öppna arkivet igen för att fortsätta redigera."
-          }
-        },
-        "da" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arkivering mislykkedes, og det oprindelige opdelte komprimerede arkiv blev gendannet. Ikke-arkiverede ændringer bevares. Åbn arkivet igen for at fortsætte redigeringen."
-          }
-        },
-        "nb" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lagring mislyktes, og det opprinnelige delte arkivet ble gjenopprettet. Ulagrede endringer beholdes. Åpne arkivet på nytt for å fortsette redigeringen."
-          }
-        },
-        "fi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tallennus epäonnistui ja alkuperäinen jaettu arkisto palautettiin. Tallentamattomat muutokset säilyvät. Jatka muokkaamista avaamalla arkisto uudelleen."
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Збереження не вдалося, початковий багатотомний архів відновлено. Незбережені зміни залишено в пам’яті. Щоб продовжити редагування, знову відкрийте архів."
-          }
-        },
-        "cs" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uložení selhalo a původní rozdělený archiv byl obnoven. Neuložené změny zůstávají zachovány. Chcete-li pokračovat v úpravách, otevřete archiv znovu."
-          }
-        },
-        "pt-PT" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A gravação falhou e o arquivo dividido original foi restaurado. As alterações não guardadas foram mantidas. Volte a abrir o arquivo comprimido para continuar a editar."
-          }
-        }
-      }
-    },
     "分割アーカイブの保存を完了できませんでした。未保存の変更は保持されています。回復するまで編集できません。アーカイブを開き直してください。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -60916,6 +60755,3548 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按一下已選取的名稱來重新命名（與 Finder 相同）"
+          }
+        }
+      }
+    },
+    "巻サイズが揃っていない分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巻サイズが揃っていない分割アーカイブは、設定で「保存時にまとめて書き込む」を選ぶと編集できます。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To edit split archives with uneven volume sizes, choose “Together When Saving” in Settings."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Bearbeiten geteilter Archive mit unterschiedlichen Volumegrößen in den Einstellungen „Zusammen beim Sichern“ wählen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour modifier les archives fractionnées dont les volumes ont des tailles différentes, choisir « Ensemble à l’enregistrement » dans Réglages."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para editar archivos comprimidos divididos con volúmenes de tamaños distintos, selecciona “Juntos al guardar” en Ajustes."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per modificare archivi suddivisi con volumi di dimensioni diverse, scegli “Insieme al salvataggio” in Impostazioni."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para editar arquivos comprimidos divididos com volumes de tamanhos diferentes, escolha “Juntas ao salvar” nos Ajustes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要编辑分卷大小不一致的归档，请在设置中选择“保存时一并写入”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "若要編輯分卷大小不一致的封存檔，請在設定中選擇「儲存時一併寫入」。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "볼륨 크기가 일정하지 않은 분할 아카이브를 편집하려면 설정에서 ‘저장할 때 한꺼번에 쓰기’를 선택하십시오."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "หากต้องการแก้ไขอาร์ไคฟ์ที่แบ่งเป็นโวลุ่มขนาดไม่เท่ากัน ให้เลือก “พร้อมกันเมื่อบันทึก” ในการตั้งค่า"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Để sửa tệp lưu trữ chia phần có kích thước phần không đều, hãy chọn “Cùng lúc khi lưu” trong Cài đặt."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untuk mengedit arsip terbagi dengan ukuran volume berbeda, pilih “Bersamaan Saat Menyimpan” di Pengaturan."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untuk mengedit arkib terbahagi dengan saiz volum yang berbeza, pilih “Serentak Semasa Menyimpan” dalam Seting."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "असमान वॉल्यूम आकार वाले विभाजित आर्काइव को संपादित करने के लिए सेटिंग्ज़ में “सहेजते समय एक साथ” चुनें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Чтобы редактировать разделённые архивы с томами разного размера, выберите «Вместе при сохранении» в настройках."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kies 'Samen bij bewaren' in Instellingen om gesplitste archieven met ongelijke volumegroottes te bewerken."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aby edytować podzielone archiwa z woluminami o różnych rozmiarach, wybierz „Razem przy zachowywaniu” w Ustawieniach."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Birim boyutları eşit olmayan bölünmüş arşivleri düzenlemek için Ayarlar’da “Kaydederken Birlikte”ı seçin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Välj ”Tillsammans vid sparande” i Inställningar för att redigera delade arkiv med olika volymstorlekar."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vælg “Samlet ved arkivering” i Indstillinger for at redigere opdelte arkiver med forskellige enhedsstørrelser."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Velg «Samlet ved lagring» i Innstillinger for å redigere delte arkiver med ulike volumstørrelser."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voit muokata osiin jaettuja arkistoja, joiden taltioiden koot vaihtelevat, valitsemalla asetuksista ”Yhdessä tallennettaessa”."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Щоб редагувати розділені архіви з томами різного розміру, виберіть «Разом під час збереження» в параметрах."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chcete-li upravovat rozdělené archivy s různě velkými svazky, vyberte v Nastavení „Najednou při ukládání“."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Para editar arquivos divididos com volumes de tamanhos diferentes, selecione “Em conjunto ao guardar” nas Definições."
+          }
+        }
+      }
+    },
+    "分割アーカイブへの変更は取り消せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割アーカイブへの変更は取り消せません。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes to a split archive cannot be undone."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungen an einem geteilten Archiv können nicht widerrufen werden."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modifications d’une archive fractionnée ne peuvent pas être annulées."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los cambios en un archivo comprimido dividido no se pueden deshacer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le modifiche a un archivio suddiviso non possono essere annullate."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As alterações em um arquivo comprimido dividido não podem ser desfeitas."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对分卷归档的更改无法撤销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對分卷封存檔的更動無法還原。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분할 아카이브의 변경 사항은 실행 취소할 수 없습니다."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่สามารถเลิกทำการเปลี่ยนแปลงอาร์ไคฟ์แบบแบ่งส่วนได้"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể hoàn tác thay đổi đối với tệp lưu trữ chia phần."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perubahan pada arsip terbagi tidak dapat diurungkan."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perubahan pada arkib terbahagi tidak boleh dibuat asal."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "विभाजित आर्काइव में किए गए बदलाव पूर्ववत नहीं किए जा सकते।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменения разделённого архива нельзя отменить."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wijzigingen aan een gesplitst archief kunnen niet ongedaan worden gemaakt."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmian w podzielonym archiwum nie można cofnąć."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bölünmüş arşivdeki değişiklikler geri alınamaz."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändringar i ett delat arkiv kan inte ångras."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ændringer i et opdelt arkiv kan ikke fortrydes."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endringer i et delt arkiv kan ikke angres."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Osiin jaetun arkiston muutoksia ei voi kumota."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зміни розділеного архіву неможливо скасувати."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Změny rozděleného archivu nelze vrátit zpět."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não é possível desfazer as alterações a um arquivo dividido."
+          }
+        }
+      }
+    },
+    "すべての巻を書き直して、同じ巻サイズで分割し直します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべての巻を書き直して、同じ巻サイズで分割し直します。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All volumes will be rewritten and split again using the same volume size."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Volumes werden neu geschrieben und mit derselben Volumegröße erneut aufgeteilt."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les volumes seront réécrits et fractionnés à nouveau avec la même taille de volume."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se reescribirán todos los volúmenes y se dividirán de nuevo con el mismo tamaño de volumen."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tutti i volumi verranno riscritti e suddivisi nuovamente con la stessa dimensione dei volumi."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todos os volumes serão regravados e divididos novamente com o mesmo tamanho de volume."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将重新写入所有分卷，并按相同的分卷大小重新拆分。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將重新寫入所有分卷，並以相同的分卷大小重新分割。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 볼륨을 다시 쓰고 동일한 볼륨 크기로 다시 분할합니다."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โวลุ่มทั้งหมดจะถูกเขียนใหม่และแบ่งอีกครั้งโดยใช้ขนาดโวลุ่มเดิม"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tất cả các phần sẽ được ghi lại và chia lại với cùng kích thước phần."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semua volume akan ditulis ulang dan dibagi lagi dengan ukuran volume yang sama."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semua volum akan ditulis semula dan dibahagikan lagi menggunakan saiz volum yang sama."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सभी वॉल्यूम दोबारा लिखे जाएँगे और उसी वॉल्यूम आकार में फिर से विभाजित किए जाएँगे।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все тома будут перезаписаны и снова разделены с прежним размером тома."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle volumes worden herschreven en opnieuw gesplitst met dezelfde volumegrootte."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wszystkie woluminy zostaną zapisane ponownie i podzielone przy użyciu tego samego rozmiaru woluminu."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tüm birimler yeniden yazılıp aynı birim boyutuyla tekrar bölünecek."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alla volymer skrivs om och delas igen med samma volymstorlek."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle enheder omskrives og opdeles igen med samme enhedsstørrelse."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle volumene skrives på nytt og deles igjen med samme volumstørrelse."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaikki taltiot kirjoitetaan uudelleen ja jaetaan samalla taltiokoolla."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Усі томи буде перезаписано й знову розділено з тим самим розміром тому."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Všechny svazky se přepíšou a znovu rozdělí se stejnou velikostí svazku."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Todos os volumes serão reescritos e divididos novamente com o mesmo tamanho de volume."
+          }
+        }
+      }
+    },
+    "変更" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändern"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alterar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변경"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปลี่ยน"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thay đổi"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ubah"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ubah"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "बदलें"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменить"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wijzig"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmień"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Değiştir"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändra"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skift"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endre"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muuta"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Змінити"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Změnit"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alterar"
+          }
+        }
+      }
+    },
+    "今後、このアーカイブでは確認しない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今後、このアーカイブでは確認しない"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do not ask again for this archive"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für dieses Archiv nicht erneut fragen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne plus demander pour cette archive"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No volver a preguntar para este archivo comprimido"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non chiedere più per questo archivio"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não perguntar novamente para este arquivo comprimido"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再对此归档询问"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再詢問此封存檔"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 아카이브에 대해 다시 묻지 않기"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่ต้องถามอีกสำหรับอาร์ไคฟ์นี้"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không hỏi lại đối với tệp lưu trữ này"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jangan tanya lagi untuk arsip ini"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jangan tanya lagi untuk arkib ini"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस आर्काइव के लिए दोबारा न पूछें"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Больше не спрашивать для этого архива"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vraag niet opnieuw voor dit archief"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie pytaj ponownie dla tego archiwum"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu arşiv için tekrar sorma"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fråga inte igen för detta arkiv"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spørg ikke igen for dette arkiv"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikke spør igjen for dette arkivet"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Älä kysy uudelleen tästä arkistosta"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Більше не запитувати для цього архіву"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro tento archiv se již neptat"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não voltar a perguntar para este arquivo"
+          }
+        }
+      }
+    },
+    "分割:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割:"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Split:"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufteilen:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fractionnement :"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dividir:"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suddivisione:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dividir:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分卷："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分卷："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분할:"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "แบ่งส่วน:"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chia phần:"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bagi:"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bahagi:"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "विभाजन:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разделение:"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Splitsen:"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podział:"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bölme:"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dela:"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opdeling:"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deling:"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jakaminen:"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Розділення:"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rozdělení:"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dividir:"
+          }
+        }
+      }
+    },
+    "しない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "しない"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht aufteilen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No dividir"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não dividir"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不分卷"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不分卷"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "안 함"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่แบ่ง"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không chia"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jangan bagi"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jangan bahagi"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "नहीं"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niet splitsen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bez podziału"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yok"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen delning"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ingen"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ei jakoa"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Немає"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Žádné"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não dividir"
+          }
+        }
+      }
+    },
+    "元と同じ（%@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元と同じ（%@）"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same as Original (%@)"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie Original (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comme l’original (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Igual que el original (%@)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Come l’originale (%@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Igual ao original (%@)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "与原来相同（%@）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與原來相同（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원본과 동일(%@)"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เหมือนต้นฉบับ (%@)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giống bản gốc (%@)"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sama dengan Asli (%@)"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sama seperti Asal (%@)"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "मूल के समान (%@)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Как в оригинале (%@)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zelfde als origineel (%@)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jak w oryginale (%@)"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Özgünle Aynı (%@)"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Samma som original (%@)"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Som originalen (%@)"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Som originalen (%@)"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sama kuin alkuperäinen (%@)"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Як в оригіналі (%@)"
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stejné jako originál (%@)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Igual ao original (%@)"
+          }
+        }
+      }
+    },
+    "同じ名前の分割ファイルが既にあります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ名前の分割ファイルが既にあります。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Split files with the same name already exist."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geteilte Dateien mit demselben Namen sind bereits vorhanden."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Des fichiers fractionnés portant le même nom existent déjà."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya existen archivos divididos con el mismo nombre."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esistono già file suddivisi con lo stesso nome."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Já existem arquivos divididos com o mesmo nome."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已存在同名的分卷文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已存在同名的分卷檔案。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "같은 이름의 분할 파일이 이미 있습니다."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "มีไฟล์แบ่งส่วนชื่อเดียวกันอยู่แล้ว"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã có các tệp chia phần cùng tên."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File terbagi dengan nama yang sama sudah ada."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fail terbahagi dengan nama yang sama sudah wujud."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इसी नाम की विभाजित फ़ाइलें पहले से मौजूद हैं।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разделённые файлы с таким именем уже существуют."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er bestaan al gesplitste bestanden met dezelfde naam."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podzielone pliki o tej samej nazwie już istnieją."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aynı ada sahip bölünmüş dosyalar zaten var."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delade filer med samma namn finns redan."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der findes allerede opdelte filer med samme navn."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delte filer med samme navn finnes allerede."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Samannimisiä osiin jaettuja tiedostoja on jo olemassa."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Розділені файли з таким іменем уже існують."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rozdělené soubory se stejným názvem již existují."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Já existem ficheiros divididos com o mesmo nome."
+          }
+        }
+      }
+    },
+    "分割アーカイブの保存を完了できませんでした。回復するまで編集できません。アーカイブを開き直してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割アーカイブの保存を完了できませんでした。回復するまで編集できません。アーカイブを開き直してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The split archive save couldn’t be completed. Editing is disabled until recovery. Reopen the archive."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Sichern des geteilten Archivs konnte nicht abgeschlossen werden. Bearbeiten ist bis zur Wiederherstellung gesperrt. Das Archiv erneut öffnen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’enregistrement de l’archive fractionnée n’a pas pu être terminé. La modification est désactivée jusqu’à la récupération. Rouvrir l’archive."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo completar el guardado del archivo comprimido dividido. La edición está desactivada hasta la recuperación. Vuelve a abrir el archivo comprimido."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile completare il salvataggio dell’archivio diviso. La modifica è disabilitata fino al recupero. Riapri l’archivio."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir o salvamento do arquivo comprimido dividido. A edição está desativada até a recuperação. Reabra o arquivo comprimido."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法完成分卷归档的保存。恢复前无法编辑。请重新打开归档。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法完成分卷封存檔的儲存。復原前無法編輯。請重新開啟封存檔。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분할 아카이브 저장을 완료하지 못했습니다. 복구 전에는 편집할 수 없습니다. 아카이브를 다시 여십시오."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่สามารถบันทึกที่เก็บถาวรแบบแบ่งส่วนให้เสร็จได้ แก้ไขไม่ได้จนกว่าจะกู้คืน โปรดเปิดที่เก็บถาวรอีกครั้ง"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể hoàn tất việc lưu tệp lưu trữ chia phần. Không thể sửa trước khi khôi phục. Hãy mở lại tệp lưu trữ."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan arsip terpisah tidak dapat diselesaikan. Pengeditan dinonaktifkan hingga pemulihan. Buka kembali arsip."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan arkib berpecah tidak dapat dilengkapkan. Penyuntingan dilumpuhkan sehingga pemulihan. Buka semula arkib."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "विभाजित आर्काइव सहेजना पूरा नहीं हो सका। पुनर्प्राप्ति तक संपादन बंद है। आर्काइव फिर खोलें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось завершить сохранение многотомного архива. Редактирование отключено до восстановления. Откройте архив заново."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het bewaren van het gesplitste archief kon niet worden voltooid. Bewerken is uitgeschakeld tot herstel. Open het archief opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się dokończyć zachowywania archiwum wieloczęściowego. Edycja jest wyłączona do odzyskania danych. Otwórz archiwum ponownie."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bölünmüş arşivin kaydedilmesi tamamlanamadı. Kurtarma yapılana kadar düzenleme devre dışı. Arşivi yeniden açın."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det delade arkivet kunde inte sparas färdigt. Redigering är inaktiverad tills återställning sker. Öppna arkivet igen."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkivering af det opdelte komprimerede arkiv kunne ikke fuldføres. Redigering er deaktiveret indtil gendannelse. Åbn arkivet igen."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lagring av det delte arkivet kunne ikke fullføres. Redigering er deaktivert til gjenoppretting. Åpne arkivet på nytt."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaetun arkiston tallennusta ei voitu viimeistellä. Muokkaus on estetty palautukseen asti. Avaa arkisto uudelleen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося завершити збереження багатотомного архіву. Редагування вимкнено до відновлення. Відкрийте архів знову."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ukládání rozděleného archivu se nepodařilo dokončit. Úpravy jsou do obnovy vypnuté. Otevři archiv znovu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir a gravação do arquivo dividido. A edição está desativada até à recuperação. Volta a abrir o arquivo."
+          }
+        }
+      }
+    },
+    "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。もう一度保存してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存できなかったため、元の分割アーカイブに戻しました。未保存の変更は保持されています。もう一度保存してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The save failed, so the original split archive was restored. Unsaved changes have been kept. Try saving again."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Speichern ist fehlgeschlagen. Das ursprüngliche geteilte Archiv wurde wiederhergestellt. Ungespeicherte Änderungen bleiben erhalten. Erneut speichern."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’enregistrement a échoué. L’archive fractionnée d’origine a été restaurée. Les modifications non enregistrées sont conservées. Réessayez d’enregistrer."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo guardar y se restauró el archivo comprimido dividido original. Se conservan los cambios sin guardar. Intenta guardar de nuevo."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il salvataggio non è riuscito. L’archivio suddiviso originale è stato ripristinato. Le modifiche non salvate sono conservate. Riprova a salvare."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar. O arquivo compactado dividido original foi restaurado. As alterações não salvas foram mantidas. Tente salvar novamente."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存失败，已恢复原来的分卷压缩包。未保存的更改已保留。请重新保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存失敗，已還原原來的分卷壓縮檔。未儲存的更動已保留。請重新儲存。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장하지 못해 원래 분할 압축 파일로 복원했습니다. 저장하지 않은 변경 사항은 유지됩니다. 다시 저장해 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บันทึกไม่สำเร็จ จึงคืนค่าไฟล์บีบอัดแบบแบ่งส่วนต้นฉบับแล้ว การเปลี่ยนแปลงที่ยังไม่ได้บันทึกยังคงอยู่ โปรดลองบันทึกอีกครั้ง"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu thất bại nên đã khôi phục tệp nén chia phần ban đầu. Các thay đổi chưa lưu vẫn được giữ. Hãy thử lưu lại."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan gagal, jadi arsip terbagi asli telah dipulihkan. Perubahan yang belum disimpan tetap dipertahankan. Coba simpan lagi."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simpanan gagal, jadi arkib terbahagi asal telah dipulihkan. Perubahan yang belum disimpan dikekalkan. Cuba simpan semula."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सहेजना विफल होने पर मूल विभाजित संग्रह बहाल कर दिया गया। न सहेजे गए बदलाव रखे गए हैं। फिर से सहेजें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить. Исходный многотомный архив восстановлен. Несохранённые изменения сохранены в памяти. Попробуйте сохранить ещё раз."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslaan is mislukt. Het oorspronkelijke gesplitste archief is hersteld. Niet-opgeslagen wijzigingen zijn bewaard. Probeer opnieuw op te slaan."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapis się nie powiódł. Przywrócono oryginalne archiwum wieloczęściowe. Niezapisane zmiany zostały zachowane. Spróbuj zapisać ponownie."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydetme başarısız oldu ve özgün bölünmüş arşiv geri yüklendi. Kaydedilmemiş değişiklikler korundu. Yeniden kaydetmeyi deneyin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det gick inte att spara. Det ursprungliga uppdelade arkivet har återställts. Osparade ändringar finns kvar. Försök spara igen."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke gemme. Det oprindelige opdelte arkiv er gendannet. Ikke-gemte ændringer er bevaret. Prøv at gemme igen."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke lagre. Det opprinnelige oppdelte arkivet er gjenopprettet. Ulagrede endringer er beholdt. Prøv å lagre igjen."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tallennus epäonnistui. Alkuperäinen jaettu arkisto palautettiin. Tallentamattomat muutokset säilytettiin. Yritä tallentaa uudelleen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося зберегти. Відновлено початковий багатотомний архів. Незбережені зміни залишилися в пам’яті. Спробуйте зберегти ще раз."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uložení selhalo. Původní rozdělený archiv byl obnoven. Neuložené změny jsou zachovány. Zkuste uložit znovu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível guardar. O arquivo comprimido dividido original foi restaurado. As alterações não guardadas foram mantidas. Tente guardar novamente."
+          }
+        }
+      }
+    },
+    "保存できなかったため、元の分割アーカイブに戻しました。もう一度変更してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存できなかったため、元の分割アーカイブに戻しました。もう一度変更してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The save failed, so the original split archive was restored. Try the change again."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Speichern ist fehlgeschlagen. Das ursprüngliche geteilte Archiv wurde wiederhergestellt. Die Änderung erneut versuchen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’enregistrement a échoué. L’archive fractionnée d’origine a été restaurée. Réessayez la modification."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo guardar y se restauró el archivo comprimido dividido original. Intenta realizar el cambio de nuevo."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il salvataggio non è riuscito. L’archivio suddiviso originale è stato ripristinato. Riprova la modifica."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar. O arquivo compactado dividido original foi restaurado. Tente fazer a alteração novamente."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存失败，已恢复原来的分卷压缩包。请重新进行更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存失敗，已還原原來的分卷壓縮檔。請重新進行更動。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장하지 못해 원래 분할 압축 파일로 복원했습니다. 변경을 다시 시도해 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บันทึกไม่สำเร็จ จึงคืนค่าไฟล์บีบอัดแบบแบ่งส่วนต้นฉบับแล้ว โปรดลองเปลี่ยนแปลงอีกครั้ง"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu thất bại nên đã khôi phục tệp nén chia phần ban đầu. Hãy thử thay đổi lại."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan gagal, jadi arsip terbagi asli telah dipulihkan. Coba lakukan perubahan lagi."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simpanan gagal, jadi arkib terbahagi asal telah dipulihkan. Cuba buat perubahan semula."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सहेजना विफल होने पर मूल विभाजित संग्रह बहाल कर दिया गया। बदलाव फिर से करें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить. Исходный многотомный архив восстановлен. Повторите изменение."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslaan is mislukt. Het oorspronkelijke gesplitste archief is hersteld. Probeer de wijziging opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapis się nie powiódł. Przywrócono oryginalne archiwum wieloczęściowe. Spróbuj ponownie wprowadzić zmianę."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydetme başarısız oldu ve özgün bölünmüş arşiv geri yüklendi. Değişikliği yeniden deneyin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det gick inte att spara. Det ursprungliga uppdelade arkivet har återställts. Försök göra ändringen igen."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke gemme. Det oprindelige opdelte arkiv er gendannet. Prøv ændringen igen."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke lagre. Det opprinnelige oppdelte arkivet er gjenopprettet. Prøv endringen igjen."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tallennus epäonnistui. Alkuperäinen jaettu arkisto palautettiin. Yritä muutosta uudelleen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося зберегти. Відновлено початковий багатотомний архів. Спробуйте внести зміну ще раз."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uložení selhalo. Původní rozdělený archiv byl obnoven. Zkuste změnu provést znovu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível guardar. O arquivo comprimido dividido original foi restaurado. Tente fazer a alteração novamente."
+          }
+        }
+      }
+    },
+    "このアーカイブの作業ファイルはFAT32の上限を超えます。APFSまたはexFATのディスクに保存してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアーカイブの作業ファイルはFAT32の上限を超えます。APFSまたはexFATのディスクに保存してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The work file for this archive exceeds the FAT32 limit. Save to an APFS or exFAT disk."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Arbeitsdatei für dieses Archiv überschreitet die FAT32-Grenze. Auf einem APFS- oder exFAT-Laufwerk speichern."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fichier de travail de cette archive dépasse la limite de FAT32. Enregistrez sur un disque APFS ou exFAT."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El archivo de trabajo de este archivo comprimido supera el límite de FAT32. Guarda en un disco APFS o exFAT."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il file di lavoro di questo archivio supera il limite di FAT32. Salva su un disco APFS o exFAT."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O arquivo de trabalho deste arquivo compactado excede o limite do FAT32. Salve em um disco APFS ou exFAT."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此压缩包的工作文件超出了FAT32的限制。请保存到APFS或exFAT磁盘。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此壓縮檔的工作檔案超過FAT32的限制。請儲存到APFS或exFAT磁碟。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 압축 파일의 작업 파일이 FAT32의 한도를 초과합니다. APFS 또는 exFAT 디스크에 저장해 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไฟล์ทำงานของไฟล์บีบอัดนี้เกินขีดจำกัดของ FAT32 โปรดบันทึกลงดิสก์ APFS หรือ exFAT"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tệp làm việc của tệp nén này vượt giới hạn FAT32. Hãy lưu vào ổ đĩa APFS hoặc exFAT."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Berkas kerja arsip ini melampaui batas FAT32. Simpan ke disk APFS atau exFAT."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fail kerja arkib ini melebihi had FAT32. Simpan pada cakera APFS atau exFAT."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस संग्रह की कार्य फ़ाइल FAT32 की सीमा से बड़ी है। APFS या exFAT डिस्क पर सहेजें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рабочий файл этого архива превышает предел FAT32. Сохраните на диск APFS или exFAT."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het werkbestand voor dit archief overschrijdt de FAT32-limiet. Sla op een APFS- of exFAT-schijf op."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plik roboczy tego archiwum przekracza limit FAT32. Zapisz na dysku APFS lub exFAT."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu arşivin çalışma dosyası FAT32 sınırını aşıyor. Bir APFS veya exFAT diske kaydedin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbetsfilen för det här arkivet överskrider FAT32-gränsen. Spara på en APFS- eller exFAT-disk."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbejdsfilen for dette arkiv overskrider FAT32-grænsen. Gem på en APFS- eller exFAT-disk."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeidsfilen for dette arkivet overskrider FAT32-grensen. Lagre på en APFS- eller exFAT-disk."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tämän arkiston työtiedosto ylittää FAT32-rajan. Tallenna APFS- tai exFAT-levylle."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Робочий файл цього архіву перевищує обмеження FAT32. Збережіть на диск APFS або exFAT."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pracovní soubor tohoto archivu překračuje limit FAT32. Uložte jej na disk APFS nebo exFAT."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O ficheiro de trabalho deste arquivo comprimido excede o limite do FAT32. Guarde num disco APFS ou exFAT."
+          }
+        }
+      }
+    },
+    "保存先の空き容量が足りません。空き容量を増やすか、別の場所に保存してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存先の空き容量が足りません。空き容量を増やすか、別の場所に保存してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is not enough space at the destination. Free up space or save somewhere else."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Am Ziel ist nicht genug Speicherplatz verfügbar. Speicherplatz freigeben oder einen anderen Ort wählen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’espace disponible à destination est insuffisant. Libérez de l’espace ou enregistrez ailleurs."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay suficiente espacio en el destino. Libera espacio o guarda en otro lugar."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo spazio nella destinazione non è sufficiente. Libera spazio o salva altrove."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não há espaço suficiente no destino. Libere espaço ou salve em outro local."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目标位置的可用空间不足。请释放空间或保存到其他位置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目的地的可用空間不足。請釋出空間或儲存到其他位置。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "대상 위치의 여유 공간이 부족합니다. 공간을 확보하거나 다른 위치에 저장해 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "พื้นที่ว่างที่ปลายทางไม่เพียงพอ โปรดเพิ่มพื้นที่ว่างหรือบันทึกที่อื่น"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đích không đủ dung lượng trống. Hãy giải phóng dung lượng hoặc lưu ở nơi khác."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruang kosong di tujuan tidak cukup. Kosongkan ruang atau simpan di tempat lain."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruang kosong di destinasi tidak mencukupi. Kosongkan ruang atau simpan di tempat lain."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "गंतव्य पर पर्याप्त खाली जगह नहीं है। जगह खाली करें या कहीं और सहेजें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В месте назначения недостаточно свободного пространства. Освободите место или сохраните в другом месте."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er is onvoldoende vrije ruimte op de bestemming. Maak ruimte vrij of sla ergens anders op."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Za mało wolnego miejsca w lokalizacji docelowej. Zwolnij miejsce lub zapisz gdzie indziej."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hedefte yeterli boş alan yok. Yer açın veya başka bir yere kaydedin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det finns inte tillräckligt med ledigt utrymme på målet. Frigör utrymme eller spara någon annanstans."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der er ikke nok ledig plads på destinationen. Frigør plads, eller gem et andet sted."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det er ikke nok ledig plass på målet. Frigjør plass eller lagre et annet sted."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kohteessa ei ole tarpeeksi vapaata tilaa. Vapauta tilaa tai tallenna muualle."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "У місці призначення недостатньо вільного простору. Звільніть місце або збережіть деінде."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "V cílovém umístění není dostatek volného místa. Uvolněte místo nebo uložte jinam."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não há espaço suficiente no destino. Liberte espaço ou guarde noutro local."
+          }
+        }
+      }
+    },
+    "保存できませんでした。設定、保存先のアクセス権と空き容量を確認して、もう一度試してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存できませんでした。設定、保存先のアクセス権と空き容量を確認して、もう一度試してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not save. Check the settings, destination permissions and free space, then try again."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speichern fehlgeschlagen. Einstellungen, Zugriffsrechte und freien Speicherplatz am Ziel prüfen und erneut versuchen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement impossible. Vérifiez les réglages, les autorisations et l’espace libre à destination, puis réessayez."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo guardar. Comprueba los ajustes, los permisos y el espacio libre del destino y vuelve a intentarlo."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile salvare. Controlla le impostazioni, i permessi e lo spazio libero nella destinazione, quindi riprova."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível salvar. Verifique os ajustes, as permissões e o espaço livre no destino e tente novamente."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存。请检查设置、目标位置的访问权限和可用空间，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存。請檢查設定、目的地的存取權限和可用空間，然後再試一次。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장할 수 없습니다. 설정과 대상 위치의 접근 권한 및 여유 공간을 확인한 후 다시 시도해 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บันทึกไม่ได้ โปรดตรวจสอบการตั้งค่า สิทธิ์เข้าถึงและพื้นที่ว่างที่ปลายทาง แล้วลองอีกครั้ง"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể lưu. Hãy kiểm tra cài đặt, quyền truy cập và dung lượng trống tại đích rồi thử lại."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat menyimpan. Periksa pengaturan, izin akses dan ruang kosong di tujuan, lalu coba lagi."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat menyimpan. Semak tetapan, kebenaran akses dan ruang kosong di destinasi, kemudian cuba lagi."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सहेजा नहीं जा सका। सेटिंग, गंतव्य की अनुमतियाँ और खाली जगह जाँचें, फिर दोबारा कोशिश करें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить. Проверьте настройки, права доступа и свободное место в папке назначения и повторите попытку."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opslaan mislukt. Controleer de instellingen, toegangsrechten en vrije ruimte op de bestemming en probeer het opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można zapisać. Sprawdź ustawienia, uprawnienia i wolne miejsce w lokalizacji docelowej, a następnie spróbuj ponownie."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kaydedilemedi. Ayarları, hedefin erişim izinlerini ve boş alanını kontrol edip yeniden deneyin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunde inte spara. Kontrollera inställningarna, behörigheterna och det lediga utrymmet på målet och försök igen."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke gemme. Kontroller indstillingerne, adgangsrettighederne og den ledige plads på destinationen, og prøv igen."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke lagre. Kontroller innstillingene, tilgangsrettighetene og ledig plass på målet, og prøv igjen."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tallennus epäonnistui. Tarkista asetukset, kohteen käyttöoikeudet ja vapaa tila ja yritä uudelleen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося зберегти. Перевірте налаштування, дозволи доступу й вільне місце в папці призначення та повторіть спробу."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nelze uložit. Zkontrolujte nastavení, přístupová práva a volné místo v cíli a zkuste to znovu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível guardar. Verifique as definições, as permissões e o espaço livre no destino e tente novamente."
+          }
+        }
+      }
+    },
+    "巻サイズの設定を記録できませんでした。次回開くときに巻サイズを確認してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "巻サイズの設定を記録できませんでした。次回開くときに巻サイズを確認してください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not record the volume size setting. Check the volume size the next time you open the files."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Einstellung der Teilgröße konnte nicht gespeichert werden. Die Teilgröße beim nächsten Öffnen prüfen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de mémoriser la taille des volumes. Vérifiez cette taille à la prochaine ouverture."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo registrar el tamaño de los volúmenes. Compruébalo la próxima vez que abras los archivos."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile memorizzare la dimensione dei volumi. Controllala alla prossima apertura."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível registrar o tamanho dos volumes. Verifique o tamanho na próxima vez que abrir os arquivos."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法记录分卷大小设置。下次打开时请检查分卷大小。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法記錄分卷大小設定。下次開啟時請檢查分卷大小。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "볼륨 크기 설정을 기록할 수 없습니다. 다음에 열 때 볼륨 크기를 확인해 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บันทึกการตั้งค่าขนาดส่วนไม่ได้ โปรดตรวจสอบขนาดส่วนเมื่อเปิดครั้งถัดไป"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể ghi lại cài đặt kích thước phần. Hãy kiểm tra kích thước phần khi mở lần sau."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat mencatat pengaturan ukuran volume. Periksa ukuran volume saat membuka berkas lagi."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat merekodkan tetapan saiz volum. Semak saiz volum apabila membuka fail semula."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "खंड के आकार की सेटिंग दर्ज नहीं की जा सकी। अगली बार खोलते समय खंड का आकार जाँचें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось записать настройку размера томов. Проверьте размер томов при следующем открытии."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De instelling voor de volumegrootte kon niet worden bewaard. Controleer de volumegrootte bij de volgende keer openen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można zapisać ustawienia rozmiaru części. Sprawdź rozmiar części przy następnym otwarciu."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bölüm boyutu ayarı kaydedilemedi. Bir sonraki açışınızda bölüm boyutunu kontrol edin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunde inte spara inställningen för volymstorlek. Kontrollera volymstorleken nästa gång filerna öppnas."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke registrere indstillingen for delstørrelse. Kontroller delstørrelsen, næste gang filerne åbnes."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke registrere innstillingen for delstørrelse. Kontroller delstørrelsen neste gang filene åpnes."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Osan kokoasetusta ei voitu tallentaa. Tarkista osan koko seuraavalla avauskerralla."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося записати налаштування розміру томів. Перевірте розмір томів під час наступного відкриття."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nelze zaznamenat nastavení velikosti dílů. Při příštím otevření zkontrolujte velikost dílů."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível registar a definição do tamanho dos volumes. Verifique o tamanho da próxima vez que abrir os ficheiros."
+          }
+        }
+      }
+    },
+    "別の保存または回復処理中です。しばらくしてからもう一度開いてください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の保存または回復処理中です。しばらくしてからもう一度開いてください。"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another save or recovery is in progress. Wait a moment, then try opening again."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein anderer Speicher- oder Wiederherstellungsvorgang läuft. Kurz warten und erneut öffnen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre enregistrement ou une récupération est en cours. Patientez, puis réessayez d’ouvrir."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay otra operación de guardado o recuperación en curso. Espera un momento e intenta abrir de nuevo."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "È in corso un altro salvataggio o recupero. Attendi un momento e riprova ad aprire."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Há outro salvamento ou recuperação em andamento. Aguarde um momento e tente abrir novamente."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一项保存或恢复操作正在进行。请稍候再尝试打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一項儲存或復原作業正在進行。請稍候再嘗試開啟。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 저장 또는 복구가 진행 중입니다. 잠시 기다린 후 다시 열어 주세요."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังบันทึกหรือกู้คืนรายการอื่น โปรดรอสักครู่แล้วลองเปิดอีกครั้ง"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang có thao tác lưu hoặc khôi phục khác. Hãy đợi một lát rồi thử mở lại."
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan atau pemulihan lain sedang berlangsung. Tunggu sebentar, lalu coba buka lagi."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simpanan atau pemulihan lain sedang berjalan. Tunggu sebentar, kemudian cuba buka semula."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कोई अन्य सहेजने या बहाल करने की प्रक्रिया चल रही है। कुछ देर रुककर फिर से खोलें।"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уже выполняется другое сохранение или восстановление. Подождите немного и попробуйте открыть снова."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er wordt al opgeslagen of hersteld. Wacht even en probeer opnieuw te openen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trwa inny zapis lub odzyskiwanie. Poczekaj chwilę i spróbuj otworzyć ponownie."
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başka bir kaydetme veya kurtarma işlemi sürüyor. Biraz bekleyip yeniden açmayı deneyin."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En annan sparning eller återställning pågår. Vänta en stund och försök öppna igen."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En anden lagring eller gendannelse er i gang. Vent et øjeblik, og prøv at åbne igen."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En annen lagring eller gjenoppretting pågår. Vent litt og prøv å åpne igjen."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toinen tallennus tai palautus on käynnissä. Odota hetki ja yritä avata uudelleen."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Триває інше збереження або відновлення. Зачекайте трохи й спробуйте відкрити знову."
+          }
+        },
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probíhá jiné ukládání nebo obnova. Chvíli počkejte a zkuste otevřít znovu."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está em curso outra operação de gravação ou recuperação. Aguarde um momento e tente abrir novamente."
+          }
+        }
+      }
+    },
+    "分割数が上限（128）を超えるため変更できません。「別名で保存」で巻サイズを大きくしてください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Změna by překročila limit 128 svazků. V nabídce Uložit jako zvolte větší velikost svazku."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ændringen ville overskride grænsen på 128 dele. Vælg en større delstørrelse via Gem som."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Änderung würde das Limit von 128 Teilen überschreiten. Unter „Sichern unter“ eine größere Teilgröße wählen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The change would exceed the limit of 128 volumes. Use Save As to choose a larger volume size."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El cambio superaría el límite de 128 volúmenes. Elige un tamaño de volumen mayor en Guardar como."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muutos ylittäisi 128 osan rajan. Valitse suurempi osakoko Tallenna nimellä -toiminnolla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modification dépasserait la limite de 128 volumes. Choisir une taille de volume supérieure dans « Enregistrer sous »."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "बदलाव से 128 भागों की सीमा पार हो जाएगी। बड़े भाग का आकार चुनने के लिए इस रूप में सहेजें का उपयोग करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perubahan akan melebihi batas 128 volume. Gunakan Simpan Sebagai untuk memilih ukuran volume yang lebih besar."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La modifica supererebbe il limite di 128 volumi. Scegli una dimensione maggiore per i volumi in Salva con nome."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割数が上限（128）を超えるため変更できません。「別名で保存」で巻サイズを大きくしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변경하면 최대 128개 볼륨을 초과합니다. 별도 저장에서 더 큰 볼륨 크기를 선택해 주세요."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perubahan akan melebihi had 128 jilid. Gunakan Simpan Sebagai untuk memilih saiz jilid yang lebih besar."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endringen ville overskride grensen på 128 volumer. Velg en større volumstørrelse via Arkiver som."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De wijziging zou de limiet van 128 volumes overschrijden. Kies een grotere volumegrootte via Bewaar als."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmiana przekroczyłaby limit 128 części. Wybierz większy rozmiar części w opcji Zachowaj jako."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A alteração excederia o limite de 128 volumes. Use Salvar Como para escolher um tamanho de volume maior."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A alteração excederia o limite de 128 volumes. Use Guardar como para escolher um tamanho de volume maior."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменение превысит предел в 128 томов. Выберите больший размер тома через «Сохранить как»."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändringen skulle överskrida gränsen på 128 volymer. Välj en större volymstorlek via Spara som."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การเปลี่ยนแปลงจะเกินขีดจำกัด 128 ส่วน ใช้บันทึกเป็นเพื่อเลือกขนาดส่วนที่ใหญ่ขึ้น"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Değişiklik 128 birim sınırını aşacak. Farklı Kaydet ile daha büyük bir birim boyutu seçin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Зміна перевищить обмеження у 128 томів. Виберіть більший розмір тому через «Зберегти як»."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thay đổi sẽ vượt quá giới hạn 128 phần. Dùng Lưu thành để chọn kích thước phần lớn hơn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改将超过128个分卷的上限。请使用“另存为”选择更大的分卷大小。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改將超過128個分卷的上限。請使用「另存新檔」選擇較大的分卷大小。"
+          }
+        }
+      }
+    },
+    "別の保存または回復処理中です。しばらくしてからもう一度変更してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probíhá jiné ukládání nebo obnova. Chvíli počkejte a zkuste změnu znovu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En anden lagring eller gendannelse er i gang. Vent et øjeblik, og prøv ændringen igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein anderer Speicher- oder Wiederherstellungsvorgang läuft. Kurz warten und die Änderung erneut versuchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another save or recovery is in progress. Wait a moment, then try the change again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay otro guardado o recuperación en curso. Espera un momento y vuelve a intentar el cambio."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toinen tallennus tai palautus on käynnissä. Odota hetki ja yritä muutosta uudelleen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un autre enregistrement ou une récupération est en cours. Patienter un instant, puis réessayer la modification."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कोई अन्य सहेजने या पुनर्प्राप्ति की प्रक्रिया चल रही है। थोड़ा रुकें, फिर बदलाव का प्रयास करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan atau pemulihan lain sedang berlangsung. Tunggu sebentar, lalu coba perubahan lagi."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "È in corso un altro salvataggio o recupero. Attendi un momento e riprova la modifica."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の保存または回復処理中です。しばらくしてからもう一度変更してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 저장 또는 복구 작업이 진행 중입니다. 잠시 후 변경을 다시 시도해 주세요."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan atau pemulihan lain sedang berlangsung. Tunggu sebentar, kemudian cuba perubahan semula."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En annen lagring eller gjenoppretting pågår. Vent litt, og prøv endringen på nytt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er wordt al bewaard of hersteld. Wacht even en probeer de wijziging opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trwa inne zapisywanie lub odzyskiwanie. Poczekaj chwilę i ponów zmianę."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outro salvamento ou recuperação está em andamento. Aguarde um momento e tente a alteração novamente."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está em curso outra gravação ou recuperação. Aguarde um momento e tente a alteração novamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выполняется другое сохранение или восстановление. Подождите немного и повторите изменение."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En annan sparning eller återställning pågår. Vänta en stund och försök göra ändringen igen."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังบันทึกหรือกู้คืนรายการอื่นอยู่ โปรดรอสักครู่แล้วลองเปลี่ยนแปลงอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başka bir kaydetme veya kurtarma işlemi sürüyor. Biraz bekleyip değişikliği yeniden deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Триває інше збереження або відновлення. Зачекайте трохи та повторіть зміну."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một thao tác lưu hoặc khôi phục khác đang diễn ra. Hãy chờ một lát rồi thử thay đổi lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在进行其他保存或恢复操作。请稍候再尝试更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在進行其他儲存或復原作業。請稍候再嘗試更改。"
+          }
+        }
+      }
+    },
+    "変更のためのファイル調整が時間切れになりました。原本は変更されていません。もう一度変更してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vypršel časový limit koordinace souborů pro změnu. Originál se nezměnil. Zkuste změnu znovu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidsgrænsen for filkoordinering af ændringen blev overskredet. Originalen er uændret. Prøv ændringen igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Dateikoordination für die Änderung hat das Zeitlimit überschritten. Das Original ist unverändert. Die Änderung erneut versuchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File coordination for the change timed out. The original is unchanged. Try the change again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se agotó el tiempo de coordinación de archivos para el cambio. El original no ha cambiado. Intenta el cambio de nuevo."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muutoksen tiedostokoordinointi aikakatkaistiin. Alkuperäinen on ennallaan. Yritä muutosta uudelleen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La coordination des fichiers pour la modification a expiré. L’original est inchangé. Réessayer la modification."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "बदलाव के लिए फ़ाइल समन्वय का समय समाप्त हो गया। मूल फ़ाइल बदली नहीं गई है। बदलाव का फिर से प्रयास करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koordinasi file untuk perubahan kehabisan waktu. File asli tidak berubah. Coba perubahan lagi."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il coordinamento dei file per la modifica è scaduto. L’originale è invariato. Riprova la modifica."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更のためのファイル調整が時間切れになりました。原本は変更されていません。もう一度変更してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변경을 위한 파일 조정 시간이 초과되었습니다. 원본은 변경되지 않았습니다. 변경을 다시 시도해 주세요."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyelarasan fail untuk perubahan telah tamat masa. Fail asal tidak berubah. Cuba perubahan semula."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidsgrensen for filkoordinering av endringen ble overskredet. Originalen er uendret. Prøv endringen på nytt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De bestandscoördinatie voor de wijziging is verlopen. Het origineel is ongewijzigd. Probeer de wijziging opnieuw."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upłynął limit czasu koordynacji plików do zmiany. Oryginał nie został zmieniony. Ponów zmianę."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O tempo de coordenação dos arquivos para a alteração esgotou. O original não foi alterado. Tente a alteração novamente."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O tempo de coordenação dos ficheiros para a alteração expirou. O original não foi alterado. Tente a alteração novamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Истекло время согласования доступа к файлам для изменения. Оригинал не изменён. Повторите изменение."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidsgränsen för filsamordning vid ändringen överskreds. Originalet är oförändrat. Försök göra ändringen igen."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การประสานงานไฟล์เพื่อเปลี่ยนแปลงหมดเวลาแล้ว ต้นฉบับไม่เปลี่ยนแปลง โปรดลองเปลี่ยนแปลงอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Değişiklik için dosya koordinasyonu zaman aşımına uğradı. Özgün dosya değişmedi. Değişikliği yeniden deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Час узгодження доступу до файлів для зміни вичерпано. Оригінал не змінено. Повторіть зміну."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Việc phối hợp tệp để thay đổi đã hết thời gian chờ. Bản gốc không thay đổi. Hãy thử thay đổi lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改所需的文件协调已超时。原文件未更改。请重新尝试更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改所需的檔案協調已逾時。原始檔未更改。請重新嘗試更改。"
+          }
+        }
+      }
+    },
+    "新しい分割アーカイブの作成を完了できませんでした。元のアーカイブは変更されていません。保存先の作業フォルダをFinderで確認してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nový vícesvazkový archiv se nepodařilo dokončit. Původní archiv se nezměnil. Zkontrolujte pracovní složku v cílovém umístění ve Finderu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det nye opdelte arkiv kunne ikke færdiggøres. Det oprindelige arkiv er uændret. Kontrollér arbejdsmappen på destinationen i Finder."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das neue aufgeteilte Archiv konnte nicht fertiggestellt werden. Das ursprüngliche Archiv ist unverändert. Den Arbeitsordner am Zielort im Finder prüfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new split archive could not be completed. The original archive is unchanged. Check the work folder at the destination in Finder."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo completar el nuevo archivo comprimido dividido. El archivo comprimido original no ha cambiado. Revisa la carpeta de trabajo del destino en Finder."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uutta jaettua arkistoa ei voitu viimeistellä. Alkuperäinen arkisto on ennallaan. Tarkista kohteen työkansio Finderissa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de terminer la nouvelle archive fractionnée. L’archive d’origine est inchangée. Vérifier le dossier de travail à la destination dans le Finder."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "नया विभाजित आर्काइव पूरा नहीं किया जा सका। मूल आर्काइव बदला नहीं गया है। Finder में गंतव्य का कार्य फ़ोल्डर जाँचें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arsip terbagi baru tidak dapat diselesaikan. Arsip asli tidak berubah. Periksa folder kerja di tujuan melalui Finder."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile completare il nuovo archivio suddiviso. L’archivio originale è invariato. Controlla la cartella di lavoro nella destinazione nel Finder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい分割アーカイブの作成を完了できませんでした。元のアーカイブは変更されていません。保存先の作業フォルダをFinderで確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 분할 압축 파일을 완성하지 못했습니다. 원본 압축 파일은 변경되지 않았습니다. Finder에서 대상 위치의 작업 폴더를 확인해 주세요."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkib berpecah baharu tidak dapat diselesaikan. Arkib asal tidak berubah. Semak folder kerja di destinasi melalui Finder."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det nye delte arkivet kunne ikke fullføres. Det opprinnelige arkivet er uendret. Kontroller arbeidsmappen på målstedet i Finder."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het nieuwe gesplitste archief kon niet worden voltooid. Het oorspronkelijke archief is ongewijzigd. Controleer de werkmap op de bestemming in Finder."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się ukończyć nowego archiwum wieloczęściowego. Oryginalne archiwum nie zostało zmienione. Sprawdź folder roboczy w miejscu docelowym w Finderze."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir o novo arquivo dividido. O arquivo original não foi alterado. Verifique a pasta de trabalho no destino pelo Finder."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível concluir o novo arquivo dividido. O arquivo original não foi alterado. Verifique a pasta de trabalho no destino através do Finder."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось завершить новый многотомный архив. Исходный архив не изменён. Проверьте рабочую папку в месте назначения через Finder."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det nya delade arkivet kunde inte slutföras. Det ursprungliga arkivet är oförändrat. Kontrollera arbetsmappen på målplatsen i Finder."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่สามารถสร้างไฟล์บีบอัดแบบแบ่งส่วนใหม่ให้เสร็จสมบูรณ์ได้ ไฟล์บีบอัดต้นฉบับไม่เปลี่ยนแปลง โปรดตรวจสอบโฟลเดอร์ทำงานที่ปลายทางใน Finder"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni bölünmüş arşiv tamamlanamadı. Özgün arşiv değişmedi. Hedefteki çalışma klasörünü Finder’da kontrol edin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося завершити новий багатотомний архів. Початковий архів не змінено. Перевірте робочу папку в місці призначення у Finder."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể hoàn tất tệp nén chia phần mới. Tệp nén gốc không thay đổi. Hãy kiểm tra thư mục làm việc ở vị trí đích trong Finder."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法完成新的分卷压缩文件。原压缩文件未更改。请在访达中检查目标位置的工作文件夹。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法完成新的分卷壓縮檔。原壓縮檔未更改。請在Finder中檢查目的地的工作檔案夾。"
+          }
+        }
+      }
+    },
+    "新しい分割アーカイブを作成できませんでした。元のアーカイブは変更されていません。もう一度保存してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nový vícesvazkový archiv se nepodařilo vytvořit. Původní archiv se nezměnil. Zkuste jej uložit znovu."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det nye opdelte arkiv kunne ikke oprettes. Det oprindelige arkiv er uændret. Prøv at gemme igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das neue aufgeteilte Archiv konnte nicht erstellt werden. Das ursprüngliche Archiv ist unverändert. Erneut speichern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new split archive could not be created. The original archive is unchanged. Try saving again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo crear el nuevo archivo comprimido dividido. El archivo comprimido original no ha cambiado. Intenta guardarlo de nuevo."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uutta jaettua arkistoa ei voitu luoda. Alkuperäinen arkisto on ennallaan. Yritä tallentaa uudelleen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de créer la nouvelle archive fractionnée. L’archive d’origine est inchangée. Réessayer d’enregistrer."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "नया विभाजित आर्काइव नहीं बनाया जा सका। मूल आर्काइव बदला नहीं गया है। फिर से सहेजने का प्रयास करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arsip terbagi baru tidak dapat dibuat. Arsip asli tidak berubah. Coba simpan lagi."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile creare il nuovo archivio suddiviso. L’archivio originale è invariato. Prova a salvare di nuovo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい分割アーカイブを作成できませんでした。元のアーカイブは変更されていません。もう一度保存してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 분할 압축 파일을 생성하지 못했습니다. 원본 압축 파일은 변경되지 않았습니다. 다시 저장해 주세요."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkib berpecah baharu tidak dapat dicipta. Arkib asal tidak berubah. Cuba simpan semula."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det nye delte arkivet kunne ikke opprettes. Det opprinnelige arkivet er uendret. Prøv å lagre på nytt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het nieuwe gesplitste archief kon niet worden gemaakt. Het oorspronkelijke archief is ongewijzigd. Probeer opnieuw te bewaren."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się utworzyć nowego archiwum wieloczęściowego. Oryginalne archiwum nie zostało zmienione. Spróbuj zapisać ponownie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível criar o novo arquivo dividido. O arquivo original não foi alterado. Tente salvar novamente."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível criar o novo arquivo dividido. O arquivo original não foi alterado. Tente guardar novamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось создать новый многотомный архив. Исходный архив не изменён. Повторите сохранение."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det nya delade arkivet kunde inte skapas. Det ursprungliga arkivet är oförändrat. Försök spara igen."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่สามารถสร้างไฟล์บีบอัดแบบแบ่งส่วนใหม่ได้ ไฟล์บีบอัดต้นฉบับไม่เปลี่ยนแปลง โปรดลองบันทึกอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yeni bölünmüş arşiv oluşturulamadı. Özgün arşiv değişmedi. Yeniden kaydetmeyi deneyin."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося створити новий багатотомний архів. Початковий архів не змінено. Повторіть збереження."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể tạo tệp nén chia phần mới. Tệp nén gốc không thay đổi. Hãy thử lưu lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法创建新的分卷压缩文件。原压缩文件未更改。请重新保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法建立新的分卷壓縮檔。原壓縮檔未更改。請重新儲存。"
           }
         }
       }
