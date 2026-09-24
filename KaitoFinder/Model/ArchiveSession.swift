@@ -440,6 +440,10 @@ actor ArchiveSession {
     func prepareDeferredEditing() {
         guard format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation,
               capabilities.canEdit else { return }
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.updaterPreparation)
+        defer { span?.end() }
+        #endif
         ArchiveReservationDiagnostics.record(.updaterPreparation)
         // 失敗は従来どおり編集入口で提示し、読める書庫の表示は妨げない。
         do {
@@ -726,6 +730,10 @@ actor ArchiveSession {
     // reopen() は旧 inode を保持するので、URL から開き直す。
     func reloadAfterMutation(willOpen: (@Sendable () throws -> Void)? = nil,
                              verification: ArchiveEntryVerification? = nil) throws {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.reload)
+        defer { span?.end() }
+        #endif
         guard !closed else { throw CancellationError() }
         if let reason = splitRecoveryReason.withLock({ $0 }) { throw ExtractionFailure.refused(reason) }
         // 変更済みなら再オープンの失敗時も世代を進め、旧 reader への要求を拒否する。
@@ -736,7 +744,9 @@ actor ArchiveSession {
         capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(String(localized: "変更後のアーカイブを読み直せませんでした。"))) }
         try willOpen?()
         let original = try ArchiveSetIdentity.capture(url: sourceURL)
-        let replacement = try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: password))
+        let replacement = try ArchiveStageDiagnostics.measure(.reloadOpen) {
+            try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: password))
+        }
         let metadata = try ArchiveVolumeMetadata.inspect(url: sourceURL, volumeSet: replacement.volumeSet, store: volumeMetadataStore)
         let layout = metadata.layout
         let identity = try Self.currentIdentity(url: sourceURL, layout: layout)
@@ -744,8 +754,10 @@ actor ArchiveSession {
             throw ArchiveEditError.archiveChanged
         }
         let updatedQuarantine = try ExtractionQuarantine.firstValue(from: layout?.volumes.map(\.url) ?? [sourceURL]) {} ?? metadata.quarantine
-        let updatedCapabilities = ArchiveCapabilities.inspect(reader: replacement, url: sourceURL, password: password,
-            splitLayout: layout, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, mixedVolumes: metadata.mixed)
+        let updatedCapabilities = ArchiveStageDiagnostics.measure(.capabilityProbe) {
+            ArchiveCapabilities.inspect(reader: replacement, url: sourceURL, password: password,
+                splitLayout: layout, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, mixedVolumes: metadata.mixed)
+        }
         guard try Self.currentIdentity(url: sourceURL, layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
         reader = replacement
         quarantine = updatedQuarantine

@@ -539,13 +539,13 @@ nonisolated enum ArchiveImportTransaction {
         case .inPlace:
             outputFormat = .zip
             work = directory.appendingPathComponent("archive.zip")
-            try FileManager.default.copyItem(at: archive, to: work)
+            try ArchiveStageDiagnostics.measure(.workCopy) { try FileManager.default.copyItem(at: archive, to: work) }
             try willOpenUpdater?()
-            let updater = try ArchiveUpdater.open(url: work, options: options)
-            try mutate(updater)
+            let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: work, options: options) }
+            try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
             try ArchiveImportPlan.checkCancellation(progress)
             // commit の属性復元が失敗しても、変わるのは作業コピーだけ。
-            try updater.commit()
+            try ArchiveStageDiagnostics.measure(.commit) { try updater.commit() }
         case .rewrite(let format):
             outputFormat = format
             work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: format))
@@ -554,17 +554,21 @@ nonisolated enum ArchiveImportTransaction {
                 try ArchiveDeferredTarWriter.write(source: archive, password: password, output: work, format: format,
                                                    options: options, plan: deferredPlan, progress: progress)
             } else {
-                let rewriter = try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+                let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+                    try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+                }
                 // 入力の復号鍵と出力の暗号化設定を分離し、削除だけが平文へ書き直せる。
                 guard !rewriter.hasEncryptedEntries || password != nil else {
                     throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
                 }
-                try mutate(rewriter)
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
                 try ArchiveImportPlan.checkCancellation(progress)
                 progress.totalUnitCount += Int64(rewriter.entryNames.count)
-                try rewriter.commit { _, _ in
-                    progress.completedUnitCount += 1
-                    try ArchiveImportPlan.checkCancellation(progress)
+                try ArchiveStageDiagnostics.measure(.commit) {
+                    try rewriter.commit { _, _ in
+                        progress.completedUnitCount += 1
+                        try ArchiveImportPlan.checkCancellation(progress)
+                    }
                 }
             }
             try preserveAttributes(from: archive, to: work)
@@ -581,12 +585,18 @@ nonisolated enum ArchiveImportTransaction {
         let identity: ArchiveSetIdentity
         do {
             identity = try ArchiveSetIdentity.capture(url: work)
-            let verified = try ArchiveReader.open(url: work, options: .kaitoFinderVerification(password: options.password))
-            try expectedOutput.validate(verified, format: outputFormat)
+            let verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
+                try ArchiveReader.open(url: work, options: .kaitoFinderVerification(password: options.password))
+            }
+            try ArchiveStageDiagnostics.measure(.entryComparison) { try expectedOutput.validate(verified, format: outputFormat) }
         } catch is CancellationError { throw CancellationError() }
         catch { throw ArchivePublicationError.verificationFailed }
         #if DEBUG
         try didVerifyForTesting.get()?(work)
+        #endif
+        #if DEBUG
+        let publishSpan = ArchiveStageDiagnostics.begin(.publish)
+        defer { publishSpan?.end() }
         #endif
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)

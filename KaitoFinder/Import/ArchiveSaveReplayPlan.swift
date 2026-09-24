@@ -20,6 +20,10 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
 
     init(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges,
          format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress()) throws {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.replayPlan)
+        defer { span?.end() }
+        #endif
         ArchiveReservationDiagnostics.record(.replayPlan)
         let projected = try pending.projection(base: base, generation: generation)
         self.projected = projected
@@ -126,6 +130,10 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
     }
 
     static func validateRepresentability(_ entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat) throws {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.validateRepresentability)
+        defer { span?.end() }
+        #endif
         let positions = Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($0.element.index, $0.offset) })
         let planned = entries.enumerated().map { position, entry in
             var metadata = entry.formatSpecific

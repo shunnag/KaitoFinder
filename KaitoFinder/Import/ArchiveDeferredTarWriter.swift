@@ -22,17 +22,24 @@ nonisolated enum ArchiveDeferredTarWriter {
         var interimOptions = options
         // 生成物に uid/gid の pax 拡張が出ないことを保証する。全項目の記録値は後で設定する。
         interimOptions.preserveOwnerIDs = false
-        let writer = try ArchiveRewriter.open(url: source, password: password, output: intermediate,
-                                             format: .tar, options: interimOptions)
+        let writer = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+            try ArchiveRewriter.open(url: source, password: password, output: intermediate, format: .tar, options: interimOptions)
+        }
         try verifyAssembledInput(writer.volumeSet)
-        try plan.replay(on: writer, progress: progress)
-        try writer.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
-        try applyOwners(to: intermediate, plan: plan, progress: progress)
-        let final = try ArchiveRewriter.open(url: intermediate, output: output, format: format, options: options)
+        try ArchiveStageDiagnostics.measure(.replay) { try plan.replay(on: writer, progress: progress) }
+        try ArchiveStageDiagnostics.measure(.commit) {
+            try writer.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
+        }
+        try ArchiveStageDiagnostics.measure(.ownerRestoration) { try applyOwners(to: intermediate, plan: plan, progress: progress) }
+        let final = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+            try ArchiveRewriter.open(url: intermediate, output: output, format: format, options: options)
+        }
         progress.totalUnitCount += Int64(final.entryNames.count)
-        try final.commit { _, _ in
-            progress.completedUnitCount += 1
-            try ArchiveImportPlan.checkCancellation(progress)
+        try ArchiveStageDiagnostics.measure(.commit) {
+            try final.commit { _, _ in
+                progress.completedUnitCount += 1
+                try ArchiveImportPlan.checkCancellation(progress)
+            }
         }
     }
 

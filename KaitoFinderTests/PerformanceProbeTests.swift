@@ -6,16 +6,72 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class PerformanceProbeTests: XCTestCase {
+    override class func tearDown() {
+        #if DEBUG
+        ArchiveProbeFixtures.removeAll()
+        #endif
+        super.tearDown()
+    }
+
     @MainActor func testArchiveOpeningWhenEnabled() async throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
-            throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run archive opening probes")
-        }
-        let count = Int(environment["KAITOFINDER_PROBE_ENTRIES"] ?? "") ?? 100_000
-        guard count >= 1 else { throw XCTSkip("KAITOFINDER_PROBE_ENTRIES must be positive") }
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        ArchiveProbeTrace.header()
         preserveArchiveWindowFrame()
-        let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("opening.zip")
-        try await Self.writeArchive(archive, count: count, openingLayout: true)
+        for format in configuration.formats {
+            let fixture = try await ArchiveProbeFixtures.fixture(.entries, format: format, configuration: configuration)
+            try await probeOpening(fixture)
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
+    @MainActor func testArchiveEditsWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        ArchiveProbeTrace.header()
+        preserveArchiveWindowFrame()
+        for format in configuration.formats {
+            for kind in ArchiveProbeFixture.Kind.allCases {
+                let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
+                for operation in ImmediateOperation.allCases {
+                    try await probeImmediate(operation, fixture: fixture)
+                }
+                try await probeDeferred(fixture, renameOnly: false, asserts: configuration.asserts)
+                try await probeDeferred(fixture, renameOnly: true, asserts: configuration.asserts)
+            }
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
+    @MainActor func testArchiveEditorsDirectlyWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        ArchiveProbeTrace.header()
+        for format in configuration.formats {
+            for kind in ArchiveProbeFixture.Kind.allCases {
+                let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
+                for nearStart in [true, false] {
+                    try await Self.probeDirect(fixture, nearStart: nearStart)
+                }
+            }
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
+    #if DEBUG
+    private enum ImmediateOperation: String, CaseIterable {
+        case deleteStart = "delete_start", deleteEnd = "delete_end", renameSame = "rename_same_length"
+        case renameDifferent = "rename_different_length", renameFolder = "rename_folder", newFolder = "new_folder"
+        case addFile = "add_file", replaceFile = "replace_file"
+    }
+
+    @MainActor private func probeOpening(_ fixture: ArchiveProbeFixture) async throws {
         let documents = try XCTUnwrap(NSDocumentController.shared as? ArchiveDocumentController)
         let recordsRecents = documents.recordsRecentDocuments, preferences = ArchivePreferencesStore.shared.preferences
         documents.recordsRecentDocuments = false
@@ -27,132 +83,235 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let watcher = MainActorProbe(interval: 0.002)
         defer { watcher.stop() }
         while !watcher.hasSample { try await Task.sleep(for: .milliseconds(1)) }
-        let start = ContinuousClock.now
-        let opened: (ArchiveDocument, ContinuousClock.Instant)
-        do {
-            opened = try await withCheckedThrowingContinuation { continuation in
-                documents.openDocument(withContentsOf: archive, display: true) { opened, _, error in
+        let trace = ArchiveProbeTrace(fixture: fixture, mode: "immediate", operation: "open")
+        var openedDocument: ArchiveDocument?
+        defer { openedDocument?.close() }
+        try await Self.traced(trace, output: fixture.url) {
+            let start = ContinuousClock.now
+            let opened: (ArchiveDocument, ContinuousClock.Instant) = try await withCheckedThrowingContinuation { continuation in
+                documents.openDocument(withContentsOf: fixture.url, display: true) { opened, _, error in
                     if let error { continuation.resume(throwing: error) }
                     else if let document = opened as? ArchiveDocument { continuation.resume(returning: (document, .now)) }
                     else { continuation.resume(throwing: CocoaError(.fileReadUnknown)) }
                 }
             }
-        } catch { _ = await watcher.finish(); throw error }
-        let (document, documentReady) = opened
-        defer { document.close(); withExtendedLifetime(directory) {} }
-        let controller = try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
-        let deadline = ContinuousClock.now + .seconds(120)
-        while !controller.renameIndexIsReady, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(2))
+            let (document, ready) = opened
+            openedDocument = document
+            let controller = try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
+            try await waitForRenameIndex(controller)
+            XCTAssertGreaterThan(controller.outlineView.numberOfRows, 0)
+            let displayed = try XCTUnwrap(controller.treeDisplayedAt), indexed = try XCTUnwrap(controller.renameIndexReadyAt)
+            for (label, instant) in [("document_ready", ready), ("rows_visible", displayed), ("rename_index_ready", indexed)] {
+                print(String(format: "PROBE %@ open %@: %.3f ms", fixture.format.rawValue, label,
+                             Self.milliseconds(start.duration(to: instant))))
+            }
         }
         let worst = await watcher.finish()
-        XCTAssertTrue(controller.renameIndexIsReady)
-        XCTAssertGreaterThan(controller.outlineView.numberOfRows, 0)
-        let displayed = try XCTUnwrap(controller.treeDisplayedAt), indexed = try XCTUnwrap(controller.renameIndexReadyAt)
-        print("PROBE immediate open entries=\(count), folders=\((count + 99) / 100)")
-        for (label, instant) in [("document ready", documentReady), ("tree displayed / rows visible", displayed),
-                                  ("rename index ready", indexed)] {
-            print(String(format: "PROBE immediate open %@: %.3f ms", label, Self.milliseconds(start.duration(to: instant))))
-        }
-        print(String(format: "PROBE immediate open worst main.sync latency (2 ms pings): %.3f ms", worst))
-        await document.prepareForTermination()
+        print(String(format: "PROBE %@ open worst main.sync latency (2 ms pings): %.3f ms", fixture.format.rawValue, worst))
+        await openedDocument?.prepareForTermination()
     }
 
-    @MainActor func testArchiveEditsWhenEnabled() async throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
-            throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run archive editing probes")
-        }
-        let count = Int(environment["KAITOFINDER_PROBE_ENTRIES"] ?? "") ?? 100_000
-        guard count >= 2 else { throw XCTSkip("KAITOFINDER_PROBE_ENTRIES must be at least 2") }
-        let asserts = environment["KAITOFINDER_PROBE_ASSERT"] == "1"
+    @MainActor private func withDocument(_ fixture: ArchiveProbeFixture, mode: ArchivePreferences.SaveBehavior,
+        _ body: @MainActor (ArchiveDocument, ArchiveWindowController, URL, URL) async throws -> Void) async throws {
         let directory = try ArchiveTestDirectory()
-        let original = directory.url.appendingPathComponent("original.zip")
-        try await Self.writeArchive(original, count: count)
-        print("PROBE entries=\(count), timing assertions=\(asserts)")
-        preserveArchiveWindowFrame()
-        for mode in [ArchivePreferences.SaveBehavior.immediate, .onSave] {
-            let label = mode == .onSave ? "deferred" : "immediate"
-            let archive = directory.url.appendingPathComponent(label + ".zip")
-            try FileManager.default.copyItem(at: original, to: archive)
-            let defaults = try ArchivePreferencesTestDefaults()
-            let store = ArchivePreferencesStore(defaults: defaults.defaults)
-            store.preferences.saveBehavior = mode
-            let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)
-            defer { document.close() }
-            try await measure(label + " document read") { try document.read(from: archive, ofType: "public.data") }
+        let archive = directory.url.appendingPathComponent("edit." + fixture.format.rawValue)
+        try FileManager.default.copyItem(at: fixture.url, to: archive)
+        let defaults = try ArchivePreferencesTestDefaults()
+        let store = ArchivePreferencesStore(defaults: defaults.defaults)
+        store.preferences = ArchivePreferences()
+        store.preferences.saveBehavior = mode
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)
+        defer { document.close(); withExtendedLifetime((directory, defaults)) {} }
+        do {
+            try document.read(from: archive, ofType: "public.data")
             document.fileURL = archive
             document.fileType = "public.data"
             document.fileModificationDate = try FileManager.default.attributesOfItem(atPath: archive.path)[.modificationDate] as? Date
-            let entries = try await measure(label + " reservation preparation") { try await document.projectedEntries() }
-            let root = await measure(label + " EntryNode.tree") { await Self.tree(entries, indexingEdits: mode == .immediate) }
+            let entries = try await document.projectedEntries()
+            let root = await EntryNode.build(from: entries, format: fixture.format.writerFormat, indexingEdits: mode == .immediate)
             let controller = ArchiveWindowController(preferencesStore: store)
             document.addWindowController(controller)
             let session = try XCTUnwrap(document.session)
-            await measure(label + " display") { controller.display(root, session: session, generation: session.generation) }
-            let file = try XCTUnwrap(root.nodes(at: "d000/s0/f0000000.txt").first)
+            XCTAssertTrue(session.capabilities.canEdit, fixture.format.rawValue)
+            controller.display(root, session: session, generation: session.generation)
+            try await body(document, controller, archive, directory.url)
+            await document.prepareForTermination()
+        } catch {
+            await document.prepareForTermination()
+            throw error
+        }
+    }
+
+    @MainActor private func probeImmediate(_ operation: ImmediateOperation, fixture: ArchiveProbeFixture) async throws {
+        try await withDocument(fixture, mode: .immediate) { document, controller, archive, directory in
+            let selectedPath = operation == .deleteEnd ? fixture.lastPath
+                : (operation == .renameFolder ? fixture.folderPath : fixture.firstPath)
+            let selected = try await node(selectedPath, document: document)
+            let parent = ArchivePath.components(fixture.firstPath).dropLast().joined(separator: "/")
+            let leaf = ArchivePath.components(fixture.firstPath).last!
+            let sameLength = "r" + leaf.dropFirst()
+            let source = directory.appendingPathComponent(operation == .replaceFile ? leaf : "added.txt")
+            try Data([43]).write(to: source)
+            let conflicts = Mutex(0)
+            let trace = ArchiveProbeTrace(fixture: fixture, mode: "immediate", operation: operation.rawValue)
+            try await Self.traced(trace, output: archive) {
+                switch operation {
+                case .deleteStart, .deleteEnd:
+                    let result = try await document.remove([selected], progress: Progress())
+                    XCTAssertTrue(result.published); XCTAssertNil(result.reloadFailure)
+                case .renameSame, .renameDifferent, .renameFolder:
+                    let name = operation == .renameSame ? String(sameLength)
+                        : (operation == .renameFolder ? "renamed-folder" : "renamed-with-a-longer-name.txt")
+                    let result = try await document.rename(selected, to: name, progress: Progress())
+                    XCTAssertTrue(result.published); XCTAssertNil(result.reloadFailure)
+                case .newFolder:
+                    let result = try await document.createFolder(in: "", baseName: "probe-new", progress: Progress())
+                    XCTAssertEqual(result.addedPaths, ["probe-new/"]); XCTAssertNil(result.reloadFailure)
+                case .addFile, .replaceFile:
+                    let result = try await document.append(urls: [source], to: operation == .replaceFile ? parent : "",
+                        progress: Progress(), resolveConflict: { _ in
+                            conflicts.withLock { $0 += 1 }
+                            return .init(choice: .replace)
+                        })
+                    XCTAssertTrue(result.failures.isEmpty); XCTAssertNil(result.reloadFailure)
+                    XCTAssertEqual(result.addedPaths, [operation == .replaceFile ? fixture.firstPath : "added.txt"])
+                }
+            }
+            trace.require([.total, .mutate, .commit, .verificationOpen, .entryComparison, .publish,
+                           .reload, .reloadOpen, .capabilityProbe, .treeBuild, .display,
+                           fixture.format == .zip ? .updaterOpen : .rewriterOpen])
+            if fixture.format == .zip { trace.require([.workCopy]) }
+            XCTAssertEqual(conflicts.withLock { $0 }, operation == .replaceFile ? 1 : 0)
+            let entries = try await document.projectedEntries()
+            let delta = operation == .deleteStart || operation == .deleteEnd ? -1
+                : (operation == .newFolder || operation == .addFile ? 1 : 0)
+            XCTAssertEqual(entries.count, fixture.entryCount + delta)
+            if operation == .replaceFile {
+                XCTAssertEqual(entries.filter { $0.name == fixture.firstPath }.map(\.uncompressedSize), [1])
+            }
+            // 表示後の索引作成を次の操作へ持ち越さない。
+            try await waitForRenameIndex(controller)
+        }
+    }
+
+    @MainActor private func probeDeferred(_ fixture: ArchiveProbeFixture, renameOnly: Bool, asserts: Bool) async throws {
+        try await withDocument(fixture, mode: .onSave) { document, _, archive, directory in
+            let limit = asserts ? (fixture.entryCount <= 100_000 ? 250.0 : 1_500.0) : nil
+            let stallLimit = asserts ? (fixture.entryCount <= 100_000 ? 50.0 : 100.0) : nil
+            @MainActor func reserve<Value>(_ name: String, _ action: @MainActor () async throws -> Value) async throws -> Value {
+                let trace = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
+                    operation: (renameOnly ? "rename_only_" : "five_changes_") + name)
+                return try await Self.traced(trace, output: archive) {
+                    try await Self.measure("deferred " + name, limit: limit, monitor: true, stallLimit: stallLimit, action)
+                }
+            }
+            let file = try await node(renameOnly ? fixture.firstPath : ArchiveProbeFixture.smallPath(0), document: document)
+            let entries = try await document.projectedEntries()
             let validation = ArchiveRenameValidation(selection: ArchiveEditSelection(file), entries: entries,
-                                                     state: document.pendingEditor?.prepared, occupancy: root.editOccupancy)
+                state: document.pendingEditor?.prepared, occupancy: document.pendingEditor?.prepared?.tree.editOccupancy)
             for call in 1...3 {
-                try await measure(label + " rename-commit validation \(call)", limit: asserts && count <= 100_000 ? 30 : nil) {
+                try await Self.measure("deferred rename-commit validation \(call)", limit: asserts && fixture.entryCount <= 100_000 ? 30 : nil) {
                     _ = try validation.plan(for: "renamed.txt")
                 }
             }
             XCTAssertEqual(validation.validationCount, 1)
-            let limit = asserts && mode == .onSave ? (count <= 100_000 ? 250.0 : 1_500.0) : nil
-            let stallLimit = asserts && mode == .onSave ? (count <= 100_000 ? 50.0 : 100.0) : nil
-            func reservation<Value>(_ name: String, _ action: @MainActor () async throws -> Value) async throws -> Value {
-                try await measure(label + " " + name, limit: limit, monitor: mode == .onSave, stallLimit: stallLimit, action)
+            _ = try await reserve("reserve_rename") { try await document.rename(file, to: "renamed.txt", progress: Progress()) }
+            if !renameOnly {
+                let deleted = try await node(ArchiveProbeFixture.smallPath(1), document: document)
+                _ = try await reserve("reserve_delete") { try await document.remove([deleted], progress: Progress()) }
+                _ = try await reserve("reserve_new_folder") { try await document.createFolder(in: "", baseName: "new", progress: Progress()) }
+                let folder = try await node(fixture.smallCount >= 2_000 ? "d001" : "d000", document: document)
+                _ = try await reserve("reserve_delete_folder") { try await document.remove([folder], progress: Progress()) }
+                let source = directory.appendingPathComponent("added.txt")
+                try Data([42]).write(to: source)
+                _ = try await reserve("reserve_add") {
+                    try await document.append(urls: [source], to: "", progress: Progress(), resolveConflict: { _ in
+                        XCTFail("Unexpected conflict"); return .init(choice: .skip)
+                    })
+                }
             }
-            _ = try await reservation("rename") { try await document.rename(file, to: "renamed.txt", progress: Progress()) }
-            let deleteFile = try await node("d000/s0/f0000001.txt", document: document)
-            _ = try await reservation("delete 1") { try await document.remove([deleteFile], progress: Progress()) }
-            _ = try await reservation("new folder") { try await document.createFolder(in: "", baseName: "new", progress: Progress()) }
-            let folder = try await node(count >= 2_000 ? "d001" : "d000", document: document)
-            _ = try await reservation("delete folder") { try await document.remove([folder], progress: Progress()) }
-            let source = directory.url.appendingPathComponent("added.txt")
-            try Data([42]).write(to: source)
-            _ = try await reservation("add 1 file") {
-                try await document.append(urls: [source], to: "", progress: Progress(), resolveConflict: { _ in
-                    XCTFail("Unexpected conflict"); return .init(choice: .skip)
-                })
-            }
-            if mode == .onSave {
-                try await measure(label + " save") {
-                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                        document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
-                            if let error { continuation.resume(throwing: error) } else { continuation.resume() }
-                        }
+            let expected = try await document.projectedEntries().map(\.name).sorted()
+            let trace = ArchiveProbeTrace(fixture: fixture, mode: "deferred", operation: renameOnly ? "save_rename_only" : "save_five_changes")
+            try await Self.traced(trace, output: archive) {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
+                        if let error { continuation.resume(throwing: error) } else { continuation.resume() }
                     }
                 }
-            } else { print("PROBE immediate deferred save: 0.000 ms (no deferred changes)") }
-            await document.prepareForTermination()
+            }
+            trace.require([.total, .replayPlan, .validateRepresentability, .replay, .commit, .verificationOpen,
+                           .entryComparison, .publish, .reload, .reloadOpen, .capabilityProbe,
+                           .editingInstall, .editingPrepare, .treeBuild, .display,
+                           fixture.format == .zip ? .updaterOpen : .rewriterOpen])
+            if fixture.format == .zip { trace.require([.workCopy, .updaterPreparation]) }
+            XCTAssertNil(document.deferredReloadFailure)
+            let saved = try await document.projectedEntries().map(\.name).sorted()
+            XCTAssertEqual(saved, expected)
+            XCTAssertTrue(document.pendingEditor?.changes.isEmpty == true)
         }
+    }
+
+    @concurrent private static func probeDirect(_ fixture: ArchiveProbeFixture, nearStart: Bool) async throws {
+        let directory = try ArchiveTestDirectory()
+        let input = directory.url.appendingPathComponent("input." + fixture.format.rawValue)
+        let output = fixture.format == .zip ? input : directory.url.appendingPathComponent("output." + fixture.format.rawValue)
+        try FileManager.default.copyItem(at: fixture.url, to: input)
+        let trace = ArchiveProbeTrace(fixture: fixture, mode: "direct", operation: nearStart ? "delete_start" : "delete_end")
+        let index = nearStart ? 0 : fixture.entryCount - 1
+        do {
+            try ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
+                try ArchiveStageDiagnostics.measure(.total) {
+                    let options = ArchivePreferences().writerOptions(for: fixture.format.writerFormat)
+                    let editor: any ArchiveEditing
+                    if fixture.format == .zip {
+                        editor = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: input, options: options) }
+                    } else {
+                        editor = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+                            try ArchiveRewriter.open(url: input, output: output, format: fixture.format.writerFormat, options: options)
+                        }
+                    }
+                    try ArchiveStageDiagnostics.measure(.remove) { try editor.remove(entriesAt: [index]) }
+                    try ArchiveStageDiagnostics.measure(.commit) { try editor.commit() }
+                }
+            }
+            trace.finish(output: output)
+        } catch { trace.finish(output: output, status: "error"); throw error }
+        trace.require([.total, .remove, .commit, fixture.format == .zip ? .updaterOpen : .rewriterOpen])
+        let entries = try ArchiveReader.open(url: output).entries
+        XCTAssertEqual(entries.count, fixture.entryCount - 1)
+        XCTAssertFalse(entries.contains { $0.name == (nearStart ? fixture.firstPath : fixture.lastPath) })
         withExtendedLifetime(directory) {}
     }
 
-    @concurrent private static func writeArchive(_ url: URL, count: Int, openingLayout: Bool = false) async throws {
-        let writer = try ArchiveWriter.create(url: url, format: .zip)
-        let data = Data([42])
-        for index in 0..<count {
-            let name = openingLayout ? String(format: "d%05d/f%07d.txt", index / 100, index)
-                : String(format: "d%03d/s%d/f%07d.txt", index / 1000, (index / 100) % 10, index)
-            try writer.add(data: data, as: name)
-        }
-        try writer.finish()
+    @MainActor private static func traced<Value>(_ trace: ArchiveProbeTrace, output: URL,
+        _ action: @MainActor () async throws -> Value) async throws -> Value {
+        do {
+            let value = try await ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
+                let span = ArchiveStageDiagnostics.begin(.total)
+                defer { span?.end() }
+                return try await action()
+            }
+            trace.finish(output: output)
+            return value
+        } catch { trace.finish(output: output, status: "error"); throw error }
     }
 
-    @concurrent private static func tree(_ entries: [ArchiveEntry], indexingEdits: Bool = false) async -> EntryNode {
-        EntryNode.tree(from: entries, indexingEdits: indexingEdits)
+    @MainActor private func waitForRenameIndex(_ controller: ArchiveWindowController) async throws {
+        let deadline = ContinuousClock.now + .seconds(120)
+        while !controller.renameIndexIsReady, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        XCTAssertTrue(controller.renameIndexIsReady)
     }
 
     @MainActor private func node(_ path: String, document: ArchiveDocument) async throws -> EntryNode {
         if let tree = document.pendingEditor?.prepared?.tree { return try XCTUnwrap(tree.nodes(at: path).first) }
-        let tree = await Self.tree(try await document.projectedEntries())
+        let tree = await EntryNode.build(from: try await document.projectedEntries(), indexingEdits: false)
         return try XCTUnwrap(tree.nodes(at: path).first)
     }
+    #endif
 
-    @MainActor private func measure<Value>(_ label: String, limit: Double? = nil, monitor: Bool = false,
+    @MainActor private static func measure<Value>(_ label: String, limit: Double? = nil, monitor: Bool = false,
                                            stallLimit: Double? = nil, _ action: @MainActor () async throws -> Value) async rethrows -> Value {
         let stall = monitor ? MainActorProbe() : nil
         let start = ContinuousClock.now

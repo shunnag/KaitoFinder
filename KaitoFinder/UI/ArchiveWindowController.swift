@@ -662,6 +662,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil, preparedFilter: EntryTreeFilter? = nil,
                  indexingRenames: Bool = false) {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.display)
+        defer { span?.end() }
+        #endif
         cancelListWork()
         let state = captureViewState()
         thumbnailProvider?.cancelAll()

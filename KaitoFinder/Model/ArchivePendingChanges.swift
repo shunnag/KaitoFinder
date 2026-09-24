@@ -159,6 +159,10 @@ nonisolated struct ArchivePendingProjection: Sendable {
                  sessionID: ObjectIdentifier? = nil, checksCancellation: Bool = true) async throws {
         if let baseGeneration, baseGeneration != generation, !changes.isEmpty { throw ArchiveEditError.staleSelection }
         if baseGeneration == generation, baseSession == sessionID, validation?.format == format { return }
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.editingInstall)
+        defer { span?.end() }
+        #endif
         let revision = changes.revision
         var validation: ArchiveReservationValidation? = await Self.makeValidation(base: base, format: format)
         defer { ArchiveBackgroundRelease.release(&validation) }
@@ -183,6 +187,10 @@ nonisolated struct ArchivePendingProjection: Sendable {
                  checksCancellation: Bool = true) async throws -> ArchiveReservationState {
         guard baseGeneration == generation, let validation else { throw ArchiveEditError.staleSelection }
         if let prepared, prepared.revision == changes.revision, filters.isSubset(of: Set(prepared.filters.keys)) { return prepared }
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.editingPrepare)
+        defer { span?.end() }
+        #endif
         let revision = changes.revision, sessionID = baseSession
         var next: ArchiveReservationState? = try await ArchiveReservationState.build(base: base, generation: generation, changes: changes,
                                                            validation: validation, staging: staging, previous: changes,

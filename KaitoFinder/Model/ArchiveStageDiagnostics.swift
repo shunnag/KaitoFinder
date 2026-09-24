@@ -1,0 +1,47 @@
+import Foundation
+
+nonisolated enum ArchiveStageDiagnostics {
+    enum Stage: String, Sendable {
+        case workCopy = "work_copy", updaterOpen = "updater_open", rewriterOpen = "rewriter_open"
+        case mutate, replay, commit, verificationOpen = "verification_open", entryComparison = "entry_comparison"
+        case publish, reload, reloadOpen = "reload_open", capabilityProbe = "capability_probe"
+        case replayPlan = "replay_plan", validateRepresentability = "validate_representability"
+        case editingInstall = "editing_install", editingPrepare = "editing_prepare", updaterPreparation = "updater_preparation"
+        case treeBuild = "tree_build", display, ownerRestoration = "owner_restoration"
+        case total, remove, fixtureBuild = "fixture_build"
+    }
+
+    #if DEBUG
+    enum Event: Sendable {
+        case began(UUID, Stage)
+        case ended(UUID, Stage, Duration)
+    }
+
+    static let observer = TaskLocal<(@Sendable (Event) -> Void)?>(wrappedValue: nil)
+
+    struct Span: Sendable {
+        let id: UUID
+        let stage: Stage
+        let start: ContinuousClock.Instant
+        let observer: @Sendable (Event) -> Void
+
+        func end() { observer(.ended(id, stage, start.duration(to: .now))) }
+    }
+
+    static func begin(_ stage: Stage) -> Span? {
+        guard let observer = observer.get() else { return nil }
+        let id = UUID()
+        observer(.began(id, stage))
+        return Span(id: id, stage: stage, start: .now, observer: observer)
+    }
+    #endif
+
+    // Release ではクロック・TaskLocal・コールバックを生成しない。
+    @inline(__always) static func measure<Value>(_ stage: Stage, _ body: () throws -> Value) rethrows -> Value {
+        #if DEBUG
+        let span = begin(stage)
+        defer { span?.end() }
+        #endif
+        return try body()
+    }
+}

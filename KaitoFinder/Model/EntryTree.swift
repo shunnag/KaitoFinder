@@ -74,6 +74,10 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
 
     static func tree(from entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip,
                      indexingEdits: Bool = false) -> EntryNode {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.treeBuild)
+        defer { span?.end() }
+        #endif
         ArchiveReservationDiagnostics.record(.tree)
         let root = EntryNode(name: "", isDirectory: true)
         root.archiveEntries = entries
