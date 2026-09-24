@@ -445,6 +445,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func updatePreviewSidebar() {
         guard showsPreviewSidebar, !isLocked, let session = archiveSession else { return }
+        if !canReadNodes(selectedNodes) { previewSidebar.reset(); return }
         previewSidebar.display(selectedNodes, session: session, generation: generation)
     }
 
@@ -592,13 +593,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             for child in parent.children { parents[ObjectIdentifier(child)] = parent }
             pending.append(contentsOf: parent.children)
         }
-        capabilityNotice.stringValue = session?.capabilities.readOnlyReason ?? session?.capabilities.rewriteNotice ?? ""
-        capabilityNotice.isHidden = capabilityNotice.stringValue.isEmpty
+        refreshCapabilityNotice(session: session)
         if let session, let controller = nextMaterialization {
             session.setCapabilitiesObserver { [weak self, weak session] in
                 guard let self, let session, self.archiveSession === session else { return }
-                self.capabilityNotice.stringValue = session.capabilities.readOnlyReason ?? session.capabilities.rewriteNotice ?? ""
-                self.capabilityNotice.isHidden = self.capabilityNotice.stringValue.isEmpty
+                self.refreshCapabilityNotice(session: session)
                 self.window?.toolbar?.validateVisibleItems()
             }
             session.setPasswordPrompt { [weak self, weak session] challenge in
@@ -630,6 +629,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             materialization = controller
             if let worker = controller.entryMaterializer {
                 let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: generation)
+                if (document as? ArchiveDocument)?.saveBehavior == .onSave {
+                    provider.canRead = { [weak self] node in self?.canReadNodes([node]) == true }
+                }
                 provider.didProduce = { [weak self, weak provider] node in
                     guard let self, let provider, self.thumbnailProvider === provider else { return }
                     let row = self.outlineView.row(forItem: node)
@@ -649,6 +651,29 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     var selectedNodes: [EntryNode] {
         outlineView.selectedRowIndexes.compactMap { outlineView.item(atRow: $0) as? EntryNode }
+    }
+
+    private func canReadNodes(_ nodes: [EntryNode]) -> Bool {
+        guard let document = document as? ArchiveDocument, document.saveBehavior == .onSave else { return true }
+        return !document.isDeferredSaveRunning
+    }
+
+    func refreshCapabilityNotice(session: ArchiveSession?) {
+        var notice = session?.capabilities.readOnlyReason ?? session?.capabilities.rewriteNotice ?? ""
+        if let document = document as? ArchiveDocument, document.saveBehavior == .onSave {
+            if session?.capabilities.readOnlyReason == nil, session?.capabilities.rewriteNotice != nil {
+                notice = String(localized: "保存するとアーカイブ全体を再圧縮します", bundle: bundle)
+            }
+            if session?.capabilities.readOnlyReason == nil, let split = document.splitArchiveNotice(bundle: bundle) { notice = split }
+            let count = document.pendingChanges.count
+            if count > 0 || document.isDocumentEdited {
+                if !notice.isEmpty { notice += "\n" }
+                notice += String(localized: "未保存の変更\(count)件", bundle: bundle)
+            }
+        }
+        if let extra = (document as? ArchiveDocument)?.splitSaveNotice { notice += (notice.isEmpty ? "" : "\n") + extra }
+        capabilityNotice.stringValue = notice
+        capabilityNotice.isHidden = notice.isEmpty
     }
 
     private func pathNodes(to node: EntryNode) -> [EntryNode] {
@@ -769,7 +794,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func payloads(for nodes: [EntryNode], session: ArchiveSession) -> [ArchiveEntryPayload] {
-        ArchiveEntryPayload.payloads(for: selectionRoots(nodes), archiveURL: session.sourceURL, generation: generation)
+        ArchiveEntryPayload.payloads(for: selectionRoots(nodes), session: session, generation: generation)
     }
 
     func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> (any NSPasteboardWriting)? {
@@ -784,7 +809,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
         do {
             let promise = try FilePromiseRegistry.shared.register(
-                payload: ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation), session: session, owner: promiseOwner)
+                payload: ArchiveEntryPayload(node: node, session: session, generation: generation), session: session, owner: promiseOwner)
             return promise.provider
         } catch {
             NSLog("ドラッグ項目を作成できません: %@", String(describing: error))
@@ -829,6 +854,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if (document as? ArchiveDocument)?.saveBehavior == .onSave {
+            let selectedActions = [#selector(copy(_:)), #selector(extractSelected(_:)), #selector(openEntry(_:)),
+                                   #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:))]
+            if selectedActions.contains(where: { $0 == menuItem.action }), !canReadNodes(selectedNodes) { return false }
+            if menuItem.action == #selector(extractAll(_:)), !canReadNodes(root.children) { return false }
+            if menuItem.action == #selector(extractFromToolbar(_:)),
+               !canReadNodes(selectedNodes.isEmpty ? root.children : selectedNodes) { return false }
+        }
         switch menuItem.action {
         case #selector(togglePreviewSidebar(_:)):
             menuItem.title = showsPreviewSidebar ? String(localized: "プレビューを非表示", bundle: bundle)
@@ -843,10 +876,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 : session.capabilities.readOnlyReason
             guard document is ArchiveDocument, !operationInFlight, session.passwordFormat != nil,
                   session.capabilities.canEdit else { return false }
+            if let document = document as? ArchiveDocument, document.saveBehavior == .onSave,
+               let output = document.pendingChanges.outputEncryption {
+                return menuItem.action == #selector(setArchivePassword(_:)) ? output.password == nil : output.password != nil
+            }
             return menuItem.action == #selector(setArchivePassword(_:))
                 ? !session.hasEncryptedEntries : session.hasEncryptedEntries && session.hasKnownPassword
         case #selector(saveArchiveAs(_:)):
-            return archiveSession != nil && !isLocked && document is ArchiveDocument && !operationInFlight
+            return archiveSession != nil && archiveSession?.requiresSplitRecovery != true && !isLocked && document is ArchiveDocument && !operationInFlight
         case #selector(newFolder(_:)):
             menuItem.toolTip = editRefusal
             return archiveSession != nil && document is ArchiveDocument && editRefusal == nil && !outlineView.isRenaming
@@ -967,7 +1004,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
               let window else { return }
         let nodes = selectedNodes
         let state = viewStateAfterRemoving(nodes)
-        if document.canUndoNextMutation {
+        if document.canUndoNextMutation || document.isImmediateSplitMutation {
             startEdit(nodes, name: nil, state: state)
             return
         }
@@ -1007,7 +1044,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 return String(localized: "選択した項目が変更されています。アーカイブを開き直してください。", bundle: bundle)
             }
             do {
-                _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: selection, name: name)], existing: entries)
+                if (self.document as? ArchiveDocument)?.saveBehavior == .onSave {
+                    let projection = ArchivePendingProjection(entries)
+                    _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: try projection.selection(selection), name: name)],
+                                                   existing: projection.planningEntries)
+                } else {
+                    _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: selection, name: name)], existing: entries)
+                }
                 return nil
             } catch { return self.editFailureReason(error) }
         }, commit: { [weak self] name in
@@ -1132,6 +1175,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         switch error as? ArchiveEditError {
         case .archiveChanged:
             String(localized: "アーカイブが変更されています。開き直してください。", bundle: bundle)
+        case .splitArchive:
+            ArchiveCapabilities(refusal: .splitArchive).readOnlyReason(bundle: bundle)!
         case .collision:
             String(localized: "同じ名前の項目が既にあります。別の名前を入力してください。", bundle: bundle)
         case .invalidName:
@@ -1157,6 +1202,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let alert = Self.makeEditFailureAlert(reason, published: published, bundle: bundle)
         alert.beginSheetModal(for: window, completionHandler: nil)
     }
+
+    func reportDeferredReloadFailure(_ reason: String) { reportEditFailure(reason, published: true) }
 
     static func makeEditFailureAlert(_ reason: String, published: Bool = false, bundle: Bundle = .main) -> NSAlert {
         let alert = NSAlert()
@@ -1307,7 +1354,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 target: ArchiveDropTarget.folder(for: hovered.map(ArchiveDropTarget.Row.init)), mask: mask,
                 capabilities: session.capabilities, busy: operationInFlight) {
             case .move: return (.move, ArchiveDropTarget.node(for: hovered, in: root))
-            case .copy: break
+            case .copy:
+                guard canReadNodes(draggedNodes) else { return ([], nil) }
             case .none: return ([], nil)
             }
         }
@@ -1336,7 +1384,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             switch ArchiveDropTarget.localOperation(dragged: draggedNodes.map(ArchiveDropTarget.Row.init),
                 target: folder, mask: info.draggingSourceOperationMask, capabilities: session.capabilities, busy: operationInFlight) {
             case .move: return startMove(nodes: draggedNodes, to: folder)
-            case .copy: break
+            case .copy:
+                guard canReadNodes(draggedNodes) else { return false }
             case .none: return false
             }
         }
@@ -1374,6 +1423,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionProgress = progress
         let sheet = ExtractionProgressSheet(progress: progress, title: ArchiveProgressOperation.adding.title(bundle: bundle),
             detail: urls.count == 1 ? urls[0].lastPathComponent : "", bundle: bundle)
+        editProgressSheet = sheet
         sheet.begin(on: window)
         extractionTask = Task { [weak self] in
             let visibility = Self.resumeProgressAfterConflicts(sheet, on: window)
@@ -1381,6 +1431,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 withExtendedLifetime(incoming) {}
                 visibility.cancel()
                 sheet.finish()
+                self?.editProgressSheet = nil
                 self?.extractionCancellation?.cancel()
                 self?.extractionCancellation = nil
                 self?.extractionTask = nil
@@ -1431,7 +1482,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             // 件数は全回答の後に確定する。複数の確認シートの間で進捗を点滅させない。
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
-                if sheet.progress.totalUnitCount > 0 {
+                if sheet.progress.totalUnitCount > 0, window.attachedSheet == nil || window.attachedSheet === sheet.window {
                     if sheet.window?.sheetParent == nil, !sheet.progress.isCancelled { sheet.begin(on: window) }
                     return
                 }
@@ -1532,7 +1583,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 _ = try await session.preparedPassword()
                 try Task.checkCancellation()
                 let editor = ArchivePasswordEditor(action: action, format: format, archiveName: document.displayName,
-                                                   settings: await session.encryptionSettings(), canUndo: document.canUndoNextMutation, bundle: bundle)
+                                                   settings: await document.deferredEncryptionSettings(), canUndo: document.canUndoNextMutation, bundle: bundle)
                 passwordEditor = editor
                 let response: NSApplication.ModalResponse = await withTaskCancellationHandler {
                     await withCheckedContinuation { continuation in
@@ -1577,9 +1628,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         creationController = creator
         extractionProgress = progress
         defer { creationController = nil; extractionProgress = nil }
+        if document.saveBehavior == .onSave {
+            try await document.savePendingAs(using: creator, on: window, progress: progress)
+            return
+        }
+        try await document.synchronizeDeferredLocation()
+        document.configureSplitCreation(creator)
         let existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
         guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress) else { return }
         try await document.switchBackingFile(to: destination, password: creator.createdEncryption.password)
+        document.adoptSplitCreationNotice(creator)
     }
 
     func prepareForBackingFileSwitch() {
@@ -1604,7 +1662,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     @objc func copy(_ sender: Any?) {
-        guard let session = archiveSession, extractionTask == nil, !selectedNodes.isEmpty else { return }
+        guard let session = archiveSession, extractionTask == nil, !selectedNodes.isEmpty,
+              canReadNodes(selectedNodes) else { return }
         let nodes = selectedNodes
         let items = payloads(for: nodes, session: session)
         let selection = ExtractionSelection(nodes: nodes)
@@ -1621,7 +1680,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func chooseDestination(for nodes: [EntryNode]) {
-        guard let session = archiveSession, let window, extractionTask == nil, !nodes.isEmpty else { return }
+        guard let session = archiveSession, let window, extractionTask == nil, !nodes.isEmpty, canReadNodes(nodes) else { return }
         if let extractionDestinationHandler { extractionDestinationHandler(nodes); return }
         let items = payloads(for: nodes, session: session)
         let entryCount = ExtractionSelection(nodes: nodes).entries.count
@@ -1718,9 +1777,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func previewItems() -> [ArchivePreviewItem] {
-        guard let session = archiveSession else { return [] }
+        guard let session = archiveSession, canReadNodes(selectedNodes) else { return [] }
         return selectedNodes.map { node in
-            let payload = ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation)
+            let payload = ArchiveEntryPayload(node: node, session: session, generation: generation)
             if let cached = materialization?.cachedItem(for: payload) { return cached }
             return ArchivePreviewItem(payload: payload,
                 capability: EntryReadCapability(entry: node.entry, isDirectory: node.isDirectory, format: session.format),
@@ -1790,8 +1849,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                         }
                     }
                 }
-            } else if let type = UTType(filenameExtension: url.pathExtension),
-                      ArchiveBatchExtractionController.archiveContentTypes().contains(where: { type.conforms(to: $0) }) {
+            } else if ArchiveOpenPanelDelegate.acceptsArchive(url,
+                archiveTypes: ArchiveBatchExtractionController.archiveContentTypes()) {
                 // 書庫内の書庫は同じアプリで開き、一時コピーの変更不可理由を表示する。
                 NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { [weak self] _, _, error in
                     if let error, let self {
@@ -1947,6 +2006,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                   self.materialization?.item(at: index) === item else { return }
             QLPreviewPanel.shared().refreshCurrentPreviewItem()
         }
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        (document as? ArchiveDocument)?.checkDeferredIdentityWhenKey()
     }
 
     func windowWillClose(_ notification: Notification) {

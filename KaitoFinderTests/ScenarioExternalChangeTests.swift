@@ -8,7 +8,7 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
     @MainActor func testLastUsedDateXattrAfterOpeningDoesNotInvalidateTheSession() async throws {
         let fixture = try ScenarioFixture(), (document, _) = try await scenarioDocument(fixture)
         let session = try XCTUnwrap(document.session), generation = document.generation
-        let identity = try ArchiveImportTransaction.identity(fixture.archive)
+        let identity = try ArchiveSetIdentity.capture(url: fixture.archive)
         var before = stat(), after = stat()
         XCTAssertEqual(lstat(fixture.archive.path, &before), 0)
         let bytes = [UInt8](repeating: 0, count: 16)
@@ -21,7 +21,7 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
         XCTAssertEqual(before.st_ino, after.st_ino)
         XCTAssertEqual(before.st_mtimespec.tv_sec, after.st_mtimespec.tv_sec)
         XCTAssertEqual(before.st_mtimespec.tv_nsec, after.st_mtimespec.tv_nsec)
-        XCTAssertEqual(try ArchiveImportTransaction.identity(fixture.archive), identity)
+        XCTAssertEqual(try ArchiveSetIdentity.capture(url: fixture.archive), identity)
 
         _ = try await session.extractionSnapshot()
         let result = try await document.createFolder(in: "", progress: Progress())
@@ -34,7 +34,7 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
     @MainActor func testMtimeChangeRefusesSessionReadsAndEdits() async throws {
         let fixture = try ScenarioFixture(), (document, _) = try await scenarioDocument(fixture)
         let session = try XCTUnwrap(document.session)
-        let identity = try ArchiveImportTransaction.identity(fixture.archive), digest = try ScenarioFixture.digest(fixture.archive)
+        let identity = try ArchiveSetIdentity.capture(url: fixture.archive), digest = try ScenarioFixture.digest(fixture.archive)
         var before = stat(), after = stat()
         XCTAssertEqual(lstat(fixture.archive.path, &before), 0)
         let times = [timeval(tv_sec: before.st_atimespec.tv_sec, tv_usec: 0),
@@ -43,7 +43,7 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
         XCTAssertEqual(lstat(fixture.archive.path, &after), 0)
         XCTAssertEqual(before.st_ino, after.st_ino)
         XCTAssertNotEqual(before.st_mtimespec.tv_sec, after.st_mtimespec.tv_sec)
-        XCTAssertNotEqual(try ArchiveImportTransaction.identity(fixture.archive), identity)
+        XCTAssertNotEqual(try ArchiveSetIdentity.capture(url: fixture.archive), identity)
         for extracting in [true, false] {
             do {
                 if extracting { _ = try await session.extractionSnapshot() }
@@ -103,11 +103,11 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
         }
         let generation = document.generation, slots = document.archiveUndoStack.slots
         let slotDigests = try slots.map { try ScenarioFixture.digest($0.url) }
-        let identity = try ArchiveImportTransaction.identity(fixture.archive)
+        let identity = try ArchiveSetIdentity.capture(url: fixture.archive)
         let replacement = try fixture.pythonArchive("replacement.zip", script:
             "with zipfile.ZipFile(p, 'w') as z: z.writestr('external.txt', b'external replacement')")
         XCTAssertEqual(Darwin.rename(replacement.path, fixture.archive.path), 0)
-        XCTAssertNotEqual(try ArchiveImportTransaction.identity(fixture.archive)[1], identity[1])
+        XCTAssertNotEqual(try ArchiveSetIdentity.capture(url: fixture.archive).volumes[0].inode, identity.volumes[0].inode)
         let externalDigest = try ScenarioFixture.digest(fixture.archive)
 
         if redo { document.redo(nil) } else { document.undo(nil) }

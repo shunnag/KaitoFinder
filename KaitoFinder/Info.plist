@@ -115,6 +115,7 @@
 				<string>com.shunnag.KaitoFinder.lzip-archive</string>
 				<string>com.shunnag.KaitoFinder.brotli-archive</string>
 				<string>com.shunnag.KaitoFinder.pbzx-archive</string>
+				<string>com.shunnag.KaitoFinder.split-volume</string>
 			</array>
 			<key>NSRequiredContext</key>
 			<dict>
@@ -592,6 +593,33 @@
 			</array>
 			<key>NSDocumentClass</key>
 			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
+		</dict>
+		<!-- アプリ内でのみ選択する型。拡張子の関連付けは持たない。 -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>com.shunnag.KaitoFinder.split-volume</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>None</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.shunnag.KaitoFinder.split-volume</string>
+			</array>
+			<key>NSDocumentClass</key>
+			<string>$(PRODUCT_MODULE_NAME).ArchiveDocument</string>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.shunnag.KaitoFinder.split-volume</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
 		</dict>
 	</array>
 	<key>UTImportedTypeDeclarations</key>

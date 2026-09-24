@@ -51,6 +51,7 @@ nonisolated struct EntryReadCapability: Sendable {
     }
 
     private static func supportsMethod(_ entry: ArchiveEntry, format: ArchiveFormat) -> Bool {
+        if entry.pendingID != nil { return true }
         let method = entry.methodDescription
         // decoder の対応は CompressionCapabilityTests の実 fixture から展開まで照合する。
         switch format {
@@ -83,8 +84,11 @@ nonisolated struct EntryReadCapability: Sendable {
             // ISO の zisofs2 / multi-extent、WIM の他巻 resource、UDF の未対応 allocation 等。
             return entry.formatSpecific["unsupported"] == nil
         case .dmg:
-            // DMGReader は ISO / UDF の一覧を委譲する場合もある。HFS+ の decmpfs は読めない。
-            return entry.formatSpecific["unsupported"] == nil && entry.formatSpecific["hfsCompressed"] != "true"
+            // DMGReader は ISO / UDF の一覧を委譲する場合もある。
+            guard entry.formatSpecific["unsupported"] == nil else { return false }
+            guard entry.formatSpecific["hfsCompressed"] == "true" else { return true }
+            // KaitoKit 0.9.0 の対応 type を公開メタデータで判定する。属性欠落・未知の type は一覧のみ。
+            return ["1", "3", "4", "7", "8", "9", "10", "11", "12"].contains(entry.formatSpecific["decmpfsType"] ?? "")
         case .chm:
             // CHMReader は未対応 section の非空ファイルを unknown として公開する。
             return method != "unknown"

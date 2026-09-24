@@ -18,6 +18,7 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStrin
     case indexMismatch(Int)
     case staleSelection
     case archiveChanged
+    case splitArchive
     case conflictingSelection
 
     var description: String { errorDescription! }
@@ -32,6 +33,7 @@ nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStrin
         case .indexMismatch: String(localized: "選択した項目とアーカイブ内の項目が一致しません。アーカイブを開き直してください。")
         case .staleSelection: String(localized: "選択した項目が変更されています。アーカイブを開き直してください。")
         case .archiveChanged: String(localized: "アーカイブが変更されています。開き直してください。")
+        case .splitArchive: ArchiveCapabilities(refusal: .splitArchive).readOnlyReason
         case .conflictingSelection: String(localized: "同じ項目への変更が重複しています。")
         }
     }
@@ -219,14 +221,16 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
     }
 
-    func validate(entries: [ArchiveEntry]) throws {
+    func validate(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
+                  allowsRepeatedRenames: Bool = false) throws {
         for entry in removals + renames.map(\.entry) { try Self.validate(entry, entries: entries) }
-        try validateChanges(entries: entries)
+        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames)
     }
 
-    func validateChanges(entries: [ArchiveEntry]) throws {
+    func validateChanges(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
+                         allowsRepeatedRenames: Bool = false) throws {
         let removed = Set(removals.map(\.index))
-        guard !renames.isEmpty else { return }
+        guard !renames.isEmpty || !additions.isEmpty else { return }
         var occupied = ArchivePathOccupancy()
         var names: [Int: String] = [:], renamed: Set<Int> = []
         for entry in entries where !removed.contains(entry.index) {
@@ -235,7 +239,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             occupied.insert(path, directory: entry.kind == .directory)
         }
         for change in renames {
-            guard !removed.contains(change.entry.index), renamed.insert(change.entry.index).inserted else {
+            guard !removed.contains(change.entry.index), renamed.insert(change.entry.index).inserted || allowsRepeatedRenames else {
                 throw ArchiveEditError.conflictingSelection
             }
             let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory)
@@ -250,6 +254,12 @@ nonisolated struct ArchiveEditPlan: Sendable {
             names[change.entry.index] = key
             occupied.insert(key, directory: change.entry.isDirectory)
         }
+        for addition in additions {
+            let path = try Self.normalizedPath(addition.path, directory: addition.isDirectory)
+            let key = Self.key(path)
+            guard !occupied.collides(key, directory: addition.isDirectory) else { throw ArchiveEditError.collision(path) }
+            occupied.insert(key, directory: addition.isDirectory)
+        }
     }
 
     func verifyNames(_ names: [String]) throws {
@@ -262,7 +272,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
         try Self.verifyNames(names, existing: existing)
     }
 
-    fileprivate static func verifyNames(_ names: [String], existing: [ArchiveEntry]) throws {
+    static func verifyNames(_ names: [String], existing: [ArchiveEntry]) throws {
         // 選択外に子や同名の兄弟が増えていても、古い一覧による検証を使い回さない。
         guard names.count == existing.count,
               zip(names, existing).allSatisfy({ $0.utf8.elementsEqual($1.name.utf8) }) else {
@@ -270,7 +280,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
     }
 
-    fileprivate static func key(_ path: String) -> String {
+    static func key(_ path: String) -> String {
         let displayed = displayPath(path)
         return (displayed.hasSuffix("/") ? String(displayed.dropLast()) : displayed).precomposedStringWithCanonicalMapping
     }
@@ -284,12 +294,12 @@ nonisolated struct ArchiveEditPlan: Sendable {
         return displayed == "." ? "" : displayed
     }
 
-    fileprivate static func leafName(_ name: String) throws -> String {
+    static func leafName(_ name: String) throws -> String {
         guard !name.utf8.contains(47) else { throw ArchiveEditError.invalidName(name) }
         return try normalizedPath(name, directory: false)
     }
 
-    fileprivate static func normalizedPath(_ path: String, directory: Bool) throws -> String {
+    static func normalizedPath(_ path: String, directory: Bool) throws -> String {
         var name = path.precomposedStringWithCanonicalMapping
         if directory && !name.hasSuffix("/") { name += "/" }
         let body = directory ? String(name.dropLast()) : name
@@ -342,7 +352,7 @@ nonisolated enum ArchiveEditTransaction {
     static func run(plan: ArchiveEditPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveEditResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
@@ -376,7 +386,7 @@ nonisolated enum ArchiveImportTransaction {
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveImportResult {
+                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
         try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
@@ -393,7 +403,7 @@ nonisolated enum ArchiveImportTransaction {
     static func run(plan: ArchiveImportPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: [Int64]? = nil) throws -> ArchiveImportResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
@@ -440,12 +450,15 @@ nonisolated enum ArchiveImportTransaction {
     static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
-                        expectedIdentity: [Int64]? = nil,
+                        expectedIdentity: ArchiveSetIdentity? = nil,
                         additionalQuarantine: Data? = nil,
                         registry: PendingWorkRegistry = .shared,
+                        publication: ArchiveSavePublication? = nil,
+                        deferredPlan: ArchiveSaveReplayPlan? = nil,
                         mutate: (any ArchiveEditing) throws -> Void) throws {
+        if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         try ArchiveImportPlan.checkCancellation(progress)
-        let original = try identity(archive)
+        let original = try ArchiveSetIdentity.capture(url: archive)
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
         let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
         do { try registry.register(directory) }
@@ -475,17 +488,22 @@ nonisolated enum ArchiveImportTransaction {
             let suffix = archive.pathExtension.isEmpty ? "bin" : archive.pathExtension
             work = directory.appendingPathComponent("archive." + suffix)
             try willOpenUpdater?()
-            let rewriter = try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
-            // 入力の復号鍵と出力の暗号化設定を分離し、削除だけが平文へ書き直せる。
-            guard !rewriter.hasEncryptedEntries || password != nil else {
-                throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
-            }
-            try mutate(rewriter)
-            try ArchiveImportPlan.checkCancellation(progress)
-            progress.totalUnitCount += Int64(rewriter.entryNames.count)
-            try rewriter.commit { _, _ in
-                progress.completedUnitCount += 1
+            if let deferredPlan, ArchiveDeferredTarWriter.isNeeded(format: format, options: options) {
+                try ArchiveDeferredTarWriter.write(source: archive, password: password, output: work, format: format,
+                                                   options: options, plan: deferredPlan, progress: progress)
+            } else {
+                let rewriter = try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+                // 入力の復号鍵と出力の暗号化設定を分離し、削除だけが平文へ書き直せる。
+                guard !rewriter.hasEncryptedEntries || password != nil else {
+                    throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
+                }
+                try mutate(rewriter)
                 try ArchiveImportPlan.checkCancellation(progress)
+                progress.totalUnitCount += Int64(rewriter.entryNames.count)
+                try rewriter.commit { _, _ in
+                    progress.completedUnitCount += 1
+                    try ArchiveImportPlan.checkCancellation(progress)
+                }
             }
             try preserveAttributes(from: archive, to: work)
         }
@@ -497,11 +515,14 @@ nonisolated enum ArchiveImportTransaction {
         _ = try ArchiveReader.open(url: work, options: .kaitoFinder(password: options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
-        guard try identity(archive) == original else {
+        guard try ArchiveSetIdentity.capture(url: archive) == original else {
             throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
         }
+        // 作業中に兄弟が現れた場合も、一巻だけの置換を拒否する。
+        if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
+        try publication?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
         progress.completedUnitCount += 1
     }
@@ -536,15 +557,5 @@ nonisolated enum ArchiveImportTransaction {
                 guard status == 0 else { throw ExtractionFailure.system(errno) }
             }
         }
-    }
-
-    static func identity(_ url: URL) throws -> [Int64] {
-        var info = stat()
-        guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
-            throw ExtractionFailure.refused(String(localized: "アーカイブの原本を確認できません。"))
-        }
-        // LaunchServicesのlastuseddate拡張属性やFinderタグは、内容を変えずにctimeを更新する。
-        return [Int64(info.st_dev), Int64(bitPattern: info.st_ino), info.st_size, Int64(info.st_mode),
-                Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec)]
     }
 }

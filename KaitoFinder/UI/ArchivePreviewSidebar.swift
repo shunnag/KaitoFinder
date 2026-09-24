@@ -142,7 +142,7 @@ final class ArchivePreviewSidebar: NSViewController {
     func display(_ nodes: [EntryNode], session: ArchiveSession, generation: UInt64) {
         loadViewIfNeeded()
         let item = nodes.count == 1 ? nodes.first.map { node in
-            ArchivePreviewItem(payload: ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation),
+            ArchivePreviewItem(payload: ArchiveEntryPayload(node: node, session: session, generation: generation),
                 capability: EntryReadCapability(entry: node.entry, isDirectory: node.isDirectory, format: session.format, bundle: bundle),
                 requiresProgress: false)
         } : nil

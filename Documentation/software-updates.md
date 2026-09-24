@@ -55,9 +55,9 @@ GitHub の `releases/latest` はリリース対象コミットの `created_at` �
 python3 Tools/prepare_update.py \
   --app build/export/KaitoFinder.app \
   --sparkle-bin build/SparkleDerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin \
-  --output build/updates/0.2.0 \
-  --notes Documentation/releases/0.2.0.md \
-  --previous-appcast build/updates/0.1.0/appcast.xml
+  --output build/updates/0.3.0 \
+  --notes Documentation/releases/0.3.0.md \
+  --previous-appcast build/updates/0.2.0/appcast.xml
 ```
 
 バージョンとパスは例。`--notes` と `--previous-appcast` は省略可能。初回リリースでは前回フィードの指定を省く。`--sparkle-bin` は実際に依存解決した DerivedData の場所に合わせる。
@@ -68,7 +68,7 @@ python3 Tools/prepare_update.py \
 既存の出力先は、シンボリックリンクや作成中に別の処理が作った空フォルダを含めて上書きしない。
 アプリ自身の中を出力先にする指定も受け付けない。ネットへのアップロードは行わない。
 
-4. 生成物を確認してから、対応する `v0.2.0` の下書き GitHub Release に `KaitoFinder-0.2.0.zip` と
+4. 生成物を確認してから、対応する `v0.3.0` の下書き GitHub Release に `KaitoFinder-0.3.0.zip` と
    `appcast.xml` を添付する。両方のアップロード後に最新の正式リリースとして公開し、上記の固定フィードURLから取得できることを確認する。
    リリースノートはフィード内に埋め込まれる。公開後にフィードを手編集せず、変更する場合は再署名する。
 5. 一つ前の配布版で「アップデートを確認…」からインストール・再起動まで検証する。

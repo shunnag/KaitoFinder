@@ -230,9 +230,7 @@ final class WelcomeDropZoneView: NSView {
         guard !urls.isEmpty, urls.allSatisfy(\.isFileURL) else { return false }
         if kind == .open {
             return urls.allSatisfy { url in
-                guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentTypeKey]),
-                      values.isDirectory == false, let type = values.contentType else { return false }
-                return archiveTypes.contains { type.conforms(to: $0) }
+                ArchiveOpenPanelDelegate.acceptsArchive(url, archiveTypes: archiveTypes)
             }
         }
         return true

@@ -573,11 +573,63 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         }
     }
 
-    func testDMGDecmpfsFileCannotBePreviewed() throws {
-        let entry = try assertListedButUnreadable(fixtureData("dmg/hfs-zlib.dmg.gz"), format: .dmg,
-                                                  entryName: "compressed.txt", reason: "decmpfs")
+    @MainActor func testDMGDecmpfsFileCanBePreviewedAndOpened() async throws {
+        let reader = try ArchiveReader.open(data: fixtureData("dmg/hfs-zlib.dmg.gz"), options: .kaitoFinder())
+        let entry = try XCTUnwrap(reader.entries.first { $0.name == "compressed.txt" })
         XCTAssertEqual(entry.formatSpecific["hfsCompressed"], "true")
-        XCTAssertEqual(entry.methodDescription, "HFS+ compressed (decmpfs)")
+        XCTAssertEqual(entry.formatSpecific["decmpfsType"], "7")
+        XCTAssertEqual(entry.uncompressedSize, 57_000)
+        XCTAssertNotNil(entry.compressedSize)
+        try await assertPreview("dmg/hfs-zlib.dmg.gz", method: "HFS+ decmpfs (LZVN)",
+            digest: "1529342ad87ce73c260a1fa429559fc1f2bd861ac8cca998d0264e7bc90a6439",
+            entryName: "compressed.txt", format: .dmg)
+    }
+
+    func testDMGDecmpfsTypesMatchReadCapability() throws {
+        struct Payload: Decodable { let size: UInt64; let sha256: String; let decmpfsType: UInt32 }
+        struct Manifest: Decodable { let payload: [String: Payload] }
+        let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf:
+            fixtures.appendingPathComponent("dmg/manifest-decmpfs.json")))
+        let bytes = try fixtureData("dmg/hfs-decmpfs.dmg.gz")
+        let reader = try ArchiveReader.open(data: bytes, options: .kaitoFinder())
+        XCTAssertEqual(reader.format, .dmg)
+        XCTAssertEqual(Set(reader.entries.map(\.name)), Set(manifest.payload.keys))
+        XCTAssertEqual(Set(manifest.payload.values.map(\.decmpfsType)), [1, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13])
+        for entry in reader.entries {
+            let expected = try XCTUnwrap(manifest.payload[entry.name])
+            XCTAssertEqual(entry.formatSpecific["hfsCompressed"], "true", entry.name)
+            XCTAssertEqual(entry.formatSpecific["decmpfsType"], String(expected.decmpfsType), entry.name)
+            XCTAssertEqual(entry.uncompressedSize, expected.size, entry.name)
+            XCTAssertNotNil(entry.compressedSize, entry.name)
+            if [5, 13].contains(expected.decmpfsType) {
+                // 未対応 type もサイズは公開されるため、サイズの有無だけで許可しない。
+                try assertListedButUnreadable(bytes, format: .dmg, entryName: entry.name,
+                                              reason: "decmpfs (type \(expected.decmpfsType))")
+            } else {
+                let capability = EntryReadCapability(entry: entry, isDirectory: false, format: .dmg)
+                XCTAssertTrue(capability.canPreview, capability.reason ?? entry.name)
+                XCTAssertTrue(capability.canOpen, capability.reason ?? entry.name)
+                XCTAssertTrue(entry.methodDescription.hasPrefix("HFS+ decmpfs ("), entry.name)
+                XCTAssertEqual(SHA256.hash(data: try reader.read(entry)).map { String(format: "%02x", $0) }.joined(),
+                               expected.sha256, entry.name)
+            }
+        }
+    }
+
+    func testDMGDecmpfsUnknownOrMissingTypesCannotBePreviewed() {
+        // fixture にない type と属性欠落も、本文を読まずに公開メタデータだけで拒否する。
+        for type: String? in ["14", "99", nil] {
+            var specific = ["hfsCompressed": "true"]
+            specific["decmpfsType"] = type
+            let entry = ArchiveEntry(index: 0, rawName: RawName(bytes: Array("compressed.txt".utf8)),
+                name: "compressed.txt", pathComponents: ["compressed.txt"], kind: .file,
+                uncompressedSize: 840, compressedSize: 840, modificationDate: nil, posixPermissions: nil,
+                isEncrypted: false, solidGroup: -1, crc32: nil, methodDescription: "HFS+ decmpfs", formatSpecific: specific)
+            let capability = EntryReadCapability(entry: entry, isDirectory: false, format: .dmg)
+            XCTAssertEqual(capability.refusal, .unsupportedMethod(entry.methodDescription))
+            XCTAssertFalse(capability.canPreview)
+            XCTAssertFalse(capability.canOpen)
+        }
     }
 
     func testCHMUnknownSectionCannotBePreviewed() throws {
@@ -670,20 +722,67 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         }
     }
 
-    func testOldGNUAndStarSparseTarFailBeforePublishingAListing() throws {
-        for sparse in ["gnu", "star"] {
+    func testOldGNUSparseTarListsAndReadsZeroFilledHoles() throws {
+        let fixture = try ScenarioFixture(script: """
+        fragments = [(3, b'abc'), (1024, b'defg'), (3072, b'hi')]
+        body = b''.join(data for _, data in fragments)
+        with tarfile.open(p, 'w', format=tarfile.GNU_FORMAT) as writer:
+            entry = tarfile.TarInfo('sparse.bin'); entry.type = b'S'; entry.size = len(body)
+            writer.addfile(entry, io.BytesIO(body))
+            entry = tarfile.TarInfo('after.txt'); entry.size = 5
+            writer.addfile(entry, io.BytesIO(b'after'))
+        d = bytearray(open(p, 'rb').read())
+        def octal(value): return ('%011o' % value).encode() + b'\\x00'
+        for index, (offset, data) in enumerate(fragments):
+            start = 386 + index * 24
+            d[start:start + 12] = octal(offset)
+            d[start + 12:start + 24] = octal(len(data))
+        d[483:495] = octal(4096)
+        d[148:156] = b' ' * 8
+        d[148:156] = ('%06o' % sum(d[:512])).encode() + b'\\x00 '
+        open(p, 'wb').write(d)
+        """, suffix: "tar")
+        let reader = try ArchiveReader.open(url: fixture.archive, options: .kaitoFinder())
+        XCTAssertEqual(reader.format, .tar)
+        XCTAssertEqual(reader.entries.map(\.name), ["sparse.bin", "after.txt"])
+        let entry = try XCTUnwrap(reader.entries.first)
+        XCTAssertEqual(entry.kind, .file)
+        XCTAssertEqual(entry.uncompressedSize, 4096)
+        XCTAssertEqual(entry.compressedSize, 9)
+        XCTAssertEqual(entry.methodDescription, "tar (sparse)")
+        XCTAssertEqual(entry.formatSpecific["sparse"], "GNU.sparse old")
+        let capability = EntryReadCapability(entry: entry, isDirectory: false, format: .tar)
+        XCTAssertTrue(capability.canPreview, capability.reason ?? entry.name)
+        XCTAssertTrue(capability.canOpen, capability.reason ?? entry.name)
+        // 先頭・fragment 間・末尾の穴を含む全バイトと、次の entry の境界を検査する。
+        var expected = Data(repeating: 0, count: 4096)
+        expected.replaceSubrange(3..<6, with: Data("abc".utf8))
+        expected.replaceSubrange(1024..<1028, with: Data("defg".utf8))
+        expected.replaceSubrange(3072..<3074, with: Data("hi".utf8))
+        XCTAssertEqual(try reader.read(entry), expected)
+        XCTAssertEqual(try reader.read(XCTUnwrap(reader.entries.last)), Data("after".utf8))
+    }
+
+    func testNonGNUAndStarSolarisSparseTarFailBeforePublishingAListing() throws {
+        let cases: [(String, KaitoError)] = [
+            ("non-gnu", .malformed("invalid old GNU sparse header")),
+            ("star", .unsupportedMethod("tar sparse entries")),
+            ("solaris", .unsupportedMethod("tar sparse entries")),
+        ]
+        for (sparse, expected) in cases {
             let fixture = try ScenarioFixture(script: """
             with tarfile.open(p, 'w', format=tarfile.PAX_FORMAT) as writer:
+                entry = tarfile.TarInfo('before.txt'); entry.size = 6
+                writer.addfile(entry, io.BytesIO(b'before'))
                 entry = tarfile.TarInfo('sparse.bin')
-                if '\(sparse)' == 'gnu': entry.type = b'S'
-                else: entry.pax_headers = {'SCHILY.filetype': 'sparse', 'SCHILY.realsize': '4096'}
+                if '\(sparse)' == 'non-gnu': entry.type = b'S'
+                elif '\(sparse)' == 'star': entry.pax_headers = {'SCHILY.filetype': 'sparse', 'SCHILY.realsize': '4096'}
+                else: entry.pax_headers = {'SUN.holesdata': '0 4096'}
                 writer.addfile(entry)
             """, suffix: "tar")
+            // 先行する通常 file だけの一覧も公開せず、open 全体を失敗させる。
             XCTAssertThrowsError(try ArchiveReader.open(url: fixture.archive, options: .kaitoFinder())) {
-                guard case .unsupportedMethod(let reason) = $0 as? KaitoError else {
-                    return XCTFail("一覧前の拒否が得られませんでした: \($0)")
-                }
-                XCTAssertTrue(reason.contains("sparse"), reason)
+                XCTAssertEqual($0 as? KaitoError, expected, "一覧前の拒否が得られませんでした: \($0)")
             }
         }
     }

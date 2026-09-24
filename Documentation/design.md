@@ -6,6 +6,12 @@ KaitoFinder は「書庫を一覧できる圧縮ソフト」ではなく、**名
 あるファイルマネージャ**として作る。Finder と同じ外観・操作感が第一の要件であり、
 他のすべてはそれに従属する。
 
+既定は操作ごとに「すぐに書き込む」。一般設定で明示的に選ぶ「保存時にまとめて書き込む」は、
+Finder の即時操作からの opt-in の例外とする。`ArchiveSaveBehavior` を文書の生成時に一度だけ読み、
+開いている文書では切り替えない。「次に開くアーカイブから有効になります。」と設定画面に示す。
+単一ファイルに加え、M5 では番号付きバイト分割セットも保存時モードで編集できる。
+即時モードの分割編集は M6、ZIP 本来の分割出力は M7 とする。
+
 - Finder と同じ見た目・操作感で、書庫内のフォルダ / ファイル構成を表示する。
 - 書庫内の項目を Finder や他アプリへ **drag & drop** と **copy & paste** で取り出す。
 - 他アプリから書庫へ **drag & drop** と **copy & paste** で追加する。
@@ -227,7 +233,24 @@ drag の promise は drag が終わってから発火するので、index を握
 
 - promise / pasteboard の payload には `(archive URL, generation, index, path)` を持たせる。
 - `generation` は書庫を書き換えるたびに増やす。発火時に generation が違えば
-  path で引き直し、見つからなければエラーで完了させる。
+  即時モードでは path で引き直し、見つからなければエラーで完了させる。
+- 保存前モードの予約は `(index, expectedName, baseGeneration)` または安定した追加 UUID を参照する。
+  世代不一致の投影・保存は拒否し、index を別の項目へ付け替えない。表示は基底へ予約を重ねた一覧から
+  `EntryNode.tree(from:)` を作る。既存 planner 用の連続 index は origin へ戻して予約に翻訳する。
+  フォルダの改名は planner が子孫ごとの明示予約へ展開する。投影はその予約だけを適用し、
+  祖先の旧名による prefix の補完はしない。子を元のパスへ戻す予約も尊重する。
+- 保存前モードの読み取り payload は `(generation, revision, origin)` も保持する。
+  予約・取り消し・やり直しで revision が変われば、読み始める前の promise は選択変更エラーにする。
+  名前での引き直しは行わず、改名の交換でも基底 index または追加 UUID の本文だけを返す。
+  展開・コピー・ドラッグアウト・Quick Look・Open・サムネイル・比較は同じ投影を読み、
+  改名した基底は reader の本文と投影の名前、追加は staging、混在フォルダは両方から実体化する。
+  Option コピーもこの実体を新しい追加として退避する。プレビューとサムネイルは版ごとに無効化する。
+  読み始めた promise は複製 reader と投影の値を保持して完走する。staging の read lease が
+  残る間、Save / Revert / close の cleanup は削除を待つ。破棄開始後の新しい lease は拒否する。
+  追加するファイルの mode と秒単位の mtime は即時追加と一致させる。directory は即時追加と同じ
+  0755 とし、mtime は予約時に確定して読み取りと保存の両方へ渡す。新規フォルダも同じ規則。
+  Finder タグ・resource fork など writer が格納しない xattr は保存前の展開にも付けない。
+  quarantine は原本を優先し、なければ最初の追加元の印を使う、保存後と同じ規則で全項目に伝える。
 
 ### 4.3 capabilities
 
@@ -235,6 +258,123 @@ drag の promise は drag が終わってから発火するので、index を握
 drop 後の処理をここから駆動する。drop のハイライトは、在位編集または新規書庫への
 変換提案につながることを示す。書けない書庫も受け入れ、元の書庫を変えない
 変換を提案する。使えない編集動詞は、どの形式制限が原因かを言う。
+
+単一ファイル用の公開経路では分割書庫を拒否する。3 桁以上の数字拡張子は同じ親の先頭巻などの存在で、
+ZIP の `.z01` / `.zx01` 系は名前だけで、終巻の `.zip` / `.zipx` は先頭巻の存在で判定する。
+兄弟の存在は `lstat` で確かめ、symlink の参照先や内容は読まない。単独の `.001` は従来どおり扱う。
+`inspect` では一時コピーの次に検査し、公開処理の開始時と置換の直前にも再検査する。
+開いた後に兄弟が現れた場合は編集と Undo を拒否し、一巻だけを書き換えない。
+
+保存時モードでは `.numbered` の 7z / tar / tar.gz / tar.bz2 / tar.xz / LHA / ZIP に
+`ArchiveCapabilities.splitSave` を立てる。ZIP 本来の分割、書けない内側の形式、未認証の暗号化、
+表現できない項目、いずれかの巻または親の書き込み権限不足は拒否する。通常の単一ファイル publisher の
+名前による分割拒否は残し、必ず M2 の `VolumeSetPublication` を通す。
+
+#### 即時編集と別名で保存の分割出力（M6）
+
+「すぐに書き込む」では、番号付き・巻サイズが一様なセットの書き込み可能な形式を
+`splitIrreversible` として編集できる。保存済みの `.single` / `.explicit` / `.uniform` 予定表は
+推定サイズより優先し、即時編集と「元と同じ」の別名保存でもそのまま使う。不揃いで保存済み予定表がない場合は、
+まず形式・暗号化・権限・表現可能性を検査し、保存時モードなら編集できるものだけ設定変更を案内する。
+ZIP 本来の分割は読み取り専用のまま。
+
+追加・ペースト・ドロップ、削除、改名、移動、新規フォルダ、⌥コピー、パスワード変更、衝突時の置き換えの
+すべてで「分割アーカイブへの変更は取り消せません。」を確認する。説明は
+「すべての巻を書き直して、同じ巻サイズで分割し直します。」、ボタンは「変更」「キャンセル」（既定）。
+「今後、このアーカイブでは確認しない」は開いているアーカイブだけに保持し、別名保存の文書切り替えで消す。
+確認前に全巻の同一性と capabilities を検査する。即時モードの外部変更は `archiveChanged` で開き直しを案内し、
+保存時モード専用の「変更を破棄して読み直す」は出さない。親フォルダの移動は同一性を証明して追跡する。
+保存済み単一巻・明示予定表では確認の説明もその選択に合わせる。
+各編集の一時的な予約を M5 と共通の `ArchiveSplitSavePipeline` へ渡し、begin → W → publish を一度だけ実行する。
+W は `ArchiveSplitWorkProducer` に任せ、rewriter の volumeSet 照合や `.zip.001` の連結 → updater を共有する。
+単一ファイル publisher は通さない。`canUndoNextMutation=false`、willPublish で clone せず、成功時に
+`recordMutation(nil)` 相当で履歴を消す（.001 だけの退避は禁止）。証明済みの即時 rollback でも古い Undo slot と登録を消す。
+FAT/exFAT・ネットワーク・同期フォルダの同意は M5 と共通のシートで得るが、保存先の canonical directory・volume identity・
+hazard 種別を鍵にする。別の保存先への失敗した別名保存の同意を原本の編集に流用せず、文書切り替え時には消す。
+即時編集の旧巻は S10 検証と durable done の後に、live set と old/ の内容を再証明して fd 相対で直接除去する。
+保存時モードは従来の Trash 優先を保つ。`VolumeOldDisposalPolicy` を publication ごとに選び journal に保存するため、
+即時編集のクラッシュ回復も Trash を増やさない。旧 journal は従来の Trash 動作。不確かな唯一のコピーは削除しない。
+ZIP 再圧縮・cleanup pending・旧巻残留・メタデータ記録失敗の通知は両モードと別名保存で表示する。
+
+「別名で保存」の付属ビューに「分割:」を追加する。「しない」、一様または保存済み予定表のある分割元の「元と同じ（サイズまたは予定表）」、
+「サイズを指定…」（数値＋KB/MB/GB、最低64 KiB）から選ぶ。分割元は「元と同じ」、単一ファイル元は「しない」が既定。
+行は既存のグリッドに置き、数値欄は無効化で切り替えて自然な高さを保つ。新規アーカイブのパネルには追加しない。
+分割出力は選んだ名前に `.001` からの番号を付け、M2 の new-set target で作る。計画された全巻と次の番号の占有を
+パネル確定・begin・公開時に共通の占有検査を行い、衝突は「同じ名前の分割ファイルが既にあります。」で拒否する。
+保存パネルには実出力の `.001` を示し、delegate の filename callback（標準 Replace 確認の前）も `.001` に揃える。
+書かない裸の stem の上書きを確認しない。transaction へ渡す時だけ末尾の `.001` を除く。
+無効な指定サイズは NSError の localizedDescription で「64 KB以上のサイズを指定してください。」を示し、128巻の上限も確認する。
+ZIP は通常の ZIP のバイト分割。保存時モードでは予約を含め、元セットを変えず、新しい gate（分割なしなら単一ファイル）へ文書を切り替える。
+新セットもネイティブ xattr / AppleDouble ボリューム上のアプリ所有ストアという M5 のメタデータ規則を使う。
+別名保存の numbered 入力は一度だけ各巻を読み、fd・パス・stamp を前後で確認しながら SHA-256 と連結コピーを同時に生成する。
+作業領域の固定コピーを rewriter へ渡すため、FAT/exFAT 元巻の重複した全文 hash 検査を行わない。各 chunk で Progress の取消しを検査し S5 前に中止できる。
+エラー文言は保存時置換・即時置換・新セット作成を区別する。新セットの rollback/held は原本が不変であることと再試行または
+保存先の Finder 確認を案内し、原本の復元・原本を開き直すような案内や source document の held 状態を作らない。
+
+#### 分割セットの保存（M5）
+
+予約・投影・staging・undo・保存後の change-count token は単一ファイルの保存時モードと共通。
+M4 の取り出し・Quick Look・file promise は組み立て済み reader と staging を使う。
+巻サイズが一様なら S を保ち、不揃いなら保存シートで次のいずれかを選ぶ（閉じる・終了からの保存でも同じ）。
+
+- 元の巻サイズ: i < n は Li、以後は max(L(n−1), Ln)。
+- 最も多い巻サイズ: 同数なら大きい方。
+- 1 ファイル: `<stem>.001` のみ。次回も単一巻にする選択として保持する。
+- 指定サイズ: KB / MB / GB は 1024 の累乗、最小 64 KiB。
+
+選択は文書を閉じるまで保持し、公開した予定表は再オープン時にも復元する。128 巻を超える見込みなら
+begin 前のサイズシートで選び直す。実際の W が上限を超えた場合は S5 前に失敗し、サイズの選択を次の保存に
+持ち越す。一つの保存で begin を二度呼ばない。FAT/exFAT、ネットワーク、file provider・同期フォルダでは
+中断時の回復と他アプリが新旧の巻を混在して読む可能性を説明し、保存先と hazard 種別ごとに明示的な同意を得る。
+既定のボタンはキャンセル。同意も巻サイズも begin 前に確定する。
+
+`ArchiveSplitWorkProducer.produce(source:workURL:mode:password:options:plan:progress:verifyAssembledInput:)`
+は出力の stem・命名・予定表と独立して W を生成する。rewriter の `volumeSet` を publication の
+`verifyAssembledInput` で照合してから replay する。`.zip.001` は `ArchiveVolumeInput.copy(to:progress:)`
+で各巻の fd・パス・同一性を前後に照合しながら連結し、Updater で既存項目を再圧縮せず編集する。
+Updater の構造上の拒否（gatekeeper / invalidArchive / nonRelocatableEntry）は ZIP rewriter へ切り替え、保存後の通知欄で知らせる。
+W と切り出したセットを KaitoKit で開き、予定した名前の集合と照合する。
+
+調整の presenter は必ず ArchiveDocument 自身。取得待ちは S5 の外にあり、時間切れは原本を変えず失敗する。
+公開中の presentedItemDidMove は無視し、終了時に fileURL を元の gate URL の綴りへ戻す。
+reader が `/private/var` を `/var` に正規化しても文書の URL は置き換えない。成功後は新 gate の mtime を採用する。
+M2 の committed（後片付けの警告を含む）は保存成功として予約・staging・undo を消す。rolledBack は失敗として
+全巻の復元を証明して reader・identity を再接続し、予約・世代・dirty を保って Save と別名で保存を許可する。rollbackIncomplete / held / publishedReaderFailed /
+publishedVerificationPending も失敗として予約を保持し、再オープンまで編集を無効にする。残った staging には
+「Finderで表示」を提供する。ownerAlive は原本を変えず再試行の案内。
+
+APFS/HFS+ では gate に `com.shunnag.KaitoFinder.volume-layout`（stem / width / schedule の JSON）、各巻に
+`com.shunnag.KaitoFinder.volume-set`（setUUID / generation / index / count / totalSHA256 の JSON）を書く。
+一巻に縮んでも gate の予定表を読んで再分割できる。setUUID・世代・巻数・順序の不一致は読み取りを残して編集を拒否する。
+他ツールの印のない巻は印の比較から除く。
+
+M2 の `usesAppleDouble` が真のファイルシステムでは KaitoFinder の二つの xattr だけを書かない。
+quarantine と旧巻が持っていた他の属性は公開巻にも継承する。属性のない旧巻にアプリの印だけの `._*` は作らない。
+Application Support/KaitoFinder/volume-metadata.json は volume UUID + volume-relative gate path + gate inode +
+gate size + 先頭・末尾各 64 KiB の SHA-256 を鍵にした任意のキャッシュ。古い形式や一致しない記録は無視する。
+flock と fsync 済みの atomic JSON 置換を使い、16 MiB の上限前に古い項目を間引く。journal に新旧の記録を含め、
+done 後または完全な旧セットの復元後に保存する。書き込み失敗は警告で、commit や回復を保留しない。
+quarantine はストアとは独立して実巻に残る。名前を揃えて変更・複製したセットは mixed にせず、古い layout の名前を無視する。
+FAT32 で見積もり W が UInt32.max 以上なら、作業開始前に他の形式のディスクへの保存を案内して拒否する。
+
+開く controller は既存文書を最初に選ぶ。gate が保存中に staging に隠れていても同じセットのウインドウへ戻す。
+その後で同じ stem の未完了 journal を探し、live owner の staging は中断と扱わない。`read(from:)` も同じ発見を行う。
+不整合な同一 stem の journal も「中断した保存を完了して開く」で案内する。controller と read が渡す NSError の
+`NSRecoveryAttempterErrorKey` に明示的な NSObject attempter を入れ、Swift bridge の遅延 provider に依存しない。
+userInfo をコピーして NSError を再作成しても同期・delegate の両入口を保つ。
+AppKit の同期 recovery 入口は false を返して非同期処理を開始し、delegate 入口も同じ処理を使って完了後に返答する。
+専用 recovery queue で回復後 gate を開く。done、または全旧巻と次巻の不在を証明した abandoned は開くのを妨げない。
+後片付けだけの失敗は回復成功と残留通知にし、元の回復機構で再試行する。HELD は staging の「Finderで表示」を提供し、
+文書が key になっても外部変更の偽警告を出さない。HELD の別名で保存は無効。read 内で回復・rename はしない。
+fileModificationDate は Foundation と正確に等しい Date（reference date 基準で算出）を使い、別名で保存後は FileManager から読む。
+文書の fileURL は綴りを変えず、親フォルダが移動した場合は新しい親で全巻の同一性と次巻の不在を証明して追跡する。
+
+reader が返す `volumeSet` から巻順・入口・巻サイズの予定表を `ArchiveVolumeLayout` に保持し、
+分割の判定にも使う。`ArchiveSetIdentity` は全巻の名前・ボリューム UUID（取得できない場合は device）・
+inode・size・mode・mtime（秒とナノ秒）と、次の番号の名前が存在しないことを照合する。
+開くときは reader の保持 fd の属性とも一致させ、読み出し・別名で保存・公開・Undo で外部変更を検出する
+（Undo は従来どおり mode を除く）。一括展開後のゴミ箱移動も全巻を先に照合し、一巻でも変わっていれば
+何も移さない。成功した分割セットは全巻を移し、途中の移動が失敗したらそこで止めて残りを残す。
 
 ```swift
 struct ArchiveCapabilities: Sendable {
@@ -317,12 +457,17 @@ Finderのサービス「KaitoFinderで展開」から、文書を開かずに同
 失敗は最後に名前と理由を一つのアラートにまとめ、すべて成功した場合は通知も表示先の変更もしない。
 展開には画面の「すべて展開」と共通のペイロードと`ExtractionService`を使い、安全性検査と隔離属性の伝播を引き継ぐ。
 
-`NSDocument` は**読み取り専用の器**として使う。`readFromURL:ofType:` を
+即時モードの `NSDocument` は**読み取り専用の器**として使う。`readFromURL:ofType:` を
 override して super を呼ばない(継承実装は NSFileWrapper 経由で書庫全体を
 memory へ載せ、KaitoKit の遅延読みを潰す)。`isEntireFileLoaded` は NO、
 `autosavesInPlace` / `preservesVersions` は NO、`writableTypesForSaveOperation:`
 は空配列。書き換えは NSDocument の保存機構ではなく後述の atomic replace で行い、
-`revertToContentsOfURL:` で同期し直す。
+`session.reloadAfterMutation()` で同期し直す。
+保存前モードは `save(to:ofType:for:completionHandler:)` と `revert(toContentsOf:ofType:)` を使う。
+Viewer 役の文書では標準の検証が Save を拒否するため、Save / Revert を明示的に検証する。
+`writableTypes(for:)` は保存経路で参照されないという実測に従い、両モードで空のままとする。
+保存開始時の change-count token と公開後の fileModificationDate を両方更新して完了する。
+後着した変更数を消す `.changeCleared` は Save では使わない。
 
 日本語 UI の語彙は Finder 自身の `ja.lproj/*.strings` に合わせる(項目、など)。
 文字列は `.xcstrings`。
@@ -356,10 +501,12 @@ Cancel を使う。詳細と自動検証・手動確認の境界は
 > links both AppKit and SwiftUI, and neither column view nor rubber-band
 > selection exists in SwiftUI at any availability level. SwiftUI is used through
 > `NSHostingView` for Settings, Get Info and the inspector. `NSDocument` serves
-> as a read-only shell whose `readFromURL:ofType:` deliberately does not call
+> as a read-only shell in immediate mode whose `readFromURL:ofType:` deliberately does not call
 > super, because the inherited implementation loads the whole archive into memory
 > through `NSFileWrapper` and defeats KaitoKit's lazy reader; mutation happens
-> out of band through atomic replacement, followed by `revertToContentsOfURL:`.
+> out of band through atomic replacement, followed by `session.reloadAfterMutation()`.
+> Opt-in deferred documents use the NSDocument Save and Revert entry points, explicitly
+> validate their Viewer-role menu actions, and synchronize both the save token and file mtime.
 > Japanese vocabulary follows Finder's own `.strings`.
 >
 > Quick Look uses QLPreviewPanel through the window controller's responder chain;
@@ -391,6 +538,22 @@ undo があるからで、確認の有無は「危険だから」ではなく「
 とき — 非 APFS ボリューム(exFAT の USB、SMB 共有)で `clonefile` が ENOTSUP を
 返す場合 — で、そのときだけ「取り消せません」と明示して確認する。
 選択行ごとにモーダルを出すことはしない。
+保存前モードはメモリ上の予約をいつでも取り消せるので、削除の確認は出さない。
+追加の退避は Application Support/KaitoFinder/Staging/<lease UUID>/<batch UUID>/<item UUID>/<元の名前> に
+clone または取消し可能な chunk copy で作る。旧 lease の読み取り待ち中も別の UUID を割り当てる。
+フォルダ列挙から `.KaitoFinder-*` を除く。履歴が参照する退避物は Save / Revert / close まで保持する。
+コピー後の退避物だけから BSD flags と ACL を除く。即時 writer もこれらを格納しないため、
+flags/ACL の保存用記録は持たず、元の項目には触れない。解除できない system flag を複製しないよう
+flag 付き入力は本文をコピーする。旧退避物の削除も flags/ACL を解除して再試行し、symlink は辿らない。
+file provider の保護 xattr など、非必須属性の EPERM/ENOTSUP は予約全体の失敗にしない。
+tar の「所有者 ID を保持」は追加元の lstat の uid/gid を記録して使う。現在の公開 writer API は
+明示的な uid/gid を受け取れないため、保存前モードだけは自分で生成した非圧縮 tar の数値欄へ渡し、
+既存 rewriter で目的の tar 形式へ書き出す。directory の ID は即時 addDirectory と同じ 0。
+取消した予約の部分コピーは即座に回収して台帳から外し、次回起動の孤立通知には残さない。
+台帳は別ファイルの flock と atomic JSON、所有者は文書ごとの lock file を開いて flock を保持する。
+起動時に所有者のいない退避物をゴミ箱へ移し、一度通知する。唯一のコピーかもしれないため削除はしない。
+台帳の inode と一致して lock file だけが消えている場合も、所有者なしとして扱う。
+予約確定前に投影全体の形式表現性を probe し、ZIP は最初の予約時に updater の CD 照合も行う。
 
 **検証は UI で先に行う。** 衝突する名前を打った利用者には、フィールドを編集状態の
 まま検証メッセージを見せる。commit してからエラーシートを出すのは設計ではなく
@@ -646,7 +809,7 @@ The Unarchiver が export する `org.tukaani.tar-xz-archive`（`.txz`）、
 既存 import の `txz` / `zipx` / `deb` はフォールバックとして残す。
 Zstandard も同じ準拠先で import し、`zst` / `tzst` を登録する（`.tar.zst` は `zst` で対応）。
 StuffIt は CoreTypes の識別子を参照し、`sit` / `sea`、`sitx` の import も明記する。
-`.tbz2` / `.tbz`、`.z01`、`.jar`、`.cbz` は既存型への準拠で対応するため変更しない。
+`.tbz2` / `.tbz`、`.jar`、`.cbz` は既存型への準拠で対応するため変更しない。
 
 開発用 Mac で Release ビルドを `lsregister -f` により登録した後、拡張子ごとに
 KaitoFinder が開き手の候補に出るかを実測した。識別子・候補・既定アプリの表と CAB の
@@ -658,10 +821,23 @@ KaitoFinder が開き手の候補に出るかを実測した。識別子・候�
 宣言は維持し、「ファイル > 開く…」または Dock のアイコンへのドラッグで開く。
 `.taz`（tar.Z）は動的な型に解決され、import の拡張子一覧でシステム型 `public.z-archive` の
 `z` / `Z` を拡張できないため、「ファイル > 開く…」から開く。
-`.001` の分割ボリュームと `.exe` の自己解凍アーカイブも関連付けの対象外とする。
+`.001` / `.zNN` / `.zxNN` の分割ボリュームと `.exe` の自己解凍アーカイブも関連付けの対象外とする。
+分割巻はアプリ内の「開く…」「アーカイブを展開…」とドロップの判定で
+`ArchiveVolumeSet.parse(fileName:)` を併用する。`ArchiveDocumentController` は起動時に
+最初の文書 controller として生成し、通常の型に文書クラスがない分割巻だけを内部型
+`com.shunnag.KaitoFinder.split-volume` で開く。この型は `public.data` / `public.archive` に
+準拠する exported type で、Viewer / `LSHandlerRank = None` とし、拡張子タグを宣言しない。
+Finder / LaunchServices の実ファイルの関連付けは増やさない。途中の番号付き巻は同じ桁幅の
+先頭巻（桁が増えた名前では `.001` も探す）、`.zNN` / `.zxNN` は最終 `.zip` / `.zipx` に
+入口を揃えてから開き、同じ文書と最近使った項目を共有する。入口が lstat で存在しなければ
+同じ stem の未解決 journal があれば回復を提案し、それもなければ元の URL を渡す。
+一括展開も同じ入口を使う。即時モードの番号付き分割は上記 M6 の条件で編集し、ZIP 本来の分割セットの変更拒否は維持する。
 
 展開サービスの `NSSendFileTypes` は全 `LSItemContentTypes` の集合と一致させる。
-一括展開パネルとようこそのドロップ判定もこの宣言を参照する。
+内部の分割巻型も集合に含めるが、その型を持つ実ファイルがないので Finder のサービス対象は増えない。
+`archiveContentTypes()` も全宣言を参照し、パネルの delegate とドロップ判定が分割巻の名前を補う。
+「開く…」と一括展開のパネルは content type による絞り込みを外し、delegate がフォルダへの移動と
+宣言型に準拠するアーカイブ・分割巻を有効にする。選択確定時はそれ以外を標準エラーで拒否する。
 拒否・変換の形式名は `Model/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
 圧縮 tar の magic による名前と既存の tar / 7z / SFX ZIP の扱いは維持する。
 Finder の登録・ダブルクリックの実機確認は [手動検証 §13](manual-verification.md#13-finder-のこのアプリケーションで開く)を参照。
@@ -883,10 +1059,13 @@ M3(書庫内の削除・改名)には取り消しが要る。Finder にはファ
 Finder を名乗る以上期待される。一方 `NSDocument` の編集機構は止めてあるので Cmd-Z が無い。
 実測(`Documentation/verification/2026-09-10-undo-model.md`)の上で以下に決めた。
 
-**単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
+**単一ファイルの即時モードの単位は書庫ファイルそのもの。** `commit()` は必ず inode を差し替えるので、
 編集前のファイルが自然な undo 単位になる。当初案の `NSFileVersion` は
 ファイル全体を複製するため 4 GiB 級の書庫で破綻し、entry model 上の undo stack は
-削除された byte を持たないので rename にしか使えない。どちらも採らない。
+削除された byte を持たないので rename にしか使えない。即時モードではどちらも採らない。
+保存前モードでは基底の byte が原本に残るため、値型 `ArchivePendingChanges` の入れ替えが正しい undo になる。
+既存の grouping helper を通して登録し、Undo / Redo はディスクへ書かない。成功した Save の後は
+基底 index が変わるので履歴を消す。
 
 **退避は `clonefile(2)`、置き場所は同一ボリュームの temp。**
 `replaceItemAt` の直前に、原本を `.itemReplacementDirectory` 配下の undo slot へ
@@ -906,11 +1085,12 @@ undo の直前に現状態を clone してから戻す。
 上限を持ち、古いものから捨てる。document を閉じたら全部消す(Quick Look の
 後始末と同じ `@concurrent` 経路)。Finder の undo もアプリ終了を跨がない。
 
-**dirty 状態は抑制する。** `NSUndoManager` に登録すると `NSDocument` が
-`updateChangeCount` を呼び、実測で `isDocumentEdited` が true になる。本アプリは
+**即時モードだけ dirty 状態を抑制する。** `NSUndoManager` に登録すると `NSDocument` が
+`updateChangeCount` を呼び、実測で `isDocumentEdited` が true になる。即時モードは
 `writableTypes` が空 — commit は即ディスクに落ちるので「未保存」という状態が
 存在しない — なので、dirty になると閉じる際に**満たせない「保存しますか？」**が出る。
-`updateChangeCount(_:)` を no-op に上書きする。実測で dirty は立たず、
+即時モードの `updateChangeCount(_:)` だけを no-op にする。保存前モードは super を呼び、
+通常の保存確認に従う。即時モードでは実測で dirty は立たず、
 `canUndo` / `canRedo` / メニュー項目名(「取り消す — 削除」)は生きたままになる。
 
 **clone できない書庫は undo を持てない。** 非 APFS ボリューム(exFAT の USB、SMB 共有)
@@ -928,7 +1108,7 @@ UI 層でこれに伴って決めておくこと:
    ライブラリを呼ぶ前に UI で弾き、「commit してから拒否された」ではなく
    検証メッセージを見せる。
 
-> **Undo.** The unit of undo is the archive file itself, because every commit
+> **Undo.** For single-file immediate edits, the unit of undo is the archive file itself, because every commit
 > replaces the inode anyway. Both originally-surveyed options were dropped:
 > `NSFileVersion` copies the whole file into `.DocumentRevisions-V100`, which is a
 > disk bomb for the >4 GiB archives we already know exist, and an in-memory entry
@@ -943,7 +1123,7 @@ UI 層でこれに伴って決めておくこと:
 > and dies with it. Registering with `NSUndoManager` gives real Cmd-Z and Edit-menu
 > titles, but it also makes `NSDocument` mark itself edited — measured — which
 > would raise an unsatisfiable save prompt on a document whose `writableTypes` is
-> empty, so `updateChangeCount` is overridden to a no-op. On a non-APFS volume
+> empty, so immediate mode overrides `updateChangeCount` to a no-op. Deferred mode preserves normal dirty tracking. On a non-APFS volume
 > there is no slot, and the user is told the operation is irreversible *before* it
 > commits rather than being charged a 4 GiB copy silently.
 
@@ -993,9 +1173,13 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   レベルを変更できない。設定値に最も近い段階から開始し、同距離なら高い方を選ぶ。
   形式を変えるとその形式の設定から選び直す。レベルの選択は今回だけに適用する。
 - ファイル › 別名で保存…(⇧⌘S) は、`ArchiveCreationTransaction` で新しい保存先へ変換し、
+  保存前モードでは削除→循環を一時名で断った改名→任意パスへの追加・新規フォルダを同じ replay plan で反映する。
+  保存前に全 replay の占有と基底の件数・名前・世代、staging の stamp を検証する。
+  ZIP の通常 Save は Updater、書き直し形式と暗号化変更は Rewriter により一作業コピー・一公開とする。
+  空に畳み込める計画は公開しない。出力の新しい鍵は公開成功後にだけ採用する。
   完了後に同じ文書の `fileURL`・型・session・capabilities・identity を更新する。
   Quick Look、実体化、サムネイルと旧 undo 履歴を破棄し、空の undo stack を用意する。
-  最近使った項目にも登録する。元ファイルは変更せず、同一ファイル(path / symlink / hard link)
+  保存前モードでは予約・staging・変更数も消す。最近使った項目にも登録する。元ファイルは変更せず、同一ファイル(path / symlink / hard link)
   への保存は拒否する。読み取り専用形式からも利用できる。暗号化された入力は既知の鍵を保存パネルの両欄へ
   入れ、暗号化を初期選択する。出力の鍵で新しい session を開く。ドロップによる変換は従来どおり別の文書を開く。
 - 未対応言語の fallback は `Info.plist` の `CFBundleDevelopmentRegion = en` で指定する。
@@ -1113,8 +1297,23 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   (3) 進行中の仕事が無くても undo スロットがあれば確認なしで同じ待ちをする。
   (4) 何も無ければ `.terminateNow`(状態復元の経路に触れない)。待ちは 10 秒で打ち切る —
   ネットワークボリュームで止まった後始末が終了を阻むより、残骸を許す方を選ぶ。
-  ⌘W は確認しない: 長い操作は全て進捗シートを窓に付けるので、閉じるボタンも ⌘W も
+  即時モードの ⌘W は確認しない: 長い操作は全て進捗シートを窓に付けるので、閉じるボタンも ⌘W も
   シートが塞ぐ。記録は `verification/2026-09-16-quit-during-work.md`。
+- **保存前モードの終了（2026-09-23 実測）**: AppKit の review → canClose → save → completion →
+  close / removeDocument → applicationShouldTerminate の順。未保存なら標準の Save / Don't Save / Cancel に従う。
+  close は二度呼ばれても何もしない。既に documents から外れた文書の staging cleanup を
+  `DocumentCleanupRegistry` に登録し、終了時にプロセス全体で待つ。
+  保存・別名で保存中は予約 UI、undo / redo、戻す、別名で保存、展開系を停止する。
+  quit は公開前の保存パネル・書き込み・退避コピーを取り消して後始末を待ち、公開後は完了を待つ。
+  外部変更シートの「変更を破棄して読み直す」も Revert と同じ直列化入口を通し、await の前に取得した
+  change-count token でだけ変更数を更新する。後着の編集要求は戻す処理の完了後に予約する。
+  先に送られた予約要求は保存完了後に新しい予約として扱う。main actor の Task を使い modal run loop でも進める。
+  公開の rename 境界から文書の同期完了まで M2 の臨界区間カウンタを保持し、10 秒の期限も取消しも越える。
+  外部変更は予約時・窓が key になったとき・Save 開始時に ArchiveSetIdentity で照合する。
+  自分の公開中は main actor からの照合を止め、外部の新しい内容へ予約を自動的に混ぜない。
+  保存前モードの mode だけの変更は contentEquals で許し、公開側には新しい mode を渡す。
+  NSDocument が追跡した単一ファイルの Finder 移動は inode・volume・size・mtime を確認して追随する。
+  公開後の reload 失敗は既存の読み直し失敗状態と通知にし、自分の公開を外部変更とは表示しない。
 
 ## 10. マイルストーン
 

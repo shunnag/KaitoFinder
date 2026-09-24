@@ -86,6 +86,28 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         XCTAssertEqual(errno, ENOENT, file: file, line: line)
     }
 
+    @MainActor func testSplitSevenZipBatchExtractionUsesGateAndExtractsEachSetOnce() async throws {
+        let fixture = try SplitArchiveFixture(volumeCount: 3)
+        let before = try fixture.volumes.map { try Data(contentsOf: $0) }
+        let extractor = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .never),
+            passwordPrompt: { _, _ in
+                XCTFail("暗号化していないアーカイブは入力を求めない")
+                throw CancellationError()
+            }, reveal: { _ in })
+        for (index, archives) in [[fixture.archive], [fixture.volumes[2], fixture.archive]].enumerated() {
+            let destination = fixture.directory.url.appendingPathComponent("out\(index)")
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+            let progress = Progress()
+            let report = await extractor.run(archives: archives, base: destination, progress: progress)
+            XCTAssertFalse(report.cancelled)
+            XCTAssertTrue(report.failures.isEmpty, report.failures.map(\.reason).description)
+            XCTAssertEqual(report.extracted, [fixture.archive])
+            XCTAssertEqual(progress.totalUnitCount, 1)
+            try assertContents(destination, fixture.contents)
+        }
+        XCTAssertEqual(try fixture.volumes.map { try Data(contentsOf: $0) }, before)
+    }
+
     func testDestinationFolderPoliciesForSingleAndMultipleTopLevelNames() throws {
         let directory = try ArchiveTestDirectory(), base = directory.url
         let archive = base.appendingPathComponent("photos.zip")
@@ -371,6 +393,81 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
                 XCTAssertEqual(try Data(contentsOf: archive), replacementBytes)
             } else { XCTAssertTrue(report.failures.isEmpty) }
             try assertContents(base, ["original/a.txt": bytes, "original/b.txt": bytes])
+        }
+    }
+
+    @MainActor func testSplitExtractionMovesEveryVolumeToTrash() async throws {
+        let fixture = try SplitArchiveFixture(), trashed = Mutex<[URL]>([])
+        let base = fixture.directory.url.appendingPathComponent("out", isDirectory: true)
+        let trash = fixture.directory.url.appendingPathComponent("trash", isDirectory: true)
+        for folder in [base, trash] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false) }
+        let originals = try fixture.volumes.map { try Data(contentsOf: $0) }
+        let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .never, trashesArchiveAfterExtraction: true),
+            passwordPrompt: { _, _ in throw CancellationError() }, trash: { url in
+                trashed.withLock { $0.append(url) }
+                try FileManager.default.moveItem(at: url, to: trash.appendingPathComponent(url.lastPathComponent))
+            })
+        let report = await engine.run(archives: [fixture.archive], base: base, progress: Progress())
+        XCTAssertEqual(report.extracted, [fixture.archive])
+        XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertEqual(trashed.withLock { $0 }, fixture.volumes)
+        try assertContents(base, fixture.contents)
+        for (volume, bytes) in zip(fixture.volumes, originals) {
+            assertAbsent(volume)
+            XCTAssertEqual(try Data(contentsOf: trash.appendingPathComponent(volume.lastPathComponent)), bytes)
+        }
+    }
+
+    @MainActor func testSplitTrashStopsOnFirstFailureAndKeepsRemainingVolumes() async throws {
+        let fixture = try SplitArchiveFixture(), attempted = Mutex<[URL]>([])
+        let base = fixture.directory.url.appendingPathComponent("out", isDirectory: true)
+        let trash = fixture.directory.url.appendingPathComponent("trash", isDirectory: true)
+        for folder in [base, trash] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false) }
+        let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .never, trashesArchiveAfterExtraction: true),
+            passwordPrompt: { _, _ in throw CancellationError() }, trash: { url in
+                attempted.withLock { $0.append(url) }
+                if url == fixture.volumes[1] { throw CocoaError(.fileWriteNoPermission) }
+                try FileManager.default.moveItem(at: url, to: trash.appendingPathComponent(url.lastPathComponent))
+            })
+        let report = await engine.run(archives: [fixture.archive], base: base, progress: Progress())
+        XCTAssertEqual(report.extracted, [fixture.archive])
+        XCTAssertEqual(report.failures.map(\.archive), [fixture.archive])
+        XCTAssertEqual(attempted.withLock { $0 }, Array(fixture.volumes.prefix(2)))
+        assertAbsent(fixture.volumes[0])
+        for volume in fixture.volumes.dropFirst() { XCTAssertTrue(FileManager.default.fileExists(atPath: volume.path)) }
+        try assertContents(base, fixture.contents)
+    }
+
+    @MainActor func testSplitTrashRefusesAllVolumesIfAnyVolumeChangesDuringExtraction() async throws {
+        for mutation in 0..<4 {
+            let fixture = try SplitArchiveFixture(.tar), trashed = Mutex<[URL]>([])
+            let base = fixture.directory.url.appendingPathComponent("out", isDirectory: true)
+            try FileManager.default.createDirectory(at: base, withIntermediateDirectories: false)
+            let firstOutput = base.appendingPathComponent("file0.txt")
+            let gate = ScenarioGate(), progress = Progress()
+            let observation = progress.observe(\.fractionCompleted, options: [.new]) { _, _ in
+                if FileManager.default.fileExists(atPath: firstOutput.path) { gate.pauseOnce() }
+            }
+            defer { gate.release(); observation.invalidate() }
+            let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(folderPolicy: .never, trashesArchiveAfterExtraction: true),
+                passwordPrompt: { _, _ in throw CancellationError() }, trash: { url in trashed.withLock { $0.append(url) } })
+            let task = Task { await engine.run(archives: [fixture.archive], base: base, progress: progress) }
+            addTeardownBlock { task.cancel(); gate.release(); _ = await task.value }
+            try await scenarioWait { gate.isEntered }
+            switch mutation {
+            case 0: try SplitArchiveFixture.touch(fixture.volumes[2])
+            case 1: try SplitArchiveFixture.replace(fixture.volumes[1])
+            case 2: try Data().write(to: fixture.nextVolume)
+            default: try FileManager.default.removeItem(at: fixture.volumes[1])
+            }
+            gate.release()
+            let report = await task.value
+            XCTAssertFalse(report.cancelled)
+            XCTAssertEqual(report.extracted, [fixture.archive])
+            XCTAssertTrue(trashed.withLock { $0.isEmpty })
+            XCTAssertEqual(report.failures.map(\.reason),
+                           [String(localized: "展開中にアーカイブが変更されたため、ゴミ箱に入れませんでした。")])
+            try assertContents(base, fixture.contents)
         }
     }
 

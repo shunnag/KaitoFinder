@@ -15,6 +15,7 @@ import UniformTypeIdentifiers
     private let materializer: EntryMaterializer
     private let session: ArchiveSession
     private let generation: UInt64
+    private let pendingRevision: UInt64?
     private let pointSize: CGFloat
     private let scale: CGFloat
     private let generate: Generate
@@ -24,6 +25,7 @@ import UniformTypeIdentifiers
     private var inFlight: [ObjectIdentifier: Production] = [:]
     private var cancelled = false
     private var cancellation: Task<Void, Never>?
+    var canRead: ((EntryNode) -> Bool)?
     var didProduce: ((EntryNode) -> Void)?
     var isIdle: Bool { queue.isEmpty && inFlight.isEmpty }
 
@@ -42,16 +44,20 @@ import UniformTypeIdentifiers
         self.materializer = materializer
         self.session = session
         self.generation = generation
+        pendingRevision = session.pendingReadSnapshot?.revision
         self.pointSize = pointSize
         self.scale = scale
         self.generate = generate
     }
 
     /// 生成を始めずに、既にあるサムネイルだけを返す（ドラッグ画像など、副作用を持ち込めない場面向け）。
-    func cachedThumbnail(for node: EntryNode) -> NSImage? { cache[ObjectIdentifier(node)] }
+    private var isCurrent: Bool {
+        !session.usesPendingReading || (session.generation == generation && session.pendingReadSnapshot?.revision == pendingRevision)
+    }
+    func cachedThumbnail(for node: EntryNode) -> NSImage? { isCurrent ? cache[ObjectIdentifier(node)] : nil }
 
     func thumbnail(for node: EntryNode) -> NSImage? {
-        guard !cancelled else { return nil }
+        guard !cancelled, isCurrent, canRead?(node) != false else { return nil }
         let id = ObjectIdentifier(node)
         if let image = cache[id] { return image }
         // 暗号化の除外は await より前に行い、session の password prompt に到達させない。
@@ -85,7 +91,8 @@ import UniformTypeIdentifiers
         }
         do {
             try Task.checkCancellation()
-            let payload = ArchiveEntryPayload(node: node, archiveURL: session.sourceURL, generation: generation)
+            guard isCurrent else { return }
+            let payload = ArchiveEntryPayload(node: node, session: session, generation: generation)
             let url = try await materializer.materialize(payload, progress: production.progress)
             let image: NSImage
             do {
@@ -100,7 +107,7 @@ import UniformTypeIdentifiers
             }
             // 完了通知より先に削除する。取消しを無視して返った生成結果もここで回収する。
             await EntryMaterializer.discard(url)
-            guard !cancelled, !Task.isCancelled, !production.progress.isCancelled else { return }
+            guard !cancelled, isCurrent, !Task.isCancelled, !production.progress.isCancelled else { return }
             let longestSide = max(image.size.width, image.size.height)
             if longestSide > pointSize {
                 let ratio = pointSize / longestSide

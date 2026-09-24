@@ -5,6 +5,7 @@ final class PreferencesViewModel {
     static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored]
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
+    static let saveBehaviors = ArchivePreferences.SaveBehavior.allCases
     static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
     private let store: ArchivePreferencesStore
 
@@ -12,6 +13,7 @@ final class PreferencesViewModel {
 
     var preferences: ArchivePreferences { store.preferences }
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
+    var saveBehaviorIndex: Int { Self.saveBehaviors.firstIndex(of: preferences.saveBehavior)! }
     var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
     var zipMethodIndex: Int { Self.zipMethods.firstIndex(of: preferences.zipMethod)! }
     var extractionDestinationIndex: Int { Self.extractionDestinations.firstIndex(of: preferences.extractionDestination)! }
@@ -24,6 +26,11 @@ final class PreferencesViewModel {
     func selectDefaultFormat(at index: Int) {
         guard ArchivePreferences.formats.indices.contains(index) else { return }
         store.preferences.defaultFormat = ArchivePreferences.formats[index]
+    }
+
+    func selectSaveBehavior(at index: Int) {
+        guard Self.saveBehaviors.indices.contains(index) else { return }
+        store.preferences.saveBehavior = Self.saveBehaviors[index]
     }
 
     func selectOpeningBehavior(at index: Int) {
@@ -92,6 +99,7 @@ final class PreferencesWindowController: NSWindowController {
     private let softwareUpdater: any SoftwareUpdating
     let tabController = PreferencesTabViewController()
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let saveBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
@@ -158,10 +166,16 @@ final class PreferencesWindowController: NSWindowController {
         tabController.tabStyle = .toolbar
         tabController.canPropagateSelectedChildViewControllerTitle = false
         configureControls()
+        let saveNote = NSTextField(wrappingLabelWithString: String(localized: "次に開くアーカイブから有効になります。", bundle: bundle))
+        saveNote.preferredMaxLayoutWidth = 360
+        saveNote.textColor = .secondaryLabelColor
+        saveNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", sections: [
             group(rows: [
                 row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
-                row(String(localized: "アーカイブを開くとき:", bundle: bundle), control: openingBehaviorPopup)
+                row(String(localized: "アーカイブを開くとき:", bundle: bundle), control: openingBehaviorPopup),
+                row(String(localized: "変更の書き込み:", bundle: bundle), control: saveBehaviorPopup),
+                row("", control: saveNote)
             ]),
             group(rows: [
                 checkboxRow(showsHiddenFilesCheckbox),
@@ -252,6 +266,8 @@ final class PreferencesWindowController: NSWindowController {
 
     private func configureControls() {
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
+        saveBehaviorPopup.addItems(withTitles: [String(localized: "すぐに書き込む", bundle: bundle),
+                                               String(localized: "保存時にまとめて書き込む", bundle: bundle)])
         openingBehaviorPopup.addItems(withTitles: [String(localized: "macOSの設定に従う", bundle: bundle),
                                                   String(localized: "新しいタブ", bundle: bundle),
                                                   String(localized: "新しいウインドウ", bundle: bundle)])
@@ -268,6 +284,7 @@ final class PreferencesWindowController: NSWindowController {
             (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
             (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
+            (saveBehaviorPopup, #selector(changeSaveBehavior(_:))),
             (openingBehaviorPopup, #selector(changeOpeningBehavior(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
@@ -452,6 +469,7 @@ final class PreferencesWindowController: NSWindowController {
         excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
         excludesHiddenFilesCheckbox.state = preferences.excludesHiddenFiles ? .on : .off
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
+        saveBehaviorPopup.selectItem(at: viewModel.saveBehaviorIndex)
         openingBehaviorPopup.selectItem(at: viewModel.openingBehaviorIndex)
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.integerValue = preferences.zipLevel
@@ -471,6 +489,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
+    @objc private func changeSaveBehavior(_ sender: NSPopUpButton) { viewModel.selectSaveBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeOpeningBehavior(_ sender: NSPopUpButton) { viewModel.selectOpeningBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
     @objc private func changeRenamesOnClick(_ sender: NSButton) { viewModel.changeRenamesOnClick(to: sender.state == .on) }

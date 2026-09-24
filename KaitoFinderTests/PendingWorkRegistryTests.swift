@@ -199,6 +199,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         try Self.simulateLegacyProcessExit(in: file)
         let delegate = AppDelegate()
         delegate.pendingWorkRegistry = registry
+        delegate.recoverableWorkIndex = RecoverableWorkIndex(fileURL: try volumePublishTestURL(fixture.url).appendingPathComponent("volume-index.json"))
         delegate.sweepsPendingWorkAtLaunch = true
         await delegate.startLaunchSweeps().value
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))

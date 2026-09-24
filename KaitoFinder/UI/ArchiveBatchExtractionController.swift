@@ -21,6 +21,7 @@ import UniformTypeIdentifiers
     static func archiveContentTypes(bundle: Bundle = .main) -> [UTType] {
         let documents = bundle.object(forInfoDictionaryKey: "CFBundleDocumentTypes") as? [[String: Any]] ?? []
         let identifiers = Set(documents.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] })
+        // 内部の分割巻型も含めるが、実ファイルには付かないためパネル・ドロップで名前判定を併用する。
         return identifiers.sorted().map { UTType($0) ?? UTType(importedAs: $0) }
     }
 
@@ -29,7 +30,7 @@ import UniformTypeIdentifiers
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = archiveContentTypes(bundle: bundle)
+        ArchiveOpenPanelDelegate.install(on: panel, bundle: bundle)
         panel.prompt = String(localized: "展開", bundle: bundle)
         panel.message = String(localized: "展開するアーカイブを選んでください。", bundle: bundle)
         return panel

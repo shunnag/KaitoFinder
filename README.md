@@ -31,6 +31,7 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 `.msi` / `.arj` は、他のアプリがファイル型を登録している環境での関連付けにも対応する。
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
+`.001` / `.zNN` / `.zxNN` の分割巻は Finder には関連付けず、アプリ内の「開く…」やようこそへのドロップで開く。途中の巻を選んでも入口の巻があればセット全体を表示する。
 LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
 
 ZIP 内の XZ（method 95）と旧 Zstandard（method 20）、旧方式 Shrink / Reduce 1〜4 / Implode、
@@ -63,8 +64,14 @@ Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連�
 書き込み可能なアーカイブには、Finder や他のアプリから drag in / paste in で追加できる。
 削除・改名・新規フォルダの作成と、同じウインドウ内でのドラッグによるフォルダ間の移動に対応する。
 ⌥ を押しながらドラッグするとコピーになる。
+設定で「保存時にまとめて書き込む」を選んでから開くと、番号付きのバイト分割アーカイブ
+（7z、tar、tar.gz、tar.bz2、tar.xz、LHA、ZIP の `.001…`）も編集できる。
+保存するまでは原本を変えず、保存時に同じ巻サイズで分割し直す。巻サイズが揃っていないときは保存時に選ぶ。
+FAT/exFAT・ネットワーク・同期フォルダへの保存は確認が必要。中断した保存は、次に開くときに回復を提案する。
+巻サイズが揃ったセットは既定の「すぐに書き込む」でも編集ごとの確認後に取り消せない変更として書き直せる。「別名で保存…」の「分割:」では「しない」、元と同じ巻サイズ、「サイズを指定…」を選べる。
+ZIP 本来の分割（`.z01…/.zip`）は読み取り専用のまま。
 
-編集は ⌘Z で取り消し、⇧⌘Z でやり直せる。
+単一ファイルの即時編集と、保存前の予約は ⌘Z で取り消し、⇧⌘Z でやり直せる。
 編集前の原本を同じボリュームの一時領域へ `clonefile` で退避し、取り消し時に戻す。
 開いた後に原本が外部で変更されていた場合は、編集も取り消しも拒否する。
 変更の検出はファイルの実体(デバイス・inode)・サイズ・更新日時に基づく。同じ inode を
@@ -90,7 +97,7 @@ macOS のアーカイブユーティリティでは AES-256 の ZIP を開けな
 7z は AES-256 に対応し、「ファイル名も暗号化」も選べる。tar（圧縮 tar を含む）/ LHA は暗号化できない。
 
 開いている ZIP / 7z には「パスワードを設定…」「パスワードを変更…」「パスワードを削除」が使える。
-これらの操作は全体を書き直し、取り消し・やり直しにも対応する。
+これらの操作は全体を書き直し、単一ファイルの即時編集と保存前の予約では取り消し・やり直しにも対応する。
 正しいパスワードが分かれば、暗号化された ZIP / 7z も追加・削除・改名でき、
 通常の編集では暗号化方式と 7z のファイル名の保護を引き継ぐ。
 
@@ -127,7 +134,7 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 「内容を比較…」では、双方のファイルをQuick Lookで左右に表示できる。
 複数ファイルでは「残りのファイルにも適用」を使える。フォルダや種類の異なる項目は別に確認し、フォルダは内容全体を置き換える。
 追加、貼り付け、別の書庫・タブからのコピー、同じ書庫内の移動で共通の確認を使う。
-すべての回答が揃ってからまとめて反映し、一回の「取り消す」で戻せる。キャンセルや受信・書き込みの失敗では全体の変更を中止する。
+すべての回答が揃ってからまとめて反映し、取り消し可能なモードでは一回の「取り消す」で戻せる。キャンセルや受信・書き込みの失敗では全体の変更を中止する。
 
 ## ようこそウインドウ
 
@@ -142,6 +149,7 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 「設定…」（⌘,）は **一般 / 圧縮 / 展開 / アップデート** の四つのタブ。
 書庫の開き方、既定の作成形式、隠しファイルやようこその表示、圧縮方式・レベル、展開先・フォルダ作成方針、
 展開成功後に元のアーカイブをゴミ箱へ移すかどうかを設定できる。
+この設定をオンにした分割アーカイブの一括展開では、展開中にどの巻も変更されていないことを確認し、全巻をゴミ箱へ移す。
 追加・新規作成時の **`.DS_Store` の除外は既定でオン、隠しファイル全体の除外は既定でオフ**。
 これらの除外設定は、既存の項目の展開や形式変換には適用しない。
 
@@ -252,6 +260,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > extraction and previews. See [KaitoKit's format support](https://github.com/shunnag/KaitoKit#対応状況)
 > for supported methods, encryption, and volume layouts. Passwords are requested when
 > needed; “Remember this password” enables automatic reuse and is off by default.
+> Split volumes (`.001` / `.zNN` / `.zxNN`) open through File > Open… or the welcome drop zone without Finder associations, and selecting a later volume opens the whole set when its entry volume exists.
 >
 > ## Extract
 >
@@ -271,12 +280,18 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Drag or paste files into writable archives. Delete, rename, create folders, and
 > drag items between folders in the same window; hold ⌥ to copy instead of move.
+> Choose “Together When Saving” in Settings before opening to edit numbered byte-split archives
+> (`.001…` for 7z, tar, tar.gz, tar.bz2, tar.xz, LHA, and ZIP). Changes remain pending until Save,
+> which splits the updated archive using the original volume size. Uneven sets offer a size choice.
+> Saving on FAT/exFAT, network volumes, or sync folders requires consent. Interrupted saves offer
+> recovery when reopening. Uniform sets support irreversible edits in the default “Immediately” mode with confirmation for every edit, and “Save As…” offers “None”, the original volume size, or “Specify Size…” under “Split:”.
+> Native split ZIP (`.z01…/.zip`) remains read-only.
 > When names conflict, compare size, modification date, kind, and location before
 > choosing Replace or Skip. Compare Contents opens both files side by side in Quick Look.
 > Apply a choice to the remaining files in a batch; folders and type changes require
 > separate confirmation, and replacing a folder replaces its entire contents.
-> All accepted changes form one undoable operation. Cancel aborts the whole batch.
-> Undo with ⌘Z and redo with ⇧⌘Z. Before an edit, `clonefile` preserves the original
+> All accepted changes form one operation, undoable when the editing mode supports it. Cancel aborts the whole batch.
+> Undo single-file immediate edits or pending changes with ⌘Z and redo with ⇧⌘Z. Before a single-file immediate edit, `clonefile` preserves the original
 > in temporary storage on the same volume for undo. Editing and undo are refused if the
 > original has changed externally since it was opened. Change detection is based on the
 > file identity (device and inode), size, and modification time; an in-place overwrite
@@ -300,7 +315,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > ZipCrypto method when that compatibility is needed. 7z supports AES-256 and optional
 > filename encryption. tar, tar.gz, and LHA cannot be encrypted.
 > Open ZIP / 7z documents offer Set Password…, Change Password…, and Remove Password.
-> These operations rewrite the archive and support undo and redo. With the correct
+> These operations rewrite the archive; single-file immediate edits and pending changes support undo and redo. With the correct
 > password, encrypted ZIP / 7z archives can also be edited; normal edits preserve
 > the encryption method and 7z filename protection.
 >
@@ -328,7 +343,9 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > Settings… (⌘,) has General, Compression, Extract, and Updates tabs. Choose the default
 > archive format, hidden-file and welcome display, compression methods and levels,
 > extraction destinations and folder rules, and whether to trash an archive after
-> successful extraction. When adding files or creating archives, excluding `.DS_Store`
+> successful extraction. When enabled for split archives, batch extraction checks that
+> no volume changed during extraction, then moves every volume to the Trash.
+> When adding files or creating archives, excluding `.DS_Store`
 > is on by default; excluding all hidden files is off. These exclusions do not apply
 > to extracting or converting existing entries.
 >

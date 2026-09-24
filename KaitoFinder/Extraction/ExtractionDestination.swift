@@ -8,7 +8,7 @@ import KaitoKit
 nonisolated final class ExtractionDestination {
     private let root: URL
     private let descriptor: Int32
-    private let quarantine: Data?
+    private var quarantine: Data?
     private let permissionMask: mode_t
     private let readOnly: Bool
     private let didWrite: (@Sendable (Int) -> Void)?
@@ -44,6 +44,9 @@ nonisolated final class ExtractionDestination {
     func url(_ components: [String]) -> URL {
         root.appendingPathComponent(components.joined(separator: "/"))
     }
+
+    // 混在する投影では、基底は書庫の印、退避物は自身の印を使う。
+    func useQuarantine(_ value: Data?) { quarantine = value }
 
     func validate(_ components: [String]) throws {
         let candidate = url(components)
@@ -175,7 +178,7 @@ nonisolated final class ExtractionDestination {
         complete = true
     }
 
-    func symlink(_ components: [String], target: String) throws {
+    func symlink(_ components: [String], target: String, staged: ArchivePendingChanges.PendingAddition? = nil) throws {
         guard !target.isEmpty, !target.utf8.contains(0) else {
             throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが空またはNULを含みます。"))
         }
@@ -202,9 +205,55 @@ nonisolated final class ExtractionDestination {
                     throw ExtractionFailure.refused(String(localized: "シンボリックリンクが自分自身を参照します。"))
                 }
             } else if errno != ENOENT { throw ExtractionFailure.system(errno) }
+            // symlink の mode/mtime は既存の reader 展開と同じ扱い。staging の生属性を付け足さない。
+            if let staged { try staged.stagedStamp.verify() }
             try ExtractionQuarantine.apply(quarantine, to: url(components))
         }
         catch { unlinkat(parent, leaf, 0); throw error }
+    }
+
+    /// 退避物も descriptor 相対の O_EXCL 出力を使う。属性と読み取り専用化は公開前に適用する。
+    func stagedFile(_ components: [String], entry: ArchiveEntry, addition: ArchivePendingChanges.PendingAddition,
+                    buffer: inout [UInt8], checkCancellation: () throws -> Void) throws {
+        let input = open(addition.stagedURL.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        guard input >= 0 else { throw ExtractionFailure.system(errno) }
+        defer { close(input) }
+        try addition.stagedStamp.verify(descriptor: input)
+        let parent = try parentDescriptor(for: Array(components.dropLast())), leaf = components.last!
+        let file = openat(parent, leaf, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard file >= 0 else { throw ExtractionFailure.system(errno) }
+        var complete = false
+        defer { close(file); if !complete { unlinkat(parent, leaf, 0) } }
+        try ExtractionQuarantine.apply(quarantine, toDescriptor: file)
+        while true {
+            try checkCancellation()
+            let count = buffer.withUnsafeMutableBytes { read(input, $0.baseAddress, $0.count) }
+            if count < 0, errno == EINTR { continue }
+            guard count >= 0 else { throw ExtractionFailure.system(errno) }
+            if count == 0 { break }
+            try buffer.withUnsafeBytes { bytes in
+                var offset = 0
+                while offset < count {
+                    try checkCancellation()
+                    let written = write(file, bytes.baseAddress!.advanced(by: offset), count - offset)
+                    if written < 0, errno == EINTR { continue }
+                    guard written > 0 else { throw ExtractionFailure.system(written == 0 ? EIO : errno) }
+                    offset += written
+                }
+            }
+            didWrite?(count)
+        }
+        try attributes(entry, descriptor: file)
+        if readOnly {
+            try ArchiveTemporaryCopy.mark(descriptor: file)
+            guard fchmod(file, 0o400) == 0 else { throw ExtractionFailure.system(errno) }
+        }
+        try addition.stagedStamp.verify(descriptor: input)
+        try checkCancellation()
+        var info = stat()
+        guard fstat(file, &info) == 0 else { throw ExtractionFailure.system(errno) }
+        identities[components.joined(separator: "/")] = (info.st_dev, info.st_ino)
+        complete = true
     }
 
     func hardlink(_ components: [String], target: [String]) throws {
@@ -226,9 +275,11 @@ nonisolated final class ExtractionDestination {
         identities[components.joined(separator: "/")] = identity
     }
 
-    func finishDirectory(_ components: [String], entry: ArchiveEntry) throws {
+    func finishDirectory(_ components: [String], entry: ArchiveEntry,
+                         appliesQuarantine: Bool = false) throws {
         let directory = try openDirectory(components, create: false)
         defer { close(directory) }
+        if appliesQuarantine { try ExtractionQuarantine.apply(quarantine, toDescriptor: directory) }
         try attributes(entry, descriptor: directory)
     }
 

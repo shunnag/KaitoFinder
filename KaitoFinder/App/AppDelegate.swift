@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
@@ -19,7 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     // 終了の確認と返答を、実際のアラートやプロセス終了なしで検証するための境界。
     var terminationDocuments: (() -> [ArchiveDocument])?
     var terminationPromiseRegistry: FilePromiseRegistry = .shared
+    var stagingRegistry: StagingRegistry = .shared
+    var cleanupRegistry: DocumentCleanupRegistry = .shared
     var pendingWorkRegistry: PendingWorkRegistry = .shared
+    var recoverableWorkIndex: RecoverableWorkIndex = .shared
+    var volumePublishCriticalSection: VolumePublishCriticalSection = .shared
     // テストホストでは台帳の注入前に実ユーザーの作業領域を回収しない。
     var sweepsPendingWorkAtLaunch: Bool = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
         && ProcessInfo.processInfo.environment["XCTestBundlePath"] == nil
@@ -29,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private(set) var terminationTask: Task<Void, Never>?
     private var terminationDeadline: Task<Void, Never>?
     private var terminationReplied = false
+    private var terminationAwaitingCriticalSection = false
+    private var criticalSectionObserver: UUID?
 
     override convenience init() { self.init(passwordVault: .shared) }
 
@@ -112,26 +119,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     static func main() {
         // umask の取得中に他の worker がファイルを作らないよう、AppKit 起動前に確定する。
         _ = ExtractionPermissions.processMask
+        // 最初の instance が shared になるため、NSApplication やメニューの生成より先に置く。
+        let documentController = ArchiveDocumentController()
+        precondition(NSDocumentController.shared === documentController)
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate
         application.setActivationPolicy(.regular)
-        withExtendedLifetime(delegate) {
+        withExtendedLifetime((delegate, documentController)) {
             application.run()
         }
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        Self.raiseFileDescriptorLimit()
         startLaunchSweeps()
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(volumeDidMount(_:)),
+            name: NSWorkspace.didMountNotification, object: nil)
         documentController = NSDocumentController.shared
         NSApp.servicesProvider = self
         NSApp.mainMenu = makeMenu()
     }
 
+    nonisolated static func raiseFileDescriptorLimit() {
+        var limit = rlimit()
+        guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else {
+            NSLog("RLIMIT_NOFILE の取得に失敗しました: %d", errno)
+            return
+        }
+        // 分割巻は reader ごとに fd を持つ。既に十分高い上限は下げない。
+        let target = min(limit.rlim_max, rlim_t(OPEN_MAX))
+        guard limit.rlim_cur < target else { return }
+        limit.rlim_cur = target
+        if setrlimit(RLIMIT_NOFILE, &limit) != 0 {
+            NSLog("RLIMIT_NOFILE の引き上げに失敗しました: %d", errno)
+        }
+    }
+
     @discardableResult func startLaunchSweeps() -> Task<Void, Never> {
         let extractionSweep = ExtractionTemporaryDirectory().startLaunchSweep()
         guard sweepsPendingWorkAtLaunch else { return extractionSweep }
-        return pendingWorkRegistry.startLaunchSweep()
+        let pending = pendingWorkRegistry.startLaunchSweep(), index = recoverableWorkIndex, staging = stagingRegistry
+        return Task { @MainActor in
+            await VolumePublishRecoveryQueue.shared.recover(index: index)
+            let recovered = await Task.detached(priority: .utility) {
+                do { return try staging.sweep() }
+                catch { NSLog("保存前の退避領域を回収できません: %@", String(describing: error)); return [URL]() }
+            }.value
+            await pending.value
+            await extractionSweep.value
+            if !recovered.isEmpty {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "未保存の項目をゴミ箱に移動しました")
+                alert.informativeText = String(localized: "前回保存されなかった退避フォルダ\(recovered.count)個をゴミ箱に移動しました。")
+                alert.addButton(withTitle: String(localized: "閉じる"))
+                alert.addButton(withTitle: String(localized: "Finderで表示"))
+                if alert.runModal() == .alertSecondButtonReturn { NSWorkspace.shared.activateFileViewerSelecting(recovered) }
+            }
+        }
+    }
+
+    @objc private func volumeDidMount(_ notification: Notification) {
+        guard sweepsPendingWorkAtLaunch, let volume = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+        let index = recoverableWorkIndex
+        VolumePublishRecoveryQueue.shared.schedule(index: index, mountedVolume: volume)
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
@@ -142,22 +193,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         let promises = terminationPromiseRegistry
         let busy = documents.contains(where: \.hasWorkInFlight) || archiveCreationTask != nil
             || (batchExtractionTask != nil && batchExtractionController?.destinationPanel == nil)
-            || promises.hasActiveWrites
+            || promises.hasActiveWrites || volumePublishCriticalSection.count > 0
         if busy, !(quitConfirmation ?? Self.confirmQuit)() { return .terminateCancel }
-        let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup)
-        guard needsCleanup else { return .terminateNow }
+        let needsCleanup = busy || documents.contains(where: \.needsTerminationCleanup) || cleanupRegistry.hasPendingCleanup
+        if !needsCleanup, volumePublishCriticalSection.closeIfIdle() { return .terminateNow }
 
         archiveCreationTask?.cancel()
         batchExtractionTask?.cancel()
         promises.cancelActiveWrites()
         let creation = archiveCreationTask, batch = batchExtractionTask
         terminationReplied = false
+        terminationAwaitingCriticalSection = false
+        if let criticalSectionObserver { volumePublishCriticalSection.removeObserver(criticalSectionObserver) }
+        criticalSectionObserver = volumePublishCriticalSection.observeZero { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.terminationAwaitingCriticalSection else { return }
+                self.finishTermination()
+            }
+        }
         // Task group は取消しに反応しない後始末も暗黙に待つため、独立した Task で上限を設ける。
         terminationTask = Task { @MainActor [weak self] in
             for document in documents { await document.prepareForTermination() }
             await creation?.value
             await batch?.value
             await promises.waitUntilNoActiveWrites()
+            await self?.cleanupRegistry.waitUntilEmpty()
             self?.finishTermination()
         }
         terminationDeadline = Task { @MainActor [weak self, grace = terminationGracePeriod] in
@@ -169,7 +229,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     private func finishTermination() {
         guard !terminationReplied else { return }
+        // 10 秒の期限でも、gate を退役させた公開を途中で打ち切らない。
+        guard volumePublishCriticalSection.closeIfIdle() else {
+            terminationAwaitingCriticalSection = true
+            return
+        }
+        terminationAwaitingCriticalSection = false
         terminationReplied = true
+        if let criticalSectionObserver {
+            volumePublishCriticalSection.removeObserver(criticalSectionObserver)
+            self.criticalSectionObserver = nil
+        }
         terminationDeadline?.cancel()
         (terminationReply ?? { NSApp.reply(toApplicationShouldTerminate: $0) })(true)
     }
@@ -177,8 +247,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     @MainActor static func confirmQuit() -> Bool {
         let alert = NSAlert()
         alert.messageText = String(localized: "KaitoFinderを終了してもよろしいですか？")
-        alert.informativeText = ArchiveAlertText.informativeText(String(localized:
-            "操作が進行中です。終了すると進行中の展開や変更は取り消され、途中まで書き出した項目は削除されます。"))
+        alert.informativeText = ArchiveAlertText.informativeText(VolumePublishCriticalSection.shared.count > 0
+            ? String(localized: "分割アーカイブを書き込み中です。書き込みが完了してから終了します。その他の進行中の操作は取り消されます。")
+            : String(localized: "操作が進行中です。終了すると進行中の展開や変更は取り消され、途中まで書き出した項目は削除されます。"))
         alert.addButton(withTitle: String(localized: "終了"))
         alert.addButton(withTitle: String(localized: "キャンセル")).keyEquivalent = "\u{1b}"
         NSApp.activate()
@@ -378,9 +449,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
                          action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "閉じる", bundle: bundle),
                          action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        fileMenu.addItem(withTitle: String(localized: "保存", bundle: bundle),
+                         action: #selector(ArchiveDocument.saveArchiveDocument(_:)), keyEquivalent: "s")
         let saveAs = fileMenu.addItem(withTitle: String(localized: "別名で保存…", bundle: bundle),
                                       action: #selector(ArchiveWindowController.saveArchiveAs(_:)), keyEquivalent: "S")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(withTitle: String(localized: "最後に保存した状態に戻す", bundle: bundle),
+                         action: #selector(NSDocument.revertToSaved(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "パスワードを設定…", bundle: bundle),
                          action: #selector(ArchiveWindowController.setArchivePassword(_:)), keyEquivalent: "")
         fileMenu.addItem(withTitle: String(localized: "パスワードを変更…", bundle: bundle),

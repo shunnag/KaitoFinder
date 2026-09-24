@@ -405,19 +405,19 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         let manager = try XCTUnwrap(document.undoManager)
         XCTAssertTrue(document.hasUndoManager)
         XCTAssertTrue(document.writableTypes(for: .saveOperation).isEmpty)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
         try await append("added.txt", fixture: fixture, document: document)
         XCTAssertTrue(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
         try await undo(document)
         XCTAssertFalse(manager.canUndo)
         XCTAssertTrue(manager.canRedo)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
         try await redo(document)
         XCTAssertTrue(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
     }
 
     @MainActor func testSlotsStayOutsideArchiveParentDirectory() async throws {
@@ -509,7 +509,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertEqual(document.generation, 1)
         XCTAssertTrue(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
         failure.withLock { $0 = 0 }
         try await undo(document)
         XCTAssertEqual(try digest(fixture.archive), original)
@@ -601,7 +601,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertEqual(directories.withLock { $0.count }, 1)
         for directory in directories.withLock({ $0 }) { XCTAssertFalse(exists(directory)) }
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
-        XCTAssertFalse(document.isDocumentEdited)
+        if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
     }
 
     @MainActor func testEditMenuShortcutsUseDocumentUndoManager() async throws {

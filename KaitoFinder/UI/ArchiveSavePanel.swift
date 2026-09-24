@@ -1,4 +1,5 @@
 import AppKit
+import KaitoKit
 import GyoshukuKit
 import QuartzCore
 import UniformTypeIdentifiers
@@ -258,6 +259,8 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     private static let accessoryHorizontalInset: CGFloat = 2
     let panel = NSSavePanel()
     let controller: ArchiveSavePanelController
+    let splitControls: ArchiveSaveSplitControls?
+    var estimatedSplitLength: UInt64 = 1
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let levelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let encryptionCheckbox: NSButton
@@ -303,8 +306,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     }
 
     init(sources: [URL], existingURL: URL? = nil, store: ArchivePreferencesStore = .shared,
-         encryption: ArchiveEncryptionSettings = .init(), bundle: Bundle = .main,
+         encryption: ArchiveEncryptionSettings = .init(), sourceLayout: ArchiveVolumeLayout? = nil, bundle: Bundle = .main,
          reducesMotion: @escaping () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }) {
+        splitControls = existingURL != nil && sources.isEmpty ? ArchiveSaveSplitControls(layout: sourceLayout, bundle: bundle) : nil
         self.bundle = bundle
         self.reducesMotion = reducesMotion
         passwordFields = ArchivePasswordFields(format: store.preferences.defaultFormat,
@@ -314,6 +318,8 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         fixedLevelNote = Self.makeNote(String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle), width: passwordFields.width)
         controller = ArchiveSavePanelController(store: store)
         super.init()
+        estimatedSplitLength = max(1, sourceLayout?.volumes.reduce(UInt64(0)) { $0 + $1.length }
+            ?? UInt64(max(0, (try? existingURL?.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)))
         panel.delegate = self
         NotificationCenter.default.addObserver(self, selector: #selector(panelDidResize(_:)), name: NSWindow.didResizeNotification, object: panel)
         NotificationCenter.default.addObserver(self, selector: #selector(panelWillStartLiveResize(_:)), name: NSWindow.willStartLiveResizeNotification, object: panel)
@@ -324,7 +330,11 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         encryptionCheckbox.action = #selector(changeEncryption(_:))
         passwordFields.didChange = { [weak self] in self?.refreshPasswordNotice() }
         panel.directoryURL = (existingURL ?? sources.first)?.deletingLastPathComponent()
-        let suggestedName = existingURL.map { ArchiveCreationPlan.conversionName(for: $0, format: controller.format) }
+        let suggestedURL = sourceLayout.map { layout in
+            if case .numbered = layout.scheme { return layout.gateURL.deletingPathExtension() }
+            return layout.gateURL
+        } ?? existingURL
+        let suggestedName = suggestedURL.map { ArchiveCreationPlan.conversionName(for: $0, format: controller.format) }
             ?? ArchiveCreationPlan.defaultName(for: sources, format: controller.format)
         panel.allowedContentTypes = ArchiveSavePanelController.panelContentTypes
         panel.currentContentType = controller.allowedContentTypes.first
@@ -348,10 +358,16 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         refreshEncryption()
         panel.accessoryView = Self.makeAccessoryView(formatPopup: formatPopup, levelPopup: levelPopup,
                                                      fixedLevelNote: fixedLevelNote, encryptionCheckbox: encryptionCheckbox,
-                                                     passwordFields: passwordFields, encryptionNote: encryptionNote, bundle: bundle)
+                                                     passwordFields: passwordFields, encryptionNote: encryptionNote, splitControls: splitControls, bundle: bundle)
+        splitControls?.didChange = { [weak self] in self?.changeSplitChoice() }
+        refreshSplitContentType()
+        if splitControls?.isSplitting == true {
+            configuredFilename += ".001"
+            panel.nameFieldStringValue = configuredFilename
+        }
         extensionHiddenObservation = panel.observe(\.isExtensionHidden, options: [.new]) { [weak self] panel, _ in
             MainActor.assumeIsolated {
-                guard let self, !self.isReconfiguring, panel.isVisible, panel.isExtensionHidden,
+                guard let self, !self.isReconfiguring, self.splitControls?.isSplitting != true, panel.isVisible, panel.isExtensionHidden,
                       panel.currentContentType != self.controller.allowedContentTypes.first else { return }
                 // 拡張子を消して名前を入力し直したら、完全な拡張子の自動補完へ戻す。
                 // 名前の通知時点では hidden が旧値なので、その更新を直接観察する。
@@ -361,7 +377,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     }
 
     static func minimumLabelWidth(bundle: Bundle) -> CGFloat {
-        [String(localized: "フォーマット", bundle: bundle), String(localized: "圧縮レベル", bundle: bundle)]
+        [String(localized: "フォーマット", bundle: bundle), String(localized: "圧縮レベル", bundle: bundle), String(localized: "分割:", bundle: bundle)]
             .map { NSTextField(labelWithString: $0).intrinsicContentSize.width }.max() ?? 0
     }
 
@@ -369,7 +385,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     static func makeAccessoryView(formatPopup: NSPopUpButton, levelPopup: NSPopUpButton,
                                   fixedLevelNote: NSTextField, encryptionCheckbox: NSButton,
                                   passwordFields: ArchivePasswordFields, encryptionNote: NSTextField,
-                                  bundle: Bundle = .main) -> NSView {
+                                  splitControls: ArchiveSaveSplitControls? = nil, bundle: Bundle = .main) -> NSView {
         formatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
         formatPopup.setAccessibilityIdentifier("ArchiveSaveFormat")
         levelPopup.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
@@ -377,6 +393,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             [NSTextField(labelWithString: String(localized: "フォーマット", bundle: bundle)), formatPopup],
             [NSTextField(labelWithString: String(localized: "圧縮レベル", bundle: bundle)), levelPopup]
         ])
+        if let splitControls {
+            rows.addRow(with: [NSTextField(labelWithString: String(localized: "分割:", bundle: bundle)), splitControls.view])
+        }
         rows.columnSpacing = 12
         rows.rowSpacing = 10
         rows.column(at: 0).width = passwordFields.labelWidth
@@ -425,12 +444,53 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on ? passwordFields.settings : .init()
     }
 
+    /// NSSavePanel presents the first real output name. The transaction takes its stem.
+    func baseDestination(_ url: URL) -> URL {
+        splitControls?.isSplitting == true && url.pathExtension == "001" ? url.deletingPathExtension() : url
+    }
+
+    private func refreshSplitContentType() {
+        panel.allowedContentTypes = splitControls?.isSplitting == true ? [] : ArchiveSavePanelController.panelContentTypes
+        panel.currentContentType = splitControls?.isSplitting == true ? nil : controller.allowedContentTypes.first
+    }
+
+    private func changeSplitChoice() {
+        let entered = panel.nameFieldStringValue
+        let base = entered.hasSuffix(".001") ? String(entered.dropLast(4)) : entered
+        let name = splitControls?.isSplitting == true ? base + ".001" : base
+        refreshSplitContentType()
+        guard name != entered else { return }
+        if panel.isVisible, completionHandler != nil {
+            pendingFilenameChange = FilenameChange(name: name, directory: panel.directoryURL, tags: panel.tagNames,
+                frame: panel.frame, accessoryHeight: (panel.accessoryView as? ArchiveSaveAccessoryView)?.contentSize.height ?? 0)
+            resizeAnimation?.stop(); resizeAnimation = nil; layoutGeneration += 1
+            panel.animationBehavior = .none
+            panel.cancel(nil)
+        } else {
+            configuredFilename = name
+            panel.nameFieldStringValue = name
+        }
+    }
+
     func panel(_ sender: Any, validate url: URL) throws {
+        let schedule = try splitControls?.schedule()
+        let url = baseDestination(url)
         guard ArchiveCreationPlan.hasAcceptedExtension(url, for: controller.format) else {
             let list = ArchiveCreationPlan.acceptedExtensions(for: controller.format).map { "." + $0 }.joined(separator: ", ")
             throw NSError(domain: "com.shunnag.KaitoFinder.creation", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)", bundle: bundle)
             ])
+        }
+        if let schedule {
+            let scheme = KaitoKit.ArchiveVolumeSet.Scheme.numbered(stem: url.lastPathComponent, width: 3)
+            let plan = try VolumePlan(totalLength: estimatedSplitLength, schedule: schedule, scheme: scheme)
+            let parent = try VolumePublishDirectory(VolumePublishFS.canonicalParent(of: url))
+            do { try VolumeSetPublication.checkOccupancy(plan: plan, oldCount: 0, parent: parent) }
+            catch VolumePublishError.nameOccupied {
+                throw NSError(domain: "com.shunnag.KaitoFinder.creation", code: 2, userInfo: [
+                    NSLocalizedDescriptionKey: String(localized: "同じ名前の分割ファイルが既にあります。", bundle: bundle)
+                ])
+            }
         }
         if encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on {
             passwordFields.notice.stringValue = passwordFields.validationMessage ?? ""
@@ -614,6 +674,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     @objc func changeLevel(_ sender: NSPopUpButton) { controller.selectLevel(at: sender.indexOfSelectedItem) }
 
     func panel(_ sender: Any, userEnteredFilename filename: String, confirmed okFlag: Bool) -> String? {
+        if splitControls?.isSplitting == true {
+            return filename.hasSuffix(".001") ? filename : filename + ".001"
+        }
         // foo.zip を ZIP に入れる場合、foo.zip.zip の末尾を隠した名前は foo.zip。
         // 未編集の候補だけを補正し、元の書庫名が再び拡張子として消えるのを防ぐ。
         if okFlag, panel.isExtensionHidden, panel.nameFieldStringValue == configuredFilename,
@@ -629,7 +692,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         // 名前を明示した後は、末尾一つだけを置換する標準パネルに任せると .tar が残る。
         // 表示後の nameFieldStringValue は変更できないため、同じパネルを再構成する。
         // 確定URLの後処理は行わず、画面と標準の上書き確認も正しい名前に揃える。
-        let enteredName = changesFormat && panel.isVisible && !panel.isExtensionHidden && completionHandler != nil
+        let enteredName = changesFormat && panel.isVisible && (!panel.isExtensionHidden || splitControls?.isSplitting == true) && completionHandler != nil
             ? panel.nameFieldStringValue : nil
         controller.selectFormat(at: sender.indexOfSelectedItem)
         guard changesFormat else {
@@ -639,7 +702,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         }
         if let enteredName {
             pendingFilenameChange = FilenameChange(
-                name: ArchiveSavePanelController.filenameByChangingFormat(enteredName, to: controller.format),
+                name: ArchiveSavePanelController.filenameByChangingFormat(
+                    splitControls?.isSplitting == true && enteredName.hasSuffix(".001") ? String(enteredName.dropLast(4)) : enteredName,
+                    to: controller.format) + (splitControls?.isSplitting == true ? ".001" : ""),
                 directory: panel.directoryURL, tags: panel.tagNames, frame: panel.frame,
                 accessoryHeight: (panel.accessoryView as? ArchiveSaveAccessoryView)?.contentSize.height ?? 0)
             resizeAnimation?.stop()
@@ -650,7 +715,13 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             panel.cancel(nil)
             return
         }
-        panel.currentContentType = controller.allowedContentTypes.first
+        if splitControls?.isSplitting == true {
+            let entered = panel.nameFieldStringValue
+            let base = entered.hasSuffix(".001") ? String(entered.dropLast(4)) : entered
+            configuredFilename = ArchiveSavePanelController.filenameByChangingFormat(base, to: controller.format) + ".001"
+            panel.nameFieldStringValue = configuredFilename
+        }
+        refreshSplitContentType()
         refreshLevel()
         refreshEncryption()
     }
@@ -681,7 +752,8 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
                     self.panel.directoryURL = change.directory
                     self.panel.tagNames = change.tags
                     self.suggestedStem = ArchiveSavePanelController.filenameStem(change.name, format: self.controller.format)
-                    self.panel.currentContentType = ArchiveSavePanelController.explicitFilenameContentType(for: self.controller.format)
+                    if self.splitControls?.isSplitting == true { self.refreshSplitContentType() }
+                    else { self.panel.currentContentType = ArchiveSavePanelController.explicitFilenameContentType(for: self.controller.format) }
                     self.panel.nameFieldStringValue = change.name
                     self.panel.isExtensionHidden = false
                     self.configuredFilename = change.name

@@ -33,6 +33,7 @@ nonisolated struct ArchiveConflictItem: Sendable {
     let modificationDate: Date?
     let entryCount: Int
     let source: Source?
+    var stagingLease: StagingRegistry.ReadLease? = nil
 
     static func archived(_ entries: [ArchiveEntry], path: String, archive: URL, generation: UInt64) -> Self {
         let direct = entries.filter { normalized($0) == path }
@@ -88,12 +89,15 @@ nonisolated struct ArchiveConflictItem: Sendable {
 }
 
 /// 確認中や圧縮中に元ファイルが差し替わったら、表示した情報への同意を流用しない。
-nonisolated struct ArchiveImportSourceStamp: Sendable {
+nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
     let url: URL
     private let identity: [Int64]
     let kind: EntryKind
     let size: UInt64
     let date: Date
+    let permissions: UInt16
+    let userID: UInt32
+    let groupID: UInt32
 
     init(_ url: URL) throws {
         self.url = url
@@ -108,6 +112,9 @@ nonisolated struct ArchiveImportSourceStamp: Sendable {
         }
         size = UInt64(max(0, info.st_size))
         date = Date(timeIntervalSince1970: Double(info.st_mtimespec.tv_sec) + Double(info.st_mtimespec.tv_nsec) / 1e9)
+        permissions = UInt16(info.st_mode & 0o7777)
+        userID = info.st_uid
+        groupID = info.st_gid
     }
 
     func verify() throws {
@@ -115,6 +122,11 @@ nonisolated struct ArchiveImportSourceStamp: Sendable {
         guard lstat(url.path, &info) == 0, Self.identity(info) == identity else {
             throw ExtractionFailure.refused(String(localized: "確認中に追加元が変更されました。もう一度追加してください: \(url.lastPathComponent)。"))
         }
+    }
+
+    func verify(descriptor: Int32) throws {
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, Self.identity(info) == identity else { throw ArchiveEntryPayload.staleSelection }
     }
 
     private static func identity(_ info: stat) -> [Int64] {
@@ -149,6 +161,7 @@ nonisolated enum ArchiveConflictResolution {
 
     static func resolve(_ candidates: [Candidate], existing: [String: [ArchiveEntry]], archive: URL,
                         generation: UInt64, progress: Progress,
+                        existingItems: [String: ArchiveConflictItem] = [:],
                         resolver: ArchiveImportConflict.Resolver) async throws -> Result {
         var occupied = Set(existing.keys), remaining = 0
         for candidate in candidates {
@@ -159,7 +172,7 @@ nonisolated enum ArchiveConflictResolution {
         for (index, candidate) in candidates.enumerated() {
             try ArchiveImportPlan.checkCancellation(progress)
             let previous = accepted[candidate.path].map { candidates[$0].info }
-                ?? existing[candidate.path].map {
+                ?? existingItems[candidate.path] ?? existing[candidate.path].map {
                     ArchiveConflictItem.archived($0, path: candidate.path, archive: archive, generation: generation)
                 }
             if let previous {
@@ -184,6 +197,7 @@ nonisolated enum ArchiveConflictResolution {
 extension ArchiveImportPlan {
     static func resolving(urls: [URL], folder: String, existing: [ArchiveEntry], archive: URL, generation: UInt64,
                           progress: Progress, options: Options,
+                          existingItems: [String: ArchiveConflictItem] = [:],
                           resolver: ArchiveImportConflict.Resolver) async throws -> Self {
         let target = folder.isEmpty ? "" : try path(folder)
         // 既存と同じ規則で追加先の実在・ファイル祖先を検証する。
@@ -210,7 +224,7 @@ extension ArchiveImportPlan {
         guard failures.isEmpty else { return Self(failures: failures) }
         let result = try await ArchiveConflictResolution.resolve(candidates,
             existing: ArchiveConflictResolution.existingGroups(existing, folder: target), archive: archive,
-            generation: generation, progress: progress, resolver: resolver)
+            generation: generation, progress: progress, existingItems: existingItems, resolver: resolver)
         return Self(items: result.accepted.flatMap { batches[$0] }, replacingEntries: result.replaced.map(\.index),
                     expectedEntries: existing, sourceStamps: result.accepted.flatMap { stamps[$0] })
     }

@@ -7,6 +7,51 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveSaveAsTests: XCTestCase {
+    @MainActor func testSplitSevenZipSaveAsCreatesSingleArchiveAndKeepsEverySourceVolume() async throws {
+        let fixture = try SplitArchiveFixture()
+        let quarantine = Data("0081;12345678;SecondVolume;".utf8)
+        for volume in fixture.volumes { try ExtractionQuarantine.apply(nil, to: volume) }
+        try ExtractionQuarantine.apply(quarantine, to: fixture.volumes[1])
+        let session = try ArchiveSession(url: fixture.archive)
+        let existing = try await ArchiveCreationController.existingArchive(from: session, progress: Progress())
+        XCTAssertEqual(existing.volumeLayout?.volumes.map(\.url), fixture.volumes)
+        XCTAssertEqual(existing.identity?.volumes.count, 5)
+        let originals = try fixture.volumes.map { try Data(contentsOf: $0) }
+        let output = fixture.directory.url.appendingPathComponent("saved.7z")
+        let result = try ArchiveCreationTransaction.run(plan: .init(sources: [], destination: output, format: .sevenZip,
+                                                                   existing: existing), progress: Progress())
+        XCTAssertEqual(result, output)
+        XCTAssertNil(try ArchiveReader.open(url: output).volumeSet)
+        XCTAssertEqual(try contents(output), fixture.contents)
+        XCTAssertEqual(try ExtractionQuarantine.read(from: output), quarantine)
+        XCTAssertEqual(try fixture.volumes.map { try Data(contentsOf: $0) }, originals)
+        XCTAssertEqual(session.capabilities.refusal, .splitArchive)
+        await session.close()
+    }
+
+    @MainActor func testSplitSaveAsChecksSecondVolumeBeforeWritingAndBeforePublishing() async throws {
+        for duringSave in [false, true] {
+            let fixture = try SplitArchiveFixture(), session = try ArchiveSession(url: fixture.archive)
+            let existing = try await ArchiveCreationController.existingArchive(from: session, progress: Progress())
+            let output = fixture.directory.url.appendingPathComponent("saved.7z"), sentinel = Data("existing destination".utf8)
+            try sentinel.write(to: output)
+            if !duringSave { try SplitArchiveFixture.changeByte(fixture.volumes[1]) }
+            XCTAssertThrowsError(try ArchiveCreationTransaction.run(
+                plan: .init(sources: [], destination: output, format: .sevenZip, existing: existing), progress: Progress(),
+                willPublish: {
+                    XCTAssertTrue(duringSave, "A source changed before saving must be refused before rewriting")
+                    try SplitArchiveFixture.changeByte(fixture.volumes[1])
+                })) { error in
+                    guard case ExtractionFailure.refused(let reason) = error else { return XCTFail("Expected source refusal: \(error)") }
+                    XCTAssertEqual(reason, String(localized: "処理中にアーカイブが別の操作で変更されました。"))
+                }
+            XCTAssertEqual(try Data(contentsOf: output), sentinel)
+            XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path)
+                .contains { $0.hasPrefix(".KaitoFinder-new-") })
+            await session.close()
+        }
+    }
+
     @MainActor private func interface(encrypted: Bool = false, gzip: Bool = false, readOnly: Bool = false) async throws
         -> (ArchiveTestDirectory, ArchiveDocument, ArchiveWindowController, ArchivePreferencesStore) {
         preserveArchiveWindowFrame()
@@ -363,7 +408,9 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         XCTAssertEqual(item.keyEquivalent.lowercased(), "s")
         XCTAssertEqual(item.keyEquivalentModifierMask, [.command, .shift])
         XCTAssertNil(item.target)
-        XCTAssertEqual(file.items[file.index(of: item) - 1].action, #selector(NSWindow.performClose(_:)))
+        XCTAssertEqual(file.items[file.index(of: item) - 2].action, #selector(NSWindow.performClose(_:)))
+        XCTAssertEqual(file.items[file.index(of: item) - 1].action, #selector(ArchiveDocument.saveArchiveDocument(_:)))
+        XCTAssertEqual(file.items[file.index(of: item) + 1].action, #selector(NSDocument.revertToSaved(_:)))
         XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
         XCTAssertTrue(controller.validateMenuItem(item))
         (document.undoManager as? ArchiveUndoManager)?.isSuspended = true

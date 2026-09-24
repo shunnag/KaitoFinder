@@ -7,7 +7,13 @@ import KaitoKit
 nonisolated enum ArchiveCreationTransaction {
     static func run(plan: ArchiveCreationPlan, progress: Progress,
                     willPublish: (@Sendable () throws -> Void)? = nil,
-                    registry: PendingWorkRegistry = .shared) throws -> URL {
+                    registry: PendingWorkRegistry = .shared,
+                    volumeIndex: RecoverableWorkIndex = .shared, metadataStore: ArchiveVolumeMetadataStore = .shared,
+                    splitHooks: ArchiveSplitSaveHooks = .init()) throws -> URL {
+        if let schedule = plan.splitSchedule {
+            return try createSplit(plan: plan, schedule: schedule, progress: progress, willPublish: willPublish,
+                index: volumeIndex, metadataStore: metadataStore, hooks: splitHooks)
+        }
         for source in plan.sources {
             try ArchiveImportPlan.checkCancellation(progress)
             if isSameFile(source, plan.destination) {
@@ -39,7 +45,7 @@ nonisolated enum ArchiveCreationTransaction {
         guard plan.destination.isFileURL, !plan.destination.path.contains("\0") else {
             throw WriterError.invalidPath(plan.destination.absoluteString)
         }
-        if let existing = plan.existing, isSameFile(existing.url, plan.destination) {
+        if let existing = plan.existing, (existing.volumeLayout?.volumes.map(\.url) ?? [existing.url]).contains(where: { isSameFile($0, plan.destination) }) {
             throw ExtractionFailure.refused(String(localized: "元のアーカイブとは別の保存先を選んでください。"))
         }
         progress.totalUnitCount = Int64(imported.items.count + (plan.existing?.entries.count ?? 0) + 1)
@@ -62,19 +68,30 @@ nonisolated enum ArchiveCreationTransaction {
         let output = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: plan.format))
         do {
             if let existing = plan.existing {
-                if let identity = existing.identity {
-                    guard try ArchiveImportTransaction.identity(existing.url) == identity else {
-                        throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
-                    }
+                try verifySource(existing)
+                try existing.pending?.validate()
+                if let pending = existing.pending {
+                    try ArchiveSaveReplayPlan.validateRepresentability(pending.projected, format: plan.format)
                 }
-                let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
-                                                        output: output, format: plan.format, options: plan.options)
-                try add(imported.items, progress: progress, directory: rewriter.addDirectory,
-                        file: rewriter.add(contentsOf:as:))
-                try ArchiveImportPlan.checkCancellation(progress)
-                try rewriter.commit { _, _ in
-                    progress.completedUnitCount += 1
+                if existing.volumeLayout != nil, imported.items.isEmpty {
+                    let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init())
+                    _ = try ArchiveSplitWorkProducer.produce(existing: existing, workURL: output, format: plan.format,
+                        options: plan.options, plan: replay, progress: progress, didRead: splitHooks.didReadInputBytes)
+                } else if let pending = existing.pending, imported.items.isEmpty,
+                   ArchiveDeferredTarWriter.isNeeded(format: plan.format, options: plan.options) {
+                    try ArchiveDeferredTarWriter.write(source: existing.url, password: existing.password, output: output,
+                                                       format: plan.format, options: plan.options, plan: pending, progress: progress)
+                } else {
+                    let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
+                                                            output: output, format: plan.format, options: plan.options)
+                    try existing.pending?.replay(on: rewriter, progress: progress)
+                    try add(imported.items, progress: progress, directory: rewriter.addDirectory,
+                            file: rewriter.add(contentsOf:as:))
                     try ArchiveImportPlan.checkCancellation(progress)
+                    try rewriter.commit { _, _ in
+                        progress.completedUnitCount += 1
+                        try ArchiveImportPlan.checkCancellation(progress)
+                    }
                 }
             } else {
                 let writer = try ArchiveWriter.create(url: output, format: plan.format, options: plan.options)
@@ -87,20 +104,70 @@ nonisolated enum ArchiveCreationTransaction {
             // RewriterError は二種類の認証失敗をまとめる。入力した鍵の有無から UI の型へ戻す。
             throw plan.existing?.password == nil ? KaitoError.passwordRequired : KaitoError.wrongPassword
         }
-        let quarantineSources = plan.sources + (plan.existing.map { [$0.url] } ?? [])
-            + imported.items.map(\.url)
+        let quarantineSources = plan.sources + (plan.existing.map { $0.volumeLayout?.volumes.map(\.url) ?? [$0.url] } ?? [])
+            + imported.items.map(\.url) + (plan.existing?.pending?.additions.map(\.stagedURL) ?? [])
         // フォルダ自体にだけ印の付いた app や空フォルダも対象にする。
-        let quarantine = try ExtractionQuarantine.firstValue(from: quarantineSources) {
+        let quarantine = try plan.existing?.quarantine ?? ExtractionQuarantine.firstValue(from: quarantineSources) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
         try ExtractionQuarantine.apply(quarantine, to: output)
         _ = try ArchiveReader.open(url: output, options: .kaitoFinder(password: plan.options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
+        // 書き直しの間に変わった巻も、保存先へ公開する直前に検出する。
+        if let existing = plan.existing { try verifySource(existing) }
+        try plan.existing?.pending?.validate()
+        try plan.existing?.publication?.enter(progress: progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }
         // rewriter が省く root directory record も含め、公開後は必ず完了を示す。
         progress.completedUnitCount = progress.totalUnitCount
         return plan.destination
+    }
+
+    private static func createSplit(plan: ArchiveCreationPlan, schedule: VolumePlan.Schedule, progress: Progress,
+                                    willPublish: (@Sendable () throws -> Void)?, index: RecoverableWorkIndex,
+                                    metadataStore: ArchiveVolumeMetadataStore, hooks: ArchiveSplitSaveHooks) throws -> URL {
+        guard plan.sources.isEmpty, let existing = plan.existing,
+              ArchiveCreationPlan.hasAcceptedExtension(plan.destination, for: plan.format) else { throw VolumePublishError.invalidPlan }
+        try verifySource(existing)
+        let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init())
+        try ArchiveSaveReplayPlan.validateRepresentability(replay.projected, format: plan.format)
+        let parent = try VolumePublishFS.canonicalParent(of: plan.destination)
+        var target = VolumeSetTarget(parent: parent, newSetScheme: .numbered(stem: plan.destination.lastPathComponent, width: 3),
+                                    schedule: schedule, allowHazardousVolume: plan.allowHazardousVolume)
+        target.additionalQuarantine = try existing.quarantine ?? ExtractionQuarantine.firstValue(from:
+            (existing.volumeLayout?.volumes.map(\.url) ?? [existing.url]) + replay.additions.map(\.stagedURL)) {
+                try ArchiveImportPlan.checkCancellation(progress)
+            }
+        // Use archive bytes, as M5 does: a highly compressed source can be far larger
+        // when expanded. M2 recalculates the complete plan from W before any member is placed.
+        let identity = try existing.identity ?? ArchiveSetIdentity.capture(url: existing.url, layout: existing.volumeLayout)
+        var estimate = identity.volumes.reduce(UInt64(0)) { $0 + $1.size }
+        for addition in replay.additions {
+            let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
+            let padded = next.partialValue.addingReportingOverflow(1024)
+            guard !next.overflow, !padded.overflow else { throw VolumePublishError.invalidPlan }
+            estimate = padded.partialValue
+        }
+        estimate = max(1, estimate)
+        _ = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimate, plan: replay,
+            password: plan.options.password, progress: progress, publication: existing.publication,
+            index: index, metadataStore: metadataStore, hooks: hooks, willPublish: {
+                try willPublish?()
+                try verifySource(existing)
+            }, keepsPendingChanges: existing.pending?.isEmpty == false) { split in
+                try ArchiveSplitWorkProducer.produce(existing: existing, workURL: split.workURL, format: plan.format,
+                    options: plan.options, plan: replay, progress: progress, didRead: hooks.didReadInputBytes)
+            }
+        // Return the user's spelling, even though the publisher operates on a canonical directory.
+        return plan.destination.appendingPathExtension("001")
+    }
+
+    private static func verifySource(_ existing: ArchiveCreationPlan.Existing) throws {
+        guard let identity = existing.identity else { return }
+        guard try ArchiveSetIdentity.capture(url: existing.url, layout: existing.volumeLayout) == identity else {
+            throw ExtractionFailure.refused(String(localized: "処理中にアーカイブが別の操作で変更されました。"))
+        }
     }
 
     private static func isSameFile(_ source: URL, _ destination: URL) -> Bool {
