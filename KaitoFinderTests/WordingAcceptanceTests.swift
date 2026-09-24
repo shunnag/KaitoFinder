@@ -42,6 +42,37 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    @MainActor func testColumnAndFolderSortingWordingInAllTwentySixLanguages() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        let keys = ["列", "圧縮率", "CRC-32", "アクセス権", "格納順", "フォルダを常に先頭に表示"]
+        let folders = [
+            "cs": "Nejprve zobrazovat složky", "da": "Behold mapper øverst", "de": "Ordner oben anzeigen",
+            "en": "Keep Folders on Top", "es": "Mantener las carpetas en la parte superior", "fi": "Pidä kansiot ylimpänä",
+            "fr": "Laisser les dossiers en haut", "hi": "फ़ोल्डर ऊपर रखें", "id": "Simpan folder di atas",
+            "it": "Tieni le cartelle in alto", "ja": "フォルダを常に先頭に表示", "ko": "폴더 우선 정렬",
+            "ms": "Kekalkan folder di atas", "nb": "Behold mapper øverst", "nl": "Zorg dat mappen bovenaan staan",
+            "pl": "Utrzymuj foldery na górze", "pt-BR": "Manter pastas na parte superior", "pt-PT": "Mostrar pastas primeiro",
+            "ru": "Отображать папки вверху списка", "sv": "Behåll mappar överst", "th": "ให้โฟลเดอร์อยู่ด้านบนสุดเสมอ",
+            "tr": "Klasörleri en üstte tut", "uk": "Тримати папки вгорі", "vi": "Giữ thư mục ở trên cùng",
+            "zh-Hans": "将文件夹保持在顶部", "zh-Hant": "將檔案夾保留在最上方"
+        ]
+        for key in keys {
+            let entry = try XCTUnwrap(catalog.strings[key], key)
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages), key)
+            for language in LocalizationAcceptance.languages {
+                let translation = try XCTUnwrap(entry.localizations[language])
+                XCTAssertEqual(translation.stringUnit.state, "translated")
+                XCTAssertFalse(translation.stringUnit.value.isEmpty)
+                let bundle = try LocalizationAcceptance.bundle(language)
+                XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), translation.stringUnit.value)
+                if language == "ja" { XCTAssertEqual(translation.stringUnit.value, key) }
+            }
+        }
+        for (language, expected) in folders {
+            XCTAssertEqual(String(localized: "フォルダを常に先頭に表示", bundle: try LocalizationAcceptance.bundle(language)), expected)
+        }
+    }
+
     func testSplitCorrectionWordingHasAllTwentySixTranslations() throws {
         let catalog = try LocalizationAcceptance.catalog()
         for key in [

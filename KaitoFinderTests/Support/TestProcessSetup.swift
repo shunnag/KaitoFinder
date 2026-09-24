@@ -10,7 +10,8 @@ nonisolated final class TestProcessSetup: NSObject, XCTestObservation {
         "NSToolbar Configuration \(ArchiveWindowController.toolbarAutosaveName)",
         "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)",
         "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)",
-        "ArchiveSaveBehavior"
+        "ArchiveSaveBehavior",
+        "ArchiveKeepsFoldersOnTop"
     ]
 
     private let savedAutosaveValues: [String: Any]

@@ -48,6 +48,7 @@ final class PreferencesViewModel {
     func changeTarGzipLevel(to level: Int) { store.preferences.tarGzipLevel = ArchivePreferences.clampedLevel(level) }
     func changeTarBzip2Level(to level: Int) { store.preferences.tarBzip2Level = ArchivePreferences.clampedLevel(level) }
     func changeTarPreservesOwnerIDs(to enabled: Bool) { store.preferences.tarPreservesOwnerIDs = enabled }
+    func changeKeepsFoldersOnTop(to enabled: Bool) { store.preferences.keepsFoldersOnTop = enabled }
     func changeShowsHiddenFiles(to enabled: Bool) { store.preferences.showsHiddenFiles = enabled }
     func changeShowsWelcomeWindowAtLaunch(to enabled: Bool) { store.preferences.showsWelcomeWindowAtLaunch = enabled }
     func changeRenamesOnClick(to enabled: Bool) { store.preferences.renamesOnClick = enabled }
@@ -114,6 +115,7 @@ final class PreferencesWindowController: NSWindowController {
     let folderPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let afterExpansionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let revealsExtractedItemsInFinderCheckbox: NSButton
+    let keepsFoldersOnTopCheckbox: NSButton
     let showsHiddenFilesCheckbox: NSButton
     let showsWelcomeWindowAtLaunchCheckbox: NSButton
     let renamesOnClickCheckbox: NSButton
@@ -138,6 +140,8 @@ final class PreferencesWindowController: NSWindowController {
             String(localized: "ダウンロードしたアップデートは、KaitoFinderの終了時にインストールされます。", bundle: bundle))
         showsWelcomeWindowAtLaunchCheckbox = NSButton(
             checkboxWithTitle: String(localized: "起動時にようこそウインドウを表示", bundle: bundle), target: nil, action: nil)
+        keepsFoldersOnTopCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "フォルダを常に先頭に表示", bundle: bundle), target: nil, action: nil)
         showsHiddenFilesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "隠しファイルを表示", bundle: bundle), target: nil, action: nil)
         renamesOnClickCheckbox = NSButton(
@@ -179,9 +183,10 @@ final class PreferencesWindowController: NSWindowController {
             ]),
             group(rows: [
                 checkboxRow(showsHiddenFilesCheckbox),
+                checkboxRow(keepsFoldersOnTopCheckbox),
                 checkboxRow(showsWelcomeWindowAtLaunchCheckbox),
                 checkboxRow(renamesOnClickCheckbox)
-            ], spanningRows: [0, 1, 2])
+            ], spanningRows: [0, 1, 2, 3])
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
@@ -280,6 +285,7 @@ final class PreferencesWindowController: NSWindowController {
         let actions: [(NSControl, Selector)] = [
             (showsWelcomeWindowAtLaunchCheckbox, #selector(changeShowsWelcomeWindowAtLaunch(_:))),
             (showsHiddenFilesCheckbox, #selector(changeShowsHiddenFiles(_:))),
+            (keepsFoldersOnTopCheckbox, #selector(changeKeepsFoldersOnTop(_:))),
             (renamesOnClickCheckbox, #selector(changeRenamesOnClick(_:))),
             (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
             (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
@@ -464,6 +470,7 @@ final class PreferencesWindowController: NSWindowController {
         refreshUpdateControls()
         let preferences = viewModel.preferences
         showsWelcomeWindowAtLaunchCheckbox.state = preferences.showsWelcomeWindowAtLaunch ? .on : .off
+        keepsFoldersOnTopCheckbox.state = preferences.keepsFoldersOnTop ? .on : .off
         showsHiddenFilesCheckbox.state = preferences.showsHiddenFiles ? .on : .off
         renamesOnClickCheckbox.state = preferences.renamesOnClick ? .on : .off
         excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
@@ -491,6 +498,7 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
     @objc private func changeSaveBehavior(_ sender: NSPopUpButton) { viewModel.selectSaveBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeOpeningBehavior(_ sender: NSPopUpButton) { viewModel.selectOpeningBehavior(at: sender.indexOfSelectedItem) }
+    @objc private func changeKeepsFoldersOnTop(_ sender: NSButton) { viewModel.changeKeepsFoldersOnTop(to: sender.state == .on) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
     @objc private func changeRenamesOnClick(_ sender: NSButton) { viewModel.changeRenamesOnClick(to: sender.state == .on) }
     @objc private func changeShowsWelcomeWindowAtLaunch(_ sender: NSButton) {

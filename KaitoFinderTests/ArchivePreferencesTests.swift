@@ -27,6 +27,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(value.folderPolicy, .whenMultipleTopLevelItems)
         XCTAssertFalse(value.trashesArchiveAfterExtraction)
         XCTAssertFalse(value.revealsExtractedItemsInFinder)
+        XCTAssertFalse(value.keepsFoldersOnTop)
         XCTAssertFalse(value.showsHiddenFiles)
         XCTAssertTrue(value.showsWelcomeWindowAtLaunch)
         XCTAssertTrue(value.renamesOnClick)
@@ -47,6 +48,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
                                            folderPolicy: [.always, .whenMultipleTopLevelItems, .never][index % 3],
                                            trashesArchiveAfterExtraction: index.isMultiple(of: 2),
                                            revealsExtractedItemsInFinder: !index.isMultiple(of: 2),
+                                           keepsFoldersOnTop: !index.isMultiple(of: 2),
                                            showsHiddenFiles: index.isMultiple(of: 2),
                                            showsWelcomeWindowAtLaunch: !index.isMultiple(of: 2),
                                            renamesOnClick: index.isMultiple(of: 2),

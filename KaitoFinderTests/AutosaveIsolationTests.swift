@@ -26,7 +26,8 @@ nonisolated final class AutosaveIsolationTests: XCTestCase {
             "NSToolbar Configuration \(ArchiveWindowController.toolbarAutosaveName)",
             "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)",
             "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)",
-            "ArchiveSaveBehavior"
+            "ArchiveSaveBehavior",
+            "ArchiveKeepsFoldersOnTop"
         ].sorted())
     }
 }
