@@ -74,14 +74,8 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         let operation = Task {
             await extractArchives(archives, base: base, progress: progress, didWrite: didWrite, didProcess: didProcess)
         }
-        // Progressの取消しを、入力待ちと認証中のTaskにも届ける。
-        let cancellation = Task {
-            while !Task.isCancelled {
-                if progress.isCancelled { operation.cancel(); return }
-                try? await Task.sleep(for: .milliseconds(50))
-            }
-        }
-        defer { cancellation.cancel() }
+        let cancellation = ArchiveProgressCancellation(progress: progress) { _ in operation.cancel() }
+        defer { cancellation.invalidate() }
         return await withTaskCancellationHandler {
             await operation.value
         } onCancel: {

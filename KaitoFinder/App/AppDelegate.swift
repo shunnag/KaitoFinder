@@ -2,9 +2,11 @@ import AppKit
 import Darwin
 
 @main
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenuDelegate {
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
+    private var columnsMenu: NSMenu?
+    private var columnsMenuBundle: Bundle = .main
     private let preferencesStore: ArchivePreferencesStore
     private let softwareUpdater: any SoftwareUpdating
     private(set) var preferencesWindowController: PreferencesWindowController?
@@ -85,6 +87,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func toggleHiddenFiles(_ sender: Any?) { preferencesStore.preferences.showsHiddenFiles.toggle() }
 
+    @objc func toggleFoldersOnTop(_ sender: Any?) { preferencesStore.preferences.keepsFoldersOnTop.toggle() }
+
+    @objc func toggleArchiveColumn(_ sender: NSMenuItem) {
+        (NSApp.keyWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === columnsMenu else { return }
+        let controller = NSApp.keyWindow?.windowController as? ArchiveWindowController
+        ArchiveColumn.populate(menu, bundle: columnsMenuBundle, table: controller?.outlineView,
+                               target: self, action: #selector(toggleArchiveColumn(_:)))
+    }
+
     @objc func checkForUpdates(_ sender: Any?) { softwareUpdater.checkForUpdates() }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -97,6 +112,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return batchExtractionTask == nil && batchExtractionOpenPanel == nil
         case #selector(forgetArchivePasswords(_:)):
             return forgetPasswordsTask == nil
+        case #selector(toggleArchiveColumn(_:)):
+            guard let controller = NSApp.keyWindow?.windowController as? ArchiveWindowController else {
+                menuItem.state = .off
+                return false
+            }
+            return controller.validateColumnMenuItem(menuItem)
+        case #selector(toggleFoldersOnTop(_:)):
+            menuItem.state = preferencesStore.preferences.keepsFoldersOnTop ? .on : .off
         case #selector(toggleHiddenFiles(_:)):
             menuItem.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
         default: break
@@ -500,6 +523,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         hidden.keyEquivalentModifierMask = [.command, .shift]
         hidden.target = self
         hidden.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
+        viewMenu.addItem(.separator())
+        let columns = NSMenu(title: String(localized: "列", bundle: bundle))
+        columnsMenu = columns
+        columnsMenuBundle = bundle
+        columns.delegate = self
+        menuNeedsUpdate(columns)
+        viewMenu.addItem(withTitle: columns.title, action: nil, keyEquivalent: "").submenu = columns
+        let folders = viewMenu.addItem(withTitle: String(localized: "フォルダを常に先頭に表示", bundle: bundle),
+                                      action: #selector(toggleFoldersOnTop(_:)), keyEquivalent: "")
+        folders.target = self
+        folders.state = preferencesStore.preferences.keepsFoldersOnTop ? .on : .off
         let windowMenu = NSMenu(title: String(localized: "ウインドウ", bundle: bundle))
         let welcome = windowMenu.addItem(withTitle: String(localized: "ようこそKaitoFinderへ", bundle: bundle),
                                         action: #selector(showWelcome(_:)), keyEquivalent: "1")

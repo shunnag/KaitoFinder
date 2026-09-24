@@ -117,7 +117,7 @@ nonisolated enum ArchiveCreationTransaction {
         // 書き直しの間に変わった巻も、保存先へ公開する直前に検出する。
         if let existing = plan.existing { try verifySource(existing) }
         try plan.existing?.pending?.validate()
-        try plan.existing?.publication?.enter(progress: progress)
+        try (plan.existing?.publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }
         // rewriter が省く root directory record も含め、公開後は必ず完了を示す。
         progress.completedUnitCount = progress.totalUnitCount
@@ -151,7 +151,7 @@ nonisolated enum ArchiveCreationTransaction {
         }
         estimate = max(1, estimate)
         _ = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimate, plan: replay,
-            password: plan.options.password, progress: progress, publication: existing.publication,
+            password: plan.options.password, progress: progress, publication: existing.publication ?? ArchiveSavePublication.current.get(),
             index: index, metadataStore: metadataStore, hooks: hooks, willPublish: {
                 try willPublish?()
                 try verifySource(existing)

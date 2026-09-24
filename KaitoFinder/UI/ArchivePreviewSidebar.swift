@@ -1,6 +1,5 @@
 import AppKit
 import QuickLookUI
-import UniformTypeIdentifiers
 
 /// 文書の一時領域を借りるが、Quick Look パネルとは要求・取消し・表示寿命を共有しない。
 final class ArchivePreviewSidebar: NSViewController {
@@ -10,6 +9,7 @@ final class ArchivePreviewSidebar: NSViewController {
     static let automaticPreviewLimit: UInt64 = 64 * 1024 * 1024
 
     private let bundle: Bundle
+    private let kindResolver: ArchiveKindResolver
     private(set) var state: State = .empty
     private(set) var materialization: ArchiveMaterializationController?
     private(set) var previewView: QLPreviewView?
@@ -25,8 +25,9 @@ final class ArchivePreviewSidebar: NSViewController {
     private let placeholder = NSStackView()
     private let messageScrollView = NSScrollView()
 
-    init(bundle: Bundle = .main) {
+    init(bundle: Bundle = .main, kindResolver: ArchiveKindResolver? = nil) {
         self.bundle = bundle
+        self.kindResolver = kindResolver ?? ArchiveKindResolver(bundle: bundle)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -153,8 +154,7 @@ final class ArchivePreviewSidebar: NSViewController {
         selectedItem = item
         nameLabel.stringValue = node.name
         nameLabel.toolTip = node.path
-        let type = node.isDirectory ? UTType.folder : UTType(filenameExtension: (node.name as NSString).pathExtension)
-        var details = [type?.localizedDescription].compactMap { $0 }
+        var details = [kindResolver.kind(for: node).description]
         if let size = node.size, let count = Int64(exactly: size), !node.isDirectory {
             details.append(ByteCountFormatter.string(fromByteCount: count, countStyle: .file))
         }

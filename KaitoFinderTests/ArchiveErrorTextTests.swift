@@ -57,6 +57,21 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         ])
     }
 
+    func testImportWriterFailuresUseReadableTextInEveryLanguage() throws {
+        let errors: [WriterError] = [.duplicatePath("x"), .sourceChanged("x"), .io(operation: "open", code: EACCES), .compression(-3)]
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            for error in errors {
+                let text = ArchiveErrorText.describe(error, bundle: bundle)
+                XCTAssertFalse(text.isEmpty, language)
+                XCTAssertNotEqual(text, String(describing: error), language)
+                for raw in ["WriterError", "duplicatePath(", "sourceChanged(", "io(operation:", "compression("] {
+                    XCTAssertFalse(text.contains(raw), "\(language): \(text)")
+                }
+            }
+        }
+    }
+
     func testEveryUpdaterErrorInJapanese() throws {
         try checkJapanese([
             (UpdaterError.editingRefused(gatekeeper: .sfxPrefix, reason: "変更できません"), "変更できません"),
@@ -153,7 +168,8 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         let sources = [
             "UI/ArchiveCreationController.swift", "UI/ArchiveWindowController.swift", "Model/ArchiveCapabilities.swift",
             "Model/ArchiveMaterializationController.swift", "Import/ArchiveIncomingFiles.swift", "Extraction/ExtractionService.swift",
-            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift", "Creation/ArchiveCreationTransaction.swift"
+            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift", "Import/ArchiveImportTransaction.swift",
+            "Creation/ArchiveCreationTransaction.swift"
         ]
         for path in sources {
             let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/" + path), encoding: .utf8)

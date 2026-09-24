@@ -289,11 +289,13 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertNil(controller.creationController)
         XCTAssertNil(controller.creationController?.savePanel)
         XCTAssertNil(controller.passwordEditor)
-        XCTAssertEqual(window.requestedSheets.count, 1)
-        XCTAssertTrue(window.requestedSheets.first === controller.editProgressSheet?.window)
+        XCTAssertTrue(window.requestedSheets.isEmpty)
+        XCTAssertNotNil(controller.editProgressSheet)
         XCTAssertNil(window.attachedSheet)
 
         try await scenarioWait { gate.isEntered }
+        try await scenarioWait { window.requestedSheets.count == 1 }
+        XCTAssertTrue(window.requestedSheets.first === controller.editProgressSheet?.window)
         XCTAssertEqual(document.generation, 0)
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), ["original.txt": Data("original".utf8)])
         XCTAssertEqual(controller.extractionTask, committedTask)
@@ -602,9 +604,11 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testPendingDeleteDisablesBothActionsAndCancellationPreservesBytesAndUndo() async throws {
         let fixture = try Fixture(), gate = Gate()
+        let cancelled = Mutex(false)
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
             gate.wait()
+            cancelled.withLock { $0 = Task.isCancelled }
             return result
         }
         let (document, controller) = try await interface(fixture, stack: stack)
@@ -621,7 +625,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
         let toolbar = try XCTUnwrap(controller.window?.toolbar)
         for item in toolbar.items where item.itemIdentifier != .flexibleSpace && item.itemIdentifier != .space {
-            XCTAssertEqual(controller.validateToolbarItem(item), item.itemIdentifier.rawValue == "search", item.label)
+            XCTAssertFalse(controller.validateToolbarItem(item), item.label)
         }
         controller.togglePreviewSidebar(nil)
         XCTAssertFalse(controller.showsPreviewSidebar, "変更処理中はプレビューの表示も開始しない")
@@ -631,12 +635,210 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let sheet = try XCTUnwrap(controller.editProgressSheet)
         sheet.cancelExtraction(nil)
         XCTAssertTrue(sheet.progress.isCancelled)
+        try await waitUntil { task.isCancelled }
         gate.release.signal()
         await task.value
+        XCTAssertTrue(cancelled.withLock { $0 })
+        XCTAssertNil(controller.failureAlert)
         XCTAssertEqual(try digest(fixture), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["b.txt"])
+    }
+
+    @MainActor func testGatedDeleteBlocksInputImmediatelyAndAttachesAfterDelay() async throws {
+        let fixture = try Fixture(), gate = ScenarioGate()
+        let stack = ArchiveUndoStack { source, destination in
+            gate.pauseOnce()
+            return ArchiveUndoStack.cloneFile(from: source, to: destination)
+        }
+        let (_, controller) = try await interface(fixture, stack: stack)
+        defer { gate.release() }
+        try select(["b.txt"], in: controller)
+        let started = ContinuousClock.now
+        controller.deleteEntries(nil)
+        let sheet = try XCTUnwrap(controller.editProgressSheet), panel = try XCTUnwrap(sheet.window)
+        let task = try XCTUnwrap(controller.extractionTask)
+        XCTAssertNil(controller.window?.attachedSheet)
+        XCTAssertTrue(controller.operationInFlight)
+        XCTAssertEqual(panel.alphaValue, 0)
+        try await waitUntil { gate.isEntered }
+        try await waitUntil { panel.alphaValue == 1 }
+        XCTAssertGreaterThanOrEqual(started.duration(to: .now), ExtractionProgressSheet.revealDelay)
+        XCTAssertTrue(controller.window?.attachedSheet === panel)
+        gate.release()
+        await task.value
+        XCTAssertEqual(try names(fixture), ["a.txt", "c.txt"])
+        XCTAssertNil(controller.failureAlert)
+    }
+
+    @MainActor private func makeKeyWindow(_ window: NSWindow) async throws {
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        let activationDeadline = ContinuousClock.now + .seconds(5)
+        while !NSApp.isActive, ContinuousClock.now < activationDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        guard NSApp.isActive else {
+            throw XCTSkip("テスト host が前面になれない環境では key window と入力遮断を検証できない")
+        }
+        try await waitUntil { window.isKeyWindow }
+    }
+
+    @MainActor private func assertDelayedEditBlocksInput(throughApplication: Bool) async throws {
+        let fixture = try Fixture(["a.txt", "b.txt", "folder/", "folder/c.txt"]), gate = ScenarioGate()
+        let stack = ArchiveUndoStack { source, destination in
+            gate.pauseOnce()
+            return ArchiveUndoStack.cloneFile(from: source, to: destination)
+        }
+        let (document, controller) = try await interface(fixture, stack: stack)
+        defer { gate.release() }
+        let window = try XCTUnwrap(controller.window), view = controller.outlineView
+        try await makeKeyWindow(window)
+        try select(["b.txt"], in: controller)
+        XCTAssertTrue(window.makeFirstResponder(view))
+        let selection = view.selectedRowIndexes, before = try digest(fixture)
+        let resignations = Mutex(0)
+        let observer = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
+                                                               object: window, queue: nil) { _ in resignations.withLock { $0 += 1 } }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        controller.deleteEntries(nil)
+        let task = try XCTUnwrap(controller.extractionTask), sheet = try XCTUnwrap(controller.editProgressSheet)
+        XCTAssertTrue(window.isKeyWindow)
+        XCTAssertTrue(window.firstResponder === view)
+        XCTAssertNil(window.attachedSheet)
+        XCTAssertFalse(try XCTUnwrap(sheet.window).canBecomeKey)
+        func send(_ event: NSEvent) {
+            if throughApplication { NSApp.sendEvent(event) } else { window.sendEvent(event) }
+        }
+        func key(_ text: String, code: UInt16, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: code))
+        }
+        for (text, code) in [("\u{f701}", UInt16(125)), ("\r", 36), (" ", 49)] { send(try key(text, code: code)) }
+        send(try key("a", code: 0, modifiers: .command))
+        let target = try node("a.txt", in: controller), row = view.row(forItem: target), rect = view.rect(ofRow: row)
+        let point = view.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+        for clicks in [1, 2] {
+            for type: NSEvent.EventType in [.leftMouseDown, .leftMouseUp] {
+                send(try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                    eventNumber: 0, clickCount: clicks, pressure: 1)))
+            }
+        }
+        view.selectAll(nil)
+        XCTAssertTrue(view.handleEntryKey("\r", modifiers: []))
+        XCTAssertEqual(view.selectedRowIndexes, selection)
+        XCTAssertFalse(view.isRenaming)
+        XCTAssertTrue(window.isKeyWindow)
+        XCTAssertTrue(window.firstResponder === view)
+        XCTAssertEqual(resignations.withLock { $0 }, 0)
+        XCTAssertFalse(controller.canReceiveTabDrag)
+        XCTAssertNil(controller.outlineView(view, pasteboardWriterForItem: target))
+        let drag = FileURLDragInfo(urls: [fixture.archive], window: window, location: point)
+        defer { drag.draggingPasteboard.releaseGlobally() }
+        XCTAssertEqual(controller.outlineView(view, validateDrop: drag, proposedItem: nil, proposedChildIndex: -1), [])
+        XCTAssertFalse(controller.outlineView(view, acceptDrop: drag, item: nil, childIndex: -1))
+        for action in [#selector(controller.paste(_:)), #selector(controller.copy(_:)), #selector(controller.newFolder(_:)),
+                       #selector(controller.deleteEntries(_:)), #selector(controller.renameEntry(_:)), #selector(controller.openEntry(_:)),
+                       #selector(controller.openWithEntry(_:)), #selector(controller.extractSelected(_:)), #selector(controller.extractAll(_:)),
+                       #selector(controller.togglePreviewPanel(_:)), #selector(controller.saveArchiveAs(_:))] {
+            XCTAssertFalse(controller.validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: "")))
+        }
+        for item in try XCTUnwrap(window.toolbar).items where item.itemIdentifier != .flexibleSpace && item.itemIdentifier != .space {
+            XCTAssertFalse(controller.validateToolbarItem(item))
+        }
+        controller.searchField.stringValue = "a"
+        controller.filterEntries(controller.searchField)
+        XCTAssertTrue(controller.filterQuery.isEmpty)
+        send(try key("\u{1b}", code: 53))
+        XCTAssertTrue(sheet.progress.isCancelled)
+        try await waitUntil { task.isCancelled }
+        gate.release()
+        await task.value
+        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+        XCTAssertNil(controller.failureAlert)
+        XCTAssertEqual(view.selectedRowIndexes, selection)
+        XCTAssertFalse(view.isRenaming)
+    }
+
+    @MainActor func testDelayedEditKeepsKeyWindowAndBlocksApplicationEventsExceptEscape() async throws {
+        try await assertDelayedEditBlocksInput(throughApplication: true)
+    }
+
+    @MainActor func testDelayedEditKeepsKeyWindowAndBlocksWindowEventsExceptEscape() async throws {
+        try await assertDelayedEditBlocksInput(throughApplication: false)
+    }
+
+    @MainActor func testSuspendedUndoAllowsWindowSelectionExceptWhileProgressSheetIsPending() async throws {
+        let fixture = try Fixture(), (document, controller) = try await interface(fixture)
+        let window = try XCTUnwrap(controller.window), view = controller.outlineView
+        try await makeKeyWindow(window)
+        XCTAssertTrue(window.makeFirstResponder(view))
+        let manager = try XCTUnwrap(document.undoManager as? ArchiveUndoManager)
+        manager.isSuspended = true
+        defer { manager.isSuspended = false }
+        XCTAssertTrue(controller.operationInFlight)
+        XCTAssertFalse(ExtractionProgressSheet.hasPendingSheet(on: window))
+        XCTAssertNil(window.attachedSheet)
+
+        func key(_ characters: String, code: UInt16, modifiers: NSEvent.ModifierFlags = []) throws {
+            window.sendEvent(try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code)))
+        }
+        func click(_ path: String) throws {
+            let row = view.row(forItem: try node(path, in: controller))
+            let rect = view.rect(ofRow: row).intersection(view.visibleRect)
+            XCTAssertFalse(rect.isEmpty)
+            let point = view.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
+            func event(_ type: NSEvent.EventType) throws -> NSEvent {
+                try XCTUnwrap(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil,
+                    eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0))
+            }
+            let down = try event(.leftMouseDown), up = try event(.leftMouseUp)
+            // NSTableView の tracking loop を終了させる。遮断時の mouseUp も残さない。
+            NSApp.postEvent(up, atStart: true)
+            window.sendEvent(down)
+            if let remaining = NSApp.nextEvent(matching: .leftMouseUp, until: .distantPast, inMode: .eventTracking, dequeue: true) {
+                window.sendEvent(remaining)
+            }
+        }
+
+        try select(["a.txt"], in: controller)
+        try click("b.txt")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["b.txt"])
+        try key("\u{f701}", code: 125)
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["c.txt"])
+        try key("\r", code: 36)
+        try key("\u{7f}", code: 51, modifiers: .command)
+        XCTAssertFalse(view.isRenaming)
+        XCTAssertNil(controller.extractionTask)
+        XCTAssertFalse(controller.validateMenuItem(NSMenuItem(title: "", action: #selector(controller.deleteEntries(_:)), keyEquivalent: "")))
+
+        let sheet = ExtractionProgressSheet(progress: Progress(), revealDelay: .seconds(60))
+        defer { sheet.finish() }
+        sheet.begin(on: window)
+        XCTAssertTrue(ExtractionProgressSheet.hasPendingSheet(on: window))
+        XCTAssertNil(window.attachedSheet)
+        XCTAssertEqual(sheet.window?.alphaValue, 0)
+        try click("a.txt")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["c.txt"])
+        try key("\u{f700}", code: 126)
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["c.txt"])
+        try key("\u{1b}", code: 53)
+        XCTAssertTrue(sheet.progress.isCancelled)
+
+        sheet.finish()
+        XCTAssertFalse(ExtractionProgressSheet.hasPendingSheet(on: window))
+        XCTAssertTrue(controller.operationInFlight)
+        try click("a.txt")
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["a.txt"])
+        try key("\u{f701}", code: 125)
         XCTAssertEqual(controller.selectedNodes.map(\.path), ["b.txt"])
     }
 

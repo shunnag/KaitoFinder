@@ -142,19 +142,24 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         XCTAssertFalse(window.isVisible)
     }
 
-    @MainActor func testArchiveMainWindowKeepsWelcomeOpenUntilAttachedProgressSheetFinishes() async throws {
+    @MainActor func testArchiveMainWindowKeepsWelcomeOpenBeforeAndAfterProgressSheetReveals() async throws {
         let controller = try controller()
         controller.showWindow(nil)
         let window = try XCTUnwrap(controller.window)
         let sheet = ExtractionProgressSheet(progress: Progress(totalUnitCount: 1))
         defer { sheet.finish() }
         sheet.begin(on: window)
-        XCTAssertTrue(window.attachedSheet === sheet.window)
+        XCTAssertNil(window.attachedSheet)
+        XCTAssertTrue(ExtractionProgressSheet.hasPendingSheet(on: window))
         let autosave = ArchiveWindowFrameAutosave()
         defer { autosave.restore() }
         let archive = ArchiveWindowController()
         defer { archive.close() }
 
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: archive.window)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertNil(window.attachedSheet)
+        try await scenarioWait { window.attachedSheet === sheet.window }
         NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: archive.window)
         XCTAssertTrue(window.isVisible)
         XCTAssertTrue(window.attachedSheet === sheet.window)

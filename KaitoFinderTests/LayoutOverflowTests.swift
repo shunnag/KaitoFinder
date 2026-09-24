@@ -278,7 +278,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertEqual(archiveName.count, 120)
             XCTAssertEqual(detail.count, 120)
             let title = ArchiveProgressOperation.expandingArchive(archiveName).title(bundle: bundle)
-            let sheet = ExtractionProgressSheet(progress: progress, title: title, detail: detail, bundle: bundle)
+            let sheet = ExtractionProgressSheet(progress: progress, title: title, detail: detail, bundle: bundle, revealDelay: .zero)
             defer { sheet.finish() }
             sheet.beginStandalone()
             let window = try XCTUnwrap(sheet.window)

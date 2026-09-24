@@ -78,6 +78,21 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
         return volume
     }
 
+    private func assertOutOfSpace(_ error: any Error, file: StaticString = #filePath, line: UInt = #line) {
+        let cocoa = error as NSError, reason = ArchiveErrorText.describe(error)
+        let descriptions = [
+            ArchiveErrorText.describe(CocoaError(.fileWriteOutOfSpace)),
+            ArchiveErrorText.describe(WriterError.io(operation: "write", code: ENOSPC)),
+            ArchiveErrorText.describe(POSIXError(.ENOSPC)),
+            ArchiveErrorText.describe(ExtractionFailure.system(ENOSPC))
+        ]
+        let typed = (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue)
+            || (cocoa.domain == NSPOSIXErrorDomain && cocoa.code == Int(ENOSPC))
+        // 項目名を付けた書き込みエラーも、同じ言語の ENOSPC 説明で照合する。
+        XCTAssertTrue(typed || descriptions.contains { reason == $0 || reason.hasSuffix(": " + $0) },
+                      reason, file: file, line: line)
+    }
+
     func testFullDiskExtractionReportsNoSpaceAndRemovesPartialPayload() async throws {
         let fixture = try ScenarioFixture(script: "with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z: z.writestr('large.bin', b'x' * (32 * 1024 * 1024))")
         let volume = try volume(), original = try ScenarioFixture.digest(fixture.archive)
@@ -105,10 +120,7 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
             _ = try await document.append(urls: [source], to: "", progress: Progress(), willPublish: { XCTFail("容量不足で公開境界に進みました") })
             XCTFail("容量のないボリュームへ追加を公開しました")
         } catch {
-            let cocoa = error as NSError
-            let reason = String(describing: error)
-            XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
-                          || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+            assertOutOfSpace(error)
         }
         XCTAssertEqual(try ScenarioFixture.digest(archive), before)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -157,9 +169,7 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
                                           willPublish: { XCTFail("容量不足で公開境界に進みました") })
             XCTFail("LHA streaming append exceeded the test volume")
         } catch {
-            let cocoa = error as NSError, reason = String(describing: error)
-            XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
-                || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+            assertOutOfSpace(error)
         }
         XCTAssertEqual(try ScenarioFixture.digest(archive), before)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -191,9 +201,7 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
                                               willPublish: { XCTFail("容量不足で公開境界に進みました") })
                 XCTFail("compressed tar append exceeded the test volume")
             } catch {
-                let cocoa = error as NSError, reason = String(describing: error)
-                XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
-                    || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+                assertOutOfSpace(error)
             }
             XCTAssertEqual(try ScenarioFixture.digest(archive), before)
             XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)

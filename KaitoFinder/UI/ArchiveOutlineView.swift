@@ -8,6 +8,7 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
     var openSelection: (() -> Void)?
     var selectEnclosingFolder: (() -> Void)?
     var renameValidationChanged: ((String?) -> Void)?
+    var permitsInteraction: () -> Bool = { true }
     var renamesOnClick = true {
         didSet { if !renamesOnClick { cancelPendingClickRename() } }
     }
@@ -83,6 +84,7 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
     }
 
     private func observeClickRenameEvent(_ event: NSEvent) {
+        guard permitsInteraction() else { cancelPendingClickRename(); return }
         if event.type == .leftMouseUp {
             if let candidate = clickRenameCandidate, event.window === window, event.clickCount == 1,
                candidate.rect.contains(convert(event.locationInWindow, from: nil)) {
@@ -110,7 +112,7 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
             guard let self else { return }
             self.cancelPendingClickRename()
             let (item, row, rect) = candidate
-            guard self.renamesOnClick, !self.isRenaming, self.window?.isKeyWindow == true,
+            guard self.permitsInteraction(), self.renamesOnClick, !self.isRenaming, self.window?.isKeyWindow == true,
                   NSApp.isActive, self.window?.attachedSheet == nil,
                   self.window?.firstResponder === self,
                   self.selectedRowIndexes == IndexSet(integer: row),
@@ -136,19 +138,23 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
 
     func handleEntryKey(_ characters: String, modifiers: NSEvent.ModifierFlags) -> Bool {
         cancelPendingClickRename()
-        guard !isRenaming else { return false }
         let modifiers = modifiers.intersection([.command, .shift, .option, .control])
+        let action: (() -> Void)?
         if modifiers == .command, characters == "\u{7f}" || characters == "\u{8}" {
-            deleteSelection?()
+            action = deleteSelection
         } else if modifiers.isEmpty, characters == "\r" || characters == "\n" {
-            renameSelection?()
+            action = renameSelection
         } else if modifiers.isEmpty, characters == " " {
-            previewSelection?()
+            action = previewSelection
         } else if modifiers == .command, characters == "\u{f701}" {
-            openSelection?()
+            action = openSelection
         } else if modifiers == .command, characters == "\u{f700}" {
-            selectEnclosingFolder?()
+            action = selectEnclosingFolder
         } else { return false }
+        // 復旧待ちでも通常の矢印移動は許可し、操作キーだけを止める。
+        guard permitsInteraction() else { return true }
+        guard !isRenaming else { return false }
+        action?()
         return true
     }
 
@@ -157,10 +163,15 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
         super.keyDown(with: event)
     }
 
+    override func selectAll(_ sender: Any?) {
+        guard permitsInteraction() else { return }
+        super.selectAll(sender)
+    }
+
     func beginRenaming(_ item: EntryNode, validate: @escaping (String) -> String?,
                        commit: @escaping (String) -> Void) {
         cancelPendingClickRename()
-        guard !isRenaming, window != nil, let column = outlineTableColumn else { return }
+        guard permitsInteraction(), !isRenaming, window != nil, let column = outlineTableColumn else { return }
         let row = row(forItem: item)
         guard row >= 0, let columnIndex = tableColumns.firstIndex(of: column) else { return }
         scrollRowToVisible(row)

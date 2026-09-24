@@ -108,6 +108,7 @@ private final class ArchiveTabDragDestination: NSView, NSSpringLoadingDestinatio
               bounds.contains(convert(info.draggingLocation, from: nil)),
               group.isTabBarVisible, !group.isOverviewVisible, group.selectedWindow !== target,
               group.selectedWindow?.attachedSheet == nil, target.attachedSheet == nil,
+              (group.selectedWindow?.windowController as? ArchiveWindowController)?.operationInFlight != true,
               (target.windowController as? ArchiveWindowController)?.canReceiveTabDrag == true,
               info.draggingSourceOperationMask.contains(.copy),
               ArchiveIncomingPasteboard.representation(AppKitArchivePasteboard(pasteboard: info.draggingPasteboard)) != .none
