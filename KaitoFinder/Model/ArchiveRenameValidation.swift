@@ -15,6 +15,9 @@ import KaitoKit
     private var cached: [Name: Result<ArchiveEditPlan, any Error>] = [:]
     private(set) var validationCount = 0
     private(set) var lastValidationMilliseconds = 0.0
+    #if DEBUG
+    var usesOccupancy: Bool { occupancy != nil }
+    #endif
 
     init(selection: ArchiveEditSelection, entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip,
          state: ArchiveReservationState? = nil,

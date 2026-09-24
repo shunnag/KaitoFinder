@@ -6,6 +6,58 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class PerformanceProbeTests: XCTestCase {
+    @MainActor func testArchiveOpeningWhenEnabled() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
+            throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run archive opening probes")
+        }
+        let count = Int(environment["KAITOFINDER_PROBE_ENTRIES"] ?? "") ?? 100_000
+        guard count >= 1 else { throw XCTSkip("KAITOFINDER_PROBE_ENTRIES must be positive") }
+        preserveArchiveWindowFrame()
+        let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("opening.zip")
+        try await Self.writeArchive(archive, count: count, openingLayout: true)
+        let documents = try XCTUnwrap(NSDocumentController.shared as? ArchiveDocumentController)
+        let recordsRecents = documents.recordsRecentDocuments, preferences = ArchivePreferencesStore.shared.preferences
+        documents.recordsRecentDocuments = false
+        ArchivePreferencesStore.shared.preferences.saveBehavior = .immediate
+        defer {
+            documents.recordsRecentDocuments = recordsRecents
+            ArchivePreferencesStore.shared.preferences = preferences
+        }
+        let watcher = MainActorProbe(interval: 0.002)
+        defer { watcher.stop() }
+        while !watcher.hasSample { try await Task.sleep(for: .milliseconds(1)) }
+        let start = ContinuousClock.now
+        let opened: (ArchiveDocument, ContinuousClock.Instant)
+        do {
+            opened = try await withCheckedThrowingContinuation { continuation in
+                documents.openDocument(withContentsOf: archive, display: true) { opened, _, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else if let document = opened as? ArchiveDocument { continuation.resume(returning: (document, .now)) }
+                    else { continuation.resume(throwing: CocoaError(.fileReadUnknown)) }
+                }
+            }
+        } catch { _ = await watcher.finish(); throw error }
+        let (document, documentReady) = opened
+        defer { document.close(); withExtendedLifetime(directory) {} }
+        let controller = try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
+        let deadline = ContinuousClock.now + .seconds(120)
+        while !controller.renameIndexIsReady, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        let worst = await watcher.finish()
+        XCTAssertTrue(controller.renameIndexIsReady)
+        XCTAssertGreaterThan(controller.outlineView.numberOfRows, 0)
+        let displayed = try XCTUnwrap(controller.treeDisplayedAt), indexed = try XCTUnwrap(controller.renameIndexReadyAt)
+        print("PROBE immediate open entries=\(count), folders=\((count + 99) / 100)")
+        for (label, instant) in [("document ready", documentReady), ("tree displayed / rows visible", displayed),
+                                  ("rename index ready", indexed)] {
+            print(String(format: "PROBE immediate open %@: %.3f ms", label, Self.milliseconds(start.duration(to: instant))))
+        }
+        print(String(format: "PROBE immediate open worst main.sync latency (2 ms pings): %.3f ms", worst))
+        await document.prepareForTermination()
+    }
+
     @MainActor func testArchiveEditsWhenEnabled() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
@@ -79,11 +131,13 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         withExtendedLifetime(directory) {}
     }
 
-    @concurrent private static func writeArchive(_ url: URL, count: Int) async throws {
+    @concurrent private static func writeArchive(_ url: URL, count: Int, openingLayout: Bool = false) async throws {
         let writer = try ArchiveWriter.create(url: url, format: .zip)
         let data = Data([42])
         for index in 0..<count {
-            try writer.add(data: data, as: String(format: "d%03d/s%d/f%07d.txt", index / 1000, (index / 100) % 10, index))
+            let name = openingLayout ? String(format: "d%05d/f%07d.txt", index / 100, index)
+                : String(format: "d%03d/s%d/f%07d.txt", index / 1000, (index / 100) % 10, index)
+            try writer.add(data: data, as: name)
         }
         try writer.finish()
     }
@@ -123,18 +177,22 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             var stopped = false
             var done = false
             var worst = 0.0
+            var samples = 0
             var completion: CheckedContinuation<Double, Never>?
         }
         private let state = Mutex(State())
 
-        init() {
+        var hasSample: Bool { state.withLock { $0.samples > 0 } }
+        func stop() { state.withLock { $0.stopped = true } }
+
+        init(interval: TimeInterval = 0.001) {
             Thread.detachNewThread { [self] in
                 while !state.withLock({ $0.stopped }) {
                     let start = ContinuousClock.now
                     DispatchQueue.main.sync {}
                     let delay = PerformanceProbeTests.milliseconds(start.duration(to: .now))
-                    state.withLock { $0.worst = max($0.worst, delay) }
-                    Thread.sleep(forTimeInterval: 0.001)
+                    state.withLock { $0.worst = max($0.worst, delay); $0.samples += 1 }
+                    Thread.sleep(forTimeInterval: interval)
                 }
                 let result = state.withLock { value in
                     value.done = true

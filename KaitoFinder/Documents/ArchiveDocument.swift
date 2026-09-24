@@ -439,9 +439,11 @@ import Synchronization
             if isPasswordLocked { controller.displayLocked() }
             return
         }
+        let loadingToken = controller.beginListLoading()
         loadingTask = Task { [weak self, weak controller] in
+            defer { controller?.finishListLoading(loadingToken) }
             let snapshot = await session.snapshot()
-            guard !Task.isCancelled, let self else { return }
+            guard !Task.isCancelled, let self, !self.closed, self.session === session else { return }
             if self.saveBehavior == .onSave {
                 do {
                     var baseTree: EntryNode?
@@ -449,7 +451,8 @@ import Synchronization
                     if self.pendingChanges.isEmpty {
                         let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
                         guard !Task.isCancelled, !self.closed, self.session === session,
-                              session.generation == snapshot.generation else { return }
+                              session.generation == snapshot.generation,
+                              controller?.isCurrentListLoading(loadingToken) == true else { return }
                         if self.pendingChanges.isEmpty, self.pendingChanges.revision == revision {
                             // 変更のない一覧を先に公開し、編集用の全件検査は表示後に進める。
                             session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
@@ -470,12 +473,17 @@ import Synchronization
                               session.generation == snapshot.generation, editor.changes.revision == prepared.revision else { return }
                         session.setPendingReadSnapshot(prepared.reading)
                     } else { try await self.displayPending() }
-                } catch { if !self.closed, !(error is CancellationError) { self.presentError(error) } }
+                } catch {
+                    controller?.finishListLoading(loadingToken)
+                    if !self.closed, !(error is CancellationError) { self.presentError(error) }
+                }
             } else {
-                let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat)
-                guard !self.closed, self.session === session else { return }
+                let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+                guard !Task.isCancelled, !self.closed, self.session === session,
+                      session.generation == snapshot.generation,
+                      controller?.isCurrentListLoading(loadingToken) == true else { return }
                 controller?.display(tree, session: session, generation: snapshot.generation,
-                                    materializationController: self.materializationController())
+                                    materializationController: self.materializationController(), indexingRenames: true)
             }
         }
     }
@@ -756,10 +764,12 @@ import Synchronization
     }
 
     func reloadAfterMutation() async throws {
-        guard let session else { return }
+        guard !closed, let session else { return }
+        let loading = beginListLoading()
+        defer { finishListLoading(loading) }
         disposeMaterialization()
         try await session.reloadAfterMutation()
-        await displayAfterMutation()
+        await displayAfterMutation(loading: loading)
     }
 
     func switchBackingFile(to url: URL, password: String? = nil) async throws {
@@ -839,25 +849,44 @@ import Synchronization
         await displayAfterMutation()
     }
 
-    private func displayAfterMutation() async {
-        guard let session else { return }
+    private typealias ListLoading = [(controller: ArchiveWindowController, token: UUID)]
+
+    private func beginListLoading() -> ListLoading {
+        windowControllers.compactMap { controller in
+            guard let controller = controller as? ArchiveWindowController else { return nil }
+            return (controller, controller.beginListLoading())
+        }
+    }
+
+    private func finishListLoading(_ loading: ListLoading) {
+        for (controller, token) in loading { controller.finishListLoading(token) }
+    }
+
+    private func displayAfterMutation(loading existingLoading: ListLoading? = nil) async {
+        guard !closed, let session else { return }
+        let loading = existingLoading ?? beginListLoading()
+        defer { finishListLoading(loading) }
         disposeMaterialization()
         let snapshot = await session.snapshot()
+        guard !session.isInvalidated else { return }
         if saveBehavior == .onSave {
             do {
                 await session.prepareDeferredEditing()
-                guard !closed, self.session === session else { return }
+                guard !closed, self.session === session, session.generation == snapshot.generation else { return }
                 try await pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: false)
-                guard !closed, self.session === session else { return }
+                guard !closed, self.session === session, session.generation == snapshot.generation else { return }
                 try await displayPending(checksCancellation: false)
-            } catch { if !closed { presentError(error) } }
+            } catch {
+                finishListLoading(loading)
+                if !closed { presentError(error) }
+            }
             return
         }
-        let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat)
-        guard !closed, self.session === session else { return }
-        for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
+        let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+        guard !closed, self.session === session, session.generation == snapshot.generation else { return }
+        for (controller, token) in loading where controller.isCurrentListLoading(token) {
             controller.display(tree, session: session, generation: snapshot.generation,
-                               materializationController: materializationController())
+                               materializationController: materializationController(), indexingRenames: true)
         }
     }
 
@@ -881,7 +910,10 @@ import Synchronization
         if mutationProgress?.isCancellable == true { mutationProgress?.cancel() }
         cancelMutation?()
         undoTask?.cancel()
-        for controller in controllers { controller.cancelExtraction() }
+        for controller in controllers {
+            controller.cancelListWork()
+            controller.cancelExtraction()
+        }
     }
 
     /// 文書は閉じず、状態復元を含む通常の終了処理は AppKit に任せる。
@@ -917,6 +949,7 @@ import Synchronization
         disposeMaterialization()
         disposeUndoStack()
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
+            controller.cancelListWork()
             controller.cancelExtraction()
         }
         loadingTask?.cancel()
@@ -1005,7 +1038,14 @@ import Synchronization
     }
 
     override func revert(toContentsOf url: URL, ofType typeName: String) throws {
-        guard saveBehavior == .onSave else { try super.revert(toContentsOf: url, ofType: typeName); return }
+        guard saveBehavior == .onSave else {
+            let loading = beginListLoading()
+            do { try super.revert(toContentsOf: url, ofType: typeName) }
+            catch { finishListLoading(loading); throw error }
+            loadingTask?.cancel()
+            loadingTask = Task { await displayAfterMutation(loading: loading) }
+            return
+        }
         guard !hasWorkInFlight, !closed, url == (fileURL ?? session?.sourceURL) else { throw ArchiveEditError.staleSelection }
         // NSDocument の入口は同期。main actor の Task なら quit の modal run loop でも進む。
         let task = beginDeferredRevert()
@@ -1592,6 +1632,8 @@ extension ArchiveDocument {
         await loadingTask?.value
         try Task.checkCancellation()
         guard let session, pendingEditor != nil, !closed else { throw CancellationError() }
+        let loading = beginListLoading()
+        defer { finishListLoading(loading) }
         try await synchronizeDeferredLocation()
         var changed = false
         do { try await session.verifyDeferredIdentity() }
@@ -1603,7 +1645,7 @@ extension ArchiveDocument {
         undoActions.removeAll()
         await stagingCleanup?.value
         updateChangeCount(withToken: token, for: .saveOperation)
-        await displayAfterMutation()
+        await displayAfterMutation(loading: loading)
         fileModificationDate = modificationDate
     }
 

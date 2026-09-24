@@ -54,6 +54,22 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var hasPositionedWindow = false
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
+    private(set) var renameIndexTask: Task<Void, Never>?
+    private var preparedRenameOccupancy: ArchivePathOccupancy.Overlay?
+    private var didPrepareRenameIndex = false
+    #if DEBUG
+    private(set) var treeDisplayedAt: ContinuousClock.Instant?
+    private(set) var renameIndexReadyAt: ContinuousClock.Instant?
+    #endif
+    var renameIndexIsReady: Bool { didPrepareRenameIndex && archiveSession?.generation == generation }
+    var renameOccupancy: ArchivePathOccupancy.Overlay? {
+        guard listLoadingToken == nil, archiveSession?.generation == generation else { return nil }
+        return preparedRenameOccupancy ?? root.editOccupancy
+    }
+    private var listLoadingToken: UUID?
+    private var listLoadingRevealTask: Task<Void, Never>?
+    let listLoadingIndicator = NSProgressIndicator()
+    var isListLoadingVisible: Bool { !listLoadingIndicator.isHidden }
     private let promiseOwner = UUID()
     private(set) var draggedNodes: [EntryNode] = []
     private(set) var extractionTask: Task<Void, Never>?
@@ -305,6 +321,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         statusBar.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusBar.textColor = .secondaryLabelColor
         statusBar.setContentHuggingPriority(.required, for: .vertical)
+        listLoadingIndicator.style = .spinning
+        listLoadingIndicator.controlSize = .small
+        listLoadingIndicator.isIndeterminate = true
+        listLoadingIndicator.isDisplayedWhenStopped = false
+        listLoadingIndicator.isHidden = true
+        listLoadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        listLoadingIndicator.setAccessibilityLabel(String(localized: "項目を読み込んでいます…", bundle: bundle))
         pathControl.setContentHuggingPriority(.required, for: .vertical)
         footer.setHuggingPriority(.required, for: .vertical)
         statusBar.translatesAutoresizingMaskIntoConstraints = false
@@ -338,6 +361,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         content.addSubview(lockedPlaceholder)
         content.addSubview(footer)
         content.addSubview(statusBar)
+        content.addSubview(listLoadingIndicator)
         content.addSubview(pathControl)
         NSLayoutConstraint.activate([
             splitView.topAnchor.constraint(equalTo: content.safeAreaLayoutGuide.topAnchor),
@@ -354,9 +378,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             footer.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
             footer.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
             footer.bottomAnchor.constraint(equalTo: statusBar.topAnchor, constant: -6),
-            statusBar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
-            statusBar.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -14),
+            statusBar.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 38),
+            statusBar.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -38),
             statusBar.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -6),
+            listLoadingIndicator.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 14),
+            listLoadingIndicator.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
+            listLoadingIndicator.widthAnchor.constraint(equalToConstant: 16),
+            listLoadingIndicator.heightAnchor.constraint(equalToConstant: 16),
             lockedPlaceholder.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
             lockedPlaceholder.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
             lockedPlaceholder.topAnchor.constraint(equalTo: content.safeAreaLayoutGuide.topAnchor),
@@ -561,8 +589,80 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         ArchiveProgressCancellation(progress: progress) { _ in task?.cancel() }
     }
 
+    @discardableResult func beginListLoading() -> UUID {
+        cancelListLoading()
+        cancelRenameIndex()
+        #if DEBUG
+        treeDisplayedAt = nil
+        #endif
+        let token = UUID()
+        listLoadingToken = token
+        let revealAt = ContinuousClock.now + ExtractionProgressSheet.revealDelay
+        listLoadingRevealTask = Task { [weak self] in
+            do { try await Task.sleep(until: revealAt, clock: .continuous) }
+            catch { return }
+            guard let self, self.isCurrentListLoading(token) else { return }
+            self.listLoadingIndicator.isHidden = false
+            self.listLoadingIndicator.startAnimation(nil)
+            self.updateStatusBar()
+        }
+        return token
+    }
+
+    func isCurrentListLoading(_ token: UUID) -> Bool { listLoadingToken == token }
+
+    func finishListLoading(_ token: UUID) {
+        guard isCurrentListLoading(token) else { return }
+        cancelListLoading()
+    }
+
+    private func cancelListLoading() {
+        listLoadingToken = nil
+        listLoadingRevealTask?.cancel()
+        listLoadingRevealTask = nil
+        listLoadingIndicator.stopAnimation(nil)
+        listLoadingIndicator.isHidden = true
+        updateStatusBar()
+    }
+
+    private func cancelRenameIndex() {
+        renameIndexTask?.cancel()
+        renameIndexTask = nil
+        didPrepareRenameIndex = false
+        #if DEBUG
+        renameIndexReadyAt = nil
+        #endif
+        ArchiveBackgroundRelease.release(&preparedRenameOccupancy)
+    }
+
+    func cancelListWork() {
+        cancelListLoading()
+        cancelRenameIndex()
+    }
+
+    private func prepareRenameIndex(for root: EntryNode, session: ArchiveSession, generation: UInt64) {
+        let entries = root.archiveEntries, format = session.reservationFormat
+        renameIndexTask = Task { [weak self, weak root] in
+            var occupancy = await EntryNode.buildRenameOccupancy(from: entries, format: format)
+            defer { ArchiveBackgroundRelease.release(&occupancy) }
+            // 公開済みの木は変更せず、同じ木・セッション・世代にだけ結び付ける。
+            guard !Task.isCancelled, let self, let root, self.root === root,
+                  self.archiveSession === session, self.generation == generation,
+                  session.generation == generation else { return }
+            self.preparedRenameOccupancy = occupancy
+            self.didPrepareRenameIndex = true
+            self.renameIndexTask = nil
+            #if DEBUG
+            self.renameIndexReadyAt = .now
+            #endif
+            ArchiveReservationDiagnostics.record(.renameIndexReady)
+        }
+    }
+
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
-                 materializationController: ArchiveMaterializationController? = nil, preparedFilter: EntryTreeFilter? = nil) {
+                 materializationController: ArchiveMaterializationController? = nil, preparedFilter: EntryTreeFilter? = nil,
+                 indexingRenames: Bool = false) {
+        cancelListWork()
         let state = captureViewState()
         thumbnailProvider?.cancelAll()
         thumbnailProvider = nil
@@ -653,6 +753,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         updatePathControl()
         updatePreviewSidebar()
         window?.toolbar?.validateVisibleItems()
+        #if DEBUG
+        treeDisplayedAt = .now
+        #endif
+        ArchiveReservationDiagnostics.record(.treeDisplayed)
+        if indexingRenames, let session { prepareRenameIndex(for: root, session: session, generation: generation) }
     }
 
     var selectedNodes: [EntryNode] {
@@ -714,6 +819,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func updateStatusBar() {
+        if isListLoadingVisible {
+            statusBar.stringValue = String(localized: "項目を読み込んでいます…", bundle: bundle)
+            return
+        }
         let selected = selectedNodes
         // 親と子を同時に選択しても、展開後のサイズは二重に加算しない。
         let selectedRoots = selectionRoots(selected)
@@ -1068,7 +1177,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let selection = ArchiveEditSelection(node)
         let prepared = (document as? ArchiveDocument)?.pendingEditor?.prepared
         let validation = ArchiveRenameValidation(selection: selection, entries: entries,
-            format: archiveSession?.reservationFormat ?? .zip, state: prepared, occupancy: root.editOccupancy)
+            format: archiveSession?.reservationFormat ?? .zip, state: prepared, occupancy: renameOccupancy)
         renameValidation = validation
         let expectedRevision = prepared?.revision
         let expectedSession = archiveSession.map(ObjectIdentifier.init)
@@ -1679,6 +1788,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func prepareForBackingFileSwitch() {
+        cancelListWork()
         closePreview()
         materialization?.cancel()
         thumbnailProvider?.cancelAll()
@@ -2086,7 +2196,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func windowWillClose(_ notification: Notification) {
-        if let closingWindow = notification.object as? NSWindow, closingWindow === window { cancelExtraction() }
+        if let closingWindow = notification.object as? NSWindow, closingWindow === window {
+            cancelListWork()
+            cancelExtraction()
+        }
         if let panel = notification.object as? QLPreviewPanel, previewPanel === panel {
             materialization?.cancel()
             materialization?.setSelection([])

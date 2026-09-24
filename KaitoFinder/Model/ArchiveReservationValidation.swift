@@ -15,14 +15,16 @@ nonisolated struct ArchiveReservationValidation: Sendable {
         var index = ArchivePathOccupancy()
         do {
             for entry in base {
+                let directory = entry.kind == .directory
                 guard entry.kind != .hardlink,
-                      try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory, format: format)
-                        .utf8.elementsEqual(entry.name.utf8),
-                      entry.pathComponents.joined(separator: "/") == ArchiveEditPlan.key(entry.name) else {
+                      try ArchiveEditPlan.normalizedPath(entry.name, directory: directory, format: format)
+                        .utf8.elementsEqual(entry.name.utf8) else {
                     occupancy = nil
                     return
                 }
-                index.insert(ArchiveEditPlan.key(entry.name), directory: entry.kind == .directory)
+                let key = ArchiveEditPlan.key(entry.name)
+                guard entry.pathComponents.joined(separator: "/") == key else { occupancy = nil; return }
+                index.insert(key, directory: directory)
             }
             try ArchiveSaveReplayPlan.validateRepresentability(base, format: format)
             occupancy = index

@@ -49,6 +49,29 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         tree(from: entries, format: format, indexingEdits: indexingEdits)
     }
 
+    @concurrent static func buildRenameOccupancy(from entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat) async
+        -> ArchivePathOccupancy.Overlay? {
+        ArchiveReservationDiagnostics.record(.renameIndex)
+        let result = renameOccupancy(from: entries, format: format, checksCancellation: true)
+        ArchiveReservationDiagnostics.record(.renameIndexBuilt)
+        return result
+    }
+
+    static func renameOccupancy(from entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat,
+                                checksCancellation: Bool = false) -> ArchivePathOccupancy.Overlay? {
+        var occupancy = ArchivePathOccupancy()
+        for (offset, entry) in entries.enumerated() {
+            if checksCancellation, offset % 256 == 0, Task.isCancelled { return nil }
+            let directory = entry.kind == .directory
+            guard let normalized = try? ArchiveEditPlan.normalizedPath(entry.name, directory: directory, format: format),
+                  normalized.utf8.elementsEqual(entry.name.utf8) else { return nil }
+            let key = ArchiveEditPlan.key(entry.name)
+            guard entry.pathComponents.joined(separator: "/") == key else { return nil }
+            occupancy.insert(key, directory: directory)
+        }
+        return .init(occupancy)
+    }
+
     static func tree(from entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip,
                      indexingEdits: Bool = false) -> EntryNode {
         ArchiveReservationDiagnostics.record(.tree)
@@ -56,15 +79,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         root.archiveEntries = entries
         root.entriesAreOrdered = zip(entries, entries.dropFirst()).allSatisfy { $0.index < $1.index }
         var nodes = [root]
-        var occupancy: ArchivePathOccupancy? = indexingEdits ? .init() : nil
         for entry in entries {
-            if occupancy != nil {
-                if let normalized = try? ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory, format: format),
-                   normalized.utf8.elementsEqual(entry.name.utf8),
-                   entry.pathComponents.joined(separator: "/") == ArchiveEditPlan.key(entry.name) {
-                    occupancy!.insert(ArchiveEditPlan.key(entry.name), directory: entry.kind == .directory)
-                } else { occupancy = nil }
-            }
             // tar の先頭の ./ だけを表示上取り除く。.. や途中の . は解決しない。
             let components = entry.pathComponents.drop(while: { $0 == "." })
             guard let leaf = components.last else {
@@ -94,7 +109,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
             node.size = sum(node.children.lazy.map(\.size))
             node.compressedSize = sum(node.children.lazy.map(\.compressedSize))
         }
-        root.editOccupancy = occupancy.map(ArchivePathOccupancy.Overlay.init)
+        root.editOccupancy = indexingEdits ? renameOccupancy(from: entries, format: format) : nil
         root.directoryNodes = nodes.filter { $0 !== root && $0.isDirectory }
         root.nodeCount = nodes.count - 1
         root.visibleNodeCount = nodes.reduce(0) { $0 + ($1 !== root && !$1.isHidden ? 1 : 0) }

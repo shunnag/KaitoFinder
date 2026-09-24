@@ -42,6 +42,16 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    @MainActor func testListLoadingStatusHasAllTwentySixTranslations() throws {
+        let key = "項目を読み込んでいます…", catalog = try LocalizationAcceptance.catalog()
+        let translations = try XCTUnwrap(catalog.strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            XCTAssertEqual(String(localized: "項目を読み込んでいます…", bundle: bundle), translations[language]?.stringUnit.value)
+        }
+    }
+
     @MainActor func testColumnAndFolderSortingWordingInAllTwentySixLanguages() throws {
         let catalog = try LocalizationAcceptance.catalog()
         let keys = ["列", "圧縮率", "CRC-32", "アクセス権", "格納順", "フォルダを常に先頭に表示"]
