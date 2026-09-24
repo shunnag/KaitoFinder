@@ -68,7 +68,7 @@ Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連�
 （7z、tar、tar.gz、tar.bz2、tar.xz、LHA、ZIP の `.001…`）も編集できる。
 保存するまでは原本を変えず、保存時に同じ巻サイズで分割し直す。巻サイズが揃っていないときは保存時に選ぶ。
 FAT/exFAT・ネットワーク・同期フォルダへの保存は確認が必要。中断した保存は、次に開くときに回復を提案する。
-巻サイズが揃ったセットは「すぐに書き込む」でも編集ごとの確認後に取り消せない変更として公開でき、「別名で保存」では分割なし・元と同じサイズ・指定サイズを選べる。
+巻サイズが揃ったセットは既定の「すぐに書き込む」でも編集ごとの確認後に取り消せない変更として書き直せる。「別名で保存…」の「分割:」では「しない」、元と同じ巻サイズ、「サイズを指定…」を選べる。
 ZIP 本来の分割（`.z01…/.zip`）は読み取り専用のまま。
 
 単一ファイルの即時編集と、保存前の予約は ⌘Z で取り消し、⇧⌘Z でやり直せる。
@@ -284,7 +284,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > (`.001…` for 7z, tar, tar.gz, tar.bz2, tar.xz, LHA, and ZIP). Changes remain pending until Save,
 > which splits the updated archive using the original volume size. Uneven sets offer a size choice.
 > Saving on FAT/exFAT, network volumes, or sync folders requires consent. Interrupted saves offer
-> recovery when reopening. Uniform sets support irreversible immediate edits with confirmation for every edit, and Save As offers no splitting, the original volume size, or a custom size.
+> recovery when reopening. Uniform sets support irreversible edits in the default “Immediately” mode with confirmation for every edit, and “Save As…” offers “None”, the original volume size, or “Specify Size…” under “Split:”.
 > Native split ZIP (`.z01…/.zip`) remains read-only.
 > When names conflict, compare size, modification date, kind, and location before
 > choosing Replace or Skip. Compare Contents opens both files side by side in Quick Look.
