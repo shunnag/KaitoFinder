@@ -3,7 +3,7 @@ import AppKit
 /// 操作名を一か所で翻訳し、単独パネルとシートで同じ表記を使う。
 nonisolated enum ArchiveProgressOperation {
     case expanding, adding, moving, deleting, renaming, creatingFolder, creatingArchive
-    case expandingArchive(String), expandingArchives(Int)
+    case expandingArchive(String), expandingArchives(Int), openingArchive(String)
 
     func title(bundle: Bundle = .main) -> String {
         switch self {
@@ -16,6 +16,7 @@ nonisolated enum ArchiveProgressOperation {
         case .creatingArchive: String(localized: "アーカイブを作成中…", bundle: bundle)
         case .expandingArchive(let name): String(localized: "“\(name)”を展開中…", bundle: bundle)
         case .expandingArchives(let count): String(localized: "\(count)個のアーカイブを展開中…", bundle: bundle)
+        case .openingArchive(let name): String(localized: "“\(name)”を開いています…", bundle: bundle)
         }
     }
 }
