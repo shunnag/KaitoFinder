@@ -224,6 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         archiveCreationTask?.cancel()
         batchExtractionTask?.cancel()
         promises.cancelActiveWrites()
+        for document in documents { document.cancelForTermination() }
         let creation = archiveCreationTask, batch = batchExtractionTask
         terminationReplied = false
         terminationAwaitingCriticalSection = false

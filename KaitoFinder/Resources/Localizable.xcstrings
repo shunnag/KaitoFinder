@@ -983,7 +983,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "„%@“ wird geöffnet …"
+            "value": "„%@“ wird geöffnet …"
           }
         },
         "en": {
@@ -1007,7 +1007,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ouverture de « %@ »…"
+            "value": "Ouverture de « %@ »…"
           }
         },
         "hi": {
@@ -1055,7 +1055,7 @@
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "‘%@’ openen…"
+            "value": "'%@' openen…"
           }
         },
         "pl": {
@@ -65425,6 +65425,167 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "將檔案夾保留在最上方"
+          }
+        }
+      }
+    },
+    "分割アーカイブの状態を確認できませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stav rozděleného archivu se nepodařilo zkontrolovat"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke kontrollere det opdelte arkivs tilstand"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Status des geteilten Archivs konnte nicht überprüft werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not check the state of the split archive"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo comprobar el estado del archivo comprimido dividido"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaetun arkiston tilaa ei voitu tarkistaa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de vérifier l’état de l’archive fractionnée"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "विभाजित आर्काइव की स्थिति की जाँच नहीं की जा सकी"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat memeriksa status arsip terbagi"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile verificare lo stato dell’archivio suddiviso"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分割アーカイブの状態を確認できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분할 압축 파일의 상태를 확인할 수 없습니다"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak dapat menyemak keadaan arkib berpecah"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunne ikke kontrollere tilstanden til det oppdelte arkivet"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De status van het gesplitste archief kon niet worden gecontroleerd"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można sprawdzić stanu podzielonego archiwum"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar o estado do arquivo dividido"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar o estado do arquivo dividido"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить состояние многотомного архива"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kunde inte kontrollera det delade arkivets status"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่สามารถตรวจสอบสถานะของไฟล์เก็บถาวรที่แบ่งเป็นส่วนได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bölünmüş arşivin durumu kontrol edilemedi"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося перевірити стан багатотомного архіву"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể kiểm tra trạng thái của tệp lưu trữ chia nhỏ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法检查分卷压缩文件的状态"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法檢查分卷壓縮檔的狀態"
           }
         }
       }

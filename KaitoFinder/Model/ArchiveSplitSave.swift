@@ -125,7 +125,7 @@ nonisolated extension ArchivePasswordEditResult: ArchiveMutationResult {
 
 /// Owns the M5 begin / produce / validate / publish sequence for replacement and new sets.
 nonisolated enum ArchiveSplitSavePipeline {
-    static func run(target: VolumeSetTarget, estimatedLength: UInt64, plan: ArchiveSaveReplayPlan,
+    static func run(target: VolumeSetTarget, estimatedLength: UInt64, additionalWorkBytes: UInt64 = 0, plan: ArchiveSaveReplayPlan,
                     password: String?, progress: Progress, publication: ArchiveSavePublication?,
                     index: RecoverableWorkIndex, metadataStore: ArchiveVolumeMetadataStore,
                     hooks: ArchiveSplitSaveHooks, willPublish: (@Sendable () throws -> Void)?,
@@ -139,7 +139,8 @@ nonisolated enum ArchiveSplitSavePipeline {
             target.writesVolumeMetadata = true
             try hooks.willBegin(target)
             let options = ReaderOptions.kaitoFinder(password: password)
-            let split = try VolumeSetPublication.begin(target, estimatedOutputLength: estimatedLength, progress: progress,
+            let split = try VolumeSetPublication.begin(target, estimatedOutputLength: estimatedLength,
+                additionalWorkBytes: additionalWorkBytes, progress: progress,
                 index: index, options: options, coordinationTimeout: hooks.coordinationTimeout,
                 operations: hooks.operations, metadataStore: metadataStore, fault: { step in
                     if step == .s5 { try publication?.enterSplitBoundary() }

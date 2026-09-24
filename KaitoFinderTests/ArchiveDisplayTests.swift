@@ -3,6 +3,30 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveDisplayTests: XCTestCase {
+    @MainActor private final class CollapseObserver: NSObject {
+        let controller: ArchiveWindowController
+        let root: EntryNode
+        private(set) var count = 0
+        private(set) var isConsistent = true
+
+        init(controller: ArchiveWindowController, root: EntryNode) {
+            self.controller = controller
+            self.root = root
+            super.init()
+            NotificationCenter.default.addObserver(self, selector: #selector(willCollapse(_:)),
+                name: NSOutlineView.itemWillCollapseNotification, object: controller.outlineView)
+        }
+
+        @objc private func willCollapse(_ notification: Notification) {
+            let view = controller.outlineView
+            count += 1
+            isConsistent = isConsistent && controller.outlineView(view, numberOfChildrenOfItem: nil) == root.children.count
+                && controller.outlineView(view, child: 0, ofItem: nil) as? EntryNode === root.children.first
+        }
+
+        func stop() { NotificationCenter.default.removeObserver(self) }
+    }
+
     @MainActor private func interface() async throws -> (ArchiveDocument, ArchiveWindowController, EntryNode) {
         preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory()
@@ -34,6 +58,43 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
 
     @MainActor private func child(_ name: String, in parent: EntryNode) throws -> EntryNode {
         try XCTUnwrap(parent.children.first { $0.name == name })
+    }
+
+    @MainActor func testDisplayingSmallerTreeReplacesExpandedRowsAndPreservesSurvivingSelection() throws {
+        preserveArchiveWindowFrame()
+        let defaults = try ArchivePreferencesTestDefaults()
+        let store = ArchivePreferencesStore(defaults: defaults.defaults)
+        for query in ["", "txt"] {
+            let controller = ArchiveWindowController(preferencesStore: store), view = controller.outlineView
+            defer { controller.close() }
+            let entries = (0..<32).map { archiveColumnEntry("folder\($0)/branch/child.txt", index: $0) }
+                + [archiveColumnEntry("folder0/keep.txt", index: 32)]
+            let large = EntryNode.tree(from: entries)
+            controller.display(large)
+            controller.setFilterQuery(query)
+            view.expandItem(nil, expandChildren: true)
+            XCTAssertEqual(view.numberOfRows, 97)
+            let selected = try XCTUnwrap(large.nodes(at: "folder0/keep.txt").first)
+            view.selectRowIndexes(IndexSet(integer: view.row(forItem: selected)), byExtendingSelection: false)
+
+            let small = EntryNode.tree(from: [archiveColumnEntry("folder0/keep.txt")])
+            let observer = CollapseObserver(controller: controller, root: large)
+            controller.display(small, generation: 1)
+            observer.stop()
+            XCTAssertGreaterThan(observer.count, 0)
+            XCTAssertTrue(observer.isConsistent, "Collapsing cached rows must still use the old tree")
+            XCTAssertEqual(view.numberOfRows, 2)
+            XCTAssertTrue(view.item(atRow: 0) as? EntryNode === small.children.first)
+            XCTAssertTrue(view.isItemExpanded(try XCTUnwrap(small.children.first)))
+            XCTAssertEqual(controller.selectedNodes.map(\.path), ["folder0/keep.txt"])
+            XCTAssertTrue(controller.selectedNodes.first === small.nodes(at: "folder0/keep.txt").first)
+            XCTAssertEqual(controller.filterQuery, query)
+
+            controller.display(EntryNode.tree(from: []), generation: 2)
+            XCTAssertEqual(view.numberOfRows, 0)
+            XCTAssertTrue(controller.selectedNodes.isEmpty)
+            XCTAssertEqual(controller.filterQuery, query)
+        }
     }
 
     @MainActor func testDuplicateRecordSelectionSurvivesSortAndDisplayButFallsBackAfterMutation() async throws {
@@ -96,7 +157,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         XCTAssertEqual(search.accessibilityLabel(), String(localized: "検索"))
         XCTAssertTrue(search.target === controller)
         XCTAssertEqual(search.action, #selector(ArchiveWindowController.filterEntries(_:)))
-        XCTAssertTrue(search.sendsSearchStringImmediately)
+        XCTAssertFalse(search.sendsSearchStringImmediately)
         XCTAssertFalse(search.sendsWholeSearchString)
         search.stringValue = "c.txt"
         XCTAssertTrue(search.sendAction(search.action, to: search.target))

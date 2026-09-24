@@ -438,6 +438,7 @@ actor ArchiveSession {
     func prepareDeferredEditing() {
         guard format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation,
               capabilities.canEdit else { return }
+        ArchiveReservationDiagnostics.record(.updaterPreparation)
         // 失敗は従来どおり編集入口で提示し、読める書庫の表示は妨げない。
         do {
             try verifyDeferredIdentity()

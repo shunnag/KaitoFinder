@@ -67,7 +67,7 @@ nonisolated final class VolumeSetPublication: Sendable {
         self.criticalSection = criticalSection; self.hook = hook; self.operations = operations; self.metadataStore = metadataStore
     }
 
-    static func begin(_ target: VolumeSetTarget, estimatedOutputLength: UInt64,
+    static func begin(_ target: VolumeSetTarget, estimatedOutputLength: UInt64, additionalWorkBytes: UInt64 = 0,
                       progress: Progress = Progress(), index: RecoverableWorkIndex = .shared, options: ReaderOptions = .kaitoFinder(),
                       coordinationTimeout: TimeInterval = 10, criticalSection: VolumePublishCriticalSection = .shared,
                       operations: VolumePublishOperations = .init(), metadataStore: ArchiveVolumeMetadataStore = .shared,
@@ -88,7 +88,8 @@ nonisolated final class VolumeSetPublication: Sendable {
         try checkOldPermissions(target, parent: parent)
         try checkOccupancy(plan: plan, oldCount: target.layout?.volumes.count ?? 0, parent: parent)
         try verifyExpected(target, parent: parent)
-        try checkSpace(requiredOutput: estimatedOutputLength, largest: plan.largestVolume, available: volume.available)
+        try checkSpace(requiredOutput: estimatedOutputLength, additionalWorkBytes: additionalWorkBytes,
+                       largest: plan.largestVolume, available: volume.available)
         try checkDescriptorBudget(plan.volumes.count)
         guard case .numbered(let stem, let width) = target.scheme else { throw VolumePublishError.unsupportedScheme }
         let indexedWork = try index.entries()
@@ -232,7 +233,8 @@ nonisolated final class VolumeSetPublication: Sendable {
             try Self.checkWorkLength(UInt64(info.st_size), fileSystem: operations.volumeInfo(parent).fileSystem)
             let plan = try VolumePlan(totalLength: UInt64(info.st_size), schedule: target.schedule, scheme: target.scheme, layout: target.layout)
             try Self.checkOccupancy(plan: plan, oldCount: initialRecord.oldVolumes.count, parent: parent)
-            try Self.checkSpace(requiredOutput: 0, largest: plan.largestVolume, available: operations.volumeInfo(parent).available)
+            try Self.checkSpace(requiredOutput: 0, additionalWorkBytes: 0, largest: plan.largestVolume,
+                                available: operations.volumeInfo(parent).available)
             if target.writesVolumeMetadata {
                 if let layout = target.layout, try VolumePublishFS.usesAppleDouble(parent) {
                     transaction.record.previousMetadata = try? metadataStore.entry(for: layout.gateURL)?.publication
@@ -395,10 +397,11 @@ nonisolated final class VolumeSetPublication: Sendable {
         }
     }
 
-    private static func checkSpace(requiredOutput: UInt64, largest: UInt64, available: UInt64) throws {
+    private static func checkSpace(requiredOutput: UInt64, additionalWorkBytes: UInt64, largest: UInt64, available: UInt64) throws {
         let a = requiredOutput.addingReportingOverflow(largest)
         let b = a.partialValue.addingReportingOverflow(VolumePublishFS.margin)
-        let required: UInt64 = a.overflow || b.overflow ? .max : b.partialValue
+        let c = b.partialValue.addingReportingOverflow(additionalWorkBytes)
+        let required: UInt64 = a.overflow || b.overflow || c.overflow ? .max : c.partialValue
         guard available >= required else { throw VolumePublishError.insufficientSpace(required: required, available: available) }
     }
 

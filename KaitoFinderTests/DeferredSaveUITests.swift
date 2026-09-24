@@ -97,6 +97,41 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
     }
 
+    @MainActor func testUndoShrinksExpandedPendingTreeWithoutLosingSurvivingSelection() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document
+        defer { document.close() }
+        let controller = try await interface(fixture), view = controller.outlineView
+        for (parent, name) in [("", "pending"), ("pending", "nested"), ("pending/nested", "leaf")] {
+            _ = try await document.createFolder(in: parent, baseName: name, progress: Progress())
+        }
+        view.expandItem(nil, expandChildren: true)
+        XCTAssertEqual(view.numberOfRows, 7)
+        let selected = try XCTUnwrap((0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }
+            .first { $0.path == "folder/child.txt" })
+        view.selectRowIndexes(IndexSet(integer: view.row(forItem: selected)), byExtendingSelection: false)
+        for count in [6, 5, 4] {
+            document.undo(nil)
+            let undo = try XCTUnwrap(document.undoTask)
+            await undo.value
+            XCTAssertNil(document.undoFailure)
+            XCTAssertEqual(view.numberOfRows, count)
+            XCTAssertEqual(controller.selectedNodes.map(\.path), ["folder/child.txt"])
+        }
+        XCTAssertTrue(document.pendingChanges.isEmpty)
+        XCTAssertEqual(Set((0..<view.numberOfRows).compactMap { (view.item(atRow: $0) as? EntryNode)?.path }),
+                       ["a.txt", "b.txt", "folder", "folder/child.txt"])
+        for count in [5, 6, 7] {
+            document.redo(nil)
+            let redo = try XCTUnwrap(document.undoTask)
+            await redo.value
+            XCTAssertNil(document.undoFailure)
+            view.expandItem(nil, expandChildren: true)
+            XCTAssertEqual(view.numberOfRows, count)
+            XCTAssertEqual(controller.selectedNodes.map(\.path), ["folder/child.txt"])
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+    }
+
     @MainActor func testExternalChangePromptStopsUnrevealedProgress() async throws {
         let fixture = try DeferredSaveFixture(), document = fixture.document
         defer { document.close() }

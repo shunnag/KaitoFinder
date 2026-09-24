@@ -143,6 +143,9 @@ nonisolated enum ArchiveCreationTransaction {
         // when expanded. M2 recalculates the complete plan from W before any member is placed.
         let identity = try existing.identity ?? ArchiveSetIdentity.capture(url: existing.url, layout: existing.volumeLayout)
         var estimate = identity.volumes.reduce(UInt64(0)) { $0 + $1.size }
+        let additionalWorkBytes: UInt64
+        if let layout = existing.volumeLayout, case .numbered = layout.scheme { additionalWorkBytes = estimate }
+        else { additionalWorkBytes = 0 }
         for addition in replay.additions {
             let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
             let padded = next.partialValue.addingReportingOverflow(1024)
@@ -150,7 +153,7 @@ nonisolated enum ArchiveCreationTransaction {
             estimate = padded.partialValue
         }
         estimate = max(1, estimate)
-        _ = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimate, plan: replay,
+        _ = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimate, additionalWorkBytes: additionalWorkBytes, plan: replay,
             password: plan.options.password, progress: progress, publication: existing.publication ?? ArchiveSavePublication.current.get(),
             index: index, metadataStore: metadataStore, hooks: hooks, willPublish: {
                 try willPublish?()

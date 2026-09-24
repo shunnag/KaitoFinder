@@ -29,7 +29,11 @@ nonisolated enum ArchiveDeferredTarWriter {
         try writer.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
         try applyOwners(to: intermediate, plan: plan, progress: progress)
         let final = try ArchiveRewriter.open(url: intermediate, output: output, format: format, options: options)
-        try final.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
+        progress.totalUnitCount += Int64(final.entryNames.count)
+        try final.commit { _, _ in
+            progress.completedUnitCount += 1
+            try ArchiveImportPlan.checkCancellation(progress)
+        }
     }
 
     private static func applyOwners(to url: URL, plan: ArchiveSaveReplayPlan, progress: Progress) throws {

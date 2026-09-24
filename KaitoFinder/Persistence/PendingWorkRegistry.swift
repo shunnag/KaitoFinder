@@ -68,7 +68,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
     /// 削除失敗は次回の sweep に残す。存在確認は symlink を辿らず ENOENT だけを採用する。
     func removeAndUnregister(_ directory: URL) {
         do {
-            try FileManager.default.removeItem(at: directory)
+            try removeDirectory(directory)
             unregister(directory)
         } catch {
             var info = stat()
@@ -92,7 +92,8 @@ nonisolated final class PendingWorkRegistry: Sendable {
                 }
                 let directory = URL(fileURLWithPath: entry.path)
                 let name = directory.lastPathComponent
-                guard name.hasPrefix(".KaitoFinder-add-") || name.hasPrefix(".KaitoFinder-new-") else { continue }
+                guard name.hasPrefix(".KaitoFinder-add-") || name.hasPrefix(".KaitoFinder-new-")
+                        || name.hasPrefix(".KaitoFinder-staging-") else { continue }
                 var info = stat()
                 guard lstat(directory.path, &info) == 0 else {
                     if errno != ENOENT { retained.append(entry) }
@@ -103,7 +104,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
                       entry.inode == nil || entry.inode == info.st_ino else { continue }
                 // removeItem は子孫の symlink も辿らず、リンク自身だけを削除する。
                 do {
-                    try FileManager.default.removeItem(at: directory)
+                    try removeDirectory(directory)
                     removed.append(directory)
                 } catch {
                     NSLog("作業領域を回収できません: %@", String(describing: error))
@@ -120,6 +121,11 @@ nonisolated final class PendingWorkRegistry: Sendable {
             do { _ = try self.sweep() }
             catch { NSLog("台帳の回収に失敗しました: %@", String(describing: error)) }
         }
+    }
+
+    private func removeDirectory(_ directory: URL) throws {
+        if directory.lastPathComponent.hasPrefix(".KaitoFinder-staging-") { try StagingRegistry.removeSnapshot(directory) }
+        else { try FileManager.default.removeItem(at: directory) }
     }
 
     private func read() throws -> [Entry] {

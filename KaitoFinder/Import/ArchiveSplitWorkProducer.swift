@@ -168,7 +168,11 @@ nonisolated enum ArchiveSplitWorkProducer {
                                                   output: workURL, format: format, options: options)
             try verifyAssembledInput(rewriter.volumeSet)
             try plan.replay(on: rewriter, progress: progress)
-            try rewriter.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
+            progress.totalUnitCount += Int64(rewriter.entryNames.count)
+            try rewriter.commit { _, _ in
+                progress.completedUnitCount += 1
+                try ArchiveImportPlan.checkCancellation(progress)
+            }
         }
     }
 

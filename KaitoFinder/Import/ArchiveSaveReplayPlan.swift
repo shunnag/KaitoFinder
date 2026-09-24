@@ -142,7 +142,10 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         try edits.verifyNames(editor.entryNames)
         try validate()
         try ArchiveImportPlan.checkCancellation(progress)
-        if !edits.removals.isEmpty { try editor.remove(entriesAt: edits.removals.map(\.index)) }
+        if !edits.removals.isEmpty {
+            try editor.remove(entriesAt: edits.removals.map(\.index))
+            progress.completedUnitCount += Int64(edits.removals.count)
+        }
         for rename in edits.renames {
             try ArchiveImportPlan.checkCancellation(progress)
             try editor.rename(entryAt: rename.entry.index, to: rename.path)

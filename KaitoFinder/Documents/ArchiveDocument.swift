@@ -444,11 +444,32 @@ import Synchronization
             guard !Task.isCancelled, let self else { return }
             if self.saveBehavior == .onSave {
                 do {
+                    var baseTree: EntryNode?
+                    let revision = self.pendingChanges.revision
+                    if self.pendingChanges.isEmpty {
+                        let tree = await EntryNode.build(from: snapshot.entries, indexingEdits: false)
+                        guard !Task.isCancelled, !self.closed, self.session === session,
+                              session.generation == snapshot.generation else { return }
+                        if self.pendingChanges.isEmpty, self.pendingChanges.revision == revision {
+                            // 変更のない一覧を先に公開し、編集用の全件検査は表示後に進める。
+                            session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
+                                changes: self.pendingChanges, staging: nil))
+                            controller?.display(tree, session: session, generation: snapshot.generation,
+                                                materializationController: self.materializationController())
+                            baseTree = tree
+                        }
+                    }
                     await session.prepareDeferredEditing()
-                    guard !self.closed, self.session === session else { return }
+                    guard !Task.isCancelled, !self.closed, self.session === session,
+                          session.generation == snapshot.generation else { return }
                     try await self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
-                    guard !self.closed, self.session === session else { return }
-                    try await self.displayPending()
+                    guard !Task.isCancelled, !self.closed, self.session === session else { return }
+                    if let baseTree, let editor = self.pendingEditor {
+                        let prepared = try await editor.prepare(generation: snapshot.generation, baseTree: baseTree)
+                        guard !Task.isCancelled, !self.closed, self.session === session,
+                              session.generation == snapshot.generation, editor.changes.revision == prepared.revision else { return }
+                        session.setPendingReadSnapshot(prepared.reading)
+                    } else { try await self.displayPending() }
                 } catch { if !self.closed, !(error is CancellationError) { self.presentError(error) } }
             } else {
                 let tree = await EntryNode.build(from: snapshot.entries)
@@ -840,9 +861,9 @@ import Synchronization
         }
     }
 
-    /// 進行中の仕事を取り消し、後始末と一時コピー・undo スロットの破棄を待つ。
-    /// 文書は閉じず、状態復元を含む通常の終了処理は AppKit に任せる。
-    func prepareForTermination() async {
+    /// 公開待ちの文書があっても、全ての文書へ先に取消しを届ける。
+    func cancelForTermination() {
+        loadingTask?.cancel()
         if let deferredSaveTask {
             if let deferredPublication, let deferredProgress {
                 deferredPublication.cancelBeforePublication(progress: deferredProgress) {
@@ -854,17 +875,20 @@ import Synchronization
                 deferredCreation?.savePanel?.cancel()
                 deferredSaveTask.cancel()
             }
-            _ = await deferredSaveTask.result
         }
         pendingEditor?.cancelStaging()
         let controllers = windowControllers.compactMap { $0 as? ArchiveWindowController }
-        // 完了時に controller が nil に戻すので、取消し前に Task を保持する。
-        let extractions = controllers.compactMap(\.extractionTask)
         if mutationProgress?.isCancellable == true { mutationProgress?.cancel() }
         cancelMutation?()
         undoTask?.cancel()
         for controller in controllers { controller.cancelExtraction() }
+    }
 
+    /// 文書は閉じず、状態復元を含む通常の終了処理は AppKit に任せる。
+    func prepareForTermination() async {
+        let extractions = windowControllers.compactMap { ($0 as? ArchiveWindowController)?.extractionTask }
+        cancelForTermination()
+        _ = await deferredSaveTask?.result
         await mutationTask?.value
         await undoTask?.value
         // 別名で保存・変換・パスワード変更と switchingBackingFile は extractionTask 内で完了する。
@@ -1052,11 +1076,13 @@ extension ArchiveDocument {
     ) async throws -> Result {
         // UI は無効化する。既に送られたプログラム上の要求は保存後の新しい予約として扱う。
         if let saving = deferredSaveTask { try await saving.value }
-        if saveBehavior == .onSave { while let refresh = undoTask { await refresh.value } }
+        if saveBehavior == .onSave {
+            while let refresh = undoTask { await refresh.value }
+            await loadingTask?.value
+        }
         try ArchiveImportPlan.checkCancellation(progress)
         guard !closed, let session else { throw CancellationError() }
         let immediate = isImmediateSplitMutation
-        let editor = pendingEditor ?? ArchivePendingEditor()
         guard !isDeferredSaveRunning, !reservationInFlight, undoTask == nil, !switchingBackingFile else {
             throw ExtractionFailure.refused(String(localized: "アーカイブを変更しています。"))
         }
@@ -1071,6 +1097,9 @@ extension ArchiveDocument {
         let snapshot = try await session.deferredSnapshot()
         guard !closed, self.session === session else { throw CancellationError() }
         if immediate { try await confirmSplitMutation(progress: progress) }
+        let temporaryStaging = immediate ? try StagingRegistry.temporary(beside: session.sourceURL) : nil
+        defer { temporaryStaging?.remove() }
+        let editor = pendingEditor ?? ArchivePendingEditor(registry: temporaryStaging?.registry ?? .shared)
         try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
         let previous = editor.changes
         let stagingCheckpoint = editor.stagingCheckpoint
@@ -1194,7 +1223,10 @@ extension ArchiveDocument {
     }
 
     func projectedEntries() async throws -> [ArchiveEntry] {
-        if saveBehavior == .onSave { while let refresh = undoTask { await refresh.value } }
+        if saveBehavior == .onSave {
+            while let refresh = undoTask { await refresh.value }
+            await loadingTask?.value
+        }
         guard let session else { return [] }
         let snapshot = await session.snapshot()
         guard let editor = pendingEditor else { return snapshot.entries }
@@ -1469,6 +1501,8 @@ extension ArchiveDocument {
 
     private func savePendingDocument(token: Any, progress: Progress, publication: ArchiveSavePublication,
                                      sheet: ExtractionProgressSheet) async throws {
+        await loadingTask?.value
+        try ArchiveImportPlan.checkCancellation(progress)
         guard let session, let editor = pendingEditor else { throw CancellationError() }
         try await synchronizeDeferredLocation()
         deferredReloadFailure = nil
@@ -1555,6 +1589,8 @@ extension ArchiveDocument {
     }
 
     private func performDeferredRevert(token: Any) async throws {
+        await loadingTask?.value
+        try Task.checkCancellation()
         guard let session, pendingEditor != nil, !closed else { throw CancellationError() }
         try await synchronizeDeferredLocation()
         var changed = false
@@ -1598,6 +1634,8 @@ extension ArchiveDocument {
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         let task = Task {
             defer { finishDeferredSave() }
+            await loadingTask?.value
+            try ArchiveImportPlan.checkCancellation(progress)
             do { try await synchronizeDeferredLocation(); try await session.verifyDeferredIdentity() }
             catch {
                 if session.isInvalidated || session.requiresSplitRecovery { throw error }

@@ -10,6 +10,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
     private(set) var pendingNodes: [UUID: EntryNode] = [:]
     private(set) var nodeCount = 0
     private(set) var visibleNodeCount = 0
+    private(set) var visibleSize: UInt64?
     private(set) var editOccupancy: ArchivePathOccupancy.Overlay?
     private(set) var treeOrder = 0
     private var entriesAreOrdered = true
@@ -42,7 +43,9 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         compressedSize = entry?.compressedSize
     }
 
-    @concurrent static func build(from entries: [ArchiveEntry]) async -> EntryNode { tree(from: entries, indexingEdits: true) }
+    @concurrent static func build(from entries: [ArchiveEntry], indexingEdits: Bool = true) async -> EntryNode {
+        tree(from: entries, indexingEdits: indexingEdits)
+    }
 
     static func tree(from entries: [ArchiveEntry], indexingEdits: Bool = false) -> EntryNode {
         ArchiveReservationDiagnostics.record(.tree)
@@ -92,6 +95,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         root.directoryNodes = nodes.filter { $0 !== root && $0.isDirectory }
         root.nodeCount = nodes.count - 1
         root.visibleNodeCount = nodes.reduce(0) { $0 + ($1 !== root && !$1.isHidden ? 1 : 0) }
+        root.visibleSize = sum(nodes.lazy.filter { !$0.isDirectory && !$0.isHidden }.map(\.size))
         var order = 0, pending = [root]
         while let node = pending.popLast() {
             node.treeOrder = order
@@ -167,11 +171,13 @@ nonisolated struct EntryTreeFilter: Sendable {
     private let unfiltered: Bool
     private let showsHiddenFiles: Bool
     private(set) var totalCount = 0
+    private(set) var totalSize: UInt64?
     private(set) var matchingCount = 0
 
     init(root: EntryNode, query: String, showsHiddenFiles: Bool = false) {
         unfiltered = query.isEmpty
         self.showsHiddenFiles = showsHiddenFiles
+        totalSize = showsHiddenFiles ? root.size : root.visibleSize
         if unfiltered {
             totalCount = showsHiddenFiles ? root.nodeCount : root.visibleNodeCount
             matchingCount = totalCount

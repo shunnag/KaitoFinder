@@ -54,8 +54,8 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
                  subtrees: SubtreeIndex? = nil) throws -> [ArchiveEntry] {
         // 保存前モードは専用の origin 照合を通す。名前で別の entry を探さない。
         guard revision == nil, origin == nil else { throw Self.staleSelection }
-        let components = try ExtractionPath.components(path)
         if isDirectory {
+            let components = (try? ExtractionPath.components(path)) ?? Array(ArchivePath.components(path).drop(while: { $0 == "." }))
             let subtree = (subtrees ?? SubtreeIndex(entries: entries)).subtree(for: components)
             guard !subtree.isEmpty else { throw ExtractionFailure.refused(String(localized: "選択したフォルダが見つかりません: \(path)。")) }
             return subtree

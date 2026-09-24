@@ -74,7 +74,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         let marker = outside.appendingPathComponent("keep.txt"), bytes = Data("keep outside contents".utf8)
         try bytes.write(to: marker)
         var work: [URL] = []
-        for prefix in [".KaitoFinder-add-", ".KaitoFinder-new-"] {
+        for prefix in [".KaitoFinder-add-", ".KaitoFinder-new-", ".KaitoFinder-staging-"] {
             let directory = fixture.url.appendingPathComponent(prefix + UUID().uuidString, isDirectory: true)
             let registry = PendingWorkRegistry(fileURL: file)
             try registry.register(directory)

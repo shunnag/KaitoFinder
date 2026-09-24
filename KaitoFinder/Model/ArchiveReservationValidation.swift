@@ -98,7 +98,7 @@ nonisolated struct ArchiveReservationState: Sendable {
     @concurrent static func build(base: [ArchiveEntry], generation: UInt64, changes: ArchivePendingChanges,
                                   validation: ArchiveReservationValidation, staging: StagingRegistry.Lease?,
                                   validates: Bool = false, previous: ArchivePendingChanges? = nil,
-                                  reusing: ArchiveReservationState? = nil,
+                                  reusing: ArchiveReservationState? = nil, baseTree: EntryNode? = nil,
                                   filters configurations: Set<EntryTreeFilter.Configuration> = [],
                                   checksCancellation: Bool = true) async throws -> Self {
         ArchiveReservationDiagnostics.record(.projection)
@@ -109,7 +109,8 @@ nonisolated struct ArchiveReservationState: Sendable {
         if validates { try validation.validate(changes, projection: projection) }
         if checksCancellation { try Task.checkCancellation() }
         let occupancy = validation.context(for: changes)
-        let tree = sameEntries && reusing != nil ? reusing!.tree : EntryNode.tree(from: projection.entries)
+        let tree = sameEntries && reusing != nil ? reusing!.tree
+            : (changes.isEmpty ? baseTree : nil) ?? EntryNode.tree(from: projection.entries)
         let subtrees: ArchiveEntryPayload.SubtreeIndex
         if sameEntries, let reusing { subtrees = reusing.reading.subtrees }
         else if occupancy != nil { subtrees = .init(entries: projection.entries, components: { $0.pathComponents }) }

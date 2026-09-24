@@ -6,6 +6,38 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ApplicationTerminationTests: XCTestCase {
+    @MainActor func testQuitCancelsEveryDocumentBeforeWaitingForPublishedSave() async throws {
+        let first = try DeferredSaveFixture(), gate = ScenarioGate(), cancelled = Mutex(false)
+        let (second, _, output, extractionGate, extraction) = try await pausedExtraction()
+        let document = first.document
+        _ = try await document.createFolder(in: "", baseName: "saved", progress: Progress())
+        document.deferredWillReload = { gate.pauseOnce(); cancelled.withLock { $0 = Task.isCancelled } }
+        let saving = Task { try await first.save() }
+        addTeardownBlock { @MainActor in
+            gate.release(); extractionGate.release()
+            _ = await saving.result
+            document.close()
+        }
+        try await scenarioWait { gate.isEntered }
+        let delegate = try delegate(documents: [document, second])
+        delegate.quitConfirmation = { true }
+        delegate.terminationGracePeriod = .seconds(5)
+        var replies = 0
+        delegate.terminationReply = { _ in replies += 1 }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateLater)
+        XCTAssertTrue(extraction.isCancelled)
+        extractionGate.release()
+        await extraction.value
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertEqual(replies, 0)
+        gate.release()
+        try await saving.value
+        await delegate.terminationTask?.value
+        XCTAssertFalse(cancelled.withLock { $0 })
+        XCTAssertEqual(replies, 1)
+    }
+
     @MainActor func testQuitWaitsForCleanupOfAlreadyRemovedDeferredDocument() async throws {
         let delegate = try delegate(documents: [])
         let cleanup = DocumentCleanupRegistry()

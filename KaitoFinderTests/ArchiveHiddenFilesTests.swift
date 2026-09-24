@@ -77,7 +77,8 @@ nonisolated final class ArchiveHiddenFilesTests: XCTestCase {
         XCTAssertTrue(first.outlineView.isItemExpanded(folder))
         XCTAssertFalse(rowPaths(first).contains("folder/.secret"))
         XCTAssertFalse(rowPaths(second).contains(".gitignore"))
-        XCTAssertEqual(first.statusBar.stringValue, ArchiveStatusBarText.text(totalCount: 3, totalSize: root.size))
+        XCTAssertEqual(first.statusBar.stringValue, ArchiveStatusBarText.text(totalCount: 3,
+            totalSize: UInt64("folder/public.txt".utf8.count + "visible.txt".utf8.count)))
         first.outlineView.selectAll(nil)
         XCTAssertEqual(Set(first.selectedNodes.map(\.path)), ["folder", "folder/public.txt", "visible.txt"])
         first.outlineView.deselectAll(nil)

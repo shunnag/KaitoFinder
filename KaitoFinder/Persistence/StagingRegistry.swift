@@ -22,9 +22,32 @@ nonisolated final class StagingRegistry: Sendable {
         var discardable: Bool? = nil
     }
 
-    init(root: URL) {
+    init(root: URL, fileURL: URL? = nil) {
         self.root = root
-        fileURL = root.deletingLastPathComponent().appendingPathComponent("staging.json")
+        self.fileURL = fileURL ?? root.deletingLastPathComponent().appendingPathComponent("staging.json")
+    }
+
+    struct Temporary: Sendable {
+        let registry: StagingRegistry
+        let pendingWork: PendingWorkRegistry
+        func remove() { pendingWork.removeAndUnregister(registry.root) }
+    }
+
+    static func temporary(beside archive: URL, pendingWork: PendingWorkRegistry = .shared) throws -> Temporary {
+        let directory = archive.deletingLastPathComponent()
+            .appendingPathComponent(".KaitoFinder-staging-" + UUID().uuidString, isDirectory: true)
+        try pendingWork.register(directory)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                                                   attributes: [.posixPermissions: 0o700])
+            try pendingWork.recordIdentity(directory)
+        } catch {
+            pendingWork.removeAndUnregister(directory)
+            throw error
+        }
+        // 即時編集の入力と台帳は保存先にまとめ、終了時は親ごと回収する。
+        return Temporary(registry: StagingRegistry(root: directory, fileURL: directory.appendingPathComponent("staging.json")),
+                         pendingWork: pendingWork)
     }
 
     nonisolated final class Lease: Sendable {

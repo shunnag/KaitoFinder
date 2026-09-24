@@ -41,8 +41,8 @@ nonisolated enum ArchiveReservationComputation {
         if let resolver {
             return try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: state.projection.planningEntries,
                 archive: archive, generation: state.reading.generation, progress: progress, options: options,
-                itemProvider: { entries, _ in
-                    try existingConflictItem(entries.map { state.projection.entries[$0.index] }, folder: folder, state: state, archive: archive)
+                itemProvider: { entries, path in
+                    try conflictItem(entries.map { state.projection.entries[$0.index] }, path: path, state: state, archive: archive)
                 }, occupancy: state.occupancy, resolver: resolver)
         }
         return try ArchiveImportPlan.build(urls: urls, folder: folder, existing: state.projection.planningEntries,
@@ -81,20 +81,14 @@ nonisolated enum ArchiveReservationComputation {
         let resolution = try await ArchiveConflictResolution.resolve(candidates,
             existing: ArchiveConflictResolution.existingGroups(projection.planningEntries, folder: target, matching: Set(candidates.map(\.path))),
             archive: archive, generation: generation, progress: progress,
-            itemProvider: { entries, _ in
-                try existingConflictItem(entries.map { projection.entries[$0.index] }, folder: target, state: state, archive: archive)
+            itemProvider: { entries, path in
+                try conflictItem(entries.map { projection.entries[$0.index] }, path: path, state: state, archive: archive)
             }, resolver: resolver)
         let removals = resolution.replaced.map { ArchiveEditSelection(path: $0.name, isDirectory: false, entries: [$0]) }
         let plan = try ArchiveEditPlan.build(removing: removals, renaming: [],
             moving: resolution.accepted.map { .init(selection: moving[$0], folder: target) },
             existing: projection.planningEntries, occupancy: state.occupancy)
         return apply(plan, state: state, changes: changes, base: base, generation: generation)
-    }
-
-    private static func existingConflictItem(_ entries: [ArchiveEntry], folder: String, state: ArchiveReservationState, archive: URL) throws -> ArchiveConflictItem {
-        let depth = ArchivePath.components(folder).count + 1
-        let path = entries[0].pathComponents.prefix(depth).joined(separator: "/")
-        return try conflictItem(entries, path: path, state: state, archive: archive)
     }
 
     private static func conflictItem(_ entries: [ArchiveEntry], path: String, state: ArchiveReservationState, archive: URL) throws -> ArchiveConflictItem {

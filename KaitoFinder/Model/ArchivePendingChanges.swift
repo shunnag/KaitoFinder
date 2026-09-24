@@ -175,17 +175,18 @@ nonisolated struct ArchivePendingProjection: Sendable {
     }
 
     @concurrent private static func makeValidation(base: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat) async -> ArchiveReservationValidation {
-        ArchiveReservationValidation(base: base, format: format)
+        ArchiveReservationDiagnostics.record(.baseValidation)
+        return ArchiveReservationValidation(base: base, format: format)
     }
 
-    func prepare(generation: UInt64, filters: Set<EntryTreeFilter.Configuration> = [],
+    func prepare(generation: UInt64, filters: Set<EntryTreeFilter.Configuration> = [], baseTree: EntryNode? = nil,
                  checksCancellation: Bool = true) async throws -> ArchiveReservationState {
         guard baseGeneration == generation, let validation else { throw ArchiveEditError.staleSelection }
         if let prepared, prepared.revision == changes.revision, filters.isSubset(of: Set(prepared.filters.keys)) { return prepared }
         let revision = changes.revision, sessionID = baseSession
         var next: ArchiveReservationState? = try await ArchiveReservationState.build(base: base, generation: generation, changes: changes,
                                                            validation: validation, staging: staging, previous: changes,
-                                                           reusing: prepared, filters: filters, checksCancellation: checksCancellation)
+                                                           reusing: prepared, baseTree: baseTree, filters: filters, checksCancellation: checksCancellation)
         defer { ArchiveBackgroundRelease.release(&next) }
         guard baseGeneration == generation, baseSession == sessionID, changes.revision == revision else { throw ArchiveEditError.staleSelection }
         ArchiveBackgroundRelease.release(&prepared)

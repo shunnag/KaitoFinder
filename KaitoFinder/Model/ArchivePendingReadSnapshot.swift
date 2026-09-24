@@ -105,6 +105,11 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
     private func entry(at index: Int) -> ArchiveEntry? { positions[index].map { entries[$0] } }
 
     func origin(for entry: ArchiveEntry) -> ArchiveEntryPayload.Origin? {
+        // 初回表示のサムネイル照会では、全件の読み取り索引を main で作らない。
+        if case .deferred(let contents) = storage, contents.changes.isEmpty {
+            guard base.indices.contains(entry.index), base[entry.index] == entry else { return nil }
+            return .base(index: entry.index, expectedName: entry.name, baseGeneration: generation)
+        }
         guard self.entry(at: entry.index) == entry else { return nil }
         if let id = entry.pendingID { return .pending(id) }
         return .base(index: entry.index, expectedName: base[entry.index].name, baseGeneration: generation)
@@ -136,7 +141,8 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
         }
         guard let anchor, self.origin(for: anchor) == origin else { throw ArchiveEntryPayload.staleSelection }
         if payload.isDirectory {
-            let selected = subtrees.subtree(for: try ExtractionPath.components(payload.path))
+            let components = (try? ExtractionPath.components(payload.path)) ?? Array(ArchivePath.components(payload.path).drop(while: { $0 == "." }))
+            let selected = subtrees.subtree(for: components)
             guard selected.contains(anchor), !selected.isEmpty else { throw ArchiveEntryPayload.staleSelection }
             if let index = payload.entryIndex {
                 guard anchor.index == index, anchor.kind == .directory,
