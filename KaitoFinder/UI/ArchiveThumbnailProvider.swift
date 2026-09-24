@@ -1,6 +1,5 @@
 import AppKit
 import QuickLookThumbnailing
-import UniformTypeIdentifiers
 
 /// 表示された小さい画像だけを取り出す。選択・進捗シート・パスワード UI とは独立させる。
 @MainActor final class ArchiveThumbnailProvider {
@@ -12,6 +11,7 @@ import UniformTypeIdentifiers
         var task: Task<Void, Never>?
     }
 
+    private let kindResolver: ArchiveKindResolver
     private let materializer: EntryMaterializer
     private let session: ArchiveSession
     private let generation: UInt64
@@ -30,9 +30,9 @@ import UniformTypeIdentifiers
     var isIdle: Bool { queue.isEmpty && inFlight.isEmpty }
 
     convenience init(materializer: EntryMaterializer, session: ArchiveSession, generation: UInt64,
-                     pointSize: CGFloat = 16, scale: CGFloat = 2) {
+                     kindResolver: ArchiveKindResolver? = nil, pointSize: CGFloat = 16, scale: CGFloat = 2) {
         self.init(materializer: materializer, session: session, generation: generation,
-                  pointSize: pointSize, scale: scale) { _, request in
+                  kindResolver: kindResolver, pointSize: pointSize, scale: scale) { _, request in
             let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
             return representation.nsImage
         }
@@ -40,7 +40,8 @@ import UniformTypeIdentifiers
 
     // 実際の抽出を通したまま、生成の完了順序と取消しをテストで固定できる。
     init(materializer: EntryMaterializer, session: ArchiveSession, generation: UInt64,
-         pointSize: CGFloat = 16, scale: CGFloat = 2, generate: @escaping Generate) {
+         kindResolver: ArchiveKindResolver? = nil, pointSize: CGFloat = 16, scale: CGFloat = 2, generate: @escaping Generate) {
+        self.kindResolver = kindResolver ?? ArchiveKindResolver()
         self.materializer = materializer
         self.session = session
         self.generation = generation
@@ -64,7 +65,7 @@ import UniformTypeIdentifiers
         guard !node.isDirectory, let entry = node.entry, entry.kind == .file,
               !entry.isEncrypted, !entry.isIncomplete, entry.solidGroup < 0,
               let size = entry.uncompressedSize, size <= 8 * 1024 * 1024,
-              UTType(filenameExtension: (node.name as NSString).pathExtension)?.conforms(to: .image) == true,
+              kindResolver.kind(for: node).isImage,
               requested.insert(id).inserted else { return nil }
         queue.append(node)
         startNext()

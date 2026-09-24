@@ -23,6 +23,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var folderPolicy: FolderPolicy = .whenMultipleTopLevelItems
     var trashesArchiveAfterExtraction = false
     var revealsExtractedItemsInFinder = false
+    var keepsFoldersOnTop = false
     var showsHiddenFiles = false
     var showsWelcomeWindowAtLaunch = true
     var renamesOnClick = true
@@ -73,6 +74,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let folderPolicy = "ArchiveFolderPolicy"
         static let trashesArchiveAfterExtraction = "ArchiveTrashesArchiveAfterExtraction"
         static let revealsExtractedItemsInFinder = "ArchiveRevealsExtractedItems"
+        static let keepsFoldersOnTop = "ArchiveKeepsFoldersOnTop"
         static let showsHiddenFiles = "ArchiveShowsHiddenFiles"
         static let showsWelcomeWindowAtLaunch = "ArchiveShowsWelcomeAtLaunch"
         static let renamesOnClick = "ArchiveRenamesOnClick"
@@ -108,6 +110,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                                                          fallback: value.trashesArchiveAfterExtraction)
             value.revealsExtractedItemsInFinder = boolean(forKey: Key.revealsExtractedItemsInFinder,
                                                         fallback: value.revealsExtractedItemsInFinder)
+            value.keepsFoldersOnTop = boolean(forKey: Key.keepsFoldersOnTop, fallback: value.keepsFoldersOnTop)
             value.showsHiddenFiles = boolean(forKey: Key.showsHiddenFiles, fallback: value.showsHiddenFiles)
             value.showsWelcomeWindowAtLaunch = boolean(forKey: Key.showsWelcomeWindowAtLaunch,
                                                       fallback: value.showsWelcomeWindowAtLaunch)
@@ -132,6 +135,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.folderPolicy.rawValue, forKey: Key.folderPolicy)
             defaults.set(newValue.trashesArchiveAfterExtraction, forKey: Key.trashesArchiveAfterExtraction)
             defaults.set(newValue.revealsExtractedItemsInFinder, forKey: Key.revealsExtractedItemsInFinder)
+            defaults.set(newValue.keepsFoldersOnTop, forKey: Key.keepsFoldersOnTop)
             defaults.set(newValue.showsHiddenFiles, forKey: Key.showsHiddenFiles)
             defaults.set(newValue.showsWelcomeWindowAtLaunch, forKey: Key.showsWelcomeWindowAtLaunch)
             defaults.set(newValue.renamesOnClick, forKey: Key.renamesOnClick)
