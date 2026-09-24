@@ -88,7 +88,8 @@ final class ArchiveMaterializationController {
         started?(item, progress)
         let materialize = self.materialize
         let predecessor = drainingTask
-        task = Task { [weak self] in
+        let task = Task { [weak self] in
+            defer { progress.cancellationHandler = nil }
             do {
                 // solid 群の取消しが read 内で停止するまで、次の reader を走らせない。
                 await predecessor?.value
@@ -109,6 +110,7 @@ final class ArchiveMaterializationController {
                 self.ready?(item)
             } catch {
                 guard let self, self.revision == token else { return }
+                if error is CancellationError || progress.isCancelled || Task.isCancelled { self.cancel(); return }
                 self.task = nil
                 self.progress = nil
                 self.finished?()
@@ -118,6 +120,8 @@ final class ArchiveMaterializationController {
                 }
             }
         }
+        self.task = task
+        progress.cancellationHandler = { task.cancel() }
     }
 
     func cancel() {

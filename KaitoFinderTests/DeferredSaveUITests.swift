@@ -1,9 +1,122 @@
 import AppKit
+import Synchronization
 import QuickLookThumbnailing
 import XCTest
 @testable import KaitoFinder
 
 nonisolated final class DeferredSaveUITests: XCTestCase {
+    @MainActor private func interface(_ fixture: DeferredSaveFixture) async throws -> ArchiveWindowController {
+        preserveArchiveWindowFrame()
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        fixture.document.addWindowController(controller)
+        let session = try XCTUnwrap(fixture.document.session)
+        controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
+        return controller
+    }
+
+    @MainActor func testSheetCancellationReachesDeferredSaveTaskBeforePublication() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document, gate = ScenarioGate()
+        defer { gate.release(); document.close() }
+        let controller = try await interface(fixture), cancelled = Mutex(false)
+        _ = try await document.createFolder(in: "", baseName: "pending", progress: Progress())
+        document.deferredWillPublish = {
+            gate.pauseOnce()
+            cancelled.withLock { $0 = Task.isCancelled }
+            try Task.checkCancellation()
+        }
+        var completionError: Error?
+        document.save(to: fixture.archive, ofType: "public.data", for: .saveOperation) { completionError = $0 }
+        let task = try XCTUnwrap(document.deferredSaveTask), sheet = try XCTUnwrap(document.deferredSaveSheet)
+        XCTAssertNil(controller.window?.attachedSheet)
+        XCTAssertTrue(controller.operationInFlight)
+        XCTAssertEqual(sheet.window?.alphaValue, 0)
+        try await scenarioWait { gate.isEntered }
+        sheet.cancelExtraction(nil)
+        try await scenarioWait { task.isCancelled }
+        gate.release()
+        do { try await task.value; XCTFail("Cancelled save succeeded") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(cancelled.withLock { $0 })
+        XCTAssertEqual((completionError as? CocoaError)?.code, .userCancelled)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+        XCTAssertTrue(document.isDocumentEdited)
+        XCTAssertEqual(document.pendingChanges.createdFolders.map(\.path), ["pending/"])
+        XCTAssertNil(controller.failureAlert)
+        XCTAssertNil(controller.window?.attachedSheet)
+    }
+
+    @MainActor func testSheetCancellationAfterDeferredPublicationIsIgnored() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document, gate = ScenarioGate()
+        defer { gate.release(); document.close() }
+        let controller = try await interface(fixture), cancelled = Mutex(false)
+        _ = try await document.createFolder(in: "", baseName: "saved", progress: Progress())
+        document.deferredWillReload = {
+            gate.pauseOnce()
+            cancelled.withLock { $0 = Task.isCancelled }
+        }
+        let saving = Task { try await fixture.save() }
+        try await scenarioWait { gate.isEntered }
+        let task = try XCTUnwrap(document.deferredSaveTask), sheet = try XCTUnwrap(document.deferredSaveSheet)
+        sheet.cancelExtraction(nil)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(sheet.progress.isCancelled)
+        XCTAssertFalse(task.isCancelled)
+        sheet.progress.cancel()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertFalse(task.isCancelled)
+        gate.release()
+        try await saving.value
+        XCTAssertFalse(cancelled.withLock { $0 })
+        XCTAssertFalse(document.isDocumentEdited)
+        XCTAssertTrue(try DeferredSaveFixture.inventory(fixture.archive).keys.contains("saved/"))
+        XCTAssertNil(controller.failureAlert)
+    }
+
+    @MainActor func testPendingFolderSelectionSurvivesAdditionAndUndoRedo() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document
+        defer { document.close() }
+        let controller = try await interface(fixture)
+        for name in ["F1", "F2"] { _ = try await document.createFolder(in: "", baseName: name, progress: Progress()) }
+        let view = controller.outlineView
+        let folder = try XCTUnwrap((0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }.first { $0.path == "F2" })
+        let id = try XCTUnwrap(folder.entry?.pendingID), index = try XCTUnwrap(folder.entry?.index)
+        view.selectRowIndexes(IndexSet(integer: view.row(forItem: folder)), byExtendingSelection: false)
+        _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: Progress())
+        XCTAssertNotEqual(controller.selectedNodes.first?.entry?.index, index)
+        for undo in [true, false, true, false] {
+            XCTAssertEqual(controller.selectedNodes.map(\.path), ["F2"])
+            XCTAssertEqual(controller.selectedNodes.first?.entry?.pendingID, id)
+            if undo { document.undo(nil) } else { document.redo(nil) }
+            await document.undoTask?.value
+        }
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["F2"])
+        XCTAssertEqual(controller.selectedNodes.first?.entry?.pendingID, id)
+        controller.deleteEntries(nil)
+        await controller.extractionTask?.value
+        XCTAssertEqual(document.pendingChanges.createdFolders.map(\.path), ["F1/"])
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+    }
+
+    @MainActor func testExternalChangePromptStopsUnrevealedProgress() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document
+        defer { document.close() }
+        let controller = try await interface(fixture), window = try XCTUnwrap(controller.window)
+        _ = try await document.createFolder(in: "", baseName: "pending", progress: Progress())
+        try fixture.original.write(to: fixture.archive, options: .atomic)
+        controller.newFolder(nil)
+        let task = try XCTUnwrap(controller.extractionTask), sheet = try XCTUnwrap(controller.editProgressSheet)
+        XCTAssertEqual(sheet.window?.alphaValue, 0)
+        try await scenarioWait { window.attachedSheet != nil && window.attachedSheet !== sheet.window }
+        let alert = try XCTUnwrap(window.attachedSheet)
+        try await Task.sleep(for: ExtractionProgressSheet.revealDelay)
+        XCTAssertEqual(sheet.window?.alphaValue, 0)
+        XCTAssertTrue(window.attachedSheet === alert)
+        window.endSheet(alert, returnCode: .alertFirstButtonReturn)
+        await task.value
+        XCTAssertEqual(document.pendingChanges.createdFolders.map(\.path), ["pending/"])
+        XCTAssertNil(controller.failureAlert)
+    }
+
     @MainActor func testMenusAreVisibleInOrderAndEnabledOnlyForIdleEditedDeferredDocument() async throws {
         preserveApplicationMenus()
         let fixture = try DeferredSaveFixture(), immediate = try DeferredSaveFixture(behavior: .immediate)

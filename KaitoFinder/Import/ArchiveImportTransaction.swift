@@ -382,6 +382,9 @@ nonisolated enum ArchiveEditTransaction {
 nonisolated enum ArchiveImportTransaction {
     // 文書・session の公開 API を変えず、append の子 Task にも注入を引き継ぐ。
     static let pendingWorkRegistry = TaskLocal<PendingWorkRegistry>(wrappedValue: .shared)
+    #if DEBUG
+    static let willAddFileForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
+    #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
@@ -432,9 +435,15 @@ nonisolated enum ArchiveImportTransaction {
                 // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
                 do {
                     if item.isDirectory { try updater.addDirectory(item.path) }
-                    else { try updater.add(contentsOf: item.url, as: item.path) }
+                    else {
+                        #if DEBUG
+                        willAddFileForTesting.get()?(item.url)
+                        #endif
+                        try updater.add(contentsOf: item.url, as: item.path)
+                    }
                 }
-                catch { throw ExtractionFailure.refused("\(item.path): \(error)") }
+                catch is CancellationError { throw CancellationError() }
+                catch { throw ExtractionFailure.refused("\(item.path): \(ArchiveErrorText.describe(error))") }
                 progress.completedUnitCount += 1
                 try didProcess?(index)
             }
@@ -522,7 +531,7 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
-        try publication?.enter(progress: progress)
+        try (publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
         progress.completedUnitCount += 1
     }

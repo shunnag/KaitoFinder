@@ -70,14 +70,8 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         progress.totalUnitCount = Int64(archives.count)
         progress.completedUnitCount = 0
         let operation = Task { await extractArchives(archives, base: base, progress: progress) }
-        // Progressの取消しを、入力待ちと認証中のTaskにも届ける。
-        let cancellation = Task {
-            while !Task.isCancelled {
-                if progress.isCancelled { operation.cancel(); return }
-                try? await Task.sleep(for: .milliseconds(50))
-            }
-        }
-        defer { cancellation.cancel() }
+        let cancellation = ArchiveProgressCancellation(progress: progress) { _ in operation.cancel() }
+        defer { cancellation.invalidate() }
         return await withTaskCancellationHandler {
             await operation.value
         } onCancel: {

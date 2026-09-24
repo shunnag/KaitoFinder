@@ -58,7 +58,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     // 展開先の選択を差し替え、解決済みの対象をパネルなしで検証できるようにする。
     var extractionDestinationHandler: (([EntryNode]) -> Void)?
     private var extractionProgress: Progress?
-    private var extractionCancellation: Task<Void, Never>?
+    private var extractionCancellation: ArchiveProgressCancellation?
     private(set) var extractionSheet: ExtractionProgressSheet?
     private let passwordPresenter = ArchivePasswordPresenter()
     private let conflictPresenter = ArchiveConflictPresenter()
@@ -95,7 +95,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var previewMonitor: Task<Void, Never>?
     private var previewActive = false
     private var materializationSheet: ExtractionProgressSheet?
-    private var materializationCancellation: Task<Void, Never>?
     private let openWithMenu: NSMenu
     private var root = EntryNode.tree(from: [])
     private var parents: [ObjectIdentifier: EntryNode] = [:]
@@ -124,10 +123,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         unlockButton = NSButton(title: String(localized: "ロックを解除…", bundle: bundle), target: nil, action: nil)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 600),
+        let window = ArchiveDocumentWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 600),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         super.init(window: window)
+        outlineView.permitsInteraction = { [weak self] in self?.operationInFlight != true }
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: preferencesStore)
         window.minSize = NSSize(width: 600, height: 300)
@@ -549,15 +549,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             })
     }
 
-    private func watchCancellation(_ progress: Progress, cancel: @escaping () -> Void) -> Task<Void, Never> {
-        Task {
-            // 既存の進捗 UI は Progress を取り消す。入力待ちと検証の Task にも取消しを届ける。
-            while !Task.isCancelled {
-                if progress.isCancelled { cancel(); return }
-                do { try await Task.sleep(for: .milliseconds(50)) }
-                catch { return }
-            }
-        }
+    private func watchCancellation(_ progress: Progress, task: Task<Void, Never>?) -> ArchiveProgressCancellation {
+        ArchiveProgressCancellation(progress: progress) { _ in task?.cancel() }
     }
 
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
@@ -609,9 +602,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                     try await self.requestPasswordResponse(challenge)
                 }
             }
-            controller.started = { [weak self, weak controller] item, progress in
+            controller.started = { [weak self] item, progress in
                 guard let self else { return }
-                self.materializationCancellation = self.watchCancellation(progress) { [weak controller] in controller?.cancel() }
                 guard item.requiresProgress, let window = self.window else { return }
                 let sheet = ExtractionProgressSheet(progress: progress, detail: item.payload.path, bundle: bundle)
                 // 進捗シートが key window になっても、QL の responder chain を文書へ戻す。
@@ -620,8 +612,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 sheet.begin(on: window)
             }
             controller.finished = { [weak self] in
-                self?.materializationCancellation?.cancel()
-                self?.materializationCancellation = nil
                 self?.materializationSheet?.finish()
                 self?.materializationSheet = nil
             }
@@ -727,6 +717,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func selectPathItem(_ item: NSPathControlItem) {
+        guard !operationInFlight else { return }
         guard let node = item.representedObject as? EntryNode else {
             outlineView.deselectAll(nil)
             return
@@ -740,7 +731,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.scrollRowToVisible(row)
     }
 
-    @objc func filterEntries(_ sender: NSSearchField) { setFilterQuery(sender.stringValue) }
+    @objc func filterEntries(_ sender: NSSearchField) {
+        guard !operationInFlight else { sender.stringValue = filterQuery; return }
+        setFilterQuery(sender.stringValue)
+    }
 
     @objc private func preferencesDidChange(_ notification: Notification) {
         outlineView.renamesOnClick = preferencesStore.preferences.renamesOnClick
@@ -854,6 +848,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard !operationInFlight else {
+            menuItem.toolTip = String(localized: "別の操作が完了するまでお待ちください。", bundle: bundle)
+            return false
+        }
         if (document as? ArchiveDocument)?.saveBehavior == .onSave {
             let selectedActions = [#selector(copy(_:)), #selector(extractSelected(_:)), #selector(openEntry(_:)),
                                    #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:))]
@@ -926,6 +924,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     var operationInFlight: Bool {
         extractionTask != nil || creationController != nil || passwordEditor != nil || deletionConfirmation != nil || conversionConfirmation != nil || passwordPrompt != nil || unlockTask != nil
+            || materializationSheet != nil
             || (document?.undoManager as? ArchiveUndoManager)?.isSuspended == true
     }
 
@@ -944,7 +943,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var archiveURL: URL? { (document as? ArchiveDocument)?.fileURL ?? archiveSession?.sourceURL }
 
     @objc func revealArchiveInFinder(_ sender: Any?) {
-        guard let url = archiveURL else { return }
+        guard !operationInFlight, let url = archiveURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
@@ -965,6 +964,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             defer {
                 sheet.finish()
                 self?.editProgressSheet = nil
+                self?.extractionCancellation?.invalidate()
+                self?.extractionCancellation = nil
                 self?.extractionProgress = nil
                 self?.extractionTask = nil
                 if !Task.isCancelled, let createdPath { self?.renameCreatedFolder(at: createdPath) }
@@ -982,6 +983,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 }
             }
         }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     private func renameCreatedFolder(at path: String) {
@@ -1078,6 +1080,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             defer {
                 sheet.finish()
                 self?.editProgressSheet = nil
+                self?.extractionCancellation?.invalidate()
+                self?.extractionCancellation = nil
                 self?.extractionProgress = nil
                 self?.extractionTask = nil
             }
@@ -1105,6 +1109,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 }
             }
         }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     private func startMove(nodes: [EntryNode], to folder: String) -> Bool {
@@ -1125,7 +1130,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             defer {
                 visibility.cancel()
                 sheet.finish()
-                self?.extractionCancellation?.cancel()
+                self?.extractionCancellation?.invalidate()
                 self?.extractionCancellation = nil
                 self?.editProgressSheet = nil
                 self?.extractionProgress = nil
@@ -1167,7 +1172,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 }
             }
         }
-        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
         return true
     }
 
@@ -1293,7 +1298,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             })
         }
         return ArchiveViewState(selectedPaths: Set(selectedNodes.map(\.path)), expandedPaths: expanded, topPath: top?.path,
-                                selectedEntryIndices: Set(selectedNodes.compactMap { $0.entry?.index }), generation: generation,
+                                selectedEntryIndices: Set(selectedNodes.compactMap { $0.entry?.pendingID == nil ? $0.entry?.index : nil }),
+                                selectedPendingIDs: Set(selectedNodes.compactMap { $0.entry?.pendingID }), generation: generation,
                                 scrollX: outlineView.enclosingScrollView?.contentView.bounds.origin.x ?? 0, collapsedPaths: collapsed)
     }
 
@@ -1409,7 +1415,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         } catch { reportImportFailure(ArchiveErrorText.describe(error, bundle: bundle)); return false }
     }
 
-    private func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String, incomingLocation: String? = nil) {
+    func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String, incomingLocation: String? = nil) {
         guard let window, let session = archiveSession, !operationInFlight,
               incoming != nil || !urls.isEmpty else { return }
         if !session.capabilities.canEdit {
@@ -1432,7 +1438,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 visibility.cancel()
                 sheet.finish()
                 self?.editProgressSheet = nil
-                self?.extractionCancellation?.cancel()
+                self?.extractionCancellation?.invalidate()
                 self?.extractionCancellation = nil
                 self?.extractionTask = nil
                 self?.extractionProgress = nil
@@ -1458,7 +1464,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 if !(error is CancellationError), let self { self.reportImportFailure(ArchiveErrorText.describe(error, bundle: self.bundle)) }
             }
         }
-        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     private func conflictResolver(on window: NSWindow, session: ArchiveSession, sheet: ExtractionProgressSheet,
@@ -1520,7 +1526,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 self?.creationController = nil
                 self?.extractionTask = nil
                 self?.extractionProgress = nil
-                self?.extractionCancellation?.cancel()
+                self?.extractionCancellation?.invalidate()
                 self?.extractionCancellation = nil
             }
             do {
@@ -1534,7 +1540,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 if !(error is CancellationError), !Task.isCancelled { ArchiveCreationController.presentFailure(error) }
             }
         }
-        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     @objc func saveArchiveAs(_ sender: Any?) {
@@ -1544,7 +1550,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             guard let self else { return }
             defer {
                 extractionTask = nil
-                extractionCancellation?.cancel()
+                extractionCancellation?.invalidate()
                 extractionCancellation = nil
             }
             do { try await saveArchiveAs(using: ArchiveCreationController(store: preferencesStore), progress: progress) }
@@ -1552,7 +1558,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 if !(error is CancellationError), !Task.isCancelled { ArchiveCreationController.presentFailure(error) }
             }
         }
-        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     @objc func setArchivePassword(_ sender: Any?) { presentPasswordEditor(.set, selector: #selector(setArchivePassword(_:))) }
@@ -1575,7 +1581,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 editProgressSheet = nil
                 extractionProgress = nil
                 extractionTask = nil
-                extractionCancellation?.cancel()
+                extractionCancellation?.invalidate()
                 extractionCancellation = nil
             }
             do {
@@ -1616,7 +1622,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 if !(error is CancellationError), !Task.isCancelled { reportEditFailure(editFailureReason(error)) }
             }
         }
-        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     // 実際の保存・文書切り替えを共有し、テストでは保存先の選択だけを差し替える。
@@ -1662,6 +1668,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     @objc func copy(_ sender: Any?) {
+        guard !operationInFlight else { return }
         guard let session = archiveSession, extractionTask == nil, !selectedNodes.isEmpty,
               canReadNodes(selectedNodes) else { return }
         let nodes = selectedNodes
@@ -1680,7 +1687,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func chooseDestination(for nodes: [EntryNode]) {
-        guard let session = archiveSession, let window, extractionTask == nil, !nodes.isEmpty, canReadNodes(nodes) else { return }
+        guard !operationInFlight, let session = archiveSession, let window, !nodes.isEmpty, canReadNodes(nodes) else { return }
         if let extractionDestinationHandler { extractionDestinationHandler(nodes); return }
         let items = payloads(for: nodes, session: session)
         let entryCount = ExtractionSelection(nodes: nodes).entries.count
@@ -1727,10 +1734,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             self?.extractionTask = nil
             self?.extractionProgress = nil
             self?.extractionSheet = nil
-            self?.extractionCancellation?.cancel()
+            self?.extractionCancellation?.invalidate()
             self?.extractionCancellation = nil
         }
-        extractionCancellation = watchCancellation(progress) { [weak self] in self?.extractionTask?.cancel() }
+        extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
     func cancelExtraction() {
@@ -1753,8 +1760,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
         closePreview()
         materialization?.close()
-        extractionProgress?.cancel()
-        extractionTask?.cancel()
+        if extractionProgress?.isCancellable != false {
+            extractionProgress?.cancel()
+            extractionTask?.cancel()
+        }
         extractionSheet?.finish()
         creationController?.savePanel?.cancel()
         creationController?.progressSheet?.finish()
@@ -1789,7 +1798,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func readableSelection(skippingDirectories: Bool = false) -> [ArchivePreviewItem]? {
         let items = previewItems().filter { !skippingDirectories || !$0.payload.isDirectory }
-        guard !items.isEmpty, extractionTask == nil else { return nil }
+        guard !items.isEmpty, !operationInFlight else { return nil }
         if let item = items.first(where: { !$0.capability.canOpen }), let reason = item.capability.reason {
             reportFailure("\(item.payload.path): \(reason)")
             return nil
@@ -1798,7 +1807,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     @objc func doubleClickEntry(_ sender: Any?) {
-        guard outlineView.clickedRow >= 0,
+        guard !operationInFlight, outlineView.clickedRow >= 0,
               let node = outlineView.item(atRow: outlineView.clickedRow) as? EntryNode else { return }
         if node.isDirectory {
             if outlineView.isItemExpanded(node) { outlineView.collapseItem(node) }

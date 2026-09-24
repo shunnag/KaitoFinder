@@ -118,7 +118,8 @@ final class WelcomeWindowController: NSWindowController {
     }
 
     @objc private func archiveWindowBecameMain(_ notification: Notification) {
-        guard window?.attachedSheet == nil, let archiveWindow = notification.object as? NSWindow,
+        guard window?.attachedSheet == nil, !ExtractionProgressSheet.hasPendingSheet(on: window),
+              let archiveWindow = notification.object as? NSWindow,
               archiveWindow.windowController is ArchiveWindowController else { return }
         close()
     }

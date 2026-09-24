@@ -33,6 +33,8 @@ import Synchronization
     private(set) var deferredSaveTask: Task<Void, Error>?
     private(set) var stagingCleanup: Task<Void, Never>?
     private var deferredProgress: Progress?
+    private var deferredCancellation: ArchiveProgressCancellation?
+    private(set) var deferredSaveSheet: ExtractionProgressSheet?
     private var deferredPublication: ArchiveSavePublication?
     private var deferredCreation: ArchiveCreationController?
     private var reservationInFlight = false
@@ -423,25 +425,31 @@ import Synchronization
         let previousGeneration = session.generation
         let stack = archiveUndoStack
         let pending = Mutex<ArchiveUndoStack.Slot?>(nil)
+        let publication = ArchiveSavePublication()
+        defer { publication.finish() }
         let task = Task {
-            do {
-                let encryption = await session.encryptionSettings()
-                let result = try await operation(session, {
-                    // updater が書き換えるのは作業コピー。退避するのは公開直前の原本だけ。
-                    let slot = try isSplit ? nil : stack.capture(session.sourceURL, encryption: encryption)
-                    pending.withLock { $0 = slot }
-                    try willPublish?()
-                })
-                await stack.finishMutation(pending.withLock { $0 }, published: published(result))
-                return result
-            } catch {
-                await stack.finishMutation(pending.withLock { $0 }, published: false)
-                throw error
+            try await ArchiveSavePublication.current.withValue(publication) {
+                do {
+                    let encryption = await session.encryptionSettings()
+                    let result = try await operation(session, {
+                        // updater が書き換えるのは作業コピー。退避するのは公開直前の原本だけ。
+                        let slot = try isSplit ? nil : stack.capture(session.sourceURL, encryption: encryption)
+                        pending.withLock { $0 = slot }
+                        try willPublish?()
+                    })
+                    await stack.finishMutation(pending.withLock { $0 }, published: published(result))
+                    return result
+                } catch {
+                    await stack.finishMutation(pending.withLock { $0 }, published: false)
+                    throw error
+                }
             }
         }
+        let cancellation = publication.watchCancellation(progress: progress) { task.cancel() }
+        defer { cancellation.invalidate() }
         mutationTask = Task { _ = await task.result }
         mutationProgress = progress
-        cancelMutation = { task.cancel() }
+        cancelMutation = { publication.cancelBeforePublication(progress: progress) { task.cancel() } }
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         defer {
             mutationTask = nil
@@ -453,8 +461,7 @@ import Synchronization
             let result = try await withTaskCancellationHandler {
                 try await task.value
             } onCancel: {
-                progress.cancel()
-                task.cancel()
+                publication.cancelBeforePublication(progress: progress) { task.cancel() }
             }
             if !closed, published(result) {
                 if isSplit { undoManager?.removeAllActions(); undoActions.removeAll() }
@@ -684,7 +691,12 @@ import Synchronization
     /// 文書は閉じず、状態復元を含む通常の終了処理は AppKit に任せる。
     func prepareForTermination() async {
         if let deferredSaveTask {
-            if deferredPublication?.hasPublishedBoundary != true {
+            if let deferredPublication, let deferredProgress {
+                deferredPublication.cancelBeforePublication(progress: deferredProgress) {
+                    deferredCreation?.savePanel?.cancel()
+                    deferredSaveTask.cancel()
+                }
+            } else {
                 deferredProgress?.cancel()
                 deferredCreation?.savePanel?.cancel()
                 deferredSaveTask.cancel()
@@ -695,7 +707,7 @@ import Synchronization
         let controllers = windowControllers.compactMap { $0 as? ArchiveWindowController }
         // 完了時に controller が nil に戻すので、取消し前に Task を保持する。
         let extractions = controllers.compactMap(\.extractionTask)
-        mutationProgress?.cancel()
+        if mutationProgress?.isCancellable == true { mutationProgress?.cancel() }
         cancelMutation?()
         undoTask?.cancel()
         for controller in controllers { controller.cancelExtraction() }
@@ -779,7 +791,9 @@ import Synchronization
         deferredPublication = publication
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "保存"), detail: displayName)
-        deferredSaveTask = Task {
+        deferredSaveSheet = sheet
+        if let window = windowControllers.first?.window { sheet.begin(on: window) }
+        let task = Task {
             do {
                 try await savePendingDocument(token: token, progress: progress, publication: publication, sheet: sheet)
                 finishDeferredSave(sheet: sheet)
@@ -809,6 +823,8 @@ import Synchronization
                 throw error
             }
         }
+        deferredSaveTask = task
+        deferredCancellation = publication.watchCancellation(progress: progress) { task.cancel() }
     }
 
     override func revert(toContentsOf url: URL, ofType typeName: String) throws {
@@ -844,7 +860,7 @@ import Synchronization
         undoManager?.removeAllActions()
         undoActions.removeAll()
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
-        mutationProgress?.cancel()
+        if mutationProgress?.isCancellable == true { mutationProgress?.cancel() }
         cancelMutation?()
         undoTask?.cancel()
         let mutation = mutationTask
@@ -926,8 +942,8 @@ extension ArchiveDocument {
             try await verifyReservationIdentity()
             if next != previous {
                 if immediate {
-                    let publication = ArchiveSavePublication()
-                    defer { publication.finish() }
+                    let publication = ArchiveSavePublication.current.get() ?? ArchiveSavePublication()
+                    defer { if ArchiveSavePublication.current.get() == nil { publication.finish() } }
                     let saved = try await publishSplitChanges(next, base: snapshot.entries, generation: snapshot.generation,
                         progress: progress, publication: publication, willPublish: willPublish)
                     result.reloadFailure = saved.reloadFailure
@@ -1129,6 +1145,7 @@ extension ArchiveDocument {
             catch {
                 guard !isDeferredSaveRunning, !reservationInFlight, !closed,
                       !session.isInvalidated, !session.requiresSplitRecovery,
+                      !ExtractionProgressSheet.hasPendingSheet(on: windowControllers.first?.window),
                       windowControllers.first?.window?.attachedSheet == nil else { return }
                 await presentExternalChange()
             }
@@ -1137,6 +1154,9 @@ extension ArchiveDocument {
 
     private func presentExternalChange() async {
         guard !closed, externalChangeAlert == nil, let window = windowControllers.first?.window else { return }
+        let controller = window.windowController as? ArchiveWindowController
+        controller?.editProgressSheet?.finish()
+        deferredSaveSheet?.finish()
         if let progressSheet = window.attachedSheet {
             window.endSheet(progressSheet)
             progressSheet.orderOut(nil)
@@ -1176,7 +1196,7 @@ extension ArchiveDocument {
 extension ArchiveDocument {
     private func withSplitPrompt<Value>(_ body: (NSWindow?) async throws -> Value) async rethrows -> Value {
         let controller = windowControllers.compactMap { $0 as? ArchiveWindowController }.first
-        let sheet = controller?.editProgressSheet
+        let sheet = deferredSaveSheet ?? controller?.editProgressSheet
         sheet?.finish()
         defer {
             if let sheet, let window = controller?.window, !sheet.progress.isCancelled, !closed { sheet.begin(on: window) }
@@ -1289,6 +1309,9 @@ extension ArchiveDocument {
 
     private func finishDeferredSave(sheet: ExtractionProgressSheet? = nil) {
         sheet?.finish()
+        deferredSaveSheet = nil
+        deferredCancellation?.invalidate()
+        deferredCancellation = nil
         deferredSaveTask = nil
         deferredProgress = nil
         deferredPublication?.finish()
@@ -1497,6 +1520,11 @@ extension ArchiveDocument {
             refreshPendingNotices()
         }
         deferredSaveTask = task
-        try await task.value
+        deferredCancellation = publication.watchCancellation(progress: progress) { task.cancel() }
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            publication.cancelBeforePublication(progress: progress) { task.cancel() }
+        }
     }
 }

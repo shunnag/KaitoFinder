@@ -48,11 +48,12 @@ nonisolated enum ArchiveDropTarget {
 nonisolated struct ArchiveViewState: Sendable {
     var selectedPaths: Set<String> {
         // 編集後など、パスで選び直す状態には以前のレコード番号を引き継がない。
-        didSet { selectedEntryIndices = nil }
+        didSet { selectedEntryIndices = nil; selectedPendingIDs = nil }
     }
     var expandedPaths: Set<String>
     var topPath: String?
     var selectedEntryIndices: Set<Int>? = nil
+    var selectedPendingIDs: Set<UUID>? = nil
     var generation: UInt64? = nil
     var scrollX: CGFloat = 0
     var collapsedPaths: Set<String> = []
@@ -60,11 +61,14 @@ nonisolated struct ArchiveViewState: Sendable {
     @MainActor func resolve(in root: EntryNode, currentGeneration: UInt64? = nil)
         -> (selected: [EntryNode], expanded: [EntryNode], collapsed: [EntryNode], top: EntryNode?) {
         let indices = currentGeneration != nil && generation == currentGeneration ? selectedEntryIndices : nil
+        let pendingIDs = currentGeneration != nil && generation == currentGeneration ? selectedPendingIDs : nil
         var pending = [root]
         var selected: [EntryNode] = [], expanded: [EntryNode] = [], collapsed: [EntryNode] = []
         var top: EntryNode?
         while let node = pending.popLast() {
-            if let entry = node.entry, let indices {
+            if let id = node.entry?.pendingID, let pendingIDs {
+                if pendingIDs.contains(id) { selected.append(node) }
+            } else if let entry = node.entry, entry.pendingID == nil, let indices {
                 if indices.contains(entry.index) { selected.append(node) }
             } else if selectedPaths.contains(node.path) { selected.append(node) }
             if expandedPaths.contains(node.path), node.isDirectory { expanded.append(node) }

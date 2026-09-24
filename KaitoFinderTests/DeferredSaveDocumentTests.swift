@@ -80,6 +80,58 @@ import XCTest
 }
 
 nonisolated final class DeferredSaveDocumentTests: XCTestCase {
+    @MainActor func testDeferredSaveAsCallerCancellationReachesUnstructuredTask() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document
+        defer { document.close() }
+        _ = try await document.createFolder(in: "", baseName: "pending", progress: Progress())
+        let creator = ArchiveCreationController(store: fixture.store), progress = Progress()
+        var waiting = false
+        creator.destinationHandler = { _, _ in
+            waiting = true
+            try await Task.sleep(for: .seconds(10))
+            return nil
+        }
+        let saving = Task { try await document.savePendingAs(using: creator, on: nil, progress: progress) }
+        try await scenarioWait { waiting }
+        let worker = try XCTUnwrap(document.deferredSaveTask)
+        saving.cancel()
+        do { try await saving.value; XCTFail("Cancelled Save As succeeded") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(worker.isCancelled)
+        XCTAssertTrue(progress.isCancelled)
+        XCTAssertNil(creator.savePanel)
+        XCTAssertFalse(document.isDeferredSaveRunning)
+        XCTAssertEqual(document.pendingChanges.createdFolders.map(\.path), ["pending/"])
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+    }
+
+    @MainActor func testDeferredSaveAsSheetCancellationReachesWritingTask() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document, gate = ScenarioGate()
+        defer { gate.release(); document.close() }
+        _ = try await document.createFolder(in: "", baseName: "pending", progress: Progress())
+        let creator = ArchiveCreationController(store: fixture.store), progress = Progress(), cancelled = Mutex(false)
+        let output = fixture.directory.url.appendingPathComponent("saved.zip")
+        creator.destinationHandler = { _, _ in output }
+        document.deferredWillPublish = {
+            gate.pauseOnce()
+            cancelled.withLock { $0 = Task.isCancelled }
+            try Task.checkCancellation()
+        }
+        let saving = Task { try await document.savePendingAs(using: creator, on: nil, progress: progress) }
+        try await scenarioWait { gate.isEntered }
+        let task = try XCTUnwrap(document.deferredSaveTask)
+        try XCTUnwrap(creator.progressSheet).cancelExtraction(nil)
+        try await scenarioWait { task.isCancelled }
+        gate.release()
+        do { try await saving.value; XCTFail("Cancelled Save As succeeded") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(cancelled.withLock { $0 })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
+        XCTAssertEqual(document.fileURL, fixture.archive)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+        XCTAssertTrue(document.isDocumentEdited)
+    }
+
     @MainActor func testPreferenceIsImmediateByDefaultAndCapturedOnce() throws {
         let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
         XCTAssertEqual(store.preferences.saveBehavior, .immediate)
