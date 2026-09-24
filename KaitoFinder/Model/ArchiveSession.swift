@@ -646,6 +646,10 @@ actor ArchiveSession {
     }
 
     private func verifyBeforeEditing() throws {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.passwordVerification)
+        defer { span?.end() }
+        #endif
         let reader = try requireCurrentReader()
         let encrypted = reader.entries.filter(\.isEncrypted)
         if !encrypted.isEmpty, password == nil {

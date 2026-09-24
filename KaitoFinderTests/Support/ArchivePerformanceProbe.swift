@@ -23,6 +23,29 @@ nonisolated enum ProbeArchiveFormat: String, Sendable {
     }
 }
 
+nonisolated enum ProbeArchiveEncryption: String, Sendable {
+    case aes, zipcrypto
+
+    var method: ZipEncryption { self == .aes ? .aes256 : .zipCrypto }
+    var entryMethod: String { self == .aes ? "AES-256" : "ZipCrypto" }
+
+    static func configured() throws -> [Self] {
+        guard let value = ProcessInfo.processInfo.environment["KAITOFINDER_PROBE_ENCRYPTION"] else {
+            throw XCTSkip("Set KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto to run password probes")
+        }
+        let names = value.lowercased().split(whereSeparator: { $0 == "," || $0.isWhitespace })
+        guard !names.isEmpty else { throw ConfigurationError.invalid(value) }
+        var methods: [Self] = []
+        for name in names {
+            guard let method = Self(rawValue: String(name)) else { throw ConfigurationError.invalid(String(name)) }
+            if !methods.contains(method) { methods.append(method) }
+        }
+        return methods
+    }
+
+    private enum ConfigurationError: Error { case invalid(String) }
+}
+
 nonisolated struct ArchiveProbeConfiguration: Sendable {
     let entries: Int
     let payloadMiB: Int
@@ -66,6 +89,9 @@ nonisolated struct ArchiveProbeFixture: Sendable {
     let kind: Kind
     let smallCount: Int
     let payloadMiB: Int
+    let encryption: ProbeArchiveEncryption?
+    var password: String? { encryption == nil ? nil : "probe-fixture-key" }
+    var inputBytes: UInt64 { UInt64(payloadMiB) * 1_048_576 + UInt64(smallCount) }
     var entryCount: Int { smallCount + (kind == .payload ? 64 : 0) }
     var firstPath: String { kind == .payload ? Self.payloadPath(0) : Self.smallPath(0) }
     var lastPath: String { Self.smallPath(smallCount - 1) }
@@ -79,28 +105,31 @@ nonisolated struct ArchiveProbeFixture: Sendable {
 }
 
 nonisolated enum ArchiveProbeFixtures {
-    // 本文の生成規則を変えたら更新する。
-    private static let version = 2
+    // 本文・暗号化の生成規則を変えたら更新する。
+    private static let version = 3
     private static let cache = Mutex<[String: ArchiveProbeFixture]>([:])
 
     static func removeAll() { cache.withLock { $0.removeAll() } }
 
     @concurrent static func fixture(_ kind: ArchiveProbeFixture.Kind, format: ProbeArchiveFormat,
-                                    configuration: ArchiveProbeConfiguration) async throws -> ArchiveProbeFixture {
-        try cache.withLock { cache in
-            let key = "\(format.rawValue)-\(kind.rawValue)-\(configuration.entries)-\(configuration.payloadMiB)-v\(version)"
+                                    configuration: ArchiveProbeConfiguration,
+                                    encryption: ProbeArchiveEncryption? = nil) async throws -> ArchiveProbeFixture {
+        precondition(encryption == nil || format == .zip)
+        return try cache.withLock { cache in
+            let key = "\(format.rawValue)-\(kind.rawValue)-\(configuration.entries)-\(configuration.payloadMiB)-\(encryption?.rawValue ?? "plain")-v\(version)"
             if let fixture = cache[key] { return fixture }
             let directory = try ArchiveTestDirectory()
             let fixture = ArchiveProbeFixture(directory: directory,
                 url: directory.url.appendingPathComponent("fixture." + format.rawValue), format: format, kind: kind,
                 smallCount: kind == .entries ? configuration.entries : 1_000,
-                payloadMiB: kind == .entries ? 0 : configuration.payloadMiB)
-            let trace = ArchiveProbeTrace(fixture: fixture, mode: "fixture", operation: "build")
+                payloadMiB: kind == .entries ? 0 : configuration.payloadMiB, encryption: encryption)
+            let trace = ArchiveProbeTrace(fixture: fixture, mode: "fixture", operation: encryption.map { "build_" + $0.rawValue } ?? "build")
             let start = ContinuousClock.now
             try ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
                 try ArchiveStageDiagnostics.measure(.fixtureBuild) {
+                    let settings = ArchiveEncryptionSettings(password: fixture.password, zipEncryption: encryption?.method ?? .aes256)
                     let writer = try ArchiveWriter.create(url: fixture.url, format: format.writerFormat,
-                        options: ArchivePreferences().writerOptions(for: format.writerFormat))
+                        options: settings.applying(to: ArchivePreferences().writerOptions(for: format.writerFormat), format: format.writerFormat))
                     if kind == .payload {
                         let size = configuration.payloadMiB * 1_048_576 / 64
                         for index in 0..<64 {
@@ -117,9 +146,9 @@ nonisolated enum ArchiveProbeFixtures {
             let duration = start.duration(to: .now)
             let milliseconds = Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1e15
             let archiveBytes = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: fixture.url.path)[.size] as? NSNumber)
-            let inputBytes = UInt64(fixture.payloadMiB) * 1_048_576 + UInt64(fixture.smallCount)
             ArchiveProbeTrace.line(["PROBE-FIXTURE", "version=\(version)", "format=\(format.rawValue)", "kind=\(kind.rawValue)",
-                "entries=\(fixture.entryCount)", "input_bytes=\(inputBytes)", "archive_bytes=\(archiveBytes.uint64Value)",
+                "encryption=\(encryption?.rawValue ?? "plain")", "entries=\(fixture.entryCount)",
+                "input_bytes=\(fixture.inputBytes)", "archive_bytes=\(archiveBytes.uint64Value)",
                 "build_ms=" + String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), milliseconds),
                 "dictionary=" + (kind == .payload ? ArchiveProbePayload.words.source : "NA")].joined(separator: "\t"))
             trace.finish(output: fixture.url)
@@ -274,12 +303,14 @@ nonisolated final class ArchiveProbeTrace: Sendable {
     private let fixture: ArchiveProbeFixture
     private let mode: String
     private let operation: String
+    private let reportsPasswordVerification: Bool
     private let state = Mutex(State())
 
-    init(fixture: ArchiveProbeFixture, mode: String, operation: String) {
+    init(fixture: ArchiveProbeFixture, mode: String, operation: String, reportsPasswordVerification: Bool = false) {
         self.fixture = fixture
         self.mode = mode
         self.operation = operation
+        self.reportsPasswordVerification = reportsPasswordVerification
     }
 
     static func line(_ text: String) {
@@ -318,6 +349,12 @@ nonisolated final class ArchiveProbeTrace: Sendable {
         }
     }
 
+    func requireEditorOpen(file: StaticString = #filePath, line: UInt = #line) {
+        let recorded = state.withLock { Set($0.samples.keys) }
+        XCTAssertFalse(recorded.isDisjoint(with: [.updaterOpen, .rewriterOpen]),
+                       "Missing editor open: \(mode)/\(operation)", file: file, line: line)
+    }
+
     func finish(output: URL, status: String = "ok") {
         let snapshot = state.withLock { $0 }
         XCTAssertTrue(snapshot.active.isEmpty, "Unfinished probe stages: \(operation)")
@@ -332,6 +369,17 @@ nonisolated final class ArchiveProbeTrace: Sendable {
             Self.line(["PROBE-TSV", "1", fixture.format.rawValue, fixture.kind.rawValue, mode, operation, stage.rawValue,
                        String(samples.count), String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), ms), reads, writes, size,
                        String(fixture.entryCount), String(fixture.payloadMiB), status].joined(separator: "\t"))
+        }
+        if reportsPasswordVerification, let totals = snapshot.samples[.total] {
+            let total = totals.reduce(Duration.zero) { $0 + $1.duration }
+            let verification = (snapshot.samples[.passwordVerification] ?? []).reduce(Duration.zero) { $0 + $1.duration }
+            XCTAssertGreaterThanOrEqual(total, verification)
+            let duration = total - verification
+            let ms = Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1e15
+            Self.line(["PROBE-TSV", "1", fixture.format.rawValue, fixture.kind.rawValue, mode, operation,
+                "total_without_password_verification", String(totals.count),
+                String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), ms), "NA", "NA", size,
+                String(fixture.entryCount), String(fixture.payloadMiB), status].joined(separator: "\t"))
         }
     }
 }

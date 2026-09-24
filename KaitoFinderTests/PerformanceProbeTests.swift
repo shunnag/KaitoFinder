@@ -64,6 +64,30 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         #endif
     }
 
+    @MainActor func testArchivePasswordEditsWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        let methods = try ProbeArchiveEncryption.configured()
+        ArchiveProbeTrace.header()
+        preserveArchiveWindowFrame()
+        for kind in ArchiveProbeFixture.Kind.allCases {
+            let plain = try await ArchiveProbeFixtures.fixture(kind, format: .zip, configuration: configuration)
+            for method in methods {
+                try await probeImmediatePassword(.set, fixture: plain, output: method)
+                let encrypted = try await ArchiveProbeFixtures.fixture(kind, format: .zip,
+                    configuration: configuration, encryption: method)
+                for output in methods {
+                    try await probeImmediatePassword(.change, fixture: encrypted, output: output)
+                    try await probeDeferredPassword(encrypted, output: output)
+                }
+                try await probeImmediatePassword(.remove, fixture: encrypted, output: nil)
+            }
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
     #if DEBUG
     private enum ImmediateOperation: String, CaseIterable {
         case deleteStart = "delete_start", deleteEnd = "delete_end", renameSame = "rename_same_length"
@@ -127,6 +151,14 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             document.fileURL = archive
             document.fileType = "public.data"
             document.fileModificationDate = try FileManager.default.attributesOfItem(atPath: archive.path)[.modificationDate] as? Date
+            if let password = fixture.password {
+                let documents = NSDocumentController.shared as? ArchiveDocumentController
+                let recordsRecents = documents?.recordsRecentDocuments
+                documents?.recordsRecentDocuments = false
+                defer { if let recordsRecents { documents?.recordsRecentDocuments = recordsRecents } }
+                // 既知の鍵で開き直し、全件の認証は計測する編集入口に残す。
+                try await document.switchBackingFile(to: archive, password: password)
+            }
             let entries = try await document.projectedEntries()
             let root = await EntryNode.build(from: entries, format: fixture.format.writerFormat, indexingEdits: mode == .immediate)
             let controller = ArchiveWindowController(preferencesStore: store)
@@ -139,6 +171,100 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         } catch {
             await document.prepareForTermination()
             throw error
+        }
+    }
+
+    @MainActor private func probeImmediatePassword(_ action: ArchivePasswordAction, fixture: ArchiveProbeFixture,
+                                                   output: ProbeArchiveEncryption?) async throws {
+        try await withDocument(fixture, mode: .immediate) { document, controller, archive, _ in
+            let session = try XCTUnwrap(document.session)
+            XCTAssertNil(session.entryVerification)
+            let verb: String
+            switch action {
+            case .set: verb = "set"
+            case .change: verb = "change"
+            case .remove: verb = "remove"
+            }
+            let operation = "password_\(verb)_\(fixture.encryption?.rawValue ?? "plain")_to_\(output?.rawValue ?? "plain")"
+            let trace = ArchiveProbeTrace(fixture: fixture, mode: "immediate", operation: operation,
+                                          reportsPasswordVerification: true)
+            try await Self.traced(trace, output: archive) {
+                let result = try await document.updatePassword(action, settings: Self.passwordSettings(output), progress: Progress())
+                XCTAssertNil(result.reloadFailure)
+            }
+            trace.require([.total, .passwordVerification, .commit, .verificationOpen, .entryComparison,
+                           .publish, .reload, .reloadOpen, .capabilityProbe, .treeBuild, .display])
+            trace.requireEditorOpen()
+            XCTAssertEqual(session.hasEncryptedEntries, output != nil)
+            XCTAssertTrue(document.undoManager?.canUndo == true)
+            try await waitForRenameIndex(controller)
+            try await Self.checkPasswordOutput(archive, fixture: fixture, encryption: output)
+        }
+    }
+
+    @MainActor private func probeDeferredPassword(_ fixture: ArchiveProbeFixture, output: ProbeArchiveEncryption) async throws {
+        try await withDocument(fixture, mode: .onSave) { document, _, archive, _ in
+            let session = try XCTUnwrap(document.session)
+            XCTAssertNil(session.entryVerification)
+            let selected = try await node(fixture.firstPath, document: document)
+            let transition = "\(try XCTUnwrap(fixture.encryption).rawValue)_to_\(output.rawValue)"
+            let password = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
+                operation: "reserve_password_change_" + transition, reportsPasswordVerification: true)
+            try await Self.traced(password, output: archive) {
+                let result = try await document.updatePassword(.change, settings: Self.passwordSettings(output), progress: Progress())
+                XCTAssertNil(result.reloadFailure)
+            }
+            password.require([.total, .passwordVerification])
+            let rename = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
+                operation: "reserve_password_rename_" + transition, reportsPasswordVerification: true)
+            try await Self.traced(rename, output: archive) {
+                let result = try await document.rename(selected, to: "renamed.txt", progress: Progress())
+                XCTAssertNil(result.reloadFailure)
+            }
+            rename.require([.total, .passwordVerification])
+            XCTAssertEqual(document.pendingChanges.renames.count, 1)
+            XCTAssertEqual(document.pendingChanges.outputEncryption, Self.passwordSettings(output))
+            let expected = try await document.projectedEntries().map(\.name).sorted()
+            let save = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
+                operation: "save_password_change_" + transition + "_rename", reportsPasswordVerification: true)
+            try await Self.traced(save, output: archive) {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
+                        if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                    }
+                }
+            }
+            save.require([.total, .passwordVerification, .replayPlan, .validateRepresentability, .replay, .commit,
+                          .verificationOpen, .entryComparison, .publish, .reload, .reloadOpen, .capabilityProbe,
+                          .editingInstall, .editingPrepare, .treeBuild, .display])
+            save.requireEditorOpen()
+            XCTAssertNil(document.deferredReloadFailure)
+            XCTAssertTrue(document.pendingChanges.isEmpty)
+            let actual = try await document.projectedEntries().map(\.name).sorted()
+            XCTAssertEqual(actual, expected)
+            try await Self.checkPasswordOutput(archive, fixture: fixture, encryption: output, renamed: true)
+        }
+    }
+
+    private static func passwordSettings(_ encryption: ProbeArchiveEncryption?) -> ArchiveEncryptionSettings {
+        .init(password: encryption == nil ? nil : "probe-updated-key", zipEncryption: encryption?.method ?? .aes256)
+    }
+
+    @concurrent private static func checkPasswordOutput(_ archive: URL, fixture: ArchiveProbeFixture,
+                                                        encryption: ProbeArchiveEncryption?, renamed: Bool = false) async throws {
+        let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder(password: passwordSettings(encryption).password))
+        XCTAssertEqual(reader.entries.count, fixture.entryCount)
+        XCTAssertTrue(reader.entries.allSatisfy { $0.isEncrypted == (encryption != nil) })
+        XCTAssertTrue(reader.entries.allSatisfy { $0.formatSpecific["encryption"] == (encryption?.entryMethod ?? "none") })
+        let first = renamed ? ArchivePath.components(fixture.firstPath).dropLast().joined(separator: "/") + "/renamed.txt" : fixture.firstPath
+        if renamed { XCTAssertFalse(reader.entries.contains { $0.name == fixture.firstPath }) }
+        // 全件の属性と先頭・末尾の本文を計測外で照合する。
+        for (path, payload) in [(first, fixture.kind == .payload), (fixture.lastPath, false)] {
+            let entry = try XCTUnwrap(reader.entries.first { $0.name == path })
+            var data = Data()
+            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { data.append(contentsOf: $0) }
+            let expected = payload ? try ArchiveProbePayload.data(file: 0, size: fixture.payloadMiB * 1_048_576 / 64) : Data([42])
+            XCTAssertEqual(data, expected)
         }
     }
 

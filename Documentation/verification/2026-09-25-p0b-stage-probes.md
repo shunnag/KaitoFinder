@@ -240,3 +240,146 @@ KaitoFinder 1f1ba35 + P0b、GyoshukuKit c0df9fb、KaitoKit b518014。-O・wholem
 書込み MB は proc_pid_rusage のプロセス全体の差分（一時ファイルを含む）。圧縮 tar は開くたびに全体を一時ファイルへ展開するため、
 1 回の編集で rewriter・公開前の検証・再読み込みの 3 回ぶん書く（50 万件の tar.gz で 1.5 GB、本文の tar.bz2 で 0.94 GB）。
 本文の tar.bz2 は 1 回の展開が約 6.3 s（1 スレッド）で、それが 3 回ある。tar.xz と 7z は本文全体の再圧縮（18.3 s、11 s）が大半。
+
+## S1 / P1b 手順 0: パスワード編集の基準用 probe
+
+四つ目の `testArchivePasswordEditsWhenEnabled` を追加した。計測だけで、編集・認証・公開の順序は変えない。
+`KAITOFINDER_PERFORMANCE_PROBES=1` に加えて `KAITOFINDER_PROBE_ENCRYPTION` の指定が必要。
+どちらかが未設定なら fixture を作らず skip する。Release も skip。
+方式は `aes`（AES-256）と `zipcrypto`。カンマ・空白区切り、大文字小文字を区別せず、重複を除く。
+空文字・未知の方式は設定エラー。このテストは ZIP 専用で、`KAITOFINDER_PROBE_FORMATS` による形式の追加はしない。
+
+entries と payload のそれぞれに平文・指定した暗号化方式の fixture を用意する。
+本文は混合本文 v2 の生成処理をそのまま共有する。fixture の版は **v3**、cache key に版と暗号化方式を含める。
+`PROBE-FIXTURE` に `encryption=plain|aes|zipcrypto` を加え、`build_ms` と `fixture_build` を新規作成時だけ出す。
+TSV の fixture 作成操作は平文が `build`、暗号化が `build_aes` / `build_zipcrypto`。
+**50 万件の AES の作成には直列 PBKDF2 が必要で、仕様の事前見積もりは約 152 秒。**
+この値は今回の実測ではない。待ち時間を編集 total に混ぜず、各実行の `build_ms` を記録する。
+
+各操作は新しい fixture コピーを使い、既知の鍵を `document.switchBackingFile` で渡してから測る。
+`preparedPassword` は呼ばず、未認証の状態から `document.updatePassword` を実行する。
+開く・編集準備・項目選択は total の外、undo・公開・再表示は中に含む。
+出力の全件数・暗号化方式・改名、および先頭と末尾の本文は計測外で照合する。
+
+`aes,zipcrypto` を指定した場合、各 fixture で次を測る。
+
+| mode | operation | 操作 |
+|---|---|---|
+| immediate | password_set_plain_to_aes / password_set_plain_to_zipcrypto | 平文にパスワード設定 |
+| immediate | password_change_aes_to_aes / password_change_zipcrypto_to_zipcrypto | 同じ方式で別のパスワードへ変更 |
+| immediate | password_change_aes_to_zipcrypto / password_change_zipcrypto_to_aes | 別のパスワードと方式へ変更 |
+| immediate | password_remove_aes_to_plain / password_remove_zipcrypto_to_plain | パスワード解除 |
+| deferred | reserve_password_change_SOURCE_to_TARGET | パスワード変更の予約 |
+| deferred | reserve_password_rename_SOURCE_to_TARGET | 先頭ファイル 1 件の改名予約 |
+| deferred | save_password_change_SOURCE_to_TARGET_rename | 上の二操作を document.save で保存 |
+
+SOURCE / TARGET は指定した方式の全組合せ。同じ方式・方式替えの両方で保存する。
+保存時モードでは最初のパスワード予約が全件認証を行い、改名予約と保存は同じ世代の認証結果を再利用する。
+従来の順序を保つため、認証を保存へ移していない。初回操作全体は三行の total の和、保存だけは `save_...` の total とする。
+
+TSV は従来の 15 列・version=1 を維持し、operation で入力と出力の方式を識別する。
+
+| stage | 範囲・読み方 |
+|---|---|
+| password_verification | DEBUG の `ArchiveSession.verifyBeforeEditing` 全体。identity 確認・未認証の暗号化 entry の展開と CRC/HMAC 照合・認証済み集合の更新。平文や認証済みでも入口の時間を記録 |
+| total_without_password_verification | パスワード probe だけの派生行。丸める前の total から password_verification の合計を引く。認証を省く実行ではない。I/O は差し引かず NA |
+| updater_open / rewriter_open | 既存の publish 内の editor open。現在のパスワード操作は rewriter_open。publish の前に行う ZIP の門番 open は従来どおり独立した段がなく total に含む |
+| replay / commit / verification_open | 従来と同じ境界。deferred の保存では replay も記録 |
+
+即時編集は total と派生行を直接比較する。保存時モードの初回操作から認証を除く値は三操作の派生行を足す。
+入れ子の段を total に足さない。方式と fixture ごとに同じビルド設定で比較する。
+
+~~~sh
+xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder \
+  -destination 'platform=macOS,arch=arm64' -configuration Debug \
+  -derivedDataPath build/P1bProbeDerivedData \
+  SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule build-for-testing
+
+# 小規模な動作確認。本文 fixture は 64 本 + 1,000 小項目。
+TEST_RUNNER_KAITOFINDER_PERFORMANCE_PROBES=1 \
+TEST_RUNNER_KAITOFINDER_PROBE_ENTRIES=200 \
+TEST_RUNNER_KAITOFINDER_PROBE_PAYLOAD_MIB=8 \
+TEST_RUNNER_KAITOFINDER_PROBE_FORMATS=zip \
+TEST_RUNNER_KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto \
+xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder \
+  -destination 'platform=macOS,arch=arm64' -configuration Debug \
+  -derivedDataPath build/P1bProbeDerivedData -parallel-testing-enabled NO \
+  -only-testing:KaitoFinderTests/PerformanceProbeTests/testArchivePasswordEditsWhenEnabled \
+  SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule test-without-building \
+  > /tmp/kaitofinder-s1-tiny.log 2>&1
+
+# 変更前と P1b 実装後に同じ条件で測る。
+for n in 100000 500000; do
+  TEST_RUNNER_KAITOFINDER_PERFORMANCE_PROBES=1 \
+  TEST_RUNNER_KAITOFINDER_PROBE_ENTRIES=$n \
+  TEST_RUNNER_KAITOFINDER_PROBE_PAYLOAD_MIB=256 \
+  TEST_RUNNER_KAITOFINDER_PROBE_FORMATS=zip \
+  TEST_RUNNER_KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto \
+  xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder \
+    -destination 'platform=macOS,arch=arm64' -configuration Debug \
+    -derivedDataPath build/P1bProbeDerivedData -parallel-testing-enabled NO \
+    -only-testing:KaitoFinderTests/PerformanceProbeTests/testArchivePasswordEditsWhenEnabled \
+    SWIFT_OPTIMIZATION_LEVEL=-O SWIFT_COMPILATION_MODE=wholemodule test-without-building \
+    > /tmp/kaitofinder-p1b-$n.log 2>&1
+done
+rg '^PROBE-(TSV|FIXTURE)' /tmp/kaitofinder-p1b-*.log
+~~~
+
+100k / 500k・256 MiB の変更前後の比較は `Documentation/verification/2026-09-2x-p1b.md` に記録する。
+S1 では再暗号化の実装や受入速度の判定を行わない。
+
+### S1 の実行結果（2026-09-25）
+
+KaitoFinder 2bc9c97 + S1、KaitoKit b518014、GyoshukuKit c0df9fb。
+通常の `build-for-testing` は **未成功**。最適化 Debug の指定で二回試行し、初回は Sparkle の取得時に
+`Could not resolve host: github.com`、既存 checkout と書き込み可能な cache を使った再試行は
+SwiftPM manifest の `sandbox-exec: sandbox_apply: Operation not permitted` で停止した。
+アプリホストによる `test-without-building` は実行していない。
+
+代わりに現行の両ライブラリとアプリの全ソース、probe と実際のテスト補助ファイルを Swift 6 で直接コンパイルした。
+Xcode 27.0 (27A266a)、arm64、**非最適化 Debug**。スタブなし。出力は KaitoFinder の `build/S1Verification` 内だけ。
+入れ子のコンパイラ sandbox を `-disable-sandbox` で無効にし、外側の sandbox 内でコンパイル・実行した。
+この直接ビルドと次の XCTest は成功したが、通常の Xcode ビルドの成功とは扱わない。
+
+| 実行（Xcode 付属 xctest を直接使用） | 設定 | 結果 |
+|---|---|---|
+| testArchivePasswordEditsWhenEnabled | PERFORMANCE_PROBES=1、ENTRIES=200、PAYLOAD_MIB=8、FORMATS=zip、ENCRYPTION=aes,zipcrypto | 1 件成功、60.635 秒 |
+| PerformanceProbeTests 全体 | PERFORMANCE_PROBES と ENCRYPTION を未設定 | 4 件 skip、失敗 0、0.014 秒。fixture / TSV 出力なし |
+| testArchiveEditorsDirectlyWhenEnabled、testArchiveEditsWhenEnabled、testArchivePasswordEditsWhenEnabled | PERFORMANCE_PROBES=1、ENTRIES=200、PAYLOAD_MIB=8、FORMATS=zip、ENCRYPTION 未設定 | 従来の 2 件成功（0.885 秒、7.731 秒）、パスワード probe は skip、失敗 0 |
+
+直接ビルドのコマンド配列とログは同ディレクトリの `*-command.json` / `*-build.log` に保存した。
+小規模パスワード probe の実行コマンドは次のとおり。
+
+~~~sh
+CFFIXED_USER_HOME="$PWD/build/S1Verification/User" \
+DYLD_LIBRARY_PATH="$PWD/build/S1Verification" \
+KAITOFINDER_PERFORMANCE_PROBES=1 KAITOFINDER_PROBE_ENTRIES=200 \
+KAITOFINDER_PROBE_PAYLOAD_MIB=8 KAITOFINDER_PROBE_FORMATS=zip \
+KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto \
+xcrun xctest -XCTest PerformanceProbeTests/testArchivePasswordEditsWhenEnabled \
+  build/S1Verification/S1Probes.xctest > build/S1Verification/tiny.log 2>&1
+~~~
+
+二つの fixture × 即時 8 操作 = 16 操作、保存 4 シナリオ = 8 シナリオ（各 3 段階）を完走。
+パスワード用 TSV は **454 行**。15 列・一意な key・全 status=ok を検査し、全 40 操作行で
+total − password_verification と派生行が丸め誤差内で一致した。24 回の公開はいずれも従来の rewriter_open を通り、
+updater_open は出ていない。保存 8 回は replay も記録。fixture は次の 6 個だけを作った。
+
+| fixture | 暗号 | 入力 byte | 書庫 byte | 作成 ms |
+|---|---|---|---|---|
+| entries / 200 | plain | 200 | 28222 | 16.842 |
+| entries / 200 | aes | 200 | 38222 | 148.734 |
+| entries / 200 | zipcrypto | 200 | 30622 | 34.541 |
+| payload / 1064 | plain | 8389608 | 5297368 | 440.075 |
+| payload / 1064 | aes | 8389608 | 5350568 | 1493.830 |
+| payload / 1064 | zipcrypto | 8389608 | 5310136 | 1032.745 |
+
+従来の二つの probe は 366 TSV 行、共有する平文 fixture は 2 個だけで、cache 再利用も確認した。
+PROBE_ASSERT、開く専用 probe の有効実行、100k / 500k・256 MiB、全回帰テストは実行していない。
+上表は小規模な動作確認であり、最適化ビルドの速度比較基準ではない。両 sibling は無変更、コミットなし。
+
+- [パスワード probe の全 TSV](../../build/S1Verification/tiny.tsv) / [主要段の一覧](../../build/S1Verification/tiny-summary.tsv)
+- [パスワード probe のログ](../../build/S1Verification/tiny.log) / [fixture の情報](../../build/S1Verification/fixtures.log)
+- [TSV の検査結果](../../build/S1Verification/tsv-check.log)
+- [全スイッチ未設定](../../build/S1Verification/skip-all.log) / [従来 probe と ENCRYPTION 未設定](../../build/S1Verification/plain-and-skip.log)
+- [Xcode ビルド初回](../../build/S1Verification/xcode-build.log) / [cache 使用の再試行](../../build/S1Verification/xcode-build-cached.log)

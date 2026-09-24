@@ -8,6 +8,7 @@ nonisolated enum ArchiveStageDiagnostics {
         case replayPlan = "replay_plan", validateRepresentability = "validate_representability"
         case editingInstall = "editing_install", editingPrepare = "editing_prepare", updaterPreparation = "updater_preparation"
         case treeBuild = "tree_build", display, ownerRestoration = "owner_restoration"
+        case passwordVerification = "password_verification"
         case total, remove, fixtureBuild = "fixture_build"
     }
 
