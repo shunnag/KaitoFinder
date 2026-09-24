@@ -14,17 +14,21 @@ import XCTest
     let original: Data
 
     init(format: GyoshukuKit.ArchiveFormat = .zip, behavior: ArchivePreferences.SaveBehavior = .onSave,
-         quarantine: Data? = nil, secondFolder: Bool = false) throws {
+         quarantine: Data? = nil, secondFolder: Bool = false, files: [(String, String)]? = nil) throws {
         directory = try ArchiveTestDirectory()
         defaults = try ArchivePreferencesTestDefaults()
         store = ArchivePreferencesStore(defaults: defaults.defaults)
         store.preferences.saveBehavior = behavior
         archive = directory.url.appendingPathComponent("original." + ArchiveCreationPlan.filenameExtension(for: format))
         let writer = try ArchiveWriter.create(url: archive, format: format)
-        try writer.add(data: Data("A".utf8), as: "a.txt")
-        try writer.add(data: Data("B".utf8), as: "b.txt")
-        try writer.addDirectory("folder")
-        try writer.add(data: Data("child".utf8), as: "folder/child.txt")
+        if let files {
+            for (name, contents) in files { try writer.add(data: Data(contents.utf8), as: name) }
+        } else {
+            try writer.add(data: Data("A".utf8), as: "a.txt")
+            try writer.add(data: Data("B".utf8), as: "b.txt")
+            try writer.addDirectory("folder")
+            try writer.add(data: Data("child".utf8), as: "folder/child.txt")
+        }
         if secondFolder {
             try writer.addDirectory("other")
             try writer.add(data: Data("sibling".utf8), as: "other/sibling.txt")

@@ -26,7 +26,7 @@ nonisolated enum ArchiveCreationTransaction {
         }
         let imported = try ArchiveImportPlan.build(urls: plan.sources, folder: "",
                                                   existing: plan.existing?.entries ?? [], progress: progress,
-                                                  options: plan.importOptions)
+                                                  options: plan.importOptions, format: plan.format)
         guard imported.failures.isEmpty else {
             throw ExtractionFailure.refused(ArchiveFailureReport.describe(imported.failures, name: \.name, reason: \.reason))
         }
@@ -74,7 +74,7 @@ nonisolated enum ArchiveCreationTransaction {
                     try ArchiveSaveReplayPlan.validateRepresentability(pending.projected, format: plan.format)
                 }
                 if existing.volumeLayout != nil, imported.items.isEmpty {
-                    let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init())
+                    let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init(), format: plan.format)
                     _ = try ArchiveSplitWorkProducer.produce(existing: existing, workURL: output, format: plan.format,
                         options: plan.options, plan: replay, progress: progress, didRead: splitHooks.didReadInputBytes)
                 } else if let pending = existing.pending, imported.items.isEmpty,
@@ -130,7 +130,7 @@ nonisolated enum ArchiveCreationTransaction {
         guard plan.sources.isEmpty, let existing = plan.existing,
               ArchiveCreationPlan.hasAcceptedExtension(plan.destination, for: plan.format) else { throw VolumePublishError.invalidPlan }
         try verifySource(existing)
-        let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init())
+        let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init(), format: plan.format)
         try ArchiveSaveReplayPlan.validateRepresentability(replay.projected, format: plan.format)
         let parent = try VolumePublishFS.canonicalParent(of: plan.destination)
         var target = VolumeSetTarget(parent: parent, newSetScheme: .numbered(stem: plan.destination.lastPathComponent, width: 3),

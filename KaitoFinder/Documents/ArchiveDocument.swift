@@ -447,7 +447,7 @@ import Synchronization
                     var baseTree: EntryNode?
                     let revision = self.pendingChanges.revision
                     if self.pendingChanges.isEmpty {
-                        let tree = await EntryNode.build(from: snapshot.entries, indexingEdits: false)
+                        let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
                         guard !Task.isCancelled, !self.closed, self.session === session,
                               session.generation == snapshot.generation else { return }
                         if self.pendingChanges.isEmpty, self.pendingChanges.revision == revision {
@@ -472,7 +472,7 @@ import Synchronization
                     } else { try await self.displayPending() }
                 } catch { if !self.closed, !(error is CancellationError) { self.presentError(error) } }
             } else {
-                let tree = await EntryNode.build(from: snapshot.entries)
+                let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat)
                 guard !self.closed, self.session === session else { return }
                 controller?.display(tree, session: session, generation: snapshot.generation,
                                     materializationController: self.materializationController())
@@ -853,7 +853,7 @@ import Synchronization
             } catch { if !closed { presentError(error) } }
             return
         }
-        let tree = await EntryNode.build(from: snapshot.entries)
+        let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat)
         guard !closed, self.session === session else { return }
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
             controller.display(tree, session: session, generation: snapshot.generation,
@@ -1643,7 +1643,8 @@ extension ArchiveDocument {
             }
             var existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
             try await editor.install(base: existing.entries, generation: generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
-            existing.pending = try await ArchiveSaveReplayPlan.build(base: existing.entries, generation: generation, pending: editor.changes, progress: progress)
+            existing.pending = try await ArchiveSaveReplayPlan.build(base: existing.entries, generation: generation,
+                pending: editor.changes, format: session.reservationFormat, progress: progress)
             existing.publication = publication
             existing.encryption = await deferredEncryptionSettings()
             guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress,

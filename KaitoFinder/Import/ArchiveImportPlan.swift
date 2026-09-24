@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import GyoshukuKit
 import KaitoKit
 
 nonisolated struct ArchiveImportPlan: Sendable {
@@ -29,22 +30,24 @@ nonisolated struct ArchiveImportPlan: Sendable {
     var expectedEntries: [ArchiveEntry]? = nil
     var sourceStamps: [ArchiveImportSourceStamp] = []
 
-    static func path(_ raw: String) throws -> String {
+    static func path(_ raw: String, format: GyoshukuKit.ArchiveFormat = .zip) throws -> String {
         let parts = ArchivePath.components(raw, omittingEmptySubsequences: false)
         guard !parts.isEmpty, !parts.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." }),
-              !raw.utf8.contains(92), !raw.utf8.contains(0), !raw.utf8.contains(58) else {
+              !raw.utf8.contains(0),
+              format.allowsColonsAndBackslashes || (!raw.utf8.contains(92) && !raw.utf8.contains(58)) else {
             throw ExtractionFailure.refused(String(localized: "安全でない追加先パスです: \(raw)。"))
         }
         return raw.precomposedStringWithCanonicalMapping
     }
 
     static func build(urls: [URL], folder: String, existing: [ArchiveEntry], progress: Progress,
-                      options: Options = Options(), occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
-        let target = folder.isEmpty ? "" : try path(folder)
+                      options: Options = Options(), format: GyoshukuKit.ArchiveFormat = .zip,
+                      occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
+        let target = folder.isEmpty ? "" : try path(folder, format: format)
         var occupied = Set<String>(), files = Set<String>()
         for entry in cached == nil ? existing : [] {
             let raw = entry.pathComponents.drop(while: { $0 == "." }).joined(separator: "/")
-            guard let key = try? path(raw) else { continue }
+            guard let key = try? path(raw, format: format) else { continue }
             occupied.insert(key)
             if entry.kind != .directory { files.insert(key) }
             var parts = ArchivePath.components(key)
@@ -63,7 +66,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
             if options.excludes(url) { continue }
             do {
                 guard url.isFileURL else { throw ExtractionFailure.refused(String(localized: "追加元はfile URLが必要です。")) }
-                let leaf = try path(url.lastPathComponent)
+                let leaf = try path(url.lastPathComponent, format: format)
                 let rootPath = target.isEmpty ? leaf : target + "/" + leaf
                 // 仮想フォルダとの衝突も拒否する。フォルダの暗黙の併合は行わない。
                 guard !occupied.contains(rootPath), cached?.containsSubtree(at: rootPath) != true else {
@@ -72,7 +75,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
                 var pending = [(url, rootPath)], batch: [Item] = [], names = Set<String>()
                 while let (source, name) = pending.popLast() {
                     try checkCancellation(progress)
-                    let key = try path(name)
+                    let key = try path(name, format: format)
                     guard names.insert(key).inserted, !occupied.contains(key), cached?.containsSubtree(at: key) != true else {
                         throw ExtractionFailure.refused(String(localized: "同じ名前の項目が既にあります: \(key)。"))
                     }

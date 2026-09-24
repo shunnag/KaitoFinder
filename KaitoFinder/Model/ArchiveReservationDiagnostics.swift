@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum ArchiveReservationDiagnostics {
-    enum Event: Sendable { case planning, importPlanning, sourceVerification, projection, tree, replayPlan, stagingDeletion, conflictItem, updaterPreparation, baseValidation }
+    enum Event: Sendable { case planning, importPlanning, sourceVerification, projection, tree, replayPlan, stagingDeletion, conflictItem, updaterPreparation, baseValidation, fullValidation }
     #if DEBUG
     static let observer = TaskLocal<(@Sendable (Event, Bool) -> Void)?>(wrappedValue: nil)
     #endif

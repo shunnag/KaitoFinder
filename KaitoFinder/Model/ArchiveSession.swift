@@ -325,12 +325,13 @@ actor ArchiveSession {
         let plan: ArchiveImportPlan
         if let resolveConflict {
             plan = try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: reader.entries,
-                archive: sourceURL, generation: expectedGeneration, progress: progress, options: importOptions(), resolver: resolveConflict)
+                archive: sourceURL, generation: expectedGeneration, progress: progress, options: importOptions(),
+                format: reservationFormat, resolver: resolveConflict)
             _ = try requireCurrentReader()
             guard generation == expectedGeneration else { throw ArchiveEditError.staleSelection }
         } else {
             plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
-                                               progress: progress, options: importOptions())
+                                               progress: progress, options: importOptions(), format: reservationFormat)
         }
         let mode = capabilities.mode!
         var result = try publishing { try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
@@ -352,11 +353,11 @@ actor ArchiveSession {
                             progress: progress, willPublish: willPublish)
         }
         let entries = try requireCurrentReader().entries, expectedGeneration = generation
-        let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder)
-        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress)
+        let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder, format: reservationFormat)
+        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress, format: reservationFormat)
         var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
         for selection in selections {
-            let source = try ArchiveImportPlan.path(selection.path)
+            let source = try ArchiveImportPlan.path(selection.path, format: reservationFormat)
             if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
             if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
                 throw ArchiveEditError.destinationInsideSource(source)
@@ -395,7 +396,7 @@ actor ArchiveSession {
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing()
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
-        let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries)
+        let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
         let mode = capabilities.mode!
         var result = try publishing { try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
                                                                options: options(for: mode), password: password, progress: progress,
@@ -423,7 +424,8 @@ actor ArchiveSession {
         }
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing()
-        let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving, existing: reader.entries)
+        let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
+                                             existing: reader.entries, format: reservationFormat)
         let mode = capabilities.mode!
         var result = try publishing { try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                    options: options(for: mode), password: password, progress: progress,
@@ -521,7 +523,8 @@ actor ArchiveSession {
         guard volumeLayout == nil else { throw ArchiveEditError.splitArchive }
         let snapshot = try deferredSnapshot()
         guard snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
-        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending, progress: progress)
+        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
+                                            format: reservationFormat, progress: progress)
         guard !plan.isEmpty else { return .init() }
         var mode = capabilities.mode!
         var output = options(for: mode)
@@ -566,7 +569,8 @@ actor ArchiveSession {
         guard capabilities.splitSave, target.filePresenter != nil,
               target.layout == (try volumeLayout?.publicationLayout()), target.expected == sourceIdentity,
               snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
-        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending, progress: progress)
+        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
+                                            format: reservationFormat, progress: progress)
         var mode = capabilities.mode!, output = options(for: capabilities.mode!)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }

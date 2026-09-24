@@ -1,4 +1,5 @@
 import Foundation
+import GyoshukuKit
 import KaitoKit
 
 /// 表示用の名前とは別に、展開時に必要となる元のエントリを保持する。
@@ -43,11 +44,13 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         compressedSize = entry?.compressedSize
     }
 
-    @concurrent static func build(from entries: [ArchiveEntry], indexingEdits: Bool = true) async -> EntryNode {
-        tree(from: entries, indexingEdits: indexingEdits)
+    @concurrent static func build(from entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip,
+                                  indexingEdits: Bool = true) async -> EntryNode {
+        tree(from: entries, format: format, indexingEdits: indexingEdits)
     }
 
-    static func tree(from entries: [ArchiveEntry], indexingEdits: Bool = false) -> EntryNode {
+    static func tree(from entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip,
+                     indexingEdits: Bool = false) -> EntryNode {
         ArchiveReservationDiagnostics.record(.tree)
         let root = EntryNode(name: "", isDirectory: true)
         root.archiveEntries = entries
@@ -56,7 +59,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         var occupancy: ArchivePathOccupancy? = indexingEdits ? .init() : nil
         for entry in entries {
             if occupancy != nil {
-                if let normalized = try? ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory),
+                if let normalized = try? ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory, format: format),
                    normalized.utf8.elementsEqual(entry.name.utf8),
                    entry.pathComponents.joined(separator: "/") == ArchiveEditPlan.key(entry.name) {
                     occupancy!.insert(ArchiveEditPlan.key(entry.name), directory: entry.kind == .directory)

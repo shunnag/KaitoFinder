@@ -16,7 +16,7 @@ nonisolated struct ArchiveReservationValidation: Sendable {
         do {
             for entry in base {
                 guard entry.kind != .hardlink,
-                      try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory)
+                      try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory, format: format)
                         .utf8.elementsEqual(entry.name.utf8),
                       entry.pathComponents.joined(separator: "/") == ArchiveEditPlan.key(entry.name) else {
                     occupancy = nil
@@ -32,13 +32,13 @@ nonisolated struct ArchiveReservationValidation: Sendable {
     func context(for pending: ArchivePendingChanges) -> ArchivePathOccupancy.Overlay? {
         guard let occupancy else { return nil }
         for (reference, path) in pending.renames where !pending.removals.contains(reference) {
-            guard (try? ArchiveEditPlan.normalizedPath(path, directory: base[reference.index].kind == .directory)) != nil else { return nil }
+            guard (try? ArchiveEditPlan.normalizedPath(path, directory: base[reference.index].kind == .directory, format: format)) != nil else { return nil }
         }
         for addition in pending.additions {
-            guard (try? ArchiveEditPlan.normalizedPath(addition.path, directory: addition.sourceStamp.kind == .directory)) != nil else { return nil }
+            guard (try? ArchiveEditPlan.normalizedPath(addition.path, directory: addition.sourceStamp.kind == .directory, format: format)) != nil else { return nil }
         }
         for folder in pending.createdFolders {
-            guard (try? ArchiveEditPlan.normalizedPath(folder.path, directory: true)) != nil else { return nil }
+            guard (try? ArchiveEditPlan.normalizedPath(folder.path, directory: true, format: format)) != nil else { return nil }
         }
         var result = ArchivePathOccupancy.Overlay(occupancy)
         for reference in pending.removals {
@@ -82,12 +82,14 @@ nonisolated struct ArchiveReservationValidation: Sendable {
     }
 
     static func validateFull(_ entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat) throws {
+        ArchiveReservationDiagnostics.record(.fullValidation)
         try ArchiveSaveReplayPlan.validateRepresentability(entries, format: format)
     }
 }
 
 nonisolated struct ArchiveReservationState: Sendable {
     let revision: UInt64
+    let format: GyoshukuKit.ArchiveFormat
     let projection: ArchivePendingProjection
     let occupancy: ArchivePathOccupancy.Overlay?
     let reading: ArchivePendingReadSnapshot
@@ -110,7 +112,7 @@ nonisolated struct ArchiveReservationState: Sendable {
         if checksCancellation { try Task.checkCancellation() }
         let occupancy = validation.context(for: changes)
         let tree = sameEntries && reusing != nil ? reusing!.tree
-            : (changes.isEmpty ? baseTree : nil) ?? EntryNode.tree(from: projection.entries)
+            : (changes.isEmpty ? baseTree : nil) ?? EntryNode.tree(from: projection.entries, format: validation.format)
         let subtrees: ArchiveEntryPayload.SubtreeIndex
         if sameEntries, let reusing { subtrees = reusing.reading.subtrees }
         else if occupancy != nil { subtrees = .init(entries: projection.entries, components: { $0.pathComponents }) }
@@ -120,7 +122,7 @@ nonisolated struct ArchiveReservationState: Sendable {
         let filters = Dictionary(uniqueKeysWithValues: configurations.map { configuration in
             (configuration, EntryTreeFilter(root: tree, query: configuration.query, showsHiddenFiles: configuration.showsHiddenFiles))
         })
-        return try Self(revision: changes.revision, projection: projection, occupancy: occupancy,
+        return try Self(revision: changes.revision, format: validation.format, projection: projection, occupancy: occupancy,
             reading: .init(base: base, generation: generation, changes: changes, staging: staging, projection: projection, subtrees: subtrees),
             tree: tree, filters: filters, changesDiffer: previous.map { comparable != $0 } ?? true)
     }

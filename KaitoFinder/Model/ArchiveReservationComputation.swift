@@ -10,7 +10,7 @@ nonisolated enum ArchiveReservationComputation {
         let plan = try ArchiveEditPlan.build(removing: removing.map { try projection.selection($0) },
             renaming: renaming.map { .init(selection: try projection.selection($0.selection), name: $0.name) },
             moving: moving.map { .init(selection: try projection.selection($0.selection), folder: $0.folder) },
-            existing: projection.planningEntries, occupancy: state.occupancy)
+            existing: projection.planningEntries, format: state.format, occupancy: state.occupancy)
         return apply(plan, state: state, changes: changes, base: base, generation: generation)
     }
 
@@ -28,7 +28,7 @@ nonisolated enum ArchiveReservationComputation {
     @concurrent static func folder(in folder: String, baseName: String, state: ArchiveReservationState,
                                   changes: ArchivePendingChanges) async throws -> (ArchivePendingChanges, ArchiveImportResult) {
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: state.projection.planningEntries,
-                                                 occupancy: state.occupancy)
+                                                 format: state.format, occupancy: state.occupancy)
         var next = changes
         next.createdFolders.append(.init(id: UUID(), path: plan.path))
         return (next, ArchiveImportResult(addedPaths: [plan.path], failures: []))
@@ -40,20 +40,20 @@ nonisolated enum ArchiveReservationComputation {
         ArchiveReservationDiagnostics.record(.importPlanning)
         if let resolver {
             return try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: state.projection.planningEntries,
-                archive: archive, generation: state.reading.generation, progress: progress, options: options,
+                archive: archive, generation: state.reading.generation, progress: progress, options: options, format: state.format,
                 itemProvider: { entries, path in
                     try conflictItem(entries.map { state.projection.entries[$0.index] }, path: path, state: state, archive: archive)
                 }, occupancy: state.occupancy, resolver: resolver)
         }
         return try ArchiveImportPlan.build(urls: urls, folder: folder, existing: state.projection.planningEntries,
-                                           progress: progress, options: options, occupancy: state.occupancy)
+                                           progress: progress, options: options, format: state.format, occupancy: state.occupancy)
     }
 
     @concurrent static func append(_ plan: ArchiveImportPlan, additions: [ArchivePendingChanges.PendingAddition],
                                   state: ArchiveReservationState, changes: ArchivePendingChanges,
                                   base: [ArchiveEntry], generation: UInt64) async -> ArchivePendingChanges {
         let removals = plan.replacingEntries.map { ArchiveEditPlan.Entry(state.projection.planningEntries[$0]) }
-        var next = ArchivePendingEditor.applying(.init(removals: removals, renames: [], existing: state.projection.planningEntries),
+        var next = ArchivePendingEditor.applying(.init(removals: removals, renames: [], existing: state.projection.planningEntries, format: state.format),
             projection: state.projection, changes: changes, base: base, generation: generation)
         next.additions += additions
         return next
@@ -63,12 +63,13 @@ nonisolated enum ArchiveReservationComputation {
                                 changes: ArchivePendingChanges, base: [ArchiveEntry], archive: URL, generation: UInt64,
                                 progress: Progress, resolver: ArchiveImportConflict.Resolver) async throws -> (ArchivePendingChanges, ArchiveEditResult) {
         let projection = state.projection
-        let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder)
-        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: projection.planningEntries, progress: progress, occupancy: state.occupancy)
+        let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder, format: state.format)
+        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: projection.planningEntries,
+                                       progress: progress, format: state.format, occupancy: state.occupancy)
         var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
         for selection in selections {
             let mapped = try projection.selection(selection)
-            let source = try ArchiveImportPlan.path(selection.path)
+            let source = try ArchiveImportPlan.path(selection.path, format: state.format)
             if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
             if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
                 throw ArchiveEditError.destinationInsideSource(source)
@@ -87,7 +88,7 @@ nonisolated enum ArchiveReservationComputation {
         let removals = resolution.replaced.map { ArchiveEditSelection(path: $0.name, isDirectory: false, entries: [$0]) }
         let plan = try ArchiveEditPlan.build(removing: removals, renaming: [],
             moving: resolution.accepted.map { .init(selection: moving[$0], folder: target) },
-            existing: projection.planningEntries, occupancy: state.occupancy)
+            existing: projection.planningEntries, format: state.format, occupancy: state.occupancy)
         return apply(plan, state: state, changes: changes, base: base, generation: generation)
     }
 

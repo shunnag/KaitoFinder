@@ -1,4 +1,5 @@
 import Foundation
+import GyoshukuKit
 import KaitoKit
 
 @MainActor final class ArchiveRenameValidation {
@@ -9,15 +10,18 @@ import KaitoKit
     }
     private let selection: Result<ArchiveEditSelection, any Error>
     private let entries: [ArchiveEntry]
+    private let format: GyoshukuKit.ArchiveFormat
     private let occupancy: ArchivePathOccupancy.Overlay?
     private var cached: [Name: Result<ArchiveEditPlan, any Error>] = [:]
     private(set) var validationCount = 0
     private(set) var lastValidationMilliseconds = 0.0
 
-    init(selection: ArchiveEditSelection, entries: [ArchiveEntry], state: ArchiveReservationState? = nil,
+    init(selection: ArchiveEditSelection, entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip,
+         state: ArchiveReservationState? = nil,
          occupancy: ArchivePathOccupancy.Overlay? = nil) {
         self.selection = Result { try state?.projection.selection(selection) ?? selection }
         self.entries = state?.projection.planningEntries ?? entries
+        self.format = state?.format ?? format
         self.occupancy = state?.occupancy ?? occupancy
     }
 
@@ -30,7 +34,7 @@ import KaitoKit
         let result = Result {
             try ArchiveEditPlan.build(removing: [],
                 renaming: [.init(selection: try selection.get(), name: name)],
-                existing: entries, occupancy: occupancy)
+                existing: entries, format: format, occupancy: occupancy)
         }
         let elapsed = start.duration(to: .now).components
         lastValidationMilliseconds = Double(elapsed.seconds) * 1_000 + Double(elapsed.attoseconds) / 1e15

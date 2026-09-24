@@ -1067,7 +1067,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let entries = root.archiveEntries
         let selection = ArchiveEditSelection(node)
         let prepared = (document as? ArchiveDocument)?.pendingEditor?.prepared
-        let validation = ArchiveRenameValidation(selection: selection, entries: entries, state: prepared, occupancy: root.editOccupancy)
+        let validation = ArchiveRenameValidation(selection: selection, entries: entries,
+            format: archiveSession?.reservationFormat ?? .zip, state: prepared, occupancy: root.editOccupancy)
         renameValidation = validation
         let expectedRevision = prepared?.revision
         let expectedSession = archiveSession.map(ObjectIdentifier.init)
@@ -1476,7 +1477,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             do {
                 let sources: [URL]
-                if let incoming { sources = try await incoming.receive(progress: progress) }
+                if let incoming { sources = try await incoming.receive(progress: progress, format: session.reservationFormat) }
                 else { sources = urls }
                 guard let resolver = self?.conflictResolver(on: window, session: session, sheet: sheet,
                                                           incoming: incoming, incomingLocation: incomingLocation) else { throw CancellationError() }

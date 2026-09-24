@@ -14,11 +14,12 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
     var isEmpty: Bool { edits.removals.isEmpty && edits.renames.isEmpty && additions.isEmpty && folders.isEmpty && outputEncryption == nil }
 
     @concurrent static func build(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges,
-                                  progress: Progress = Progress()) async throws -> Self {
-        try Self(base: base, generation: generation, pending: pending, progress: progress)
+                                  format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress()) async throws -> Self {
+        try Self(base: base, generation: generation, pending: pending, format: format, progress: progress)
     }
 
-    init(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges, progress: Progress = Progress()) throws {
+    init(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges,
+         format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress()) throws {
         ArchiveReservationDiagnostics.record(.replayPlan)
         let projected = try pending.projection(base: base, generation: generation)
         self.projected = projected
@@ -26,7 +27,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         let survivors = projected.filter { $0.pendingID == nil }
         var desired: [Int: String] = [:]
         for entry in survivors where ArchiveEditPlan.key(entry.name) != ArchiveEditPlan.key(base[entry.index].name) {
-            desired[entry.index] = try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory)
+            desired[entry.index] = try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory, format: format)
         }
         // 最終形の検査を先に行い、解決不能な衝突を一時名で隠さない。
         var final = ArchivePathOccupancy()
@@ -34,7 +35,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             final.insert(ArchiveEditPlan.key(entry.name), directory: entry.kind == .directory)
         }
         for entry in projected where entry.pendingID != nil || desired[entry.index] != nil {
-            let path = try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory)
+            let path = try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory, format: format)
             guard !final.collides(ArchiveEditPlan.key(path), directory: entry.kind == .directory) else {
                 throw ArchiveEditError.collision(path)
             }
@@ -110,7 +111,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             }
         }
         renamePasses = passes
-        edits = ArchiveEditPlan(removals: removed.sorted().map { .init(base[$0]) }, renames: ordered, existing: base)
+        edits = ArchiveEditPlan(removals: removed.sorted().map { .init(base[$0]) }, renames: ordered, existing: base, format: format)
         additions = pending.additions
         folders = pending.createdFolders
         outputEncryption = pending.outputEncryption

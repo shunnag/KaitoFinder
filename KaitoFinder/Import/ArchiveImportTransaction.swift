@@ -102,9 +102,18 @@ nonisolated struct ArchiveEditPlan: Sendable {
     let removals: [Entry]
     let renames: [Rename]
     let existing: [ArchiveEntry]
+    let format: GyoshukuKit.ArchiveFormat
+
+    init(removals: [Entry], renames: [Rename], existing: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip) {
+        self.removals = removals
+        self.renames = renames
+        self.existing = existing
+        self.format = format
+    }
 
     static func build(removing selections: [ArchiveEditSelection], renaming: [ArchiveEditRename],
                       moving: [ArchiveEditMove] = [], existing: [ArchiveEntry],
+                      format: GyoshukuKit.ArchiveFormat = .zip,
                       occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
         // 実体のない親フォルダも移動先になる。ファイルを親として扱うことはない。
         var folders: Set<String> = [], files: Set<String> = []
@@ -182,7 +191,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
                         path = renamed
                     }
                 } else { path = destination }
-                let normalized = try normalizedPath(path, directory: entry.kind == .directory)
+                let normalized = try normalizedPath(path, directory: entry.kind == .directory, format: format)
                 if !entry.name.utf8.elementsEqual(normalized.utf8) {
                     changes.append(Rename(entry: Entry(entry), path: normalized))
                 }
@@ -191,7 +200,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
         for change in renaming {
             let selection = change.selection
             try validate(selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
-            let leaf = try leafName(change.name)
+            let leaf = try leafName(change.name, format: format)
             let parent = ArchivePath.components(selection.path).dropLast().joined(separator: "/")
             try rename(selection, to: parent.isEmpty ? leaf : parent + "/" + leaf)
         }
@@ -199,7 +208,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             try validate(move.selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
             try rename(move.selection, to: move.destination)
         }
-        let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing)
+        let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing, format: format)
         try plan.validate(entries: existing, occupancy: cached)
         return plan
     }
@@ -262,7 +271,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             guard !removed.contains(change.entry.index), renamed.insert(change.entry.index).inserted || allowsRepeatedRenames else {
                 throw ArchiveEditError.conflictingSelection
             }
-            let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory)
+            let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory, format: format)
             let key = Self.key(path)
             // updater は予約順で衝突を調べる。最終形だけでなく途中の全予約も先に検証する。
             if let previous = names[change.entry.index] ?? (cached == nil ? nil : Self.key(change.entry.expectedName)) {
@@ -275,7 +284,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             occupied.insert(key, directory: change.entry.isDirectory)
         }
         for addition in additions {
-            let path = try Self.normalizedPath(addition.path, directory: addition.isDirectory)
+            let path = try Self.normalizedPath(addition.path, directory: addition.isDirectory, format: format)
             let key = Self.key(path)
             guard !occupied.collides(key, directory: addition.isDirectory) else { throw ArchiveEditError.collision(path) }
             occupied.insert(key, directory: addition.isDirectory)
@@ -314,18 +323,19 @@ nonisolated struct ArchiveEditPlan: Sendable {
         return displayed == "." ? "" : displayed
     }
 
-    static func leafName(_ name: String) throws -> String {
+    static func leafName(_ name: String, format: GyoshukuKit.ArchiveFormat = .zip) throws -> String {
         guard !name.utf8.contains(47) else { throw ArchiveEditError.invalidName(name) }
-        return try normalizedPath(name, directory: false)
+        return try normalizedPath(name, directory: false, format: format)
     }
 
-    static func normalizedPath(_ path: String, directory: Bool) throws -> String {
+    static func normalizedPath(_ path: String, directory: Bool, format: GyoshukuKit.ArchiveFormat = .zip) throws -> String {
         var name = path.precomposedStringWithCanonicalMapping
         if directory && !name.hasSuffix("/") { name += "/" }
         let body = directory ? String(name.dropLast()) : name
         let parts = ArchivePath.components(body, omittingEmptySubsequences: false)
         // writer と同じ制約を公開前に説明する。長い親パスを含む子孫も例外にしない。
-        guard !body.isEmpty, !body.utf8.contains(0), !body.utf8.contains(92), !body.utf8.contains(58),
+        guard !body.isEmpty, !body.utf8.contains(0),
+              format.allowsColonsAndBackslashes || (!body.utf8.contains(92) && !body.utf8.contains(58)),
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
               name.utf8.count <= Int(UInt16.max) else { throw ArchiveEditError.invalidName(path) }
         return name
@@ -337,9 +347,10 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
     let existing: [ArchiveEntry]
 
     static func build(in folder: String, baseName: String, existing: [ArchiveEntry],
+                      format: GyoshukuKit.ArchiveFormat = .zip,
                       occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
-        let base = try ArchiveEditPlan.leafName(baseName)
-        let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false)
+        let base = try ArchiveEditPlan.leafName(baseName, format: format)
+        let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false, format: format)
         var occupied: Set<String> = [], directories: Set<String> = [], files: Set<String> = []
         for entry in cached == nil ? existing : [] {
             let parts = ArchivePath.components(ArchiveEditPlan.key(entry.name), omittingEmptySubsequences: false)
@@ -360,7 +371,7 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
         }
         var name = base, number = 2
         while true {
-            let path = try ArchiveEditPlan.normalizedPath(parent.isEmpty ? name : parent + "/" + name, directory: true)
+            let path = try ArchiveEditPlan.normalizedPath(parent.isEmpty ? name : parent + "/" + name, directory: true, format: format)
             if !(cached?.containsSubtree(at: ArchiveEditPlan.key(path)) ?? occupied.contains(ArchiveEditPlan.key(path))) { return Self(path: path, existing: existing) }
             // 仮想フォルダや表示から隠れた兄弟も予約済み。Finder と同じ空白付き連番で避ける。
             name = String(localized: "\(base) \(number)")

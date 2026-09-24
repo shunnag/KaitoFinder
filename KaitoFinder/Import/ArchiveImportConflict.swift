@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import GyoshukuKit
 import KaitoKit
 
 nonisolated struct ArchiveConflictDecision: Sendable {
@@ -200,18 +201,18 @@ nonisolated enum ArchiveConflictResolution {
 
 extension ArchiveImportPlan {
     @concurrent static func resolving(urls: [URL], folder: String, existing: [ArchiveEntry], archive: URL, generation: UInt64,
-                          progress: Progress, options: Options,
+                          progress: Progress, options: Options, format: GyoshukuKit.ArchiveFormat = .zip,
                           existingItems: [String: ArchiveConflictItem] = [:],
                           itemProvider: ArchiveConflictResolution.ItemProvider? = nil,
                           occupancy: ArchivePathOccupancy.Overlay? = nil,
                           resolver: ArchiveImportConflict.Resolver) async throws -> Self {
-        let target = folder.isEmpty ? "" : try path(folder)
+        let target = folder.isEmpty ? "" : try path(folder, format: format)
         // 既存と同じ規則で追加先の実在・ファイル祖先を検証する。
-        _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options, occupancy: occupancy)
+        _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options, format: format, occupancy: occupancy)
         var batches: [[Item]] = [], stamps: [[ArchiveImportSourceStamp]] = []
         var candidates: [ArchiveConflictResolution.Candidate] = [], failures: [Failure] = []
         for url in urls {
-            let scanned = try build(urls: [url], folder: "", existing: [], progress: progress, options: options)
+            let scanned = try build(urls: [url], folder: "", existing: [], progress: progress, options: options, format: format)
             failures.append(contentsOf: scanned.failures)
             guard let root = scanned.items.first else { continue }
             let items = scanned.items.map {
