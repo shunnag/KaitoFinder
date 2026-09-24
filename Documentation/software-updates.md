@@ -77,6 +77,7 @@ python3 Tools/prepare_update.py \
 初回フィードを公開するまでは、GitHub の更新URLは利用できず、手動確認では取得エラーになる。
 初回リリース 0.1.0 (build 2) は 2026-09-19 に公開済み（`verification/2026-09-19-release-review.md` の「初回リリース」節）。
 0.2.0 (build 3) は 2026-09-22 に公開済み（`verification/2026-09-22-kaitokit-0.8.0.md` の「リリース 0.2.0 (3) の公開結果」節）。
+0.3.0 (build 4) は 2026-09-24 に公開済み（`verification/2026-09-24-release-0.3.0.md`）。
 
 ## ローカルの検証
 
