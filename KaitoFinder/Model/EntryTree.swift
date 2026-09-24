@@ -2,7 +2,7 @@ import Foundation
 import KaitoKit
 
 /// 表示用の名前とは別に、展開時に必要となる元のエントリを保持する。
-final class EntryNode: NSObject {
+nonisolated final class EntryNode: NSObject {
     let name: String
     private(set) var path: String = ""
     let isDirectory: Bool
@@ -65,6 +65,10 @@ final class EntryNode: NSObject {
             node.compressedSize = sum(node.children.map(\.compressedSize))
         }
         return root
+    }
+
+    @concurrent static func buildTree(from entries: [ArchiveEntry]) async -> sending EntryNode {
+        tree(from: entries)
     }
 
     private func directory(named name: String, nodes: inout [EntryNode]) -> EntryNode {

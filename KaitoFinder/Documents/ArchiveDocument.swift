@@ -5,14 +5,83 @@ import Synchronization
 
 @MainActor final class ArchiveDocument: NSDocument {
     // NSDocument の読み込みは非隔離なので、actor 参照の受け渡しだけをロックする。
-    nonisolated private enum Contents: Sendable {
+    nonisolated fileprivate enum Contents: Sendable {
         case empty, locked(URL), open(ArchiveSession), closed
     }
     nonisolated private let contentsStorage = Mutex<Contents>(.empty)
     // セッションが文書を保持せずに、通知で更新した設定だけを worker から読めるようにする。
-    nonisolated private final class PreferencesSnapshot: Sendable {
+    nonisolated fileprivate final class PreferencesSnapshot: Sendable {
         let value: Mutex<ArchivePreferences>
         init(_ preferences: ArchivePreferences) { value = Mutex(preferences) }
+    }
+    nonisolated fileprivate final class OpeningPreferences: Sendable {
+        let snapshot: Mutex<PreferencesSnapshot>
+        init(_ preferences: ArchivePreferences) { snapshot = Mutex(PreferencesSnapshot(preferences)) }
+        func writerOptions(_ format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
+            snapshot.withLock { $0 }.value.withLock { $0.writerOptions(for: format) }
+        }
+        func importOptions() -> ArchiveImportPlan.Options {
+            snapshot.withLock { $0 }.value.withLock { $0.importOptions }
+        }
+    }
+
+    // makeDocument の同期呼び出し内だけで渡し、revert や直接の read には渡さない。
+    @TaskLocal nonisolated static var preopenedArchive: Result<PreopenedArchive, NSError>?
+
+    nonisolated final class PreopenedArchive: Sendable {
+        private let contents: Mutex<Contents?>
+        private let url: URL
+        private let identity: ArchiveSetIdentity
+        private let layout: ArchiveVolumeLayout?
+        private let saveBehavior: ArchivePreferences.SaveBehavior
+        private let metadataStore: ArchiveVolumeMetadataStore
+        private let recoveryIndex: RecoverableWorkIndex
+        private let preferences: OpeningPreferences
+
+        fileprivate init(contents: Contents, url: URL, identity: ArchiveSetIdentity, layout: ArchiveVolumeLayout?,
+                         saveBehavior: ArchivePreferences.SaveBehavior, metadataStore: ArchiveVolumeMetadataStore,
+                         recoveryIndex: RecoverableWorkIndex, preferences: OpeningPreferences) {
+            self.contents = Mutex(contents)
+            self.url = url
+            self.identity = identity
+            self.layout = layout
+            self.saveBehavior = saveBehavior
+            self.metadataStore = metadataStore
+            self.recoveryIndex = recoveryIndex
+            self.preferences = preferences
+        }
+
+        fileprivate func adopt(into document: ArchiveDocument, from url: URL) -> Contents? {
+            guard ArchiveSplitVolume.gateURL(for: url).standardizedFileURL == self.url.standardizedFileURL,
+                  document.saveBehavior == saveBehavior,
+                  document.volumeMetadataStore === metadataStore, document.volumeRecoveryIndex === recoveryIndex,
+                  (try? ArchiveSetIdentity.capture(url: self.url, layout: layout)) == identity else { return nil }
+            return contents.withLock { value in
+                guard let result = value else { return nil }
+                preferences.snapshot.withLock { $0 = document.preferencesSnapshot }
+                value = nil
+                return result
+            }
+        }
+
+        func close() async {
+            let unused = contents.withLock { value in
+                let result = value
+                value = nil
+                return result
+            }
+            if case .open(let session) = unused { await session.close() }
+        }
+
+        #if DEBUG
+        var sessionForTesting: ArchiveSession? {
+            contents.withLock { if case .open(let session) = $0 { session } else { nil } }
+        }
+        #endif
+
+        deinit {
+            if case .open(let session) = contents.withLock({ $0 }) { Task { await session.close() } }
+        }
     }
     nonisolated private let preferencesSnapshot: PreferencesSnapshot
     nonisolated let saveBehavior: ArchivePreferences.SaveBehavior
@@ -191,21 +260,22 @@ import Synchronization
         if let recovery = try ArchiveVolumeOpenRecovery.discover(url, index: volumeRecoveryIndex, metadataStore: volumeMetadataStore) {
             throw ArchiveVolumeOpenError(recovery: recovery).presentedError
         }
+        // 失敗も read から返し、AppKit のエラー整形を保つ。
+        let preopened = try Self.preopenedArchive?.get()
         // super は NSFileWrapper 経由で全体を読み込むため呼ばない。
         let contents: Contents
-        do { contents = .open(try ArchiveSession(url: url, allowsSplitSave: saveBehavior == .onSave, allowsImmediateSplitSave: saveBehavior == .immediate,
-            volumeMetadataStore: volumeMetadataStore, writerOptions: sessionWriterOptions, importOptions: sessionImportOptions)) }
+        do {
+            if let adopted = preopened?.adopt(into: self, from: url) { contents = adopted }
+            else {
+                contents = .open(try ArchiveSession(url: url, allowsSplitSave: saveBehavior == .onSave, allowsImmediateSplitSave: saveBehavior == .immediate,
+                    volumeMetadataStore: volumeMetadataStore, writerOptions: sessionWriterOptions, importOptions: sessionImportOptions))
+            }
+        }
         catch KaitoError.passwordRequired {
             // AppKit の並行 read では UI を出せない。URL だけを渡し、window 側で解除する。
             contents = .locked(url)
         } catch let error as CancellationError { throw error }
-        catch {
-            throw NSError(domain: "com.shunnag.KaitoFinder.document", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: String(localized: "アーカイブを開けませんでした"),
-                NSLocalizedFailureReasonErrorKey: ArchiveAlertText.informativeText(ArchiveErrorText.describe(error)),
-                NSUnderlyingErrorKey: error as NSError
-            ])
-        }
+        catch { throw Self.openingError(error) }
         if saveBehavior == .onSave, case .open(let session) = contents { session.setPendingReadSnapshot(nil) }
         let installed = contentsStorage.withLock { state in
             if case .closed = state { return false }
@@ -213,6 +283,58 @@ import Synchronization
             return true
         }
         if !installed, case .open(let session) = contents { Task { await session.close() } }
+    }
+
+    nonisolated static func openingError(_ error: any Error) -> NSError {
+        NSError(domain: "com.shunnag.KaitoFinder.document", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: String(localized: "アーカイブを開けませんでした"),
+            NSLocalizedFailureReasonErrorKey: ArchiveAlertText.informativeText(ArchiveErrorText.describe(error)),
+            NSUnderlyingErrorKey: error as NSError
+        ])
+    }
+
+    @concurrent static func preopen(_ url: URL, preferences: ArchivePreferences,
+                                    metadataStore: ArchiveVolumeMetadataStore,
+                                    recoveryIndex: RecoverableWorkIndex) async throws -> PreopenedArchive {
+        let options = OpeningPreferences(preferences)
+        do {
+            let contents: Contents
+            let identity: ArchiveSetIdentity
+            let layout: ArchiveVolumeLayout?
+            do {
+                let session = try await openArchive(url, password: nil, writerOptions: { options.writerOptions($0) },
+                    importOptions: { options.importOptions() }, allowsSplitSave: preferences.saveBehavior == .onSave,
+                    allowsImmediateSplitSave: preferences.saveBehavior == .immediate, volumeMetadataStore: metadataStore)
+                contents = .open(session)
+                identity = await session.sourceIdentity
+                layout = session.volumeLayout
+            } catch KaitoError.passwordRequired {
+                contents = .locked(url)
+                layout = try lockedVolumeLayout(url)
+                identity = try ArchiveSetIdentity.capture(url: url, layout: layout)
+            }
+            let opened = PreopenedArchive(contents: contents, url: url, identity: identity, layout: layout,
+                saveBehavior: preferences.saveBehavior, metadataStore: metadataStore, recoveryIndex: recoveryIndex,
+                preferences: options)
+            if Task.isCancelled { await opened.close(); throw CancellationError() }
+            return opened
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw openingError(error) }
+    }
+
+    nonisolated private static func lockedVolumeLayout(_ url: URL) throws -> ArchiveVolumeLayout? {
+        guard let parsed = ArchiveVolumeSet.parse(fileName: url.lastPathComponent),
+              case .numbered = parsed.scheme else { return nil }
+        let members = try FileManager.default.contentsOfDirectory(at: url.deletingLastPathComponent(),
+            includingPropertiesForKeys: nil).compactMap { member -> (Int, URL)? in
+                guard let part = ArchiveVolumeSet.parse(fileName: member.lastPathComponent),
+                      part.scheme == parsed.scheme else { return nil }
+                return (part.index, member)
+            }.sorted { $0.0 < $1.0 }
+        guard !members.isEmpty else { return nil }
+        return try ArchiveVolumeLayout(scheme: parsed.scheme, volumes: members.map { _, member in
+            .init(url: member, length: try ArchiveSetIdentity.capture(url: member).volumes[0].size)
+        }, openedVolumeIndex: 0)
     }
 
     func unlockUsingRememberedPassword() async throws -> Bool {
@@ -318,17 +440,31 @@ import Synchronization
         }
         loadingTask = Task { [weak self, weak controller] in
             let snapshot = await session.snapshot()
-            guard !Task.isCancelled, let self else { return }
-            if self.saveBehavior == .onSave {
-                do {
-                    try self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation)
-                    try self.displayPending()
-                } catch { self.presentError(error) }
-            } else {
-                controller?.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
+            guard !Task.isCancelled, let self, !self.closed, self.session === session else { return }
+            do {
+                let pending: ArchivePendingReadSnapshot?
+                if let editor = self.pendingEditor {
+                    try editor.install(base: snapshot.entries, generation: snapshot.generation)
+                    pending = try await Self.initialPendingSnapshot(base: snapshot.entries, generation: snapshot.generation,
+                        changes: editor.changes, staging: editor.staging)
+                } else { pending = nil }
+                let root = await EntryNode.buildTree(from: pending?.entries ?? snapshot.entries)
+                guard !Task.isCancelled, !self.closed, self.session === session,
+                      session.generation == snapshot.generation,
+                      pending == nil || self.pendingEditor?.changes.revision == pending?.revision else { return }
+                if let pending { session.setPendingReadSnapshot(pending) }
+                controller?.display(root, session: session, generation: snapshot.generation,
                                     materializationController: self.materializationController())
+            } catch {
+                if !Task.isCancelled, !self.closed { self.presentError(error) }
             }
         }
+    }
+
+    @concurrent private static func initialPendingSnapshot(base: [ArchiveEntry], generation: UInt64,
+        changes: ArchivePendingChanges, staging: StagingRegistry.Lease?) async throws -> ArchivePendingReadSnapshot {
+        try Task.checkCancellation()
+        return try ArchivePendingReadSnapshot(base: base, generation: generation, changes: changes, staging: staging)
     }
 
     func append(urls: [URL], to folder: String, progress: Progress,
