@@ -230,7 +230,9 @@ final class ExtractionProgressSheet: NSWindowController {
         if indeterminate { indicator.startAnimation(nil) }
         else { indicator.stopAnimation(nil) }
         indicator.doubleValue = progress.fractionCompleted
-        let count = String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle)
+        let completed = (progress.userInfo[.fileCompletedCountKey] as? NSNumber)?.int64Value ?? progress.completedUnitCount
+        let total = (progress.userInfo[.fileTotalCountKey] as? NSNumber)?.int64Value ?? progress.totalUnitCount
+        let count = String(localized: "\(completed) / \(total)項目", bundle: bundle)
         statusLabel.stringValue = count
         statusLabel.isHidden = indeterminate
         detailLabel.stringValue = detail

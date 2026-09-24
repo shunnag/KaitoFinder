@@ -49,6 +49,140 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         }
     }
 
+    private func selection(_ entry: ArchiveEntry) -> ArchiveEditSelection {
+        .init(path: entry.name, isDirectory: entry.kind == .directory, entries: [entry])
+    }
+
+    func testImmediateAESMutationsRetainVerificationButExternalReloadDoesNot() async throws {
+        let directory = try ArchiveTestDirectory(), url = directory.url.appendingPathComponent("verified.zip")
+        let bytes = Data(repeating: 0x5a, count: 256 * 1024)
+        var options = WriterOptions(); options.password = "known"
+        let writer = try ArchiveWriter.create(url: url, options: options)
+        for name in ["first", "second", "third"] { try writer.add(data: bytes, as: name) }
+        try writer.finish()
+        let session = try ArchiveSession(url: url, password: "known")
+        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let entries1 = await session.entries()
+        let first = try XCTUnwrap(entries1.first)
+        _ = try await session.rename(selection(first), to: "renamed", progress: Progress())
+        let verified = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        XCTAssertEqual(verified - before, UInt64(bytes.count * 3))
+        let entries2 = await session.entries()
+        let renamed = try XCTUnwrap(entries2.first)
+        _ = try await session.rename(selection(renamed), to: "again", progress: Progress())
+        let removals = await session.entries()
+        _ = try await session.remove([selection(try XCTUnwrap(removals.first))], progress: Progress())
+        let added = directory.url.appendingPathComponent("added")
+        try bytes.write(to: added)
+        _ = try await session.append(urls: [added], to: "", progress: Progress())
+        _ = try await session.createFolder(in: "", progress: Progress())
+        _ = try await session.updatePassword(.change, settings: .init(password: "new-key"), progress: Progress())
+        let entries3 = await session.entries()
+        let next = try XCTUnwrap(entries3.first)
+        _ = try await session.rename(selection(next), to: "last", progress: Progress())
+        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 }, verified)
+
+        let external = directory.url.appendingPathComponent("external.zip")
+        try FileManager.default.copyItem(at: url, to: external)
+        XCTAssertEqual(rename(external.path, url.path), 0)
+        try await session.reloadAfterMutation()
+        let entries4 = await session.entries()
+        let externalEntry = try XCTUnwrap(entries4.first)
+        _ = try await session.rename(selection(externalEntry), to: "external-rename", progress: Progress())
+        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - verified, UInt64(bytes.count * 3))
+        await session.close()
+    }
+
+    func testPendingPublishRetainsVerificationUnlessReplacedBeforeReload() async throws {
+        let directory = try ArchiveTestDirectory()
+        let url = try archive(in: directory, format: .zip, settings: .init(password: "known"))
+        let session = try ArchiveSession(url: url, password: "known")
+        _ = try await session.preparedPassword()
+        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        for index in 0..<3 {
+            let snapshot = await session.snapshot(), entry = try XCTUnwrap(snapshot.entries.first)
+            var pending = ArchivePendingChanges()
+            pending.renames[.init(index: entry.index, expectedName: entry.name, baseGeneration: snapshot.generation)] = "rename-\(index)"
+            let replacement = directory.url.appendingPathComponent("replacement.zip")
+            let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(),
+                publication: ArchiveSavePublication(), willReload: {
+                    if index == 2 {
+                        try FileManager.default.copyItem(at: url, to: replacement)
+                        guard rename(replacement.path, url.path) == 0 else { throw ExtractionFailure.system(errno) }
+                    }
+                })
+            XCTAssertNil(result.reloadFailure)
+            _ = try await session.preparedPassword()
+            XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before,
+                           index == 2 ? UInt64(payload.count) : 0)
+        }
+        await session.close()
+    }
+
+    func testFailedReloadClearsVerificationEvenWhenSameBytesCanBeReopened() async throws {
+        let directory = try ArchiveTestDirectory()
+        let url = try archive(in: directory, format: .zip, settings: .init(password: "known"))
+        let session = try ArchiveSession(url: url, password: "known")
+        _ = try await session.preparedPassword()
+        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        do {
+            try await session.reloadAfterMutation(willOpen: { throw CocoaError(.fileReadUnknown) })
+            XCTFail("Expected reload failure")
+        } catch { }
+        XCTAssertNil(session.entryVerification)
+        try await session.reloadAfterMutation()
+        let entries5 = await session.entries()
+        let entry = try XCTUnwrap(entries5.first)
+        _ = try await session.rename(selection(entry), to: "after-failure", progress: Progress())
+        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before, UInt64(payload.count))
+        await session.close()
+    }
+
+    func testUndoDoesNotPromoteUnverifiedEncryptedEntries() async throws {
+        let directory = try ArchiveTestDirectory(), url = directory.url.appendingPathComponent("partial.zip")
+        var options = WriterOptions(); options.password = "known"
+        let writer = try ArchiveWriter.create(url: url, options: options)
+        for name in ["one", "two"] { try writer.add(data: payload, as: name) }
+        try writer.finish()
+        let session = try ArchiveSession(url: url, password: "known")
+        let item = ArchiveEntryPayload(archiveURL: url, generation: 0, entryIndex: 0, path: "one", isDirectory: false)
+        _ = try await session.resolveForExtraction([item])
+        let stack = ArchiveUndoStack(clone: { source, destination in
+            do { try FileManager.default.copyItem(at: source, to: destination); return 0 }
+            catch { return EIO }
+        })
+        let encryption = await session.encryptionSettings()
+        let slot = try XCTUnwrap(stack.capture(url, encryption: encryption, verification: session.entryVerification))
+        XCTAssertEqual(slot.verification?.indices, [0])
+        let entries = await session.entries()
+        _ = try await session.rename(selection(try XCTUnwrap(entries.first)), to: "renamed", progress: Progress())
+        stack.recordMutation(slot)
+        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        try await session.restoreUndoSlot(slot.id, from: stack)
+        _ = try await session.preparedPassword()
+        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before, UInt64(payload.count))
+        await stack.dispose()
+        await session.close()
+    }
+
+    @MainActor func testUndoRedoCarryOnlyVerifiedCapturedEncryptedEntries() async throws {
+        let directory = try ArchiveTestDirectory()
+        let url = try archive(in: directory, format: .zip, settings: .init(password: "known"))
+        let (document, _) = try await document(at: url, directory: directory, password: "known")
+        let session = try XCTUnwrap(document.session)
+        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        _ = try await document.createFolder(in: "", baseName: "added-folder", progress: Progress())
+        document.undo(nil)
+        await document.undoTask?.value
+        XCTAssertNil(document.undoFailure)
+        _ = try await session.preparedPassword()
+        document.redo(nil)
+        await document.undoTask?.value
+        XCTAssertNil(document.undoFailure)
+        _ = try await session.preparedPassword()
+        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 }, before)
+    }
+
     @MainActor private func document(at url: URL, directory: ArchiveTestDirectory, password: String? = nil) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()

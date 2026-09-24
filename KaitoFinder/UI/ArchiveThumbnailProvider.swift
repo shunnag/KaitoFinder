@@ -19,15 +19,19 @@ import QuickLookThumbnailing
     private let pointSize: CGFloat
     private let scale: CGFloat
     private let generate: Generate
+    // テストだけが名前で画像を判定する。通常は種類の判定（パッケージや実行権を含む）に従う。
+    private let isImage: ((String) -> Bool)?
     private var cache: [ObjectIdentifier: NSImage] = [:]
     private var requested: Set<ObjectIdentifier> = []
-    private var queue: [EntryNode] = []
+    private var queue: [EntryNode?] = []
+    private var queueHead = 0
     private var inFlight: [ObjectIdentifier: Production] = [:]
     private var cancelled = false
     private var cancellation: Task<Void, Never>?
     var canRead: ((EntryNode) -> Bool)?
+    var isVisible: (EntryNode) -> Bool = { _ in true }
     var didProduce: ((EntryNode) -> Void)?
-    var isIdle: Bool { queue.isEmpty && inFlight.isEmpty }
+    var isIdle: Bool { queueHead == queue.count && inFlight.isEmpty }
 
     convenience init(materializer: EntryMaterializer, session: ArchiveSession, generation: UInt64,
                      kindResolver: ArchiveKindResolver? = nil, pointSize: CGFloat = 16, scale: CGFloat = 2) {
@@ -40,7 +44,8 @@ import QuickLookThumbnailing
 
     // 実際の抽出を通したまま、生成の完了順序と取消しをテストで固定できる。
     init(materializer: EntryMaterializer, session: ArchiveSession, generation: UInt64,
-         kindResolver: ArchiveKindResolver? = nil, pointSize: CGFloat = 16, scale: CGFloat = 2, generate: @escaping Generate) {
+         kindResolver: ArchiveKindResolver? = nil, pointSize: CGFloat = 16, scale: CGFloat = 2,
+         isImage: ((String) -> Bool)? = nil, generate: @escaping Generate) {
         self.kindResolver = kindResolver ?? ArchiveKindResolver()
         self.materializer = materializer
         self.session = session
@@ -49,6 +54,7 @@ import QuickLookThumbnailing
         self.pointSize = pointSize
         self.scale = scale
         self.generate = generate
+        self.isImage = isImage
     }
 
     /// 生成を始めずに、既にあるサムネイルだけを返す（ドラッグ画像など、副作用を持ち込めない場面向け）。
@@ -65,7 +71,7 @@ import QuickLookThumbnailing
         guard !node.isDirectory, let entry = node.entry, entry.kind == .file,
               !entry.isEncrypted, !entry.isIncomplete, entry.solidGroup < 0,
               let size = entry.uncompressedSize, size <= 8 * 1024 * 1024,
-              kindResolver.kind(for: node).isImage,
+              isImage?(node.name) ?? kindResolver.kind(for: node).isImage,
               requested.insert(id).inserted else { return nil }
         queue.append(node)
         startNext()
@@ -73,8 +79,15 @@ import QuickLookThumbnailing
     }
 
     private func startNext() {
-        while !cancelled, inFlight.count < 2, !queue.isEmpty {
-            let node = queue.removeFirst()
+        while !cancelled, inFlight.count < 2, queueHead < queue.count {
+            let node = queue[queueHead]!
+            queue[queueHead] = nil
+            queueHead += 1
+            if queueHead == queue.count { queue.removeAll(keepingCapacity: true); queueHead = 0 }
+            guard isVisible(node) else {
+                requested.remove(ObjectIdentifier(node))
+                continue
+            }
             let production = Production()
             inFlight[ObjectIdentifier(node)] = production
             production.task = Task { [weak self] in
@@ -93,11 +106,17 @@ import QuickLookThumbnailing
         do {
             try Task.checkCancellation()
             guard isCurrent else { return }
+            guard isVisible(node) else { requested.remove(id); return }
             let payload = ArchiveEntryPayload(node: node, session: session, generation: generation)
             let url = try await materializer.materialize(payload, progress: production.progress)
             let image: NSImage
             do {
                 try Task.checkCancellation()
+                guard isVisible(node) else {
+                    requested.remove(id)
+                    await EntryMaterializer.discard(url)
+                    return
+                }
                 let request = QLThumbnailGenerator.Request(fileAt: url,
                     size: CGSize(width: pointSize, height: pointSize), scale: scale, representationTypes: .thumbnail)
                 production.request = request
@@ -125,6 +144,7 @@ import QuickLookThumbnailing
         if let cancellation { return cancellation }
         cancelled = true
         queue.removeAll()
+        queueHead = 0
         cache.removeAll()
         didProduce = nil
         let tasks = inFlight.values.compactMap(\.task)

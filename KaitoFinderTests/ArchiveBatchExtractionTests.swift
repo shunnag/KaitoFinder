@@ -529,12 +529,14 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         let sub = base.appendingPathComponent("sub"), firstOutput = sub.appendingPathComponent("a.txt")
         let retained = fixture.directory.url.appendingPathComponent("retained-sub")
         let gate = ScenarioGate(), progress = Progress()
-        let observation = progress.observe(\.fractionCompleted, options: [.new]) { _, _ in
-            if FileManager.default.fileExists(atPath: firstOutput.path) { gate.pauseOnce() }
-        }
-        defer { gate.release(); observation.invalidate() }
+        defer { gate.release() }
         let engine = extractor(.never)
-        let task = Task { await engine.run(archives: [archive], base: base, progress: progress) }
+        let task = Task {
+            await engine.run(archives: [archive], base: base, progress: progress, didProcess: { _ in
+                // 書込み中のバイト通知ではなく、最初のファイルの完了後に親を差し替える。
+                if FileManager.default.fileExists(atPath: firstOutput.path) { gate.pauseOnce() }
+            })
+        }
         addTeardownBlock { task.cancel(); gate.release(); _ = await task.value }
         try await scenarioWait { gate.isEntered }
         XCTAssertEqual(try Data(contentsOf: firstOutput), bytes)
@@ -549,6 +551,48 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: outsideFile), outsideBytes)
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: sub.path), outside.path)
         XCTAssertEqual(try Data(contentsOf: retained.appendingPathComponent("a.txt")), bytes)
+        assertAbsent(base.appendingPathComponent("z.txt"))
+    }
+
+    @MainActor func testMidFileCancellationRemovesPartialFileWithoutTouchingReplacedOutputParent() async throws {
+        let fixture = try Fixture(), bytes = Data(repeating: 0x61, count: 4 * 1024 * 1024)
+        let archive = try fixture.archive("original.zip", files: ["sub/a.txt": bytes, "z.txt": Data("later".utf8)])
+        let base = try fixture.folder("out"), outside = try fixture.folder("outside")
+        let outsideBytes = Data("existing outside contents".utf8), outsideFile = outside.appendingPathComponent("a.txt")
+        try outsideBytes.write(to: outsideFile)
+        let sub = base.appendingPathComponent("sub"), firstOutput = sub.appendingPathComponent("a.txt")
+        let retained = fixture.directory.url.appendingPathComponent("retained-sub")
+        let gate = ScenarioGate(), progress = Progress(), completedFirstFile = Mutex(false)
+        defer { gate.release() }
+        let engine = extractor(.never)
+        let task = Task {
+            await engine.run(archives: [archive], base: base, progress: progress,
+                didWrite: { _ in gate.pauseOnce() }, didProcess: { _ in
+                    if FileManager.default.fileExists(atPath: firstOutput.path) {
+                        completedFirstFile.withLock { $0 = true }
+                    }
+                })
+        }
+        addTeardownBlock { task.cancel(); gate.release(); _ = await task.value }
+        try await scenarioWait { gate.isEntered }
+        let partial = try Data(contentsOf: firstOutput)
+        XCTAssertGreaterThan(partial.count, 0)
+        XCTAssertLessThan(partial.count, bytes.count)
+        XCTAssertEqual(partial, bytes.prefix(partial.count))
+        XCTAssertFalse(completedFirstFile.withLock { $0 })
+        try FileManager.default.moveItem(at: sub, to: retained)
+        try FileManager.default.createSymbolicLink(at: sub, withDestinationURL: outside)
+        progress.cancel()
+        gate.release()
+        let report = await task.value
+        XCTAssertTrue(report.cancelled)
+        XCTAssertTrue(report.extracted.isEmpty)
+        XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertFalse(completedFirstFile.withLock { $0 })
+        XCTAssertEqual(try Data(contentsOf: outsideFile), outsideBytes)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outside.path), ["a.txt"])
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: sub.path), outside.path)
+        assertAbsent(retained.appendingPathComponent("a.txt"))
         assertAbsent(base.appendingPathComponent("z.txt"))
     }
 

@@ -111,7 +111,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
             throw CancellationError()
         }
         let worker = EntryMaterializer(session: session, temporaryDirectory: fixture.temporary)
-        let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: snapshot.generation, generate: generate)
+        let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: snapshot.generation, isImage: { $0.hasSuffix(".png") }, generate: generate)
         addTeardownBlock { @MainActor in
             await provider.cancelAll().value
             await worker.close()
@@ -265,6 +265,71 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         XCTAssertTrue(fixture.files().isEmpty)
     }
 
+    @MainActor func testInvisibleQueuedRowsAreDroppedAndCanBeRequestedAgain() async throws {
+        let names = (0..<8).map { "image\($0).png" }, fixture = try Fixture(images: names), gate = GenerationGate()
+        defer { gate.cancelPending() }
+        let (provider, _, root, _) = try await provider(fixture, generate: gate.generate)
+        let nodes = try names.map { try node($0, in: root) }
+        var visible = Set(nodes)
+        provider.isVisible = { visible.contains($0) }
+        for node in nodes { _ = provider.thumbnail(for: node) }
+        try await waitUntil { gate.urls.count == 2 }
+        visible = [nodes[6], nodes[7]]
+        try gate.succeed(names[0])
+        try await waitUntil { gate.urls.count == 3 }
+        XCTAssertEqual(gate.urls.last?.lastPathComponent, names[6])
+        try gate.succeed(names[1])
+        try await waitUntil { gate.urls.count == 4 }
+        XCTAssertEqual(gate.urls.last?.lastPathComponent, names[7])
+        try gate.succeed(names[6])
+        try gate.succeed(names[7])
+        try await waitUntil { provider.isIdle }
+        XCTAssertEqual(Set(gate.urls.map(\.lastPathComponent)), Set([names[0], names[1], names[6], names[7]]))
+        visible.insert(nodes[2])
+        _ = provider.thumbnail(for: nodes[2])
+        try await waitUntil { gate.urls.count == 5 }
+        XCTAssertEqual(gate.urls.last?.lastPathComponent, names[2])
+        try gate.succeed(names[2])
+        try await waitUntil { provider.isIdle }
+        XCTAssertTrue(fixture.files().isEmpty)
+    }
+
+    @MainActor func testDisplayVisibilityFollowsScrolledRowsWithSmallMargin() async throws {
+        let fixture = try Fixture(images: (0..<80).map { String(format: "image%03d.png", $0) })
+        let ui = try await interface(fixture), outline = ui.controller.outlineView
+        ui.controller.window?.setContentSize(NSSize(width: 640, height: 300))
+        ui.controller.window?.contentView?.layoutSubtreeIfNeeded()
+        let provider = try XCTUnwrap(ui.controller.thumbnailProvider)
+        let rows = outline.rows(in: outline.visibleRect)
+        XCTAssertGreaterThan(rows.length, 0)
+        let first = try XCTUnwrap(outline.item(atRow: rows.location) as? EntryNode)
+        let last = try XCTUnwrap(outline.item(atRow: outline.numberOfRows - 1) as? EntryNode)
+        XCTAssertTrue(provider.isVisible(first))
+        XCTAssertFalse(provider.isVisible(last))
+        outline.scrollRowToVisible(outline.numberOfRows - 1)
+        XCTAssertTrue(provider.isVisible(last))
+        XCTAssertFalse(provider.isVisible(first))
+    }
+
+    @MainActor func testVisibilityIsRecheckedBeforeMaterializing() async throws {
+        let fixture = try Fixture(), gate = GenerationGate()
+        defer { gate.cancelPending() }
+        let (provider, _, root, _) = try await provider(fixture, generate: gate.generate)
+        let small = try node("small.png", in: root)
+        var visible = true
+        provider.isVisible = { _ in visible }
+        _ = provider.thumbnail(for: small)
+        visible = false
+        try await waitUntil { provider.isIdle }
+        XCTAssertTrue(gate.urls.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.temporary.root.path))
+        visible = true
+        _ = provider.thumbnail(for: small)
+        try await waitUntil { gate.urls.count == 1 }
+        try gate.succeed("small.png")
+        try await waitUntil { provider.isIdle }
+    }
+
     @MainActor func testThumbnailGenerationFailureIsDiscardedAndNeverRetried() async throws {
         let fixture = try Fixture(), gate = GenerationGate()
         defer { gate.cancelPending() }
@@ -300,7 +365,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         try await session.reloadAfterMutation()
         XCTAssertNil(provider.thumbnail(for: missing))
         XCTAssertTrue(provider.isIdle)
-        let fresh = ArchiveThumbnailProvider(materializer: worker, session: session, generation: session.generation, generate: generate)
+        let fresh = ArchiveThumbnailProvider(materializer: worker, session: session, generation: session.generation, isImage: { $0.hasSuffix(".png") }, generate: generate)
         addTeardownBlock { @MainActor in await fresh.cancelAll().value }
         XCTAssertNil(fresh.thumbnail(for: missing))
         try await waitUntil { fresh.isIdle }
@@ -423,7 +488,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let materialization = ArchiveMaterializationController(session: session, temporaryDirectory: fixture.temporary)
         let worker = try XCTUnwrap(materialization.entryMaterializer)
         let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: snapshot.generation,
-                                                generate: gate.generate)
+                                                isImage: { $0.hasSuffix(".png") }, generate: gate.generate)
         materialization.cancelBackgroundWorkOnClose { [weak provider] in provider?.cancelAll() }
         addTeardownBlock { @MainActor in
             await materialization.close().value
