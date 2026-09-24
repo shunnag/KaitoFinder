@@ -81,13 +81,23 @@ nonisolated final class ExtractionDestination {
         }
     }
 
-    private func parentDescriptor(for components: [String]) throws -> Int32 {
+    private func parentDescriptor(for components: [String], create: Bool = true) throws -> Int32 {
         if let cachedParent, cachedParent.components == components { return cachedParent.descriptor }
         if let cachedParent { close(cachedParent.descriptor) }
         cachedParent = nil
-        let parent = try openDirectory(components, create: true)
+        let parent = try openDirectory(components, create: create)
         cachedParent = (components, parent)
         return parent
+    }
+
+    func prepareParents(for components: [String], beforeCreating: () throws -> Void) throws {
+        let parent = Array(components.dropLast())
+        do { _ = try parentDescriptor(for: parent, create: false) }
+        catch {
+            // stream の取得失敗では、直列経路と同じく親を残さない。
+            try beforeCreating()
+            _ = try parentDescriptor(for: parent)
+        }
     }
 
     private func openDirectory(_ components: [String], create: Bool) throws -> Int32 {
@@ -140,8 +150,9 @@ nonisolated final class ExtractionDestination {
     }
 
     func file(_ components: [String], entry: ArchiveEntry, stream: EntryStream, buffer: inout [UInt8],
+              createParents: Bool = true,
               checkCancellation: () throws -> Void) throws {
-        let parent = try parentDescriptor(for: Array(components.dropLast()))
+        let parent = try parentDescriptor(for: Array(components.dropLast()), create: createParents)
         let leaf = components.last!
         // 同名の既存ファイル、symlink、別 entry は絶対に上書きしない。
         let file = openat(parent, leaf, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)

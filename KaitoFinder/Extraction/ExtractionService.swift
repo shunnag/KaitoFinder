@@ -73,8 +73,7 @@ nonisolated enum ExtractionFailure: Error, CustomStringConvertible {
 nonisolated enum ExtractionService {
     /// 出力 root は既存の実ディレクトリ。選択の書庫内相対パスを維持する。
     /// 呼出側は完了まで root を排他的に所有する。既存の葉は上書きしない。
-    /// M1a は要求全体を一 worker にまとめ、solid group と部分木を分断しない。
-    /// 項目数と byte 進捗を分ける。didProcess は同じ worker で同期的に呼ぶ。
+    /// solid group は分断しない。callback は各 worker で同期的に呼ぶ。
     /// reader/root の準備失敗だけを throw し、entry の失敗と取り消しは戻り値で報告する。
     @concurrent static func extract(
         _ selection: ExtractionSelection,
@@ -166,7 +165,8 @@ nonisolated enum ExtractionService {
         _ entries: [ArchiveEntry], reader: ArchiveReader, to destination: URL, quarantine: Data?,
         progress: Progress, promisedItem: ArchiveEntryPayload? = nil, readOnly: Bool = false,
         didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)? = nil,
-        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil
+        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil,
+        execution: ExtractionExecution = .automatic
     ) throws -> ExtractionResult {
         let root: URL, mapping: OutputMapping
         var virtualRootParent: ExtractionDestination?
@@ -185,7 +185,7 @@ nonisolated enum ExtractionService {
         } else { root = destination; mapping = .archive }
         let result = try run(entries, reader: reader, destination: root, quarantine: quarantine,
             progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite,
-            didProcess: didProcess, sources: sources)
+            didProcess: didProcess, sources: sources, execution: execution)
         if let virtualRootParent {
             // /var と /private/var を混在させず、親と同じ実パスで root を仕上げる。
             try virtualRootParent.finishSynthesizedDirectory(virtualRootParent.url([destination.lastPathComponent]))
@@ -193,7 +193,7 @@ nonisolated enum ExtractionService {
         return result
     }
 
-    private enum OutputMapping {
+    enum OutputMapping {
         case archive, subtree([String]), file([String])
 
         func components(_ name: String) throws -> [String] {
@@ -212,13 +212,21 @@ nonisolated enum ExtractionService {
         _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL,
         quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive,
         readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?,
-        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil
+        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil,
+        execution: ExtractionExecution = .automatic
     ) throws -> ExtractionResult {
         let counter = ExtractionProgress(entries: entries, progress: progress)
+        let position = Mutex(0)
         let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly) { count in
-            counter.wrote(count)
+            counter.wrote(count, at: position.withLock { $0 })
             didWrite?(count)
         }
+        let workerCount = execution.workerCount(entries: entries, hasSources: sources != nil)
+        let parallel = workerCount > 1 ? try? ParallelExtraction(reader: reader, destination: destination,
+            quarantine: quarantine, readOnly: readOnly, count: workerCount, counter: counter,
+            didWrite: didWrite, didProcess: didProcess) : nil
+        let orderedFiles = parallel == nil ? Set<Int>() : ParallelExtraction.orderedFiles(entries, mapping: mapping)
+        var planned: [ParallelExtraction.File] = []
         var buffer = [UInt8](repeating: 0, count: 128 * 1024)
         var result = ExtractionResult()
         var claimed = Set<String>()
@@ -227,7 +235,8 @@ nonisolated enum ExtractionService {
         func checkCancellation() throws {
             if progress.isCancelled || Task.isCancelled { throw CancellationError() }
         }
-        for entry in entries {
+        for (offset, entry) in entries.enumerated() {
+            position.withLock { $0 = offset }
             do {
                 try checkCancellation()
                 let original: ArchiveEntry
@@ -263,6 +272,11 @@ nonisolated enum ExtractionService {
                     if !components.isEmpty { try output.directory(components, explicit: true) }
                     directories.append((entry, components))
                 case .file:
+                    if parallel != nil, !orderedFiles.contains(entry.index) {
+                        try output.prepareParents(for: components) { _ = try reader.stream(original) }
+                        planned.append(.init(position: offset, entry: entry, components: components))
+                        continue
+                    }
                     if let staged {
                         try output.stagedFile(components, entry: entry, addition: staged, buffer: &buffer, checkCancellation: checkCancellation)
                     } else {
@@ -328,10 +342,7 @@ nonisolated enum ExtractionService {
                 case .other:
                     throw ExtractionFailure.refused(String(localized: "このentryの種類は展開できません。"))
                 }
-                let url = output.url(components)
-                var info = stat()
-                guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
-                result.written.append(.init(entryIndex: entry.index, url: url, identity: .init(info)))
+                result.written.append(try written(entry, components: components, output: output))
             } catch is CancellationError {
                 result.cancelled = true
                 break
@@ -339,8 +350,17 @@ nonisolated enum ExtractionService {
                 result.failures.append(.init(entryIndex: entry.index, name: entry.name,
                                              reason: ArchiveErrorText.describe(error)))
             }
-            counter.finishedEntry()
+            counter.finishedEntry(at: offset)
             didProcess?(entry.index)
+        }
+        if let parallel {
+            buffer = []
+            let files = parallel.run(planned, progress: progress, cancelled: result.cancelled || Task.isCancelled)
+            result.written += files.written
+            result.failures += files.failures
+            result.cancelled = result.cancelled || files.cancelled
+            result.written.sort { $0.entryIndex! < $1.entryIndex! }
+            result.failures.sort { $0.entryIndex < $1.entryIndex }
         }
         // 取り消し時も作成済みの directory の属性を仕上げる。
         for (entry, components) in directories.sorted(by: { $0.1.count > $1.1.count }) {
@@ -377,6 +397,14 @@ nonisolated enum ExtractionService {
         return result
     }
 
+    static func written(_ entry: ArchiveEntry, components: [String], output: ExtractionDestination) throws
+        -> ExtractionResult.WrittenItem {
+        let url = output.url(components)
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
+        return .init(entryIndex: entry.index, url: url, identity: .init(info))
+    }
+
     static func consume(_ stream: EntryStream, checkCancellation: () throws -> Void,
                         body: (UnsafeRawBufferPointer) throws -> Void) throws {
         var buffer = [UInt8](repeating: 0, count: 128 * 1024)
@@ -404,7 +432,7 @@ nonisolated final class ExtractionProgress: Sendable {
     private let units: [Int64]?
     private struct State {
         var items = 0
-        var expected: Int64 = 0
+        var credited: [Int: Int64] = [:]
     }
     private let state = Mutex(State())
 
@@ -430,20 +458,23 @@ nonisolated final class ExtractionProgress: Sendable {
         progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
     }
 
-    func wrote(_ count: Int) {
+    func wrote(_ count: Int, at position: Int? = nil) {
         guard let units else { return }
         state.withLock { state in
-            let remaining = state.expected + units[state.items] - progress.completedUnitCount
-            progress.completedUnitCount += min(Int64(count), remaining)
+            let index = position ?? state.items
+            let increment = min(Int64(count), units[index] - state.credited[index, default: 0])
+            state.credited[index, default: 0] += increment
+            progress.completedUnitCount += increment
         }
     }
 
-    func finishedEntry() {
+    func finishedEntry(at position: Int? = nil) {
         state.withLock { state in
-            state.expected += units?[state.items] ?? 1
+            let index = position ?? state.items
+            let unit = units?[index] ?? 1
+            progress.completedUnitCount += unit - (state.credited.removeValue(forKey: index) ?? 0)
             state.items += 1
-            // 短い本文や失敗も処理済みとして数え、次の項目の重みへ追い付く。
-            progress.completedUnitCount = state.expected
+            // 短い本文や失敗も処理済みとして数える。完了順には依存しない。
             progress.setUserInfoObject(state.items, forKey: .fileCompletedCountKey)
         }
     }
