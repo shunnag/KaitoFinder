@@ -76,9 +76,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
         }
     }
 
-    /// 既に開いた reader から編集可否を導く。書庫を開き直さず、一覧（entries）と形式だけを読む。
+    /// 既に開いた reader から編集可否を導き、書庫を開き直さない。
     /// ZIP は GyoshukuKit の `ArchiveUpdater.probe`（終端の門番、reader を作らない）で entry 数を照合する。
-    /// tar / 7z / LHA は `ArchiveRewriter.probe(entries:format:)` で表現可能性を検査する。
+    /// tar / 7z / LHA は reader 版 probe で、MacBinary envelope も検査する。
     /// G4 の中央ディレクトリの照合は公開時（`ArchiveUpdater.open`）に行うため、終端の門番を通っても
     /// その照合に失敗する ZIP は、最初の編集で拒否される。reader はスレッドセーフではないので、
     /// 呼出側（ArchiveSession の actor 内）が所有したまま呼ぶ。
@@ -138,7 +138,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
             }
             let format: GyoshukuKit.ArchiveFormat
             switch mode { case .inPlace: format = .zip; case .rewrite(let output): format = output }
-            try ArchiveRewriter.probe(entries: reader.entries, format: format)
+            try ArchiveRewriter.probe(reader: reader, format: format)
             return Self(mode: mode, splitSave: true)
         } catch { return Self(refusal: refusal(for: error)) }
     }
@@ -195,7 +195,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 }
                 let reader = try open()
                 if let set = reader.volumeSet { return Self(refusal: splitRefusal(for: url, scheme: set.scheme)) }
-                try ArchiveRewriter.probe(entries: reader.entries, format: outputFormat)
+                try ArchiveRewriter.probe(reader: reader, format: outputFormat)
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
             }
             return Self(mode: mode)

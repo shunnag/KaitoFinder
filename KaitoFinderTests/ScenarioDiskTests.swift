@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import GyoshukuKit
+import KaitoKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -229,7 +230,9 @@ extension ScenarioDiskTests {
         XCTAssertThrowsError(try ArchiveImportTransaction.publish(archive: archive, mode: .inPlace,
             options: WriterOptions(), progress: Progress(), willPublish: {
                 guard chmod(parent.path, 0o555) == 0 else { throw ExtractionFailure.system(errno) }
-            }, registry: registry, mutate: { try $0.add(data: Data("added".utf8), as: "added.txt", modificationDate: nil, permissions: nil) }))
+            }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+                additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace),
+            mutate: { try $0.add(data: Data("added".utf8), as: "added.txt", modificationDate: nil, permissions: nil) }))
         let work = try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)
             .filter { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") }
         XCTAssertEqual(work.count, 1)

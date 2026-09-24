@@ -157,14 +157,14 @@ nonisolated final class M6bReviewTests: XCTestCase {
                 let work = fixture.root.appendingPathComponent("work." + ArchiveCreationPlan.filenameExtension(for: format))
                 var options = WriterOptions()
                 options.preserveOwnerIDs = ownerIDs
-                _ = try ArchiveSplitWorkProducer.produce(source: input, workURL: work,
+                let produced = try ArchiveSplitWorkProducer.produce(source: input, workURL: work,
                     mode: format == .zip ? .inPlace : .rewrite(format), password: nil, options: options,
                     plan: replay, progress: progress, verifyAssembledInput: { try input.verify($0) })
                 let carried = format == .zip ? 0 : Int64(replay.projected.count)
                 XCTAssertEqual(progress.completedUnitCount, 2 + carried, "\(format), owners=\(ownerIDs)")
                 let estimatedCarry = format == .zip ? 0 : (ownerIDs ? replay.projected.count : base.count)
                 XCTAssertEqual(progress.totalUnitCount, 3 + Int64(estimatedCarry))
-                try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: work), plan: replay)
+                try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: work), plan: replay, mode: produced.mode)
             }
         }
     }

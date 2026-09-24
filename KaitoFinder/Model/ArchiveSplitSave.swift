@@ -149,12 +149,12 @@ nonisolated enum ArchiveSplitSavePipeline {
             started = split
             defer { split.cancel() }
             let produced = try produce(split)
-            try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan)
+            try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan, mode: produced.mode)
             try hooks.didProduceWork(split.workURL)
             try plan.validate()
             try willPublish?()
             let published = try split.publish(progress: progress) { reader in
-                try ArchiveSplitWorkProducer.validate(reader, plan: plan)
+                try ArchiveSplitWorkProducer.validate(reader, plan: plan, mode: produced.mode)
             }
             hooks.didPublish(published)
             progress.completedUnitCount = progress.totalUnitCount

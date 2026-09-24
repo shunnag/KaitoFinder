@@ -42,6 +42,23 @@ nonisolated enum LocalizationAcceptance {
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
 
+    func testEditedOutputVerificationFailureHasAllTranslationsAndKeepsSplitWording() throws {
+        let key = "変更後のアーカイブを検証できなかったため、保存を中止しました。元のアーカイブは変更されていません。"
+        let translations = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let message = ArchivePublicationError.verificationFailed.message(bundle: bundle)
+            XCTAssertEqual(message, translations[language]?.stringUnit.value, language)
+            XCTAssertEqual(ArchiveErrorText.describe(ArchivePublicationError.verificationFailed, bundle: bundle), message, language)
+            XCTAssertEqual(ArchiveAlertText.informativeText(message, bundle: bundle), message, language)
+            let split = ArchiveErrorText.describe(VolumePublishError.validationFailed, bundle: bundle)
+            XCTAssertEqual(split, String(localized: "アーカイブの原本を確認できません。", bundle: bundle) + "\n"
+                + String(localized: "保存できませんでした。設定、保存先のアクセス権と空き容量を確認して、もう一度試してください。", bundle: bundle), language)
+            XCTAssertNotEqual(split, message, language)
+        }
+    }
+
     @MainActor func testListLoadingStatusHasAllTwentySixTranslations() throws {
         let key = "項目を読み込んでいます…", catalog = try LocalizationAcceptance.catalog()
         let translations = try XCTUnwrap(catalog.strings[key]).localizations

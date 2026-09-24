@@ -10,6 +10,16 @@ nonisolated struct ArchiveImportResult: Sendable {
     var publishedIdentity: ArchiveSetIdentity?
 }
 
+nonisolated enum ArchivePublicationError: Error, Equatable, LocalizedError {
+    case verificationFailed
+
+    var errorDescription: String? { message() }
+
+    func message(bundle: Bundle = .main) -> String {
+        String(localized: "変更後のアーカイブを検証できなかったため、保存を中止しました。元のアーカイブは変更されていません。", bundle: bundle)
+    }
+}
+
 nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStringConvertible {
     case invalidName(String)
     case collision(String)
@@ -391,7 +401,8 @@ nonisolated enum ArchiveEditTransaction {
         progress.totalUnitCount = Int64(plan.removals.count + plan.renames.count + 1)
         progress.completedUnitCount = 0
         let identity = try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
-                                             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
+            willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
+            expectedOutput: .init(existing: plan.existing, removing: plan.removals.map(\.index), renaming: plan.renames, mode: mode)) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try plan.verifyNames(updater.entryNames)
             try plan.validateChanges(entries: plan.existing)
@@ -416,6 +427,9 @@ nonisolated enum ArchiveImportTransaction {
     static let pendingWorkRegistry = TaskLocal<PendingWorkRegistry>(wrappedValue: .shared)
     #if DEBUG
     static let willAddFileForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
+    static let didCommitForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
+    static let didVerifyForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
+    static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
     #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
@@ -425,7 +439,8 @@ nonisolated enum ArchiveImportTransaction {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
         let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
-                    willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
+            willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
+            expectedOutput: .init(existing: plan.existing, additions: [.init(adding: plan.path, kind: .directory)], mode: mode)) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
             try ArchiveImportPlan.checkCancellation(progress)
             try updater.addDirectory(plan.path)
@@ -442,7 +457,7 @@ nonisolated enum ArchiveImportTransaction {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
-        guard plan.replacingEntries.isEmpty || plan.expectedEntries != nil else { throw ArchiveEditError.staleSelection }
+        guard let existing = plan.expectedEntries else { throw ArchiveEditError.staleSelection }
         for stamp in plan.sourceStamps {
             try ArchiveImportPlan.checkCancellation(progress)
             try stamp.verify()
@@ -452,12 +467,15 @@ nonisolated enum ArchiveImportTransaction {
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.items.lazy.map(\.url)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
+        let expectedOutput = try ArchiveOutputProjection(existing: existing, removing: plan.replacingEntries,
+                                                        additions: plan.items.map { try .init(adding: $0) }, mode: mode)
         let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: {
             for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
             try willPublish?()
         },
-                    expectedIdentity: expectedIdentity, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get()) { updater in
-            if let existing = plan.expectedEntries { try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing) }
+            expectedIdentity: expectedIdentity, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
+            expectedOutput: expectedOutput) { updater in
+            try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing)
             if !plan.replacingEntries.isEmpty {
                 try updater.remove(entriesAt: plan.replacingEntries)
                 progress.completedUnitCount += Int64(plan.replacingEntries.count)
@@ -496,6 +514,7 @@ nonisolated enum ArchiveImportTransaction {
                         registry: PendingWorkRegistry = .shared,
                         publication: ArchiveSavePublication? = nil,
                         deferredPlan: ArchiveSaveReplayPlan? = nil,
+                        expectedOutput: ArchiveOutputProjection,
                         mutate: (any ArchiveEditing) throws -> Void) throws -> ArchiveSetIdentity {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         try ArchiveImportPlan.checkCancellation(progress)
@@ -515,8 +534,10 @@ nonisolated enum ArchiveImportTransaction {
         do { try registry.recordIdentity(directory) }
         catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
         let work: URL
+        let outputFormat: GyoshukuKit.ArchiveFormat
         switch mode {
         case .inPlace:
+            outputFormat = .zip
             work = directory.appendingPathComponent("archive.zip")
             try FileManager.default.copyItem(at: archive, to: work)
             try willOpenUpdater?()
@@ -526,8 +547,8 @@ nonisolated enum ArchiveImportTransaction {
             // commit の属性復元が失敗しても、変わるのは作業コピーだけ。
             try updater.commit()
         case .rewrite(let format):
-            let suffix = archive.pathExtension.isEmpty ? "bin" : archive.pathExtension
-            work = directory.appendingPathComponent("archive." + suffix)
+            outputFormat = format
+            work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: format))
             try willOpenUpdater?()
             if let deferredPlan, ArchiveDeferredTarWriter.isNeeded(format: format, options: options) {
                 try ArchiveDeferredTarWriter.write(source: archive, password: password, output: work, format: format,
@@ -553,7 +574,20 @@ nonisolated enum ArchiveImportTransaction {
             // 公開前の作業コピーだけに付け、取消しや検証失敗で原本の属性を変えない。
             try ExtractionQuarantine.apply(try ExtractionQuarantine.read(from: work) ?? additionalQuarantine, to: work)
         }
-        _ = try ArchiveReader.open(url: work, options: .kaitoFinder(password: options.password))
+        #if DEBUG
+        try didCommitForTesting.get()?(work)
+        #endif
+        // 検証前の実体を記録し、公開直前までの差し替え・書き換えを拒否する。
+        let identity: ArchiveSetIdentity
+        do {
+            identity = try ArchiveSetIdentity.capture(url: work)
+            let verified = try ArchiveReader.open(url: work, options: .kaitoFinderVerification(password: options.password))
+            try expectedOutput.validate(verified, format: outputFormat)
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw ArchivePublicationError.verificationFailed }
+        #if DEBUG
+        try didVerifyForTesting.get()?(work)
+        #endif
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard try ArchiveSetIdentity.capture(url: archive) == original else {
@@ -563,9 +597,14 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
-        let identity = try ArchiveSetIdentity.capture(url: work)
+        guard let current = try? ArchiveSetIdentity.capture(url: work), current == identity else {
+            throw ArchivePublicationError.verificationFailed
+        }
         try (publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
+        #if DEBUG
+        didPublishForTesting.get()?(archive)
+        #endif
         progress.completedUnitCount += 1
         return identity
     }

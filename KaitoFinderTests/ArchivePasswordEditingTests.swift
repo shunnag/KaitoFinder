@@ -284,7 +284,8 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
     func testPasswordOnlyPublishCommitsRewriterWithNoEdits() throws {
         let directory = try ArchiveTestDirectory(), url = try archive(in: directory, format: .zip)
         try ArchiveImportTransaction.publish(archive: url, mode: .rewrite(.zip),
-            options: WriterOptions(password: "rewrite-key"), progress: Progress(), willPublish: nil) { rewriter in
+            options: WriterOptions(password: "rewrite-key"), progress: Progress(), willPublish: nil,
+            expectedOutput: .init(projected: try ArchiveReader.open(url: url).entries, mode: .rewrite(.zip))) { rewriter in
             XCTAssertEqual(rewriter.entryNames, [entryName])
             // add / remove / rename を一度も呼ばず commit する。
         }

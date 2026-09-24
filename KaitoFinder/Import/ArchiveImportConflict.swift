@@ -99,6 +99,7 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
     let permissions: UInt16
     let userID: UInt32
     let groupID: UInt32
+    let hardLinkIdentity: [Int64]?
 
     init(_ url: URL) throws {
         self.url = url
@@ -116,6 +117,7 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
         permissions = UInt16(info.st_mode & 0o7777)
         userID = info.st_uid
         groupID = info.st_gid
+        hardLinkIdentity = kind == .file && info.st_nlink > 1 ? Array(identity.prefix(2)) : nil
     }
 
     func verify() throws {

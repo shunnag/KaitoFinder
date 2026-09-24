@@ -2,6 +2,12 @@ import KaitoKit
 import Synchronization
 
 nonisolated extension ReaderOptions {
+    static func kaitoFinderVerification(password: String? = nil) -> ReaderOptions {
+        var options = kaitoFinder(password: password)
+        options.lazyLocalHeaders = false
+        return options
+    }
+
     #if DEBUG
     /// テストが書庫を開いた回数を数えるためのもの（GyoshukuKit 内部の open は含まない）。
     static let kaitoFinderOpenCount = Mutex<Int>(0)

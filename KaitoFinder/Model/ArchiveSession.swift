@@ -550,7 +550,9 @@ actor ArchiveSession {
                     try plan.validate()
                     try willPublish?()
                 }, expectedIdentity: sourceIdentity, additionalQuarantine: quarantine,
-                publication: publication, deferredPlan: plan) { editor in try plan.replay(on: editor, progress: progress) }
+                publication: publication, deferredPlan: plan, expectedOutput: .init(plan: plan, mode: mode)) { editor in
+                    try plan.replay(on: editor, progress: progress)
+                }
         }
         if let encryption = plan.outputEncryption {
             password = encryption.password
@@ -650,7 +652,7 @@ actor ArchiveSession {
 
     func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
                         progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchivePasswordEditResult {
-        _ = try requireCurrentReader()
+        let reader = try requireCurrentReader()
         guard let format = passwordFormat, capabilities.canEdit,
               action == .set ? !hasEncryptedEntries : hasEncryptedEntries && hasKnownPassword else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
@@ -667,7 +669,8 @@ actor ArchiveSession {
         if format == .zip { try publishing { _ = try ArchiveUpdater.open(url: sourceURL) } }
         let identity = try publishing { try ArchiveImportTransaction.publish(archive: sourceURL, mode: .rewrite(format),
             options: output.applying(to: writerOptions(format), format: format), password: password,
-            progress: progress, willPublish: willPublish, expectedIdentity: sourceIdentity) { _ in } }
+            progress: progress, willPublish: willPublish, expectedIdentity: sourceIdentity,
+            expectedOutput: .init(projected: reader.entries, mode: .rewrite(format))) { _ in } }
         // 公開後にだけ新しい鍵を採用する。取消しや競合では旧鍵を維持する。
         password = output.password
         passwordRevision &+= 1

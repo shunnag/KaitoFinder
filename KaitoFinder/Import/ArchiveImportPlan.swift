@@ -60,7 +60,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
                 throw ExtractionFailure.refused(String(localized: "追加先フォルダが見つからないか、ファイルと衝突しています: \(target)。"))
             }
         }
-        var plan = Self()
+        var plan = Self(expectedEntries: existing)
         for url in urls {
             try checkCancellation(progress)
             if options.excludes(url) { continue }

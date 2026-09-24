@@ -61,7 +61,8 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                     willPublish: {
                         gate.pauseOnce()
                         if fail { throw Failure.injected }
-                    }, registry: registry) { updater in
+                    }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+                        additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
                         try updater.add(contentsOf: source, as: "added.txt")
                     }
             }
@@ -95,7 +96,8 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let registry = PendingWorkRegistry(fileURL: blocker.appendingPathComponent("pending.json"))
         XCTAssertThrowsError(try registry.register(fixture.root.appendingPathComponent(".KaitoFinder-add-probe")))
         try ArchiveImportTransaction.publish(archive: fixture.archive, mode: .inPlace, options: .init(), progress: Progress(),
-            willPublish: nil, registry: registry) { updater in
+            willPublish: nil, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: fixture.archive).entries,
+                additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
                 try updater.add(contentsOf: source, as: "added.txt")
             }
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive)["added.txt"], Data("added".utf8))

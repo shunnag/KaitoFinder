@@ -78,7 +78,10 @@ nonisolated struct ArchiveVolumeInput: Sendable {
 }
 
 nonisolated enum ArchiveSplitWorkProducer {
-    struct Result: Sendable { let recompressedZIP: Bool }
+    struct Result: Sendable {
+        let recompressedZIP: Bool
+        let mode: ArchiveCapabilities.Mode
+    }
 
     /// Produces a complete single archive W. The verifier is called BEFORE any pending edit is replayed.
     /// Overwrite passes publication.verifyAssembledInput; a new-set caller can pass source.verify.
@@ -95,7 +98,7 @@ nonisolated enum ArchiveSplitWorkProducer {
                 try FileManager.default.removeItem(at: workURL)
                 try rewrite(source: source, workURL: workURL, format: .zip, password: password, options: options,
                             plan: plan, progress: progress, verifyAssembledInput: verifyAssembledInput)
-                return Result(recompressedZIP: true)
+                return Result(recompressedZIP: true, mode: .rewrite(.zip))
             }
             try plan.replay(on: updater, progress: progress)
             try ArchiveImportPlan.checkCancellation(progress)
@@ -104,7 +107,7 @@ nonisolated enum ArchiveSplitWorkProducer {
             try rewrite(source: source, workURL: workURL, format: format, password: password, options: options,
                         plan: plan, progress: progress, verifyAssembledInput: verifyAssembledInput)
         }
-        return Result(recompressedZIP: false)
+        return Result(recompressedZIP: false, mode: mode)
     }
 
     private static func isStructuralRefusal(_ error: UpdaterError) -> Bool {
@@ -129,7 +132,7 @@ nonisolated enum ArchiveSplitWorkProducer {
                     try input.verify(nil, requiresAssembledSet: false, checkCancellation: { try ArchiveImportPlan.checkCancellation(progress) })
                 }
             try input.verify(nil, requiresAssembledSet: false, checkCancellation: { try ArchiveImportPlan.checkCancellation(progress) })
-            return Result(recompressedZIP: false)
+            return Result(recompressedZIP: false, mode: .rewrite(format))
         }
         func verify(_ set: ArchiveVolumeSet?) throws {
             if let set {
@@ -142,7 +145,7 @@ nonisolated enum ArchiveSplitWorkProducer {
         try plan.validate()
         try rewrite(sourceURL: existing.url, workURL: workURL, format: format, password: existing.password,
                     options: options, plan: plan, progress: progress, verifyAssembledInput: verify)
-        return Result(recompressedZIP: false)
+        return Result(recompressedZIP: false, mode: .rewrite(format))
     }
 
     private static func rewrite(source: ArchiveVolumeInput, workURL: URL, format: GyoshukuKit.ArchiveFormat,
@@ -176,10 +179,7 @@ nonisolated enum ArchiveSplitWorkProducer {
         }
     }
 
-    static func validate(_ reader: ArchiveReader, plan: ArchiveSaveReplayPlan) throws {
-        // Rewriters may reorder additions and omit the nameless tar root. Compare normalized multisets.
-        let expected = plan.projected.map { ArchiveEditPlan.key($0.name) }.filter { !$0.isEmpty }.sorted()
-        let actual = reader.entries.map { ArchiveEditPlan.key($0.name) }.filter { !$0.isEmpty }.sorted()
-        guard actual == expected else { throw VolumePublishError.validationFailed }
+    static func validate(_ reader: ArchiveReader, plan: ArchiveSaveReplayPlan, mode: ArchiveCapabilities.Mode) throws {
+        try ArchiveOutputProjection(plan: plan, mode: mode).validate(reader)
     }
 }

@@ -687,13 +687,13 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         for (name, data) in attributes { XCTAssertEqual(try xattr(name, at: fixture.archive), data, name) }
     }
 
-    @MainActor func testExtensionlessTarRewriteUsesBinWorkFile() async throws {
+    @MainActor func testExtensionlessTarRewriteUsesTarWorkFile() async throws {
         let fixture = try Fixture(.tar, filename: "archive"), document = try document(fixture)
         let root = fixture.directory.url
         _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: Progress(), willPublish: {
             let work = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
                 .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") })
-            XCTAssertTrue(FileManager.default.fileExists(atPath: work.appendingPathComponent("archive.bin").path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: work.appendingPathComponent("archive.tar").path))
         })
         XCTAssertEqual(document.session?.capabilities.mode, .rewrite(.tar))
         try assertContents(Fixture.original.merging(["added.txt": .file(Data("added".utf8))]) { _, new in new },

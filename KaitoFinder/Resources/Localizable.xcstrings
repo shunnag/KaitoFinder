@@ -1,6 +1,167 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "変更後のアーカイブを検証できなかったため、保存を中止しました。元のアーカイブは変更されていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upravený archiv se nepodařilo ověřit, proto bylo ukládání zastaveno. Původní archiv nebyl změněn."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det redigerede arkiv kunne ikke kontrolleres, så arkivet blev ikke gemt. Det oprindelige arkiv er ikke blevet ændret."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das bearbeitete Archiv konnte nicht überprüft werden. Daher wurde das Sichern abgebrochen. Das ursprüngliche Archiv wurde nicht verändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The edited archive could not be verified, so saving was stopped. The original archive has not been changed."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo verificar el archivo comprimido editado, por lo que se canceló el guardado. El archivo comprimido original no se ha modificado."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muokattua arkistoa ei voitu varmistaa, joten tallennus keskeytettiin. Alkuperäistä arkistoa ei ole muutettu."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’archive modifiée n’a pas pu être vérifiée. L’enregistrement a donc été annulé. L’archive d’origine n’a pas été modifiée."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "संपादित आर्काइव का सत्यापन नहीं हो सका, इसलिए सहेजना रोक दिया गया। मूल आर्काइव में कोई बदलाव नहीं किया गया है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arsip yang diedit tidak dapat diverifikasi, sehingga penyimpanan dihentikan. Arsip asli tidak diubah."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non è stato possibile verificare l’archivio modificato, quindi il salvataggio è stato annullato. L’archivio originale non è stato modificato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更後のアーカイブを検証できなかったため、保存を中止しました。元のアーカイブは変更されていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "편집한 아카이브를 검증할 수 없어 저장을 중단했습니다. 원본 아카이브는 변경되지 않았습니다."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arkib yang diedit tidak dapat disahkan, maka penyimpanan dihentikan. Arkib asal tidak diubah."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det redigerte arkivet kunne ikke verifiseres, så lagringen ble avbrutt. Det opprinnelige arkivet er ikke endret."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het bewerkte archief kon niet worden gecontroleerd. Daarom is het bewaren gestopt. Het oorspronkelijke archief is niet gewijzigd."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się zweryfikować zmodyfikowanego archiwum, więc zapisywanie zostało przerwane. Oryginalne archiwum nie zostało zmienione."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar o arquivo comprimido editado, por isso o salvamento foi cancelado. O arquivo comprimido original não foi alterado."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível verificar o arquivo editado, pelo que a gravação foi cancelada. O arquivo original não foi alterado."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось проверить изменённый архив, поэтому сохранение отменено. Исходный архив не изменён."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Det redigerade arkivet kunde inte verifieras, så sparandet avbröts. Det ursprungliga arkivet har inte ändrats."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่สามารถตรวจสอบที่เก็บถาวรที่แก้ไขได้ จึงหยุดการบันทึก ที่เก็บถาวรต้นฉบับไม่ได้ถูกเปลี่ยนแปลง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Düzenlenen arşiv doğrulanamadığı için kaydetme durduruldu. Özgün arşiv değiştirilmedi."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не вдалося перевірити змінений архів, тому збереження скасовано. Початковий архів не змінено."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không thể xác minh tệp lưu trữ đã chỉnh sửa nên quá trình lưu đã dừng. Tệp lưu trữ gốc chưa bị thay đổi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法验证编辑后的归档，因此已停止保存。原始归档未被更改。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法驗證編輯後的封存檔，因此已停止儲存。原始封存檔並未更動。"
+          }
+        }
+      }
+    },
     "項目を読み込んでいます…" : {
       "extractionState" : "manual",
       "localizations" : {

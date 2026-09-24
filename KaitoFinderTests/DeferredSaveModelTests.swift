@@ -56,7 +56,8 @@ nonisolated final class DeferredSaveModelTests: XCTestCase {
             XCTAssertEqual(plan.edits.renames.count, 3)
             XCTAssertTrue(plan.edits.renames[0].path.hasPrefix(".KaitoFinder-rename-"))
             try ArchiveImportTransaction.publish(archive: archive, mode: format == .zip ? .inPlace : .rewrite(format),
-                options: .init(), progress: Progress(), willPublish: nil) { editor in
+                options: .init(), progress: Progress(), willPublish: nil,
+                expectedOutput: .init(plan: plan, mode: format == .zip ? .inPlace : .rewrite(format))) { editor in
                 try plan.replay(on: editor, progress: Progress())
             }
             XCTAssertEqual(try DeferredSaveFixture.contents(archive), ["a": Data("B".utf8), "b": Data("A".utf8)])
