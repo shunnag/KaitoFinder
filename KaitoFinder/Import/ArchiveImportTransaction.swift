@@ -7,6 +7,7 @@ nonisolated struct ArchiveImportResult: Sendable {
     let addedPaths: [String]
     let failures: [ArchiveImportPlan.Failure]
     var reloadFailure: String?
+    var publishedIdentity: ArchiveSetIdentity?
 }
 
 nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStringConvertible {
@@ -72,6 +73,7 @@ nonisolated struct ArchiveEditResult: Sendable {
     let removedPaths: [String]
     let renamedPaths: [String]
     var reloadFailure: String?
+    var publishedIdentity: ArchiveSetIdentity?
     var published: Bool { !removedPaths.isEmpty || !renamedPaths.isEmpty }
 }
 
@@ -358,7 +360,7 @@ nonisolated enum ArchiveEditTransaction {
         }
         progress.totalUnitCount = Int64(plan.removals.count + plan.renames.count + 1)
         progress.completedUnitCount = 0
-        try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
+        let identity = try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
                                              willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try plan.verifyNames(updater.entryNames)
@@ -374,7 +376,7 @@ nonisolated enum ArchiveEditTransaction {
                 progress.completedUnitCount += 1
             }
         }
-        return ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path))
+        return ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path), publishedIdentity: identity)
     }
 }
 
@@ -389,14 +391,14 @@ nonisolated enum ArchiveImportTransaction {
                              willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
-        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
+        let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
                     willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
             try ArchiveImportPlan.checkCancellation(progress)
             try updater.addDirectory(plan.path)
             progress.completedUnitCount += 1
         }
-        return ArchiveImportResult(addedPaths: [plan.path], failures: [])
+        return ArchiveImportResult(addedPaths: [plan.path], failures: [], publishedIdentity: identity)
     }
 
     // phase hook は同じ worker 上で呼び、取消し・障害の境界を XCTest で再現する。
@@ -417,7 +419,7 @@ nonisolated enum ArchiveImportTransaction {
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.items.lazy.map(\.url)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
-        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: {
+        let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: {
             for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
             try willPublish?()
         },
@@ -443,11 +445,11 @@ nonisolated enum ArchiveImportTransaction {
                 try stamp.verify()
             }
         }
-        return ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: [])
+        return ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: [], publishedIdentity: identity)
     }
 
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
-    static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
+    @discardableResult static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: ArchiveSetIdentity? = nil,
@@ -455,7 +457,7 @@ nonisolated enum ArchiveImportTransaction {
                         registry: PendingWorkRegistry = .shared,
                         publication: ArchiveSavePublication? = nil,
                         deferredPlan: ArchiveSaveReplayPlan? = nil,
-                        mutate: (any ArchiveEditing) throws -> Void) throws {
+                        mutate: (any ArchiveEditing) throws -> Void) throws -> ArchiveSetIdentity {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         try ArchiveImportPlan.checkCancellation(progress)
         let original = try ArchiveSetIdentity.capture(url: archive)
@@ -522,9 +524,11 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
+        let identity = try ArchiveSetIdentity.capture(url: work)
         try publication?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
         progress.completedUnitCount += 1
+        return identity
     }
 
     private static func preserveAttributes(from archive: URL, to work: URL) throws {

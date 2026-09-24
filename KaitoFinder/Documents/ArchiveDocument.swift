@@ -428,7 +428,7 @@ import Synchronization
                 let encryption = await session.encryptionSettings()
                 let result = try await operation(session, {
                     // updater が書き換えるのは作業コピー。退避するのは公開直前の原本だけ。
-                    let slot = try isSplit ? nil : stack.capture(session.sourceURL, encryption: encryption)
+                    let slot = try isSplit ? nil : stack.capture(session.sourceURL, encryption: encryption, verification: session.entryVerification)
                     pending.withLock { $0 = slot }
                     try willPublish?()
                 })

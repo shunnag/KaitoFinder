@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import KaitoKit
+import Synchronization
 
 nonisolated struct ExtractionSelection: Sendable {
     let entries: [ArchiveEntry]
@@ -73,7 +74,7 @@ nonisolated enum ExtractionService {
     /// 出力 root は既存の実ディレクトリ。選択の書庫内相対パスを維持する。
     /// 呼出側は完了まで root を排他的に所有する。既存の葉は上書きしない。
     /// M1a は要求全体を一 worker にまとめ、solid group と部分木を分断しない。
-    /// 進捗は処理済み entry 数（失敗を含む）。didProcess は同じ worker で同期的に呼ぶ。
+    /// 項目数と byte 進捗を分ける。didProcess は同じ worker で同期的に呼ぶ。
     /// reader/root の準備失敗だけを throw し、entry の失敗と取り消しは戻り値で報告する。
     @concurrent static func extract(
         _ selection: ExtractionSelection,
@@ -127,29 +128,9 @@ nonisolated enum ExtractionService {
         progress.setUserInfoObject(destination, forKey: .fileURLKey)
         progress.setUserInfoObject(snapshot.selection.entries.count, forKey: .fileTotalCountKey)
         progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
-        let root: URL
-        let mapping: OutputMapping
-        if let item = promisedItem {
-            guard destination.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
-            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: snapshot.quarantine)
-            let leaf = [destination.lastPathComponent]
-            try parent.validate(leaf)
-            if item.isDirectory {
-                if progress.isCancelled || Task.isCancelled { throw CancellationError() }
-                try parent.directory(leaf, explicit: true)
-                root = destination
-                mapping = .subtree(try ExtractionPath.components(item.path))
-            } else {
-                root = destination.deletingLastPathComponent()
-                mapping = .file(leaf)
-            }
-        } else {
-            root = destination
-            mapping = .archive
-        }
-        return try run(snapshot.selection.entries, reader: snapshot.reader, destination: root,
-                       quarantine: snapshot.quarantine, progress: progress, mapping: mapping,
-                       readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
+        return try extractResolved(snapshot.selection.entries, reader: snapshot.reader, to: destination,
+            quarantine: snapshot.quarantine, progress: progress, promisedItem: promisedItem,
+            readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
     }
 
     @concurrent private static func extractPending(
@@ -173,11 +154,25 @@ nonisolated enum ExtractionService {
         progress.setUserInfoObject(destination, forKey: .fileURLKey)
         progress.setUserInfoObject(entries.count, forKey: .fileTotalCountKey)
         progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
+        if let promisedItem {
+            guard payloads.contains(promisedItem), destination.isFileURL else { throw ArchiveEntryPayload.staleSelection }
+        }
+        return try extractResolved(entries, reader: snapshot.reader, to: destination, quarantine: snapshot.quarantine,
+            progress: progress, promisedItem: promisedItem, readOnly: readOnly, didWrite: didWrite,
+            didProcess: didProcess, sources: snapshot.snapshot.sources)
+    }
+
+    static func extractResolved(
+        _ entries: [ArchiveEntry], reader: ArchiveReader, to destination: URL, quarantine: Data?,
+        progress: Progress, promisedItem: ArchiveEntryPayload? = nil, readOnly: Bool = false,
+        didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)? = nil,
+        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil
+    ) throws -> ExtractionResult {
         let root: URL, mapping: OutputMapping
         var virtualRootParent: ExtractionDestination?
         if let item = promisedItem {
-            guard payloads.contains(item), destination.isFileURL else { throw ArchiveEntryPayload.staleSelection }
-            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: snapshot.quarantine)
+            guard destination.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
+            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: quarantine)
             let leaf = [destination.lastPathComponent]
             try parent.validate(leaf)
             if item.isDirectory {
@@ -188,12 +183,11 @@ nonisolated enum ExtractionService {
                 if item.entryIndex == nil { virtualRootParent = parent }
             } else { root = destination.deletingLastPathComponent(); mapping = .file(leaf) }
         } else { root = destination; mapping = .archive }
-        let result = try run(entries, reader: snapshot.reader, destination: root, quarantine: snapshot.quarantine,
-                       progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite,
-                       didProcess: didProcess, sources: snapshot.snapshot.sources)
+        let result = try run(entries, reader: reader, destination: root, quarantine: quarantine,
+            progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite,
+            didProcess: didProcess, sources: sources)
         if let virtualRootParent {
-            // finalizer の root と同じ実パスを使う。/var と /private/var 等を混在させると
-            // 相対成分の切り出しがずれ、約束したフォルダではなく親の mode を変更してしまう。
+            // /var と /private/var を混在させず、親と同じ実パスで root を仕上げる。
             try virtualRootParent.finishSynthesizedDirectory(virtualRootParent.url([destination.lastPathComponent]))
         }
         return result
@@ -220,7 +214,11 @@ nonisolated enum ExtractionService {
         readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?,
         sources: [Int: ArchivePendingReadSnapshot.Source]? = nil
     ) throws -> ExtractionResult {
-        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, didWrite: didWrite)
+        let counter = ExtractionProgress(entries: entries, progress: progress)
+        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly) { count in
+            counter.wrote(count)
+            didWrite?(count)
+        }
         var buffer = [UInt8](repeating: 0, count: 128 * 1024)
         var result = ExtractionResult()
         var claimed = Set<String>()
@@ -341,8 +339,7 @@ nonisolated enum ExtractionService {
                 result.failures.append(.init(entryIndex: entry.index, name: entry.name,
                                              reason: ArchiveErrorText.describe(error)))
             }
-            progress.completedUnitCount += 1
-            progress.setUserInfoObject(Int(progress.completedUnitCount), forKey: .fileCompletedCountKey)
+            counter.finishedEntry()
             didProcess?(entry.index)
         }
         // 取り消し時も作成済みの directory の属性を仕上げる。
@@ -399,5 +396,55 @@ nonisolated enum ExtractionService {
 
     private static func drain(_ stream: EntryStream, buffer: inout [UInt8], checkCancellation: () throws -> Void) throws {
         try consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { _ in }
+    }
+}
+
+nonisolated final class ExtractionProgress: Sendable {
+    let progress: Progress
+    private let units: [Int64]?
+    private struct State {
+        var items = 0
+        var expected: Int64 = 0
+    }
+    private let state = Mutex(State())
+
+    static func byteUnits(_ entries: [ArchiveEntry]) -> [Int64]? {
+        var total: Int64 = 0, units: [Int64] = []
+        for entry in entries {
+            guard let size = entry.uncompressedSize, let bytes = Int64(exactly: size) else { return nil }
+            let unit = entry.kind == .directory || entry.kind == .symlink ? 1 : max(1, bytes)
+            let next = total.addingReportingOverflow(unit)
+            guard !next.overflow else { return nil }
+            total = next.partialValue
+            units.append(unit)
+        }
+        return units
+    }
+
+    init(entries: [ArchiveEntry], progress: Progress) {
+        self.progress = progress
+        units = Self.byteUnits(entries)
+        progress.totalUnitCount = units?.reduce(0, +) ?? Int64(entries.count)
+        progress.completedUnitCount = 0
+        progress.setUserInfoObject(entries.count, forKey: .fileTotalCountKey)
+        progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
+    }
+
+    func wrote(_ count: Int) {
+        guard let units else { return }
+        state.withLock { state in
+            let remaining = state.expected + units[state.items] - progress.completedUnitCount
+            progress.completedUnitCount += min(Int64(count), remaining)
+        }
+    }
+
+    func finishedEntry() {
+        state.withLock { state in
+            state.expected += units?[state.items] ?? 1
+            state.items += 1
+            // 短い本文や失敗も処理済みとして数え、次の項目の重みへ追い付く。
+            progress.completedUnitCount = state.expected
+            progress.setUserInfoObject(state.items, forKey: .fileCompletedCountKey)
+        }
     }
 }

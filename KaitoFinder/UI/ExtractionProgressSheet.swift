@@ -133,7 +133,9 @@ final class ExtractionProgressSheet: NSWindowController {
 
     func refresh() {
         indicator.doubleValue = progress.fractionCompleted
-        let count = String(localized: "\(progress.completedUnitCount) / \(progress.totalUnitCount)項目", bundle: bundle)
+        let completed = (progress.userInfo[.fileCompletedCountKey] as? NSNumber)?.int64Value ?? progress.completedUnitCount
+        let total = (progress.userInfo[.fileTotalCountKey] as? NSNumber)?.int64Value ?? progress.totalUnitCount
+        let count = String(localized: "\(completed) / \(total)項目", bundle: bundle)
         statusLabel.stringValue = count
         detailLabel.stringValue = detail
         detailLabel.isHidden = detail.isEmpty

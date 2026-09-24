@@ -629,6 +629,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             materialization = controller
             if let worker = controller.entryMaterializer {
                 let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: generation)
+                provider.isVisible = { [weak self] node in
+                    guard let outline = self?.outlineView else { return false }
+                    let row = outline.row(forItem: node)
+                    let rows = outline.rows(in: outline.visibleRect)
+                    return row >= 0 && rows.length > 0 && row >= max(0, rows.location - 3)
+                        && row < min(outline.numberOfRows, NSMaxRange(rows) + 3)
+                }
                 if (document as? ArchiveDocument)?.saveBehavior == .onSave {
                     provider.canRead = { [weak self] node in self?.canReadNodes([node]) == true }
                 }
