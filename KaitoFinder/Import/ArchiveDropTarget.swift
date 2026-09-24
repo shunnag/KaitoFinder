@@ -62,20 +62,19 @@ nonisolated struct ArchiveViewState: Sendable {
         -> (selected: [EntryNode], expanded: [EntryNode], collapsed: [EntryNode], top: EntryNode?) {
         let indices = currentGeneration != nil && generation == currentGeneration ? selectedEntryIndices : nil
         let pendingIDs = currentGeneration != nil && generation == currentGeneration ? selectedPendingIDs : nil
-        var pending = [root]
-        var selected: [EntryNode] = [], expanded: [EntryNode] = [], collapsed: [EntryNode] = []
-        var top: EntryNode?
-        while let node = pending.popLast() {
-            if let id = node.entry?.pendingID, let pendingIDs {
-                if pendingIDs.contains(id) { selected.append(node) }
-            } else if let entry = node.entry, entry.pendingID == nil, let indices {
-                if indices.contains(entry.index) { selected.append(node) }
-            } else if selectedPaths.contains(node.path) { selected.append(node) }
-            if expandedPaths.contains(node.path), node.isDirectory { expanded.append(node) }
-            if collapsedPaths.contains(node.path), node.isDirectory { collapsed.append(node) }
-            if topPath == node.path { top = node }
-            pending.append(contentsOf: node.children.reversed())
-        }
+        var candidates = selectedPaths.flatMap { root.nodes(at: $0) }
+        if let indices { candidates += indices.compactMap { root.node(forEntryIndex: $0) } }
+        if let pendingIDs { candidates += pendingIDs.compactMap { root.pendingNodes[$0] } }
+        var seen: Set<ObjectIdentifier> = []
+        let selected = candidates.filter { node in
+            guard seen.insert(ObjectIdentifier(node)).inserted else { return false }
+            if let id = node.entry?.pendingID, let pendingIDs { return pendingIDs.contains(id) }
+            if let entry = node.entry, entry.pendingID == nil, let indices { return indices.contains(entry.index) }
+            return selectedPaths.contains(node.path)
+        }.sorted { $0.treeOrder < $1.treeOrder }
+        let expanded = expandedPaths.flatMap { root.nodes(at: $0).filter(\.isDirectory) }.sorted { $0.treeOrder < $1.treeOrder }
+        let collapsed = collapsedPaths.flatMap { root.nodes(at: $0).filter(\.isDirectory) }.sorted { $0.treeOrder < $1.treeOrder }
+        let top = topPath.flatMap { root.nodes(at: $0).last }
         return (selected, expanded, collapsed, top)
     }
 }

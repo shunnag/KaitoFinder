@@ -102,10 +102,11 @@ nonisolated struct ArchiveEditPlan: Sendable {
     let existing: [ArchiveEntry]
 
     static func build(removing selections: [ArchiveEditSelection], renaming: [ArchiveEditRename],
-                      moving: [ArchiveEditMove] = [], existing: [ArchiveEntry]) throws -> Self {
+                      moving: [ArchiveEditMove] = [], existing: [ArchiveEntry],
+                      occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
         // 実体のない親フォルダも移動先になる。ファイルを親として扱うことはない。
         var folders: Set<String> = [], files: Set<String> = []
-        if !moving.isEmpty {
+        if !moving.isEmpty, cached == nil {
             for entry in existing {
                 let path = key(entry.name)
                 let parts = ArchivePath.components(path)
@@ -125,29 +126,29 @@ nonisolated struct ArchiveEditPlan: Sendable {
             }
             if !folder.isEmpty {
                 let parts = ArchivePath.components(folder)
-                guard folders.contains(folder), !(1...max(1, parts.count)).contains(where: {
+                guard cached?.isFolder(folder) ?? (folders.contains(folder) && !(1...max(1, parts.count)).contains(where: {
                     files.contains(parts.prefix($0).joined(separator: "/"))
-                }) else { throw ArchiveEditError.missingFolder(move.folder) }
+                })) else { throw ArchiveEditError.missingFolder(move.folder) }
             }
             let leaf = ArchivePath.components(source).last ?? ""
             return (selection: move.selection, destination: folder.isEmpty ? leaf : folder + "/" + leaf)
         }
         let hasFolders = (selections + renaming.map(\.selection) + moving.map(\.selection)).contains { $0.isDirectory }
         // 抽出と同じ索引を使うが、成分は EntryNode の表示と揃え、途中の . などを解決しない。
-        let selectionIndex = hasFolders ? ArchiveEntryPayload.SubtreeIndex(entries: existing, components: {
+        let selectionIndex = hasFolders && cached == nil ? ArchiveEntryPayload.SubtreeIndex(entries: existing, components: {
             Array($0.pathComponents.drop(while: { $0 == "." }))
         }) : nil
         var removed: [Int: Entry] = [:]
         for selection in selections {
-            try validate(selection, existing: existing, subtrees: selectionIndex)
+            try validate(selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
             for entry in selection.entries { removed[entry.index] = Entry(entry) }
         }
-        var occupied = ArchivePathOccupancy()
-        if !renaming.isEmpty || !moving.isEmpty {
-            for entry in existing where removed[entry.index] == nil {
-                occupied.insert(key(entry.name), directory: entry.kind == .directory)
-            }
+        var initial = ArchivePathOccupancy()
+        if cached == nil, !renaming.isEmpty || !moving.isEmpty {
+            for entry in existing { initial.insert(key(entry.name), directory: entry.kind == .directory) }
         }
+        var occupied = cached ?? .init(initial)
+        for entry in removed.values { occupied.remove(key(entry.expectedName), directory: entry.isDirectory) }
         var renamed: Set<Int> = [], destinations: Set<String> = [], changes: [Rename] = []
         // 改名と移動は同じ部分木変換。衝突・index 照合・正準等価の扱いを分岐させない。
         func rename(_ selection: ArchiveEditSelection, to destination: String) throws {
@@ -187,26 +188,34 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
         for change in renaming {
             let selection = change.selection
-            try validate(selection, existing: existing, subtrees: selectionIndex)
+            try validate(selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
             let leaf = try leafName(change.name)
             let parent = ArchivePath.components(selection.path).dropLast().joined(separator: "/")
             try rename(selection, to: parent.isEmpty ? leaf : parent + "/" + leaf)
         }
         for move in moves {
-            try validate(move.selection, existing: existing, subtrees: selectionIndex)
+            try validate(move.selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
             try rename(move.selection, to: move.destination)
         }
         let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing)
-        try plan.validate(entries: existing)
+        try plan.validate(entries: existing, occupancy: cached)
         return plan
     }
 
     private static func validate(_ selection: ArchiveEditSelection, existing: [ArchiveEntry],
-                                 subtrees: ArchiveEntryPayload.SubtreeIndex?) throws {
+                                 subtrees: ArchiveEntryPayload.SubtreeIndex?, occupancy: ArchivePathOccupancy.Overlay?) throws {
         guard !selection.path.isEmpty, !selection.entries.isEmpty else { throw ArchiveEditError.staleSelection }
         for entry in selection.entries { try validate(Entry(entry), entries: existing) }
         if selection.isDirectory {
             let components = ArchivePath.components(selection.path)
+            if let occupancy {
+                let indices = Set(selection.entries.map(\.index))
+                guard indices.count == occupancy.selectionCount(at: key(selection.path)), selection.entries.allSatisfy({ entry in
+                    let parts = entry.pathComponents
+                    return parts.starts(with: components) && (parts.count > components.count || entry.kind == .directory)
+                }) else { throw ArchiveEditError.staleSelection }
+                return
+            }
             let current = Set(subtrees?.subtree(for: components).map(\.index) ?? [])
             // 選択後に子が増えた場合も、古い部分木だけを削除して孤児を残さない。
             guard current == Set(selection.entries.map(\.index)) else { throw ArchiveEditError.staleSelection }
@@ -222,21 +231,30 @@ nonisolated struct ArchiveEditPlan: Sendable {
     }
 
     func validate(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
-                  allowsRepeatedRenames: Bool = false) throws {
+                  allowsRepeatedRenames: Bool = false, occupancy: ArchivePathOccupancy.Overlay? = nil) throws {
         for entry in removals + renames.map(\.entry) { try Self.validate(entry, entries: entries) }
-        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames)
+        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames, occupancy: occupancy)
     }
 
     func validateChanges(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
-                         allowsRepeatedRenames: Bool = false) throws {
+                         allowsRepeatedRenames: Bool = false, occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws {
         let removed = Set(removals.map(\.index))
         guard !renames.isEmpty || !additions.isEmpty else { return }
-        var occupied = ArchivePathOccupancy()
+        var initial = ArchivePathOccupancy()
         var names: [Int: String] = [:], renamed: Set<Int> = []
-        for entry in entries where !removed.contains(entry.index) {
-            let path = Self.key(entry.name)
-            names[entry.index] = path
-            occupied.insert(path, directory: entry.kind == .directory)
+        if cached == nil {
+            for entry in entries where !removed.contains(entry.index) {
+                let key = Self.key(entry.name)
+                initial.insert(key, directory: entry.kind == .directory)
+                names[entry.index] = key
+            }
+        }
+        var occupied = cached ?? .init(initial)
+        if cached != nil {
+            for index in removed {
+                let entry = entries[index]
+                occupied.remove(Self.key(entry.name), directory: entry.kind == .directory)
+            }
         }
         for change in renames {
             guard !removed.contains(change.entry.index), renamed.insert(change.entry.index).inserted || allowsRepeatedRenames else {
@@ -245,7 +263,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory)
             let key = Self.key(path)
             // updater は予約順で衝突を調べる。最終形だけでなく途中の全予約も先に検証する。
-            if let previous = names[change.entry.index] {
+            if let previous = names[change.entry.index] ?? (cached == nil ? nil : Self.key(change.entry.expectedName)) {
                 occupied.remove(previous, directory: change.entry.isDirectory)
             }
             guard !occupied.collides(key, directory: change.entry.isDirectory) else {
@@ -316,11 +334,12 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
     let path: String
     let existing: [ArchiveEntry]
 
-    static func build(in folder: String, baseName: String, existing: [ArchiveEntry]) throws -> Self {
+    static func build(in folder: String, baseName: String, existing: [ArchiveEntry],
+                      occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
         let base = try ArchiveEditPlan.leafName(baseName)
         let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false)
         var occupied: Set<String> = [], directories: Set<String> = [], files: Set<String> = []
-        for entry in existing {
+        for entry in cached == nil ? existing : [] {
             let parts = ArchivePath.components(ArchiveEditPlan.key(entry.name), omittingEmptySubsequences: false)
             for count in 1...parts.count {
                 let path = parts.prefix(count).joined(separator: "/")
@@ -330,17 +349,17 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
             }
         }
         if !parent.isEmpty {
-            guard directories.contains(parent) else { throw ArchiveEditError.staleSelection }
+            guard cached.map({ $0.selectionCount(at: parent) > 0 }) ?? directories.contains(parent) else { throw ArchiveEditError.staleSelection }
             let parts = ArchivePath.components(parent)
             for count in 1...parts.count {
                 let path = parts.prefix(count).joined(separator: "/")
-                guard !files.contains(path) else { throw ArchiveEditError.collision(path) }
+                guard cached.map({ $0.firstFileAncestor(path) == nil }) ?? !files.contains(path) else { throw ArchiveEditError.collision(path) }
             }
         }
         var name = base, number = 2
         while true {
             let path = try ArchiveEditPlan.normalizedPath(parent.isEmpty ? name : parent + "/" + name, directory: true)
-            if !occupied.contains(ArchiveEditPlan.key(path)) { return Self(path: path, existing: existing) }
+            if !(cached?.containsSubtree(at: ArchiveEditPlan.key(path)) ?? occupied.contains(ArchiveEditPlan.key(path))) { return Self(path: path, existing: existing) }
             // 仮想フォルダや表示から隠れた兄弟も予約済み。Finder と同じ空白付き連番で避ける。
             name = String(localized: "\(base) \(number)")
             number += 1

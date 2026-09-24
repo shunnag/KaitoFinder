@@ -45,7 +45,12 @@ actor ArchiveSession {
     nonisolated var usesPendingReading: Bool { pendingReading.withLock { $0.enabled } }
     nonisolated var pendingReadSnapshot: ArchivePendingReadSnapshot? { pendingReading.withLock { $0.snapshot } }
     nonisolated func setPendingReadSnapshot(_ snapshot: ArchivePendingReadSnapshot?) {
-        pendingReading.withLock { $0 = (true, snapshot) }
+        var previous = pendingReading.withLock { state in
+            let previous = state.snapshot
+            state = (true, snapshot)
+            return previous
+        }
+        ArchiveBackgroundRelease.release(&previous)
     }
     private var verifiedEntries: Set<Int> = []
     private var passwordRevision: UInt64 = 0
@@ -396,6 +401,18 @@ actor ArchiveSession {
         return result
     }
 
+    func prepareDeferredEditing() {
+        guard format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation,
+              capabilities.canEdit else { return }
+        // 失敗は従来どおり編集入口で提示し、読める書庫の表示は妨げない。
+        do {
+            try verifyDeferredIdentity()
+            _ = try ArchiveUpdater.open(url: sourceURL)
+            try verifyDeferredIdentity()
+            deferredUpdaterGeneration = generation
+        } catch { }
+    }
+
     // 保存前モードでも認証と外部変更の門番は session が所有する。
     func deferredSnapshot() throws -> (entries: [ArchiveEntry], generation: UInt64) {
         try verifyDeferredIdentity()
@@ -469,7 +486,7 @@ actor ArchiveSession {
         guard volumeLayout == nil else { throw ArchiveEditError.splitArchive }
         let snapshot = try deferredSnapshot()
         guard snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
-        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending)
+        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending, progress: progress)
         guard !plan.isEmpty else { return .init() }
         var mode = capabilities.mode!
         var output = options(for: mode)
@@ -514,7 +531,7 @@ actor ArchiveSession {
         guard capabilities.splitSave, target.filePresenter != nil,
               target.layout == (try volumeLayout?.publicationLayout()), target.expected == sourceIdentity,
               snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
-        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending)
+        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending, progress: progress)
         var mode = capabilities.mode!, output = options(for: capabilities.mode!)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
@@ -781,5 +798,12 @@ actor ArchiveSession {
 
     func entries() -> [ArchiveEntry] {
         invalidated ? [] : reader?.entries ?? []
+    }
+}
+
+nonisolated extension ArchiveSession {
+    var reservationFormat: GyoshukuKit.ArchiveFormat {
+        if case .rewrite(let format) = capabilities.mode { return format }
+        return .zip
     }
 }

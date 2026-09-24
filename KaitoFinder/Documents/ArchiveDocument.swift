@@ -72,6 +72,7 @@ import Synchronization
     private var mutationProgress: Progress?
     private var cancelMutation: (() -> Void)?
     private(set) var undoTask: Task<Void, Never>?
+    private var pendingUndoRefresh: UUID?
     private(set) var undoCleanup: Task<Void, Never>?
     private(set) var undoFailure: (any Error)?
     private var closed = false
@@ -321,11 +322,16 @@ import Synchronization
             guard !Task.isCancelled, let self else { return }
             if self.saveBehavior == .onSave {
                 do {
-                    try self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation)
-                    try self.displayPending()
-                } catch { self.presentError(error) }
+                    await session.prepareDeferredEditing()
+                    guard !self.closed, self.session === session else { return }
+                    try await self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+                    guard !self.closed, self.session === session else { return }
+                    try await self.displayPending()
+                } catch { if !self.closed, !(error is CancellationError) { self.presentError(error) } }
             } else {
-                controller?.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
+                let tree = await EntryNode.build(from: snapshot.entries)
+                guard !self.closed, self.session === session else { return }
+                controller?.display(tree, session: session, generation: snapshot.generation,
                                     materializationController: self.materializationController())
             }
         }
@@ -361,8 +367,16 @@ import Synchronization
     }
 
     func rename(_ node: EntryNode, to name: String, progress: Progress,
-                willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
-        try await edit(renaming: [ArchiveEditRename(selection: ArchiveEditSelection(node), name: name)],
+                willPublish: (@Sendable () throws -> Void)? = nil, validated: ArchiveValidatedRename? = nil) async throws -> ArchiveEditResult {
+        if saveBehavior == .onSave, let validated {
+            return try await reserve(name: "名称変更", progress: progress, willPublish: willPublish) { editor, state, session in
+                guard validated.generation == state.reading.generation, validated.revision == editor.changes.revision,
+                      validated.session == ObjectIdentifier(session) else { throw ArchiveEditError.staleSelection }
+                return await ArchiveReservationComputation.applyValidated(validated.plan, state: state, changes: editor.changes,
+                    base: editor.base, generation: state.reading.generation)
+            }
+        }
+        return try await edit(renaming: [ArchiveEditRename(selection: ArchiveEditSelection(node), name: name)],
                        progress: progress, willPublish: willPublish)
     }
 
@@ -513,9 +527,21 @@ import Synchronization
                 try pending.validate(base: editor.base, generation: session.generation)
                 let previous = editor.changes
                 editor.replace(pending)
+                session.setPendingReadSnapshot(try .init(deferredBase: editor.base, generation: session.generation,
+                    changes: editor.changes, staging: editor.staging))
                 action.pending = previous
                 registerUndo(action)
-                try displayPending()
+                let revision = editor.changes.revision, previousRefresh = undoTask, refreshID = UUID()
+                pendingUndoRefresh = refreshID
+                undoFailure = nil
+                undoTask = Task { [weak self] in
+                    await previousRefresh?.value
+                    guard let self else { return }
+                    defer { if pendingUndoRefresh == refreshID { undoTask = nil; pendingUndoRefresh = nil } }
+                    guard editor.changes.revision == revision else { return }
+                    do { try await displayPending() }
+                    catch { if editor.changes.revision == revision { undoFailure = error } }
+                }
             } catch { undoFailure = error }
             return
         }
@@ -676,13 +702,18 @@ import Synchronization
         let snapshot = await session.snapshot()
         if saveBehavior == .onSave {
             do {
-                try pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation)
-                try displayPending()
+                await session.prepareDeferredEditing()
+                guard !closed, self.session === session else { return }
+                try await pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: false)
+                guard !closed, self.session === session else { return }
+                try await displayPending(checksCancellation: false)
             } catch { if !closed { presentError(error) } }
             return
         }
+        let tree = await EntryNode.build(from: snapshot.entries)
+        guard !closed, self.session === session else { return }
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
-            controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation,
+            controller.display(tree, session: session, generation: snapshot.generation,
                                materializationController: materializationController())
         }
     }
@@ -882,7 +913,7 @@ extension ArchiveDocument {
 
     private func reserve<Result: ArchiveMutationResult>(name: String, progress: Progress,
         willPublish: (@Sendable () throws -> Void)? = nil,
-        operation: @escaping @MainActor (ArchivePendingEditor, ArchivePendingProjection, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
+        operation: @escaping @MainActor (ArchivePendingEditor, ArchiveReservationState, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
     ) async throws -> Result {
         if isImmediateSplitMutation {
             return try await mutate(progress: progress, actionName: name, willPublish: willPublish,
@@ -895,10 +926,11 @@ extension ArchiveDocument {
 
     private func performReservation<Result: ArchiveMutationResult>(name: String, progress: Progress,
         willPublish: (@Sendable () throws -> Void)?,
-        operation: (ArchivePendingEditor, ArchivePendingProjection, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
+        operation: (ArchivePendingEditor, ArchiveReservationState, ArchiveSession) async throws -> (ArchivePendingChanges, Result)
     ) async throws -> Result {
         // UI は無効化する。既に送られたプログラム上の要求は保存後の新しい予約として扱う。
         if let saving = deferredSaveTask { try await saving.value }
+        if saveBehavior == .onSave { while let refresh = undoTask { await refresh.value } }
         try ArchiveImportPlan.checkCancellation(progress)
         guard !closed, let session else { throw CancellationError() }
         let immediate = isImmediateSplitMutation
@@ -917,30 +949,31 @@ extension ArchiveDocument {
         let snapshot = try await session.deferredSnapshot()
         guard !closed, self.session === session else { throw CancellationError() }
         if immediate { try await confirmSplitMutation(progress: progress) }
-        try editor.install(base: snapshot.entries, generation: snapshot.generation)
+        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
         let previous = editor.changes
         let stagingCheckpoint = editor.stagingCheckpoint
-        let projection = try editor.projection(generation: snapshot.generation)
-        if !immediate {
-            session.setPendingReadSnapshot(try .init(base: editor.base, generation: snapshot.generation,
-                                                    changes: editor.changes, staging: editor.staging))
-        }
+        var state: ArchiveReservationState? = try await editor.prepare(generation: snapshot.generation)
+        defer { ArchiveBackgroundRelease.release(&state) }
+        guard !closed, self.session === session, session.generation == snapshot.generation,
+              editor.baseSession == ObjectIdentifier(session), editor.changes.revision == previous.revision else { throw ArchiveEditError.staleSelection }
+        if !immediate { session.setPendingReadSnapshot(state!.reading) }
         do {
-            let (next, initialResult) = try await operation(editor, projection, session)
+            var (next, initialResult) = try await operation(editor, state!, session)
             var result = initialResult
             try ArchiveImportPlan.checkCancellation(progress)
             guard !closed, self.session === session, generation == snapshot.generation,
-                  editor.changes.revision == previous.revision else { throw ArchiveEditError.staleSelection }
-            let projected = try next.projection(base: editor.base, generation: snapshot.generation)
-            let format: GyoshukuKit.ArchiveFormat
-            switch session.capabilities.mode {
-            case .inPlace: format = .zip
-            case .rewrite(let output): format = output
-            case nil: throw ArchiveEditError.staleSelection
-            }
-            try ArchiveSaveReplayPlan.validateRepresentability(projected, format: format)
+                  editor.baseSession == ObjectIdentifier(session), editor.changes.revision == previous.revision else { throw ArchiveEditError.staleSelection }
+            next.revision = previous.revision &+ 1
+            var prepared: ArchiveReservationState? = try await ArchiveReservationState.build(base: editor.base, generation: snapshot.generation,
+                changes: next, validation: editor.validation!, staging: editor.staging, validates: true,
+                previous: previous, reusing: state,
+                filters: Set(windowControllers.compactMap { ($0 as? ArchiveWindowController)?.filterConfiguration }))
+            defer { ArchiveBackgroundRelease.release(&prepared) }
+            try ArchiveImportPlan.checkCancellation(progress)
             try await verifyReservationIdentity()
-            if next != previous {
+            guard !closed, self.session === session, generation == snapshot.generation,
+                  editor.baseSession == ObjectIdentifier(session), editor.changes.revision == previous.revision else { throw ArchiveEditError.staleSelection }
+            if prepared!.changesDiffer {
                 if immediate {
                     let publication = ArchiveSavePublication.current.get() ?? ArchiveSavePublication()
                     defer { if ArchiveSavePublication.current.get() == nil { publication.finish() } }
@@ -949,10 +982,10 @@ extension ArchiveDocument {
                     result.reloadFailure = saved.reloadFailure
                     fileModificationDate = saved.modificationDate
                 } else {
-                    editor.replace(next)
+                    editor.replace(next, prepared: prepared)
                     // groupsByEvent=false なので即時モードと同じ grouping 入口を通す。
                     registerUndo(UndoAction(id: UUID(), name: name, pending: previous))
-                    try displayPending()
+                    displayPending(prepared!)
                 }
             }
             if immediate, let staging = editor.reset() { await staging.removeWhenUnused() }
@@ -973,49 +1006,33 @@ extension ArchiveDocument {
 
     private func reserveAppend(urls: [URL], folder: String, progress: Progress,
                                resolver: ArchiveImportConflict.Resolver?, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
-        try await reserve(name: "追加", progress: progress, willPublish: willPublish) { [self] editor, projection, session in
+        try await reserve(name: "追加", progress: progress, willPublish: willPublish) { [self] editor, state, session in
             var options = preferencesStore.preferences.importOptions
             options.excludesStagingFiles = true
-            let plan: ArchiveImportPlan
-            if let resolver {
-                plan = try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: projection.planningEntries,
-                    archive: session.sourceURL, generation: generation, progress: progress, options: options,
-                    existingItems: try pendingConflictItems(projection, folder: folder), resolver: resolver)
-            } else {
-                plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: projection.planningEntries,
-                                                  progress: progress, options: options)
-            }
+            let plan = try await ArchiveReservationComputation.importPlan(urls: urls, folder: folder, state: state,
+                archive: session.sourceURL, progress: progress, options: options, resolver: resolver)
             guard plan.failures.isEmpty, !plan.items.isEmpty else {
                 return (editor.changes, ArchiveImportResult(addedPaths: [], failures: plan.failures))
             }
             guard !closed, self.session === session else { throw CancellationError() }
-            for stamp in plan.sourceStamps { try stamp.verify() }
-            let removals = plan.replacingEntries.map { ArchiveEditPlan.Entry(projection.planningEntries[$0]) }
-            var next = try editor.applying(.init(removals: removals, renames: [], existing: projection.planningEntries), projection: projection)
-            next.additions += try await editor.stage(plan.items, progress: progress)
-            for stamp in plan.sourceStamps { try stamp.verify() }
+            let additions = try await editor.stage(plan.items, sourceStamps: plan.sourceStamps, progress: progress)
+            let next = await ArchiveReservationComputation.append(plan, additions: additions, state: state,
+                changes: editor.changes, base: editor.base, generation: state.reading.generation)
             return (next, ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: []))
         }
     }
 
     private func reserveFolder(in folder: String, baseName: String, progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
-        try await reserve(name: "新規フォルダ", progress: progress, willPublish: willPublish) { editor, projection, _ in
-            let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: projection.planningEntries)
-            var next = editor.changes
-            next.createdFolders.append(.init(id: UUID(), path: plan.path))
-            return (next, ArchiveImportResult(addedPaths: [plan.path], failures: []))
+        try await reserve(name: "新規フォルダ", progress: progress, willPublish: willPublish) { editor, state, _ in
+            try await ArchiveReservationComputation.folder(in: folder, baseName: baseName, state: state, changes: editor.changes)
         }
     }
 
     private func reserveEdit(removing: [ArchiveEditSelection], renaming: [ArchiveEditRename], moving: [ArchiveEditMove],
                              progress: Progress, name: String, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveEditResult {
-        try await reserve(name: name, progress: progress, willPublish: willPublish) { editor, projection, _ in
-            let plan = try ArchiveEditPlan.build(removing: removing.map { try projection.selection($0) },
-                renaming: renaming.map { .init(selection: try projection.selection($0.selection), name: $0.name) },
-                moving: moving.map { .init(selection: try projection.selection($0.selection), folder: $0.folder) },
-                existing: projection.planningEntries)
-            return (try editor.applying(plan, projection: projection),
-                    ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path)))
+        try await reserve(name: name, progress: progress, willPublish: willPublish) { editor, state, _ in
+            try await ArchiveReservationComputation.edit(removing: removing, renaming: renaming, moving: moving,
+                state: state, changes: editor.changes, base: editor.base, generation: state.reading.generation)
         }
     }
 
@@ -1025,57 +1042,10 @@ extension ArchiveDocument {
             return try await reserveEdit(removing: [], renaming: [], moving: selections.map { .init(selection: $0, folder: folder) },
                                          progress: progress, name: "移動", willPublish: willPublish)
         }
-        return try await reserve(name: "移動", progress: progress, willPublish: willPublish) { [self] editor, projection, session in
-            let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder)
-            _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: projection.planningEntries, progress: progress)
-            var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
-            for selection in selections {
-                let mapped = try projection.selection(selection)
-                let source = try ArchiveImportPlan.path(selection.path)
-                if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
-                if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
-                    throw ArchiveEditError.destinationInsideSource(source)
-                }
-                let leaf = ArchivePath.components(source).last!
-                let destination = target.isEmpty ? leaf : target + "/" + leaf
-                moving.append(mapped)
-                candidates.append(.init(path: destination, info: try pendingConflictItem(selection.entries, path: source)))
-            }
-            let resolution = try await ArchiveConflictResolution.resolve(candidates,
-                existing: ArchiveConflictResolution.existingGroups(projection.planningEntries, folder: target),
-                archive: session.sourceURL, generation: generation, progress: progress,
-                existingItems: try pendingConflictItems(projection, folder: target), resolver: resolver)
-            let removals = resolution.replaced.map { ArchiveEditSelection(path: $0.name, isDirectory: false, entries: [$0]) }
-            let plan = try ArchiveEditPlan.build(removing: removals, renaming: [],
-                moving: resolution.accepted.map { .init(selection: moving[$0], folder: target) }, existing: projection.planningEntries)
-            return (try editor.applying(plan, projection: projection),
-                    ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path)))
+        return try await reserve(name: "移動", progress: progress, willPublish: willPublish) { editor, state, session in
+            try await ArchiveReservationComputation.move(selections, folder: folder, state: state, changes: editor.changes,
+                base: editor.base, archive: session.sourceURL, generation: state.reading.generation, progress: progress, resolver: resolver)
         }
-    }
-
-    private func pendingConflictItems(_ projection: ArchivePendingProjection, folder: String) throws -> [String: ArchiveConflictItem] {
-        try ArchiveConflictResolution.existingGroups(projection.entries, folder: folder).mapValues { entries in
-            let parts = ArchivePath.components(folder).count + 1
-            let path = entries[0].pathComponents.prefix(parts).joined(separator: "/")
-            return try pendingConflictItem(entries, path: path)
-        }
-    }
-
-    private func pendingConflictItem(_ entries: [ArchiveEntry], path: String) throws -> ArchiveConflictItem {
-        let info = ArchiveConflictItem.archived(entries, path: path, archive: session!.sourceURL, generation: generation)
-        let source: ArchiveConflictItem.Source?
-        var lease: StagingRegistry.ReadLease?
-        if entries.count == 1, let entry = entries.first, let id = entry.pendingID,
-           let addition = pendingChanges.additions.first(where: { $0.id == id }), addition.sourceStamp.kind == .file {
-            lease = try pendingEditor?.staging?.acquireRead()
-            guard lease != nil else { throw ArchiveEntryPayload.staleSelection }
-            source = .file(addition.stagedURL)
-        } else if entries.count == 1, let entry = entries.first, entry.kind == .file, !entry.isIncomplete,
-                  let snapshot = session?.pendingReadSnapshot {
-            source = .archive(snapshot.payload(for: entry, archive: session!.sourceURL))
-        } else { source = info.source }
-        return .init(name: info.name, location: info.location, kind: info.kind, size: info.size,
-                     modificationDate: info.modificationDate, entryCount: info.entryCount, source: source, stagingLease: lease)
     }
 
     func deferredEncryptionSettings() async -> ArchiveEncryptionSettings {
@@ -1102,24 +1072,37 @@ extension ArchiveDocument {
     }
 
     func projectedEntries() async throws -> [ArchiveEntry] {
+        if saveBehavior == .onSave { while let refresh = undoTask { await refresh.value } }
         guard let session else { return [] }
         let snapshot = await session.snapshot()
         guard let editor = pendingEditor else { return snapshot.entries }
-        try editor.install(base: snapshot.entries, generation: snapshot.generation)
-        session.setPendingReadSnapshot(try .init(base: editor.base, generation: snapshot.generation,
-                                                changes: editor.changes, staging: editor.staging))
-        return try editor.projection(generation: snapshot.generation).entries
+        await session.prepareDeferredEditing()
+        guard !closed, self.session === session else { throw CancellationError() }
+        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+        let prepared = try await editor.prepare(generation: snapshot.generation)
+        guard self.session === session, editor.baseSession == ObjectIdentifier(session), session.generation == snapshot.generation else { throw ArchiveEditError.staleSelection }
+        session.setPendingReadSnapshot(prepared.reading)
+        return prepared.projection.entries
     }
 
-    private func displayPending() throws {
+    private func displayPending(checksCancellation: Bool = true) async throws {
         guard !closed, let editor = pendingEditor, let session else { return }
-        let entries = try editor.projection(generation: session.generation).entries
-        session.setPendingReadSnapshot(try .init(base: editor.base, generation: session.generation,
-                                                changes: editor.changes, staging: editor.staging))
+        guard editor.baseSession == ObjectIdentifier(session) else { throw ArchiveEditError.staleSelection }
+        let prepared = try await editor.prepare(generation: session.generation,
+            filters: Set(windowControllers.compactMap { ($0 as? ArchiveWindowController)?.filterConfiguration }),
+            checksCancellation: checksCancellation)
+        guard !closed, self.session === session, editor.baseSession == ObjectIdentifier(session),
+              editor.changes.revision == prepared.revision else { return }
+        displayPending(prepared)
+    }
+
+    private func displayPending(_ prepared: ArchiveReservationState) {
+        guard !closed, let session else { return }
+        session.setPendingReadSnapshot(prepared.reading)
         disposeMaterialization()
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
-            controller.display(EntryNode.tree(from: entries), session: session, generation: session.generation,
-                               materializationController: materializationController())
+            controller.display(prepared.tree, session: session, generation: session.generation,
+                               materializationController: materializationController(), preparedFilter: prepared.filters[controller.filterConfiguration])
         }
     }
 
@@ -1244,12 +1227,12 @@ extension ArchiveDocument {
         return try choice.schedule(for: layout)
     }
 
-    private func prepareSplitSave(layout: ArchiveVolumeLayout, plan: ArchiveSaveReplayPlan,
+    private func prepareSplitSave(layout: ArchiveVolumeLayout, pending: ArchivePendingChanges,
                                   progress: Progress) async throws -> (VolumePlan.Schedule, UInt64, Bool) {
         let parent = try VolumePublishFS.canonicalParent(of: layout.gateURL)
         let info = try await Self.splitVolumeInfo(parent, operations: splitSaveHooks.operations)
         var estimate = layout.volumes.reduce(UInt64(0)) { $0 + $1.length }
-        for entry in plan.additions {
+        for entry in pending.additions {
             let next = estimate.addingReportingOverflow(entry.sourceStamp.size + 1024)
             guard !next.overflow else { throw VolumePublishError.invalidPlan }
             estimate = next.partialValue
@@ -1326,8 +1309,7 @@ extension ArchiveDocument {
                                      willPublish: (@Sendable () throws -> Void)?) async throws -> ArchiveSplitSaveResult {
         guard let session, let layout = session.volumeLayout else { throw ArchiveEditError.staleSelection }
         splitSaveFailure = nil; splitSaveResult = nil; splitSaveNotice = nil
-        let plan = try ArchiveSaveReplayPlan(base: base, generation: baseGeneration, pending: pending)
-        let (schedule, estimatedLength, consent) = try await prepareSplitSave(layout: layout, plan: plan, progress: progress)
+        let (schedule, estimatedLength, consent) = try await prepareSplitSave(layout: layout, pending: pending, progress: progress)
         try await session.verifyDeferredIdentity()
         let expected = await session.sourceIdentity
         let publicationLayout = try layout.publicationLayout()
@@ -1373,10 +1355,9 @@ extension ArchiveDocument {
         splitSaveNotice = nil
         var committedDate: Date?
         let snapshot = await session.snapshot()
-        try editor.install(base: snapshot.entries, generation: snapshot.generation)
+        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
         let pending = editor.changes
-        let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: snapshot.generation, pending: pending)
-        if !plan.isEmpty {
+        if try await pending.requiresReplay(base: snapshot.entries, generation: snapshot.generation) {
             // AppKit の外部変更シートを Save anyway で越えても、この照合は省かない。
             do { try await session.verifyDeferredIdentity() }
             catch {
@@ -1501,8 +1482,8 @@ extension ArchiveDocument {
                 throw Self.deferredExternalChangeError
             }
             var existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
-            try editor.install(base: existing.entries, generation: generation)
-            existing.pending = try ArchiveSaveReplayPlan(base: existing.entries, generation: generation, pending: editor.changes)
+            try await editor.install(base: existing.entries, generation: generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+            existing.pending = try await ArchiveSaveReplayPlan.build(base: existing.entries, generation: generation, pending: editor.changes, progress: progress)
             existing.publication = publication
             existing.encryption = await deferredEncryptionSettings()
             guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress,

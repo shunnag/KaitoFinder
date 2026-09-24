@@ -10,15 +10,22 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
     let folders: [ArchivePendingChanges.CreatedFolder]
     let outputEncryption: ArchiveEncryptionSettings?
     let projected: [ArchiveEntry]
+    let renamePasses: Int
     var isEmpty: Bool { edits.removals.isEmpty && edits.renames.isEmpty && additions.isEmpty && folders.isEmpty && outputEncryption == nil }
 
-    init(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges) throws {
+    @concurrent static func build(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges,
+                                  progress: Progress = Progress()) async throws -> Self {
+        try Self(base: base, generation: generation, pending: pending, progress: progress)
+    }
+
+    init(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges, progress: Progress = Progress()) throws {
+        ArchiveReservationDiagnostics.record(.replayPlan)
         let projected = try pending.projection(base: base, generation: generation)
         self.projected = projected
         let removed = Set(pending.removals.map(\.index))
         let survivors = projected.filter { $0.pendingID == nil }
         var desired: [Int: String] = [:]
-        for entry in survivors where !entry.name.utf8.elementsEqual(base[entry.index].name.utf8) {
+        for entry in survivors where ArchiveEditPlan.key(entry.name) != ArchiveEditPlan.key(base[entry.index].name) {
             desired[entry.index] = try ArchiveEditPlan.normalizedPath(entry.name, directory: entry.kind == .directory)
         }
         // 最終形の検査を先に行い、解決不能な衝突を一時名で隠さない。
@@ -40,10 +47,13 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             names[entry.index] = key
         }
         var remaining = desired, ordered: [ArchiveEditPlan.Rename] = []
-        var parked: Set<Int> = []
+        var parked: Set<Int> = [], passes = 0
         while !remaining.isEmpty {
+            passes += 1
+            try ArchiveImportPlan.checkCancellation(progress)
             var advanced = false
             for index in remaining.keys.sorted() {
+                try ArchiveImportPlan.checkCancellation(progress)
                 let directory = base[index].kind == .directory
                 let path = remaining[index]!, key = ArchiveEditPlan.key(path)
                 occupied.remove(names[index]!, directory: directory)
@@ -58,21 +68,48 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
                 advanced = true
             }
             if !advanced {
-                // 循環の一頂点を空き名へ退避する。同じ base index の二度目の改名を許す。
-                guard let index = remaining.keys.sorted().first(where: { !parked.contains($0) }) else {
-                    throw ArchiveEditError.conflictingSelection
+                // 独立した循環を一度にほどき、フォルダ同士の交換でも全件走査を繰り返さない。
+                var occupants: [String: Int] = [:], ambiguous: Set<String> = []
+                for (index, key) in names {
+                    if occupants.updateValue(index, forKey: key) != nil { ambiguous.insert(key) }
                 }
-                parked.insert(index)
-                let directory = base[index].kind == .directory
-                var path: String
-                repeat { path = ".KaitoFinder-rename-" + UUID().uuidString }
-                while occupied.containsSubtree(at: path) || final.containsSubtree(at: path)
-                occupied.remove(names[index]!, directory: directory)
-                occupied.insert(path, directory: directory)
-                names[index] = path
-                ordered.append(.init(entry: .init(base[index]), path: directory ? path + "/" : path))
+                var visited: Set<Int> = [], breaks: [Int] = []
+                for start in remaining.keys.sorted() where !visited.contains(start) {
+                    var route: [Int] = [], positions: [Int: Int] = [:], cursor: Int? = start
+                    while let index = cursor, remaining[index] != nil, !visited.contains(index) {
+                        try ArchiveImportPlan.checkCancellation(progress)
+                        if let position = positions[index] {
+                            if let candidate = route[position...].filter({ !parked.contains($0) }).min() { breaks.append(candidate) }
+                            break
+                        }
+                        positions[index] = route.count
+                        route.append(index)
+                        let key = ArchiveEditPlan.key(remaining[index]!)
+                        cursor = ambiguous.contains(key) ? nil : occupants[key]
+                    }
+                    visited.formUnion(route)
+                }
+                if breaks.isEmpty {
+                    guard let index = remaining.keys.sorted().first(where: { !parked.contains($0) }) else {
+                        throw ArchiveEditError.conflictingSelection
+                    }
+                    breaks = [index]
+                }
+                for index in breaks.sorted() {
+                    try ArchiveImportPlan.checkCancellation(progress)
+                    parked.insert(index)
+                    let directory = base[index].kind == .directory
+                    var path: String
+                    repeat { path = ".KaitoFinder-rename-" + UUID().uuidString }
+                    while occupied.containsSubtree(at: path) || final.containsSubtree(at: path)
+                    occupied.remove(names[index]!, directory: directory)
+                    occupied.insert(path, directory: directory)
+                    names[index] = path
+                    ordered.append(.init(entry: .init(base[index]), path: directory ? path + "/" : path))
+                }
             }
         }
+        renamePasses = passes
         edits = ArchiveEditPlan(removals: removed.sorted().map { .init(base[$0]) }, renames: ordered, existing: base)
         additions = pending.additions
         folders = pending.createdFolders

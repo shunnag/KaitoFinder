@@ -218,7 +218,7 @@ nonisolated enum ExtractionService {
         _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL,
         quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive,
         readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?,
-        sources: [Int: ArchivePendingReadSnapshot.Source]? = nil
+        sources: ArchivePendingReadSnapshot.Sources? = nil
     ) throws -> ExtractionResult {
         let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, didWrite: didWrite)
         var buffer = [UInt8](repeating: 0, count: 128 * 1024)

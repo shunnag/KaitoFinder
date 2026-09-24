@@ -39,10 +39,10 @@ nonisolated struct ArchiveImportPlan: Sendable {
     }
 
     static func build(urls: [URL], folder: String, existing: [ArchiveEntry], progress: Progress,
-                      options: Options = Options()) throws -> Self {
+                      options: Options = Options(), occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
         let target = folder.isEmpty ? "" : try path(folder)
         var occupied = Set<String>(), files = Set<String>()
-        for entry in existing {
+        for entry in cached == nil ? existing : [] {
             let raw = entry.pathComponents.drop(while: { $0 == "." }).joined(separator: "/")
             guard let key = try? path(raw) else { continue }
             occupied.insert(key)
@@ -53,7 +53,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
         if !target.isEmpty {
             let parts = ArchivePath.components(target)
             let ancestors = (1...parts.count).map { parts.prefix($0).joined(separator: "/") }
-            guard occupied.contains(target), !ancestors.contains(where: files.contains) else {
+            guard cached?.isFolder(target) ?? (occupied.contains(target) && !ancestors.contains(where: files.contains)) else {
                 throw ExtractionFailure.refused(String(localized: "追加先フォルダが見つからないか、ファイルと衝突しています: \(target)。"))
             }
         }
@@ -66,14 +66,14 @@ nonisolated struct ArchiveImportPlan: Sendable {
                 let leaf = try path(url.lastPathComponent)
                 let rootPath = target.isEmpty ? leaf : target + "/" + leaf
                 // 仮想フォルダとの衝突も拒否する。フォルダの暗黙の併合は行わない。
-                guard !occupied.contains(rootPath) else {
+                guard !occupied.contains(rootPath), cached?.containsSubtree(at: rootPath) != true else {
                     throw ExtractionFailure.refused(String(localized: "同じ名前の項目が既にあります: \(rootPath)。"))
                 }
                 var pending = [(url, rootPath)], batch: [Item] = [], names = Set<String>()
                 while let (source, name) = pending.popLast() {
                     try checkCancellation(progress)
                     let key = try path(name)
-                    guard names.insert(key).inserted, !occupied.contains(key) else {
+                    guard names.insert(key).inserted, !occupied.contains(key), cached?.containsSubtree(at: key) != true else {
                         throw ExtractionFailure.refused(String(localized: "同じ名前の項目が既にあります: \(key)。"))
                     }
                     var info = stat()

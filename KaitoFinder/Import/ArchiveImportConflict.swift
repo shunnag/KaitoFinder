@@ -138,6 +138,7 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
 
 /// 衝突の判断だけを行う。すべての回答が揃うまで updater を開かない。
 nonisolated enum ArchiveConflictResolution {
+    typealias ItemProvider = @Sendable ([ArchiveEntry], String) throws -> ArchiveConflictItem
     struct Candidate: Sendable {
         let path: String
         let info: ArchiveConflictItem
@@ -147,21 +148,24 @@ nonisolated enum ArchiveConflictResolution {
         let replaced: [ArchiveEntry]
     }
 
-    static func existingGroups(_ entries: [ArchiveEntry], folder: String) -> [String: [ArchiveEntry]] {
+    static func existingGroups(_ entries: [ArchiveEntry], folder: String, matching: Set<String>? = nil) -> [String: [ArchiveEntry]] {
         let parent = ArchivePath.components(folder)
+        let leaves = matching.map { Set($0.compactMap { ArchivePath.components($0).last }) }
         var groups: [String: [ArchiveEntry]] = [:]
         for entry in entries {
             let parts = Array(entry.pathComponents.drop(while: { $0 == "." }))
             guard parts.count > parent.count, parts.prefix(parent.count).elementsEqual(parent) else { continue }
+            if let leaves, !leaves.contains(parts[parent.count]) { continue }
             let path = parts.prefix(parent.count + 1).joined(separator: "/").precomposedStringWithCanonicalMapping
             groups[path, default: []].append(entry)
         }
         return groups
     }
 
-    static func resolve(_ candidates: [Candidate], existing: [String: [ArchiveEntry]], archive: URL,
+    @concurrent static func resolve(_ candidates: [Candidate], existing: [String: [ArchiveEntry]], archive: URL,
                         generation: UInt64, progress: Progress,
                         existingItems: [String: ArchiveConflictItem] = [:],
+                        itemProvider: ItemProvider? = nil,
                         resolver: ArchiveImportConflict.Resolver) async throws -> Result {
         var occupied = Set(existing.keys), remaining = 0
         for candidate in candidates {
@@ -171,9 +175,9 @@ nonisolated enum ArchiveConflictResolution {
         var batchChoice: ArchiveConflictDecision.Choice?
         for (index, candidate) in candidates.enumerated() {
             try ArchiveImportPlan.checkCancellation(progress)
-            let previous = accepted[candidate.path].map { candidates[$0].info }
+            let previous = try accepted[candidate.path].map { candidates[$0].info }
                 ?? existingItems[candidate.path] ?? existing[candidate.path].map {
-                    ArchiveConflictItem.archived($0, path: candidate.path, archive: archive, generation: generation)
+                    try itemProvider?($0, candidate.path) ?? ArchiveConflictItem.archived($0, path: candidate.path, archive: archive, generation: generation)
                 }
             if let previous {
                 let conflict = ArchiveImportConflict(path: candidate.path, existing: previous, incoming: candidate.info,
@@ -195,13 +199,15 @@ nonisolated enum ArchiveConflictResolution {
 }
 
 extension ArchiveImportPlan {
-    static func resolving(urls: [URL], folder: String, existing: [ArchiveEntry], archive: URL, generation: UInt64,
+    @concurrent static func resolving(urls: [URL], folder: String, existing: [ArchiveEntry], archive: URL, generation: UInt64,
                           progress: Progress, options: Options,
                           existingItems: [String: ArchiveConflictItem] = [:],
+                          itemProvider: ArchiveConflictResolution.ItemProvider? = nil,
+                          occupancy: ArchivePathOccupancy.Overlay? = nil,
                           resolver: ArchiveImportConflict.Resolver) async throws -> Self {
         let target = folder.isEmpty ? "" : try path(folder)
         // 既存と同じ規則で追加先の実在・ファイル祖先を検証する。
-        _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options)
+        _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options, occupancy: occupancy)
         var batches: [[Item]] = [], stamps: [[ArchiveImportSourceStamp]] = []
         var candidates: [ArchiveConflictResolution.Candidate] = [], failures: [Failure] = []
         for url in urls {
@@ -223,8 +229,8 @@ extension ArchiveImportPlan {
         }
         guard failures.isEmpty else { return Self(failures: failures) }
         let result = try await ArchiveConflictResolution.resolve(candidates,
-            existing: ArchiveConflictResolution.existingGroups(existing, folder: target), archive: archive,
-            generation: generation, progress: progress, existingItems: existingItems, resolver: resolver)
+            existing: ArchiveConflictResolution.existingGroups(existing, folder: target, matching: Set(candidates.map(\.path))), archive: archive,
+            generation: generation, progress: progress, existingItems: existingItems, itemProvider: itemProvider, resolver: resolver)
         return Self(items: result.accepted.flatMap { batches[$0] }, replacingEntries: result.replaced.map(\.index),
                     expectedEntries: existing, sourceStamps: result.accepted.flatMap { stamps[$0] })
     }

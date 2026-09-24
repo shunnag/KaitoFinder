@@ -86,6 +86,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private(set) var thumbnailProvider: ArchiveThumbnailProvider?
     private(set) var filterQuery = ""
     private var entryFilter: EntryTreeFilter?
+    var filterConfiguration: EntryTreeFilter.Configuration { .init(query: filterQuery, showsHiddenFiles: showsHiddenFiles) }
     private var unfilteredViewState: ArchiveViewState?
     private var materialization: ArchiveMaterializationController?
     let previewSidebar: ArchivePreviewSidebar
@@ -99,7 +100,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var materializationSheet: ExtractionProgressSheet?
     private let openWithMenu: NSMenu
     private var root = EntryNode.tree(from: [])
-    private var parents: [ObjectIdentifier: EntryNode] = [:]
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
     private var restoringSort = false
     private var hasShownWindow = false
@@ -562,7 +562,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
-                 materializationController: ArchiveMaterializationController? = nil) {
+                 materializationController: ArchiveMaterializationController? = nil, preparedFilter: EntryTreeFilter? = nil) {
         let state = captureViewState()
         thumbnailProvider?.cancelAll()
         thumbnailProvider = nil
@@ -587,14 +587,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         unlockButton.keyEquivalent = ""
         window?.defaultButtonCell = nil
         self.generation = generation
+        renameValidation = nil
+        var retired = Optional((self.root, entryFilter, sortedChildren))
+        defer { ArchiveBackgroundRelease.release(&retired) }
         self.root = root
         kindResolver.resetNodes()
-        parents.removeAll()
-        var pending = [root]
-        while let parent = pending.popLast() {
-            for child in parent.children { parents[ObjectIdentifier(child)] = parent }
-            pending.append(contentsOf: parent.children)
-        }
         refreshCapabilityNotice(session: session)
         if let session, let controller = nextMaterialization {
             session.setCapabilitiesObserver { [weak self, weak session] in
@@ -643,7 +640,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 thumbnailProvider = provider
             }
         } else { materialization = nil }
-        reloadFilteredEntries(restoring: state)
+        reloadFilteredEntries(restoring: state, prepared: preparedFilter)
         updatePathControl()
         updatePreviewSidebar()
         window?.toolbar?.validateVisibleItems()
@@ -680,7 +677,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         var components: [EntryNode] = []
         var current = node
         while current !== root {
-            guard let parent = parents[ObjectIdentifier(current)] else { return [] }
+            guard let parent = current.parent else { return [] }
             components.append(current)
             current = parent
         }
@@ -781,8 +778,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         reloadFilteredEntries(restoring: restored)
     }
 
-    private func reloadFilteredEntries(restoring state: ArchiveViewState, expandsMatches: Bool = true) {
-        entryFilter = EntryTreeFilter(root: root, query: filterQuery, showsHiddenFiles: showsHiddenFiles)
+    private func reloadFilteredEntries(restoring state: ArchiveViewState, expandsMatches: Bool = true, prepared: EntryTreeFilter? = nil) {
+        entryFilter = prepared ?? EntryTreeFilter(root: root, query: filterQuery, showsHiddenFiles: showsHiddenFiles)
         sortedChildren.removeAll()
         outlineView.reloadData()
         // 同じ node を使う reload は展開状態を保持するため、検索中の自動展開も明示的に戻す。
@@ -796,10 +793,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         // 選択された親フォルダが子も運ぶので、子の URL を重ねない。
         let selected = Set(nodes.map(ObjectIdentifier.init))
         return nodes.filter { node in
-            var parent = parents[ObjectIdentifier(node)]
+            var parent = node.parent
             while let ancestor = parent {
                 if selected.contains(ObjectIdentifier(ancestor)) { return false }
-                parent = parents[ObjectIdentifier(ancestor)]
+                parent = ancestor.parent
             }
             return true
         }
@@ -813,10 +810,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let node = item as? EntryNode, let session = archiveSession, !operationInFlight else { return nil }
         // provider ごとに全選択を走査すると、大量選択で二乗になる。祖先だけを調べる。
         if outlineView.isRowSelected(outlineView.row(forItem: node)) {
-            var ancestor = parents[ObjectIdentifier(node)]
+            var ancestor = node.parent
             while let parent = ancestor {
                 if outlineView.isRowSelected(outlineView.row(forItem: parent)) { return nil }
-                ancestor = parents[ObjectIdentifier(parent)]
+                ancestor = parent.parent
             }
         }
         do {
@@ -1052,39 +1049,49 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return alert
     }
 
+    private(set) var renameValidation: ArchiveRenameValidation?
+
     @objc func renameEntry(_ sender: Any?) {
         guard canPerformEdit(#selector(renameEntry(_:))), let node = selectedNodes.first else { return }
         closePreview()
         let expectedGeneration = generation
         // 純粋なプラン構築で、仮想フォルダとの衝突や子孫のパス長も commit 前に検査する。
-        let entries = ExtractionSelection(nodes: [root]).entries
+        let entries = root.archiveEntries
         let selection = ArchiveEditSelection(node)
+        let prepared = (document as? ArchiveDocument)?.pendingEditor?.prepared
+        let validation = ArchiveRenameValidation(selection: selection, entries: entries, state: prepared, occupancy: root.editOccupancy)
+        renameValidation = validation
+        let expectedRevision = prepared?.revision
+        let expectedSession = archiveSession.map(ObjectIdentifier.init)
         outlineView.beginRenaming(node, validate: { [weak self, bundle] name in
             guard let self else { return String(localized: "アーカイブが閉じられています。", bundle: bundle) }
             if let reason = self.editRefusal { return reason }
-            guard self.generation == expectedGeneration, self.archiveSession?.generation == expectedGeneration else {
+            guard self.generation == expectedGeneration, self.archiveSession?.generation == expectedGeneration,
+                  self.archiveSession.map(ObjectIdentifier.init) == expectedSession else {
                 return String(localized: "選択した項目が変更されています。アーカイブを開き直してください。", bundle: bundle)
             }
             do {
-                if (self.document as? ArchiveDocument)?.saveBehavior == .onSave {
-                    let projection = ArchivePendingProjection(entries)
-                    _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: try projection.selection(selection), name: name)],
-                                                   existing: projection.planningEntries)
-                } else {
-                    _ = try ArchiveEditPlan.build(removing: [], renaming: [.init(selection: selection, name: name)], existing: entries)
+                if let expectedRevision,
+                   (self.document as? ArchiveDocument)?.pendingChanges.revision != expectedRevision {
+                    throw ArchiveEditError.staleSelection
                 }
+                _ = try validation.plan(for: name)
                 return nil
             } catch { return self.editFailureReason(error) }
         }, commit: { [weak self] name in
             guard let self, self.generation == expectedGeneration,
                   self.archiveSession?.generation == expectedGeneration else { return }
             if node.name.utf8.elementsEqual(name.utf8) { return }
+            let validated: ArchiveValidatedRename?
+            if let expectedRevision, let expectedSession, let plan = try? validation.plan(for: name) {
+                validated = .init(plan: plan, generation: expectedGeneration, revision: expectedRevision, session: expectedSession)
+            } else { validated = nil }
             self.startEdit([node], name: name,
-                           state: self.viewStateAfterRenaming(self.captureViewState(), node: node, to: name))
+                state: self.viewStateAfterRenaming(self.captureViewState(), node: node, to: name), validatedRename: validated)
         })
     }
 
-    private func startEdit(_ nodes: [EntryNode], name: String?, state: ArchiveViewState) {
+    private func startEdit(_ nodes: [EntryNode], name: String?, state: ArchiveViewState, validatedRename: ArchiveValidatedRename? = nil) {
         guard let window, let document = document as? ArchiveDocument,
               archiveSession?.capabilities.canEdit == true, !operationInFlight else { return }
         closePreview()
@@ -1108,7 +1115,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             do {
                 let result: ArchiveEditResult
                 if let name, let node = nodes.first {
-                    result = try await document.rename(node, to: name, progress: progress)
+                    result = try await document.rename(node, to: name, progress: progress, validated: validatedRename)
                 } else {
                     result = try await document.remove(nodes, progress: progress)
                 }
@@ -1304,13 +1311,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let top = visible.location < outlineView.numberOfRows ? outlineView.item(atRow: visible.location) as? EntryNode : nil
         var expanded = showsHiddenFiles ? [] : hiddenExpandedPaths
         var collapsed: Set<String> = []
-        var pending = root.children
-        while let node = pending.popLast() {
-            if node.isDirectory {
-                if outlineView.isItemExpanded(node) { expanded.insert(node.path) }
-                else if !filterQuery.isEmpty, outlineView.row(forItem: node) >= 0 { collapsed.insert(node.path) }
-            }
-            pending.append(contentsOf: node.children)
+        for node in root.directoryNodes {
+            if outlineView.isItemExpanded(node) { expanded.insert(node.path) }
+            else if !filterQuery.isEmpty, outlineView.row(forItem: node) >= 0 { collapsed.insert(node.path) }
         }
         if showsHiddenFiles {
             hiddenExpandedPaths = Set(expanded.filter { path in
