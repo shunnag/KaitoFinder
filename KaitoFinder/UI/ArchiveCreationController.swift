@@ -118,7 +118,7 @@ final class ArchiveCreationController {
     }
 
     static func existingArchive(from session: ArchiveSession, progress: Progress) async throws -> ArchiveCreationPlan.Existing {
-        let password = try await session.preparedPassword()
+        let password = try await session.preparedPassword(progress: progress)
         let snapshot = await session.snapshot()
         try ArchiveImportPlan.checkCancellation(progress)
         return .init(url: session.sourceURL, password: password, entries: snapshot.entries,

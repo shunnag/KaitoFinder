@@ -1735,7 +1735,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             do {
                 // 既知の鍵も CRC / HMAC まで検証してから変更する。
-                _ = try await session.preparedPassword()
+                _ = try await session.preparedPassword(progress: progress)
                 try Task.checkCancellation()
                 let editor = ArchivePasswordEditor(action: action, format: format, archiveName: document.displayName,
                                                    settings: await document.deferredEncryptionSettings(), canUndo: document.canUndoNextMutation, bundle: bundle)

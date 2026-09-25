@@ -94,7 +94,7 @@ nonisolated enum ExtractionService {
         progress.completedUnitCount = 0
         progress.setUserInfoObject(selection.entries.count, forKey: .fileTotalCountKey)
         progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
-        let snapshot = try await session.extractionSnapshot()
+        let snapshot = try await session.extractionSnapshot(progress: progress)
         // この同期呼出しの中で reader と全 stream の寿命が閉じる。
         return try run(selection.entries, reader: snapshot.reader, destination: destination,
                        quarantine: snapshot.quarantine, progress: progress, didProcess: didProcess)
@@ -112,7 +112,7 @@ nonisolated enum ExtractionService {
             return try await extractPending(payloads, from: session, to: destination, progress: progress,
                 promisedItem: promisedItem, readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
         }
-        let snapshot = try await session.resolveForExtraction(payloads)
+        let snapshot = try await session.resolveForExtraction(payloads, progress: progress)
         if readOnly {
             for entry in snapshot.selection.entries {
                 let capability = EntryReadCapability(entry: entry, isDirectory: entry.kind == .directory,
@@ -137,7 +137,7 @@ nonisolated enum ExtractionService {
         progress: Progress, promisedItem: ArchiveEntryPayload?, readOnly: Bool,
         didWrite: (@Sendable (Int) -> Void)?, didProcess: (@Sendable (Int) -> Void)?
     ) async throws -> ExtractionResult {
-        let snapshot = try await session.resolvePendingForExtraction(payloads)
+        let snapshot = try await session.resolvePendingForExtraction(payloads, progress: progress)
         defer { withExtendedLifetime(snapshot.lease) {} }
         let entries = snapshot.selection.entries
         if readOnly {

@@ -1211,7 +1211,7 @@ extension ArchiveDocument {
         }
         try await verifyReservationIdentity()
         guard !closed, self.session === session else { throw CancellationError() }
-        let snapshot = try await session.deferredSnapshot()
+        let snapshot = try await session.deferredSnapshot(progress: progress)
         guard !closed, self.session === session else { throw CancellationError() }
         if immediate { try await confirmSplitMutation(progress: progress) }
         let temporaryStaging = immediate ? try StagingRegistry.temporary(beside: session.sourceURL) : nil
@@ -1325,7 +1325,7 @@ extension ArchiveDocument {
                                  progress: Progress, willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchivePasswordEditResult {
         try await reserve(name: action.actionName, progress: progress, willPublish: willPublish) { [self] editor, _, session in
             guard session.passwordFormat != nil else { throw ArchiveEditError.staleSelection }
-            try await session.validateDeferredPassword()
+            try await session.validateDeferredPassword(progress: progress)
             let current = await deferredEncryptionSettings()
             let encrypted = current.password != nil || (editor.changes.outputEncryption == nil && session.hasEncryptedEntries)
             guard action == .set ? !encrypted : encrypted else { throw ArchiveEditError.staleSelection }

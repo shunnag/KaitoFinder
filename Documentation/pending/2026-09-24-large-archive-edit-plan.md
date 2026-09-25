@@ -74,7 +74,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P0b | 計測: 各段（updater の open・remove・commit、置換、公開前の検証、再読み込み、保存時モードの計画と保存後の準備）の時間を PerformanceProbeTests に出し、commit を sample する。tar / 7z / LHA の編集も 10 万・50 万件と大きな本文で測る | KaitoFinder |
 | P1 | ZIP の大規模編集: KaitoKit の型付き raw 範囲 API（entry の同一性検査を省くなら SPI）と formatSpecific の共有、CD の一括読み取りと検証結果の再利用、連続範囲の一括移動とバッファ付きの CD 出力、削除だけのときの名前表の省略、置換は「詰めてから追記」にして二重書き込みを解消（KaitoKit による追記分の照合は残す）、作業ファイル 1 つへの直接の書き込み、検証した reader の再利用、保存時モードの全体検査は残して安くする（key の一度だけの計算、formatSpecific を複製しない） | 3 つとも |
 | P1b | 暗号化の設定・変更・解除を再圧縮なしで（ZIP）。AES の鍵の導出（entry ごとの PBKDF2）を並列にする | KaitoKit, GyoshukuKit, KaitoFinder |
-| P1c | 編集前の全件のパスワード確認（`verifyBeforeEditing`）の鍵の導出を並列にする（50 万件の AES で直列 152 s） | KaitoKit, KaitoFinder |
+| P1c | 編集前の全件のパスワード確認（`verifyBeforeEditing`）の鍵の導出を並列にする（50 万件の AES で直列 152 s）。[KaitoFinder 実装・検証](../verification/2026-09-25-p1c.md)、通常ビルド・S1 実測待ち | KaitoKit, KaitoFinder |
 | P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで） | GyoshukuKit, KaitoFinder |
 | P3 | 圧縮 tar の区切り単位の編集（KaitoKit の member 配置と区切りの地図、xz / bzip2 / gzip の継ぎ、自前の書き込みの区切りの配置、復号済みの tar の再利用） | 3 つとも |
 | P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集 | KaitoKit, GyoshukuKit |

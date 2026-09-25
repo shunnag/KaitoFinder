@@ -382,7 +382,7 @@ nonisolated final class ArchivePromiseExtractionQueue: Sendable {
                     progress: job.progress, promisedItem: job.payload, didWrite: job.didWrite)
             } else {
                 let snapshot = try await job.session.resolveForPromiseExtraction([job.payload],
-                    reusing: session === job.session ? revision : nil)
+                    reusing: session === job.session ? revision : nil, progress: job.progress)
                 if let replacement = snapshot.reader {
                     reader = replacement
                     session = job.session

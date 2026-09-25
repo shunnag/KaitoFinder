@@ -162,16 +162,16 @@ actor ArchiveSession {
         return try reader.reopen()
     }
 
-    func extractionSnapshot() async throws -> sending (reader: ArchiveReader, quarantine: Data?) {
+    func extractionSnapshot(progress: Progress? = nil) async throws -> sending (reader: ArchiveReader, quarantine: Data?) {
         let entries = try requireCurrentReader().entries
-        try await prepareEncryptedEntries(entries, generation: generation)
+        try await prepareEncryptedEntries(entries, generation: generation, progress: progress)
         return (try requireCurrentReader().reopen(), quarantine)
     }
 
-    func preparedPassword() async throws -> String? {
+    func preparedPassword(progress: Progress? = nil) async throws -> String? {
         let expectedGeneration = generation
         let entries = try requireCurrentReader().entries
-        try await prepareEncryptedEntries(entries, generation: expectedGeneration)
+        try await prepareEncryptedEntries(entries, generation: expectedGeneration, progress: progress)
         try checkReadRequest(generation: expectedGeneration)
         return password
     }
@@ -209,14 +209,15 @@ actor ArchiveSession {
 
     // entry ごとのエラーが文字列になる前に認証を完了する。出力はまだ作らないので、
     // 途中でパスワードを取り消しても、複数項目の一部だけを公開することがない。
-    private func prepareEncryptedEntries(_ entries: [ArchiveEntry], generation expectedGeneration: UInt64) async throws {
+    private func prepareEncryptedEntries(_ entries: [ArchiveEntry], generation expectedGeneration: UInt64,
+                                         progress: Progress? = nil) async throws {
         let encrypted = entries.filter(\.isEncrypted)
         guard !encrypted.isEmpty else { return }
         while true {
             try checkReadRequest(generation: expectedGeneration)
             do {
                 mergeVerification(try verify(encrypted.filter { !verifiedEntries.contains($0.index) },
-                                             using: requireCurrentReader()))
+                                             using: requireCurrentReader(), progress: progress))
                 return
             } catch {
                 guard var challenge = ArchivePasswordChallenge(error), let prompt = promptStorage.withLock({ $0 }) else {
@@ -237,7 +238,7 @@ actor ArchiveSession {
                            ArchiveSetIdentity(volumeSet: volumeSet) != sourceIdentity {
                             throw ArchiveEditError.archiveChanged
                         }
-                        let verified = try verify(encrypted, using: replacement)
+                        let verified = try verify(encrypted, using: replacement, progress: progress)
                         try checkReadRequest(generation: expectedGeneration)
                         // 間違った候補は保持しない。採用は検証が最後まで成功した時だけ。
                         reader = replacement
@@ -272,33 +273,13 @@ actor ArchiveSession {
         }
     }
 
-    @discardableResult private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader) throws -> Set<Int> {
+    @discardableResult private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader,
+                                           progress: Progress? = nil) throws -> Set<Int> {
         guard !entries.isEmpty else { return [] }
-        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
-        var verified: Set<Int> = []
-        var wrongPassword = false
-        for entry in entries {
-            // ZipCrypto の短い照合値だけでは誤った鍵を除外できない。CRC / HMAC まで読む。
-            // 同じ鍵・世代で成功済みの entry は呼出側が除き、再度の検証を省く。
-            do {
-                try ExtractionService.consume(reader.stream(entry), buffer: &buffer,
-                                              checkCancellation: { try Task.checkCancellation() }) { bytes in
-                    #if DEBUG
-                    Self.passwordVerificationBytes.withLock { $0 += UInt64(bytes.count) }
-                    #endif
-                }
-                verified.insert(entry.index)
-            } catch KaitoError.wrongPassword {
-                wrongPassword = true
-            }
-        }
-        if wrongPassword {
-            guard verified.isEmpty else {
-                throw ExtractionFailure.refused(String(localized: "選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。"))
-            }
-            throw KaitoError.wrongPassword
-        }
-        return verified
+        let threads = writerOptions(passwordFormat ?? .zip).compressionThreads
+            ?? min(ProcessInfo.processInfo.activeProcessorCount, 8,
+                   Int(ProcessInfo.processInfo.physicalMemory / (1 << 30)))
+        return try ArchivePasswordVerification.verify(entries, using: reader, workers: max(1, threads), progress: progress)
     }
 
     func close() {
@@ -322,7 +303,7 @@ actor ArchiveSession {
         guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
-        try verifyBeforeEditing()
+        try verifyBeforeEditing(progress: progress)
         let expectedGeneration = generation
         let plan: ArchiveImportPlan
         if let resolveConflict {
@@ -400,7 +381,7 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
-        try verifyBeforeEditing()
+        try verifyBeforeEditing(progress: progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
         let mode = capabilities.mode!
@@ -433,7 +414,7 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
         try ArchiveImportPlan.checkCancellation(progress)
-        try verifyBeforeEditing()
+        try verifyBeforeEditing(progress: progress)
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
                                              existing: reader.entries, format: reservationFormat)
         let mode = capabilities.mode!
@@ -469,14 +450,14 @@ actor ArchiveSession {
     }
 
     // 保存前モードでも認証と外部変更の門番は session が所有する。
-    func deferredSnapshot() throws -> (entries: [ArchiveEntry], generation: UInt64) {
+    func deferredSnapshot(progress: Progress? = nil) throws -> (entries: [ArchiveEntry], generation: UInt64) {
         try verifyDeferredIdentity()
         let reader = try requireCurrentReader()
         if allowsSplitSave || allowsImmediateSplitSave, volumeLayout != nil { refreshCapabilities() }
         guard capabilities.canEdit else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
-        try verifyBeforeEditing()
+        try verifyBeforeEditing(progress: progress)
         if format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation {
             // probe は終端だけ。CD と local record の照合は open を一世代につき一度通す。
             ArchiveReservationDiagnostics.record(.deferredUpdaterOpen)
@@ -531,8 +512,8 @@ actor ArchiveSession {
         refreshCapabilities()
     }
 
-    func validateDeferredPassword() throws {
-        _ = try deferredSnapshot()
+    func validateDeferredPassword(progress: Progress? = nil) throws {
+        _ = try deferredSnapshot(progress: progress)
     }
 
     func savePending(_ pending: ArchivePendingChanges, baseGeneration: UInt64, progress: Progress,
@@ -540,7 +521,7 @@ actor ArchiveSession {
                      willPublish: (@Sendable () throws -> Void)? = nil,
                      willReload: (@Sendable () throws -> Void)? = nil) throws -> ArchivePasswordEditResult {
         guard volumeLayout == nil else { throw ArchiveEditError.splitArchive }
-        let snapshot = try deferredSnapshot()
+        let snapshot = try deferredSnapshot(progress: progress)
         guard snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
                                             format: reservationFormat, progress: progress)
@@ -588,7 +569,7 @@ actor ArchiveSession {
                           estimatedLength: UInt64, progress: Progress, publication: ArchiveSavePublication,
                           index: RecoverableWorkIndex, hooks: ArchiveSplitSaveHooks,
                           willPublish: (@Sendable () throws -> Void)?, willReload: (@Sendable () throws -> Void)?) throws -> ArchiveSplitSaveResult {
-        let snapshot = try deferredSnapshot()
+        let snapshot = try deferredSnapshot(progress: progress)
         guard capabilities.splitSave, target.filePresenter != nil,
               target.layout == (try volumeLayout?.publicationLayout()), target.expected == sourceIdentity,
               snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
@@ -662,7 +643,7 @@ actor ArchiveSession {
                                   encryptsSevenZipHeaders: encryptsSevenZipHeaders)
     }
 
-    private func verifyBeforeEditing() throws {
+    private func verifyBeforeEditing(progress: Progress? = nil) throws {
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.passwordVerification)
         defer { span?.end() }
@@ -672,7 +653,7 @@ actor ArchiveSession {
         if !encrypted.isEmpty, password == nil {
             throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
         }
-        mergeVerification(try verify(encrypted.filter { !verifiedEntries.contains($0.index) }, using: reader))
+        mergeVerification(try verify(encrypted.filter { !verifiedEntries.contains($0.index) }, using: reader, progress: progress))
     }
 
     func updatePassword(_ action: ArchivePasswordAction, settings: ArchiveEncryptionSettings,
@@ -682,7 +663,7 @@ actor ArchiveSession {
               action == .set ? !hasEncryptedEntries : hasEncryptedEntries && hasKnownPassword else {
             throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
         }
-        try verifyBeforeEditing()
+        try verifyBeforeEditing(progress: progress)
         if action != .remove, settings.password?.isEmpty != false {
             throw ExtractionFailure.refused(String(localized: "パスワードを入力してください。"))
         }
@@ -877,13 +858,14 @@ actor ArchiveSession {
         let passwordRevision: UInt64
     }
 
-    func resolveForExtraction(_ payloads: [ArchiveEntryPayload]) async throws
+    func resolveForExtraction(_ payloads: [ArchiveEntryPayload], progress: Progress? = nil) async throws
         -> sending (reader: ArchiveReader, selection: ExtractionSelection, quarantine: Data?) {
-        let snapshot = try await resolveForPromiseExtraction(payloads, reusing: nil)
+        let snapshot = try await resolveForPromiseExtraction(payloads, reusing: nil, progress: progress)
         return (snapshot.reader!, snapshot.selection, snapshot.quarantine)
     }
 
-    func resolveForPromiseExtraction(_ payloads: [ArchiveEntryPayload], reusing: ReadRevision?) async throws
+    func resolveForPromiseExtraction(_ payloads: [ArchiveEntryPayload], reusing: ReadRevision?,
+                                     progress: Progress? = nil) async throws
         -> sending (reader: ArchiveReader?, selection: ExtractionSelection, quarantine: Data?, revision: ReadRevision) {
         guard !usesPendingReading else { throw ArchiveEntryPayload.staleSelection }
         let reader = try requireCurrentReader()
@@ -902,7 +884,7 @@ actor ArchiveSession {
             }
         }
         let selection = ExtractionSelection(entries: Array(selected.values))
-        try await prepareEncryptedEntries(selection.entries, generation: expectedGeneration)
+        try await prepareEncryptedEntries(selection.entries, generation: expectedGeneration, progress: progress)
         try checkReadRequest(generation: expectedGeneration)
         let revision = ReadRevision(generation: generation, passwordRevision: passwordRevision)
         let reopened: ArchiveReader?
@@ -916,7 +898,7 @@ actor ArchiveSession {
         return (reopened, selection, quarantine, revision)
     }
 
-    func resolvePendingForExtraction(_ payloads: [ArchiveEntryPayload]) async throws
+    func resolvePendingForExtraction(_ payloads: [ArchiveEntryPayload], progress: Progress? = nil) async throws
         -> sending (reader: ArchiveReader, selection: ExtractionSelection, quarantine: Data?,
                     snapshot: ArchivePendingReadSnapshot, lease: StagingRegistry.ReadLease?) {
         guard let snapshot = pendingReadSnapshot, snapshot.generation == generation else { throw ArchiveEntryPayload.staleSelection }
@@ -931,7 +913,7 @@ actor ArchiveSession {
             if case .base(let source) = snapshot.sources[entry.index] { return source }
             return nil
         }
-        try await prepareEncryptedEntries(base, generation: snapshot.generation)
+        try await prepareEncryptedEntries(base, generation: snapshot.generation, progress: progress)
         try checkReadRequest(generation: snapshot.generation)
         guard pendingReadSnapshot?.revision == snapshot.revision else { throw ArchiveEntryPayload.staleSelection }
         // パスワード待ちの要求はまだ読み始めていない。照合後に lease を取り、破棄との競合を閉じる。
