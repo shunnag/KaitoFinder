@@ -50,14 +50,14 @@ import UniformTypeIdentifiers
     }
 
     var promisedType: UTType {
-        let leaf = (try? ExtractionPath.components(payload.path).last) ?? ""
+        let leaf = (try? ExtractionPath.components(payload.path, syntax: .init(session.format)).last) ?? ""
         let candidate = payload.isDirectory ? UTType.folder :
             (UTType(filenameExtension: (leaf as NSString).pathExtension) ?? .data)
         return Self.validatedType(candidate)
     }
 
     func makeProvider() throws -> NSFilePromiseProvider {
-        _ = try ExtractionPath.components(payload.path)
+        _ = try ExtractionPath.components(payload.path, syntax: .init(session.format))
         let type = promisedType
         // 型サービスが利用できない場合も、AppKit の例外へ渡す前に Swift のエラーにする。
         guard type == .data || type.conforms(to: .data) || type.conforms(to: .directory) else {
@@ -69,7 +69,7 @@ import UniformTypeIdentifiers
     // 同一プロセスで受信すると、受信側の OperationQueue からこの二つの delegate メソッドが
     // 呼ばれることを実測。main actor に隔離すると @objc thunk の動的隔離検査で trap する。
     nonisolated func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
-        (try? ExtractionPath.components(payload.path).last) ?? String(localized: "項目")
+        (try? ExtractionPath.components(payload.path, syntax: .init(session.format)).last) ?? String(localized: "項目")
     }
 
     nonisolated func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue { queue }
@@ -308,7 +308,7 @@ nonisolated final class ArchivePromiseExtractionQueue: Sendable {
                         entries = (try? job.session.pendingReadSnapshot?.resolve(job.payload)) ?? []
                     } else {
                         let snapshot = await job.session.snapshot()
-                        entries = (try? job.payload.resolve(in: snapshot.entries, generation: snapshot.generation)) ?? []
+                        entries = (try? job.payload.resolve(in: snapshot.entries, generation: snapshot.generation, syntax: .init(job.session.format))) ?? []
                     }
                     // 分類後も、実行直前の resolve で世代・暗号・原本の同一性を再検証する。
                     var resources = Set(entries.filter { $0.solidGroup >= 0 }.map {

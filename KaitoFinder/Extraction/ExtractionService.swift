@@ -97,7 +97,8 @@ nonisolated enum ExtractionService {
         let snapshot = try await session.extractionSnapshot(progress: progress)
         // この同期呼出しの中で reader と全 stream の寿命が閉じる。
         return try run(selection.entries, reader: snapshot.reader, destination: destination,
-                       quarantine: snapshot.quarantine, progress: progress, didProcess: didProcess)
+                       quarantine: snapshot.quarantine, progress: progress,
+                       mapping: .init(scope: .archive, syntax: .init(snapshot.reader.format)), didProcess: didProcess)
     }
 
     /// 世代の再解決と reader の取得は session 内で不可分に行う。
@@ -168,21 +169,23 @@ nonisolated enum ExtractionService {
         sources: ArchivePendingReadSnapshot.Sources? = nil,
         execution: ExtractionExecution = .automatic
     ) throws -> ExtractionResult {
-        let root: URL, mapping: OutputMapping
+        let syntax = ExtractionPath.NameSyntax(reader.format)
+        let root: URL, scope: OutputMapping.Scope
         var virtualRootParent: ExtractionDestination?
         if let item = promisedItem {
             guard destination.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
-            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: quarantine)
+            let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: quarantine, nameSyntax: syntax)
             let leaf = [destination.lastPathComponent]
             try parent.validate(leaf)
             if item.isDirectory {
                 try ArchiveImportPlan.checkCancellation(progress)
                 try parent.directory(leaf, explicit: true)
                 root = destination
-                mapping = .subtree(try ExtractionPath.components(item.path))
+                scope = .subtree(try ExtractionPath.components(item.path, syntax: syntax))
                 if item.entryIndex == nil { virtualRootParent = parent }
-            } else { root = destination.deletingLastPathComponent(); mapping = .file(leaf) }
-        } else { root = destination; mapping = .archive }
+            } else { root = destination.deletingLastPathComponent(); scope = .file(leaf) }
+        } else { root = destination; scope = .archive }
+        let mapping = OutputMapping(scope: scope, syntax: syntax)
         let result = try run(entries, reader: reader, destination: root, quarantine: quarantine,
             progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite,
             didProcess: didProcess, sources: sources, execution: execution)
@@ -193,12 +196,14 @@ nonisolated enum ExtractionService {
         return result
     }
 
-    enum OutputMapping {
-        case archive, subtree([String]), file([String])
+    struct OutputMapping {
+        enum Scope { case archive, subtree([String]), file([String]) }
+        let scope: Scope
+        let syntax: ExtractionPath.NameSyntax
 
         func components(_ name: String) throws -> [String] {
-            let parts = try ExtractionPath.components(name)
-            switch self {
+            let parts = try ExtractionPath.components(name, syntax: syntax)
+            switch scope {
             case .archive: return parts
             case .file(let leaf): return leaf
             case .subtree(let prefix):
@@ -210,20 +215,20 @@ nonisolated enum ExtractionService {
 
     private static func run(
         _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL,
-        quarantine: Data?, progress: Progress, mapping: OutputMapping = .archive,
+        quarantine: Data?, progress: Progress, mapping: OutputMapping,
         readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?,
         sources: ArchivePendingReadSnapshot.Sources? = nil,
         execution: ExtractionExecution = .automatic
     ) throws -> ExtractionResult {
         let counter = ExtractionProgress(entries: entries, progress: progress)
         let position = Mutex(0)
-        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly) { count in
+        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax) { count in
             counter.wrote(count, at: position.withLock { $0 })
             didWrite?(count)
         }
         let workerCount = execution.workerCount(entries: entries, hasSources: sources != nil)
         let parallel = workerCount > 1 ? try? ParallelExtraction(reader: reader, destination: destination,
-            quarantine: quarantine, readOnly: readOnly, count: workerCount, counter: counter,
+            quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax, count: workerCount, counter: counter,
             didWrite: didWrite, didProcess: didProcess) : nil
         let orderedFiles = parallel == nil ? Set<Int>() : ParallelExtraction.orderedFiles(entries, mapping: mapping)
         var planned: [ParallelExtraction.File] = []

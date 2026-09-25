@@ -11,6 +11,7 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
     }
     let generation: UInt64
     let revision: UInt64
+    let nameSyntax: ExtractionPath.NameSyntax
     let base: [ArchiveEntry]
     var entries: [ArchiveEntry] { storage.value.entries }
     var sources: Sources { storage.value.sources }
@@ -22,27 +23,29 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
     private let storage: Storage
 
     init(base: [ArchiveEntry], generation: UInt64, changes: ArchivePendingChanges,
-         staging: StagingRegistry.Lease?, projection: ArchivePendingProjection? = nil,
+         staging: StagingRegistry.Lease?, nameSyntax: ExtractionPath.NameSyntax, projection: ArchivePendingProjection? = nil,
          subtrees: ArchiveEntryPayload.SubtreeIndex? = nil) throws {
         self.base = base
+        self.nameSyntax = nameSyntax
         self.generation = generation
         revision = changes.revision
         self.staging = staging
         stagedURLs = changes.additions.map(\.stagedURL)
         let projection = try projection ?? ArchivePendingProjection(changes.projection(base: base, generation: generation))
-        storage = .ready(.init(base: base, changes: changes, projection: projection, subtrees: subtrees))
+        storage = .ready(.init(base: base, changes: changes, projection: projection, nameSyntax: nameSyntax, subtrees: subtrees))
     }
 
     init(deferredBase base: [ArchiveEntry], generation: UInt64, changes: ArchivePendingChanges,
-         staging: StagingRegistry.Lease?) throws {
+         staging: StagingRegistry.Lease?, nameSyntax: ExtractionPath.NameSyntax) throws {
         try changes.validate(base: base, generation: generation)
         self.base = base
+        self.nameSyntax = nameSyntax
         self.generation = generation
         revision = changes.revision
         self.staging = staging
         stagedURLs = changes.additions.map(\.stagedURL)
         // Undo は版を即座に公開し、重い索引は読み取り worker が必要になった時だけ作る。
-        storage = .deferred(.init(base: base, changes: changes))
+        storage = .deferred(.init(base: base, changes: changes, nameSyntax: nameSyntax))
     }
 
     private struct Contents: Sendable {
@@ -52,11 +55,11 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
         let pendingIndices: [UUID: Int]
         let subtrees: ArchiveEntryPayload.SubtreeIndex
 
-        init(base: [ArchiveEntry], changes: ArchivePendingChanges, projection: ArchivePendingProjection,
+        init(base: [ArchiveEntry], changes: ArchivePendingChanges, projection: ArchivePendingProjection, nameSyntax: ExtractionPath.NameSyntax,
              subtrees: ArchiveEntryPayload.SubtreeIndex? = nil) {
             entries = projection.entries
             positions = projection.positions
-            self.subtrees = subtrees ?? .init(entries: entries)
+            self.subtrees = subtrees ?? .init(entries: entries, syntax: nameSyntax)
             pendingIndices = Dictionary(uniqueKeysWithValues: entries.suffix(changes.additions.count + changes.createdFolders.count).compactMap { entry in
                 entry.pendingID.map { ($0, entry.index) }
             })
@@ -78,13 +81,18 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
     private final class DeferredContents: Sendable {
         let base: [ArchiveEntry]
         let changes: ArchivePendingChanges
+        let nameSyntax: ExtractionPath.NameSyntax
         private let cached = Mutex<Contents?>(nil)
-        init(base: [ArchiveEntry], changes: ArchivePendingChanges) { self.base = base; self.changes = changes }
+        init(base: [ArchiveEntry], changes: ArchivePendingChanges, nameSyntax: ExtractionPath.NameSyntax) {
+            self.base = base
+            self.changes = changes
+            self.nameSyntax = nameSyntax
+        }
         var contents: Contents {
             cached.withLock { value in
                 if let value { return value }
                 let result = Contents(base: base, changes: changes,
-                    projection: .init(changes.projection(validatedBase: base)))
+                    projection: .init(changes.projection(validatedBase: base)), nameSyntax: nameSyntax)
                 value = result
                 return result
             }
@@ -141,7 +149,7 @@ nonisolated struct ArchivePendingReadSnapshot: Sendable {
         }
         guard let anchor, self.origin(for: anchor) == origin else { throw ArchiveEntryPayload.staleSelection }
         if payload.isDirectory {
-            let components = (try? ExtractionPath.components(payload.path)) ?? Array(ArchivePath.components(payload.path).drop(while: { $0 == "." }))
+            let components = (try? ExtractionPath.components(payload.path, syntax: nameSyntax)) ?? Array(ArchivePath.components(payload.path).drop(while: { $0 == "." }))
             let selected = subtrees.subtree(for: components)
             guard selected.contains(anchor), !selected.isEmpty else { throw ArchiveEntryPayload.staleSelection }
             if let index = payload.entryIndex {

@@ -71,10 +71,10 @@ nonisolated final class ExtractionTests: XCTestCase {
     }
 
     func testPathSanitizationAndResolvedContainment() throws {
-        XCTAssertEqual(try ExtractionPath.components("/C:\\a\\.\\b"), ["a", "b"])
-        XCTAssertEqual(try ExtractionPath.components("/./a//b"), ["a", "b"])
+        XCTAssertEqual(try ExtractionPath.components("/C:\\a\\.\\b", syntax: .portable), ["a", "b"])
+        XCTAssertEqual(try ExtractionPath.components("/./a//b", syntax: .portable), ["a", "b"])
         for name in ["", ".", "/", "C:", "a/../b", "a\\..\\b", "a\0b", "/\u{301}../.."] {
-            XCTAssertThrowsError(try ExtractionPath.components(name), name)
+            XCTAssertThrowsError(try ExtractionPath.components(name, syntax: .portable), name)
         }
         let root = URL(fileURLWithPath: "/private/tmp/root")
         XCTAssertFalse(ExtractionPath.isInside(root.appendingPathComponent("../outside"), root: root))
@@ -266,11 +266,11 @@ nonisolated final class ExtractionTests: XCTestCase {
         for item in result.written {
             let components: [String]
             if let index = item.entryIndex {
-                components = try ExtractionPath.components(entries[index].name)
+                components = try ExtractionPath.components(entries[index].name, syntax: .portable)
                 XCTAssertEqual(try Data(contentsOf: item.url), Data("payload".utf8))
             } else {
                 let relative = String(item.url.path.dropFirst(root.path.count + 1))
-                components = try ExtractionPath.components(relative)
+                components = try ExtractionPath.components(relative, syntax: .portable)
             }
             let previous = components.reduce(root) { $0.appendingPathComponent($1) }
             XCTAssertEqual(Array(item.url.path.utf8), Array(previous.path.utf8))

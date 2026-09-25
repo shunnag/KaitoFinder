@@ -1682,7 +1682,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 // パスワードの入力と全 entry の検証を、保存パネルや圧縮の前に済ませる。
                 let existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
                 let sources: [URL]
-                if let incoming { sources = try await incoming.receive(progress: progress) }
+                if let incoming { sources = try await incoming.receive(progress: progress, format: nil) }
                 else { sources = urls }
                 try await creator.createAndOpen(sources: sources, existing: existing, on: window, progress: progress)
             } catch {

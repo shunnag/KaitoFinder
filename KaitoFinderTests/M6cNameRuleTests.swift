@@ -285,13 +285,12 @@ nonisolated final class M6cNameRuleTests: XCTestCase {
         XCTAssertThrowsError(try output.validate(["back\\slash.txt"]))
         let result = try await ExtractionService.extract(.init(entries: await session.entries()), from: session, to: destination)
         XCTAssertTrue(result.failures.isEmpty)
-        // 既存の抽出パス解析は \ を区切りとして扱う。
-        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("back/slash.txt")), Data("backslash".utf8))
+        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent("back\\slash.txt")), Data("backslash".utf8))
         for (name, contents) in files where !name.contains("\\") {
             XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent(name)), Data(contents.utf8))
         }
         let mailNames = try FileManager.default.contentsOfDirectory(atPath: destination.appendingPathComponent("Maildir/cur").path)
         XCTAssertEqual(mailNames.map { Array($0.utf8) }, [Array("msg:2,S".utf8)])
-        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("back\\slash.txt").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent("back/slash.txt").path))
     }
 }

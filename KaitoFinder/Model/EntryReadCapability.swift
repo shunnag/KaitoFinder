@@ -39,7 +39,7 @@ nonisolated struct EntryReadCapability: Sendable {
             } else if !Self.supportsMethod(entry, format: format) {
                 refusal = .unsupportedMethod(entry.methodDescription)
             } else {
-                do { _ = try ExtractionPath.components(entry.name); refusal = nil }
+                do { _ = try ExtractionPath.components(entry.name, syntax: .init(format)); refusal = nil }
                 catch { refusal = .invalidPath }
             }
         } else {

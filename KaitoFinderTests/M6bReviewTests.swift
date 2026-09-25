@@ -224,7 +224,7 @@ nonisolated final class M6bReviewTests: XCTestCase {
         defer { Task { await session.close() } }
         for deferred in [false, true] {
             if deferred {
-                session.setPendingReadSnapshot(try .init(base: base, generation: session.generation, changes: .init(), staging: nil))
+                session.setPendingReadSnapshot(try .init(base: base, generation: session.generation, changes: .init(), staging: nil, nameSyntax: .init(session.reservationFormat)))
             }
             let tree = EntryNode.tree(from: base)
             let payloads = ArchiveEntryPayload.payloads(for: tree.children, session: session, generation: session.generation)

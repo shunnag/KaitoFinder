@@ -162,7 +162,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
         let hasFolders = (selections + renaming.map(\.selection) + moving.map(\.selection)).contains { $0.isDirectory }
         // 抽出と同じ索引を使うが、成分は EntryNode の表示と揃え、途中の . などを解決しない。
-        let selectionIndex = hasFolders && cached == nil ? ArchiveEntryPayload.SubtreeIndex(entries: existing, components: {
+        let selectionIndex = hasFolders && cached == nil ? ArchiveEntryPayload.SubtreeIndex(entries: existing, syntax: .init(format), components: {
             Array($0.pathComponents.drop(while: { $0 == "." }))
         }) : nil
         var removed: [Int: Entry] = [:]

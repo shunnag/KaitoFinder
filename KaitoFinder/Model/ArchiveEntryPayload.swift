@@ -51,12 +51,12 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
     }
 
     func resolve(in entries: [ArchiveEntry], generation current: UInt64,
-                 subtrees: SubtreeIndex? = nil) throws -> [ArchiveEntry] {
+                 subtrees: SubtreeIndex? = nil, syntax: ExtractionPath.NameSyntax) throws -> [ArchiveEntry] {
         // 保存前モードは専用の origin 照合を通す。名前で別の entry を探さない。
         guard revision == nil, origin == nil else { throw Self.staleSelection }
         if isDirectory {
-            let components = (try? ExtractionPath.components(path)) ?? Array(ArchivePath.components(path).drop(while: { $0 == "." }))
-            let subtree = (subtrees ?? SubtreeIndex(entries: entries)).subtree(for: components)
+            let components = (try? ExtractionPath.components(path, syntax: syntax)) ?? Array(ArchivePath.components(path).drop(while: { $0 == "." }))
+            let subtree = (subtrees ?? SubtreeIndex(entries: entries, syntax: syntax)).subtree(for: components)
             guard !subtree.isEmpty else { throw ExtractionFailure.refused(String(localized: "選択したフォルダが見つかりません: \(path)。")) }
             return subtree
         }
@@ -85,11 +85,11 @@ nonisolated struct ArchiveEntryPayload: Sendable, Hashable {
         private let entries: [ArchiveEntry]
         private var nodes = [Node()]
 
-        init(entries: [ArchiveEntry], components: ((ArchiveEntry) -> [String])? = nil) {
+        init(entries: [ArchiveEntry], syntax: ExtractionPath.NameSyntax, components: ((ArchiveEntry) -> [String])? = nil) {
             self.entries = entries
             for (offset, entry) in entries.enumerated() {
                 // 不正な子パスも選択に含め、展開層で失敗として報告する。黙って除外しない。
-                let parts = components?(entry) ?? ((try? ExtractionPath.components(entry.name)) ??
+                let parts = components?(entry) ?? ((try? ExtractionPath.components(entry.name, syntax: syntax)) ??
                     Array(entry.pathComponents.drop(while: { $0 == "." })))
                 var node = 0
                 // 同じパスのファイルは、そのフォルダ自身として選択しない。

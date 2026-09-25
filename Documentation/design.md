@@ -1268,6 +1268,15 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   `/abs.txt`、重複名を含む)。展開層で必ず、先頭 `/` を落とし、`..` 成分を拒否し、
   解決後の実パスが出力 root の内側にあることを確認する。root を出る target を
   持つ symlink も拒否する。
+  tar 系（外側の圧縮を問わず reader が tar）の名前は `/` だけで分け、`\` と先頭の `C:` もそのまま保つ。
+  ZIP と他形式は従来どおり `/` と `\` で分け、先頭の drive 文字を外す。
+  tar でも `\` で分けた片に `..` がある名前は拒否する。出力先の成分検査でも同じ条件を確認し、
+  directory descriptor に相対な `openat` / `mkdirat` と `O_NOFOLLOW`、葉の `O_EXCL` を保つ。
+  選択・保存前の snapshot・並列展開・file promise・Quick Look・コピーも同じ構文を使う。
+  出力名の重複判定は成分を `/` で結んだ NFC を鍵にし、最初の entry を優先する。
+- **変換時の受信名**: 読み取り専用の書庫へのドロップでは、出力形式を選ぶ前の promise の葉は
+  ファイルとして置ける一成分かだけを検査する。保存パネルで選んだ形式の規則は
+  `ArchiveCreationTransaction.run` が作業領域を作る前に適用する。
 - **quarantine**:書庫の `com.apple.quarantine` を展開物へ**伝播**させる。
   やらないと KaitoFinder が Gatekeeper 迂回路になる。`replaceItemAt` は
   quarantine を落とすので、書庫自身の印も編集後に付け直す。

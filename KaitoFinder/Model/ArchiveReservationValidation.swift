@@ -116,16 +116,17 @@ nonisolated struct ArchiveReservationState: Sendable {
         let tree = sameEntries && reusing != nil ? reusing!.tree
             : (changes.isEmpty ? baseTree : nil) ?? EntryNode.tree(from: projection.entries, format: validation.format)
         let subtrees: ArchiveEntryPayload.SubtreeIndex
+        let syntax = ExtractionPath.NameSyntax(validation.format)
         if sameEntries, let reusing { subtrees = reusing.reading.subtrees }
-        else if occupancy != nil { subtrees = .init(entries: projection.entries, components: { $0.pathComponents }) }
-        else { subtrees = .init(entries: projection.entries) }
+        else if occupancy != nil { subtrees = .init(entries: projection.entries, syntax: syntax, components: { $0.pathComponents }) }
+        else { subtrees = .init(entries: projection.entries, syntax: syntax) }
         var comparable = changes
         comparable.revision = previous?.revision ?? changes.revision
         let filters = Dictionary(uniqueKeysWithValues: configurations.map { configuration in
             (configuration, EntryTreeFilter(root: tree, query: configuration.query, showsHiddenFiles: configuration.showsHiddenFiles))
         })
         return try Self(revision: changes.revision, format: validation.format, projection: projection, occupancy: occupancy,
-            reading: .init(base: base, generation: generation, changes: changes, staging: staging, projection: projection, subtrees: subtrees),
+            reading: .init(base: base, generation: generation, changes: changes, staging: staging, nameSyntax: syntax, projection: projection, subtrees: subtrees),
             tree: tree, filters: filters, changesDiffer: previous.map { comparable != $0 } ?? true)
     }
 }

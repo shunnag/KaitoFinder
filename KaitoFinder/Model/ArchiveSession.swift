@@ -902,15 +902,16 @@ actor ArchiveSession {
         let reader = try requireCurrentReader()
         let expectedGeneration = generation
         var subtrees: ArchiveEntryPayload.SubtreeIndex?
+        let syntax = ExtractionPath.NameSyntax(reader.format)
         var selected: [Int: ArchiveEntry] = [:]
         for payload in payloads {
             guard payload.archiveURL == sourceURL else {
                 throw ExtractionFailure.refused(String(localized: "選択した項目のアーカイブが一致しません。"))
             }
             if payload.isDirectory, subtrees == nil {
-                subtrees = ArchiveEntryPayload.SubtreeIndex(entries: reader.entries)
+                subtrees = ArchiveEntryPayload.SubtreeIndex(entries: reader.entries, syntax: syntax)
             }
-            for entry in try payload.resolve(in: reader.entries, generation: expectedGeneration, subtrees: subtrees) {
+            for entry in try payload.resolve(in: reader.entries, generation: expectedGeneration, subtrees: subtrees, syntax: syntax) {
                 selected[entry.index] = entry
             }
         }

@@ -468,7 +468,7 @@ import Synchronization
                         if self.pendingChanges.isEmpty, self.pendingChanges.revision == revision {
                             // 変更のない一覧を先に公開し、編集用の全件検査は表示後に進める。
                             session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
-                                changes: self.pendingChanges, staging: nil))
+                                changes: self.pendingChanges, staging: nil, nameSyntax: .init(session.reservationFormat)))
                             controller?.display(tree, session: session, generation: snapshot.generation,
                                                 materializationController: self.materializationController())
                             baseTree = tree
@@ -691,7 +691,7 @@ import Synchronization
                 let previous = editor.changes
                 editor.replace(pending)
                 session.setPendingReadSnapshot(try .init(deferredBase: editor.base, generation: session.generation,
-                    changes: editor.changes, staging: editor.staging))
+                    changes: editor.changes, staging: editor.staging, nameSyntax: .init(session.reservationFormat)))
                 action.pending = previous
                 registerUndo(action)
                 let revision = editor.changes.revision, previousRefresh = undoTask, refreshID = UUID()
@@ -894,7 +894,7 @@ import Synchronization
                     guard !closed, self.session === session, session.generation == snapshot.generation,
                           pendingEditor === editor, editor.changes.isEmpty, editor.changes.revision == revision else { return false }
                     session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
-                                                            changes: editor.changes, staging: nil))
+                                                            changes: editor.changes, staging: nil, nameSyntax: .init(session.reservationFormat)))
                     for (controller, token) in loading where controller.isCurrentListLoading(token) {
                         controller.display(tree, session: session, generation: snapshot.generation,
                             materializationController: materializationController(), preparedFilter: filters[controller.filterConfiguration], loadingToken: token)

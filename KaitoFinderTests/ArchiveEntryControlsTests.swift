@@ -1285,7 +1285,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let delegate = try XCTUnwrap(provider.delegate as? ArchiveFilePromise)
         let entries = await session.entries()
         XCTAssertEqual(provider.fileType, UTType.folder.identifier)
-        XCTAssertEqual(try delegate.payload.resolve(in: entries, generation: session.generation).map(\.name),
+        XCTAssertEqual(try delegate.payload.resolve(in: entries, generation: session.generation, syntax: .init(session.format)).map(\.name),
                        ["folder/show.txt", "folder/hidden.txt"])
     }
 

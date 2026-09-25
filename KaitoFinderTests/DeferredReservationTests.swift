@@ -149,7 +149,7 @@ nonisolated final class DeferredReservationTests: XCTestCase {
 
     func testPendingSnapshotResolvesManyFoldersUsingOneSubtreeIndex() throws {
         let entries = (0..<10_000).map { entry($0, "folder\($0 / 2)/file\($0)") }
-        let snapshot = try ArchivePendingReadSnapshot(base: entries, generation: 0, changes: .init(), staging: nil)
+        let snapshot = try ArchivePendingReadSnapshot(base: entries, generation: 0, changes: .init(), staging: nil, nameSyntax: .portable)
         let start = ContinuousClock.now
         for folder in 0..<5_000 {
             let anchor = entries[folder * 2]

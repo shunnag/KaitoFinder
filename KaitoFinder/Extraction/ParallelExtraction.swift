@@ -48,11 +48,11 @@ nonisolated final class ParallelExtraction: Sendable {
         let resources: Mutex<Resources>
         let position: Position
 
-        init(reader: sending ArchiveReader, destination: URL, quarantine: Data?, readOnly: Bool,
+        init(reader: sending ArchiveReader, destination: URL, quarantine: Data?, readOnly: Bool, nameSyntax: ExtractionPath.NameSyntax,
              counter: ExtractionProgress, didWrite: (@Sendable (Int) -> Void)?) throws {
             let position = Position()
             self.position = position
-            let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly) { count in
+            let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, nameSyntax: nameSyntax) { count in
                 counter.wrote(count, at: position.value.withLock { $0 })
                 didWrite?(count)
             }
@@ -64,14 +64,14 @@ nonisolated final class ParallelExtraction: Sendable {
     private let counter: ExtractionProgress
     private let didProcess: (@Sendable (Int) -> Void)?
 
-    init(reader: ArchiveReader, destination: URL, quarantine: Data?, readOnly: Bool, count: Int,
+    init(reader: ArchiveReader, destination: URL, quarantine: Data?, readOnly: Bool, nameSyntax: ExtractionPath.NameSyntax, count: Int,
          counter: ExtractionProgress, didWrite: (@Sendable (Int) -> Void)?,
          didProcess: (@Sendable (Int) -> Void)?) throws {
         self.counter = counter
         self.didProcess = didProcess
         workers = try (0..<count).map { _ in
             try Worker(reader: reader.reopen(), destination: destination, quarantine: quarantine,
-                       readOnly: readOnly, counter: counter, didWrite: didWrite)
+                       readOnly: readOnly, nameSyntax: nameSyntax, counter: counter, didWrite: didWrite)
         }
     }
 

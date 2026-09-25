@@ -39,7 +39,7 @@ import AppKit
         try check(result)
         if progress.isCancelled { throw CancellationError() }
         let urls = try payloads.map { payload in
-            try ExtractionPath.components(payload.path).reduce(destination) { $0.appendingPathComponent($1) }
+            try ExtractionPath.components(payload.path, syntax: .init(session.format)).reduce(destination) { $0.appendingPathComponent($1) }
         }
         return Prepared(urls: urls, paths: payloads.map(\.path))
     }
