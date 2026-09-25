@@ -196,7 +196,8 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                            .publish, .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display])
             trace.forbid([.reloadOpen])
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy]) }
-            trace.requireEditorOpen()
+            trace.require([.updaterOpen])
+            trace.forbid([.rewriterOpen])
             XCTAssertEqual(session.hasEncryptedEntries, output != nil)
             XCTAssertTrue(document.undoManager?.canUndo == true)
             try await waitForRenameIndex(controller)
@@ -247,7 +248,8 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             save.require([.saveSheet, .planKeys, .representabilityProbe])
             save.forbid([.reloadOpen])
             if fixture.format == .zip { save.require([.outputProbe]); save.forbid([.workCopy, .updaterPreparation]) }
-            save.requireEditorOpen()
+            save.require([.updaterOpen])
+            save.forbid([.rewriterOpen])
             XCTAssertNil(document.deferredReloadFailure)
             XCTAssertTrue(document.pendingChanges.isEmpty)
             let actual = try await document.projectedEntries().map(\.name).sorted()

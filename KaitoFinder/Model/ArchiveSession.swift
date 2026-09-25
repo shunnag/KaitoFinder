@@ -530,9 +530,8 @@ actor ArchiveSession {
         var output = options(for: mode)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
-            mode = .rewrite(format)
+            mode = format == .zip ? .inPlace : .rewrite(format)
             output = encryption.applying(to: writerOptions(format), format: format)
-            if format == .zip { try publishing { _ = try ArchiveUpdater.open(url: sourceURL) } }
         }
         let outputFormat: GyoshukuKit.ArchiveFormat
         switch mode {
@@ -540,20 +539,36 @@ actor ArchiveSession {
         case .rewrite(let format): outputFormat = format
         }
         try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: outputFormat)
-        progress.totalUnitCount = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
+        let baseUnits = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
+        let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? =
+            outputFormat == .zip && plan.outputEncryption != nil ? .init(output) : nil
+        progress.totalUnitCount = baseUnits + (zipEncryption == nil ? 0 : ArchiveReencryptionProgress.units)
+        progress.completedUnitCount = 0
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
+        let sourcePassword = password
         let (identity, verified) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
-            let identity = try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: output, password: password,
-                progress: progress, willPublish: {
-                    try plan.validate()
-                    try willPublish?()
-                }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine,
-                publication: publication, deferredPlan: plan, expectedOutput: .init(plan: plan, mode: mode)) { editor in
-                    try plan.replay(on: editor, progress: progress)
-                }
+            func publish(_ mode: ArchiveCapabilities.Mode) throws -> ArchiveSetIdentity {
+                let meter = ArchiveReencryptionProgress(progress)
+                return try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: output, password: password,
+                    progress: progress, commitProgress: zipEncryption == nil ? nil : meter.update, willPublish: {
+                        try plan.validate()
+                        try willPublish?()
+                    }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine,
+                    publication: publication, deferredPlan: plan,
+                    expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption)) { editor in
+                        try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress)
+                    }
+            }
+            let identity: ArchiveSetIdentity
+            do { identity = try publish(mode) }
+            catch UpdaterError.nonRelocatableEntry where zipEncryption != nil {
+                progress.totalUnitCount = baseUnits
+                progress.completedUnitCount = 0
+                identity = try publish(.rewrite(.zip))
+            }
             return (identity, verifiedOutput.take())
         }
         if let encryption = plan.outputEncryption {
@@ -578,7 +593,7 @@ actor ArchiveSession {
         var mode = capabilities.mode!, output = options(for: capabilities.mode!)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
-            mode = .rewrite(format)
+            mode = format == .zip ? .inPlace : .rewrite(format)
             output = encryption.applying(to: writerOptions(format), format: format)
         }
         let format: GyoshukuKit.ArchiveFormat
@@ -591,7 +606,8 @@ actor ArchiveSession {
         }
         do {
             let result = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimatedLength, plan: plan,
-                password: output.password, progress: progress, publication: publication, index: index,
+                password: output.password, zipEncryption: format == .zip && plan.outputEncryption != nil ? .init(output) : nil,
+                progress: progress, publication: publication, index: index,
                 metadataStore: volumeMetadataStore, hooks: hooks, willPublish: willPublish, keepsPendingChanges: allowsSplitSave) { split in
                     guard let input = split.input else { throw VolumePublishError.invalidPlan }
                     return try ArchiveSplitWorkProducer.produce(source: input, workURL: split.workURL, mode: mode,
@@ -668,17 +684,32 @@ actor ArchiveSession {
             throw ExtractionFailure.refused(String(localized: "パスワードを入力してください。"))
         }
         let output = action == .remove ? ArchiveEncryptionSettings() : settings
-        progress.totalUnitCount = 1
+        let options = output.applying(to: writerOptions(format), format: format)
+        let sourcePassword = password
+        let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = format == .zip ? .init(options) : nil
+        progress.totalUnitCount = 1 + (format == .zip ? ArchiveReencryptionProgress.units : 0)
         progress.completedUnitCount = 0
-        // ZIP は書き直しで暗号化を変えるが、その場更新の門番（G4 の中央ディレクトリ照合）を通らない ZIP を
-        // 書き直しで通してしまわないよう、公開前に同じ検査を一度だけ行う（拒否は編集可否に残る）。
-        if format == .zip { try publishing { _ = try ArchiveUpdater.open(url: sourceURL) } }
         let (identity, verified) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
-            let identity = try ArchiveImportTransaction.publish(archive: sourceURL, mode: .rewrite(format),
-            options: output.applying(to: writerOptions(format), format: format), password: password,
-            progress: progress, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-            expectedOutput: .init(projected: reader.entries, mode: .rewrite(format))) { _ in }
+            func publish(_ mode: ArchiveCapabilities.Mode) throws -> ArchiveSetIdentity {
+                let meter = ArchiveReencryptionProgress(progress)
+                return try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: options, password: password,
+                    progress: progress, commitProgress: format == .zip ? meter.update : nil,
+                    willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                    expectedOutput: .init(projected: reader.entries, mode: mode, zipEncryption: zipEncryption)) { editor in
+                        if mode == .inPlace {
+                            guard let updater = editor as? ArchiveUpdater else { throw ArchiveEditError.staleSelection }
+                            try updater.reencryptExistingEntries(currentPassword: sourcePassword)
+                        }
+                    }
+            }
+            let identity: ArchiveSetIdentity
+            do { identity = try publish(format == .zip ? .inPlace : .rewrite(format)) }
+            catch UpdaterError.nonRelocatableEntry where format == .zip {
+                progress.totalUnitCount = 1
+                progress.completedUnitCount = 0
+                identity = try publish(.rewrite(.zip))
+            }
             return (identity, verifiedOutput.take())
         }
         // 公開後にだけ新しい鍵を採用する。取消しや競合では旧鍵を維持する。

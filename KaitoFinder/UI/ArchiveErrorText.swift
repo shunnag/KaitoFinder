@@ -57,6 +57,8 @@ nonisolated enum ArchiveErrorText {
             case .invalidEntryIndex(let index): return String(localized: "項目の番号が不正です: \(index)", bundle: bundle)
             case .nonRelocatableEntry(_, let name, let reason):
                 return String(localized: "移動できない項目があります: \(name)(\(reason))", bundle: bundle)
+            case .reencryptionFailed(_, let name, let reason):
+                return String(localized: "暗号化を変更できない項目があります: \(name)(\(reason))", bundle: bundle)
             case .sourceChanged: return String(localized: "アーカイブが変更されています。開き直してください", bundle: bundle)
             case .invalidState: return String(localized: "内部状態が不正です", bundle: bundle)
             }

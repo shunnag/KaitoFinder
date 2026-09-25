@@ -1,7 +1,8 @@
 import AppKit
 import Darwin
-import GyoshukuKit
-import KaitoKit
+@_spi(Testing) @testable import GyoshukuKit
+@_spi(ZipRawLayout) import KaitoKit
+import Synchronization
 import XCTest
 @testable import KaitoFinder
 
@@ -247,6 +248,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
 
         _ = try await document.updatePassword(.change,
             settings: .init(password: "second-key", zipEncryption: .zipCrypto, encryptsSevenZipHeaders: headers))
+        let changedBytes = try Data(contentsOf: url)
         try assertProtected(url, password: "second-key", rejectedPassword: "first-key", headers: headers)
         XCTAssertEqual(undo.undoMenuItemTitle, String(localized: "パスワードの変更を取り消す"))
         document.undo(nil)
@@ -257,19 +259,23 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         document.redo(nil)
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
+        XCTAssertEqual(try Data(contentsOf: url), changedBytes)
         try assertProtected(url, password: "second-key", rejectedPassword: "first-key", headers: headers)
 
         _ = try await document.updatePassword(.remove, settings: .init())
+        let removedBytes = try Data(contentsOf: url)
         XCTAssertEqual(try contents(url), [entryName: payload])
         XCTAssertFalse(session.hasEncryptedEntries)
         XCTAssertEqual(undo.undoMenuItemTitle, String(localized: "パスワードの削除を取り消す"))
         document.undo(nil)
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
+        XCTAssertEqual(try Data(contentsOf: url), changedBytes)
         try assertProtected(url, password: "second-key", headers: headers)
         document.redo(nil)
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
+        XCTAssertEqual(try Data(contentsOf: url), removedBytes)
         XCTAssertEqual(try contents(url), [entryName: payload])
         let removedPassword = await session.password
         XCTAssertNil(removedPassword)
@@ -290,6 +296,159 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             // add / remove / rename を一度も呼ばず commit する。
         }
         try assertProtected(url, password: "rewrite-key")
+    }
+
+    func testPasswordOnlyPublishCommitsUpdaterWithByteProgressAndCancellation() throws {
+        for cancel in [false, true] {
+            let directory = try ArchiveTestDirectory(), url = directory.url.appendingPathComponent("progress.zip")
+            let body = Data(repeating: 0x5a, count: 8 * 1024 * 1024)
+            let writer = try ArchiveWriter.create(url: url, options: .init(compressionMethod: .stored))
+            try writer.add(data: body, as: entryName); try writer.finish()
+            let original = try Data(contentsOf: url), progress = Progress(totalUnitCount: 1001)
+            let meter = ArchiveReencryptionProgress(progress), options = WriterOptions(password: "updater-key")
+            let entries = try ArchiveReader.open(url: url).entries
+            var values: [ArchiveUpdater.CommitProgress] = [], units: [Int64] = []
+            do {
+                try ArchiveImportTransaction.publish(archive: url, mode: .inPlace, options: options, progress: progress,
+                    commitProgress: { value in
+                        values.append(value)
+                        if cancel, value.completedBytes > 0 { progress.cancel() }
+                        try meter.update(value)
+                        units.append(progress.completedUnitCount)
+                    }, willPublish: nil,
+                    expectedOutput: .init(projected: entries, mode: .inPlace, zipEncryption: .init(options))) { editor in
+                        try XCTUnwrap(editor as? ArchiveUpdater).reencryptExistingEntries(currentPassword: nil)
+                    }
+                XCTAssertFalse(cancel)
+                XCTAssertEqual(try contents(url, password: "updater-key"), [entryName: body])
+                XCTAssertEqual(progress.completedUnitCount, 1001)
+                XCTAssertEqual(values.last?.completedBytes, values.last?.totalBytes)
+                XCTAssertEqual(units.last, 1000)
+                XCTAssertTrue(zip(values, values.dropFirst()).allSatisfy { $0.completedBytes <= $1.completedBytes })
+                XCTAssertTrue(zip(units, units.dropFirst()).allSatisfy { $0 <= $1 })
+                XCTAssertTrue(units.contains { $0 > 0 && $0 < 1000 })
+            } catch is CancellationError {
+                XCTAssertTrue(cancel)
+                XCTAssertEqual(try Data(contentsOf: url), original)
+            }
+            XCTAssertFalse(values.isEmpty)
+            try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        }
+    }
+
+    func testZIPPasswordMatrixPreservesStoredPayloadAndMetadataAndAdoptsReader() async throws {
+        for input in [nil, ZipEncryption.aes256, .zipCrypto] {
+            for output in [nil, ZipEncryption.aes256, .zipCrypto] where input != nil || output != nil {
+                let fixture = try ArchiveReencryptionTestSupport.fixture(), url = fixture.archive
+                let original = try ArchiveReencryptionTestSupport.snapshot(url)
+                if let input {
+                    let updater = try ArchiveUpdater.open(url: url, options: .init(password: "old", zipEncryption: input))
+                    try updater.reencryptExistingEntries(currentPassword: nil); try updater.commit()
+                }
+                let session = try ArchiveSession(url: url, password: input == nil ? nil : "old")
+                let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([]), adoptions = Mutex<[ArchiveReaderAdoption]>([])
+                let settings = ArchiveEncryptionSettings(password: output == nil ? nil : "new", zipEncryption: output ?? .aes256)
+                let progress = Progress()
+                try await ArchiveStageDiagnostics.observer.withValue({ event in
+                    if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+                }) {
+                    try await ArchiveSession.readerAdoptionObserver.withValue({ event in adoptions.withLock { $0.append(event) } }) {
+                        let result = try await session.updatePassword(input == nil ? .set : output == nil ? .remove : .change,
+                            settings: settings, progress: progress)
+                        XCTAssertNil(result.reloadFailure)
+                    }
+                }
+                XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) })
+                XCTAssertFalse(stages.withLock { $0.contains(.rewriterOpen) || $0.contains(.reloadOpen) })
+                XCTAssertEqual(adoptions.withLock { $0 }, [.adopted])
+                XCTAssertEqual(progress.totalUnitCount, 1001); XCTAssertEqual(progress.completedUnitCount, 1001)
+                XCTAssertEqual(try ArchiveReencryptionTestSupport.snapshot(url, password: settings.password), original)
+                try ArchiveReencryptionTestSupport.assertEncryption(url, settings: settings)
+                await session.close()
+            }
+        }
+    }
+
+    func testNonRelocatablePasswordEditFallsBackOnceAndResetsProgress() async throws {
+        let directory = try ArchiveTestDirectory(), url = try archive(in: directory, format: .zip)
+        let session = try ArchiveSession(url: url), progress = Progress(), attempts = Mutex(0)
+        let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+        try await ArchiveStageDiagnostics.observer.withValue({ event in
+            if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+        }) {
+            try await ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({
+                attempts.withLock { $0 += 1 }
+                progress.completedUnitCount += 300
+                throw UpdaterError.nonRelocatableEntry(index: 0, name: "entry", reason: "offset")
+            }) {
+                let result = try await session.updatePassword(.set, settings: .init(password: "fallback"), progress: progress)
+                XCTAssertNil(result.reloadFailure)
+            }
+        }
+        XCTAssertEqual(attempts.withLock { $0 }, 1)
+        XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) && $0.contains(.rewriterOpen) })
+        XCTAssertEqual(progress.totalUnitCount, 2); XCTAssertEqual(progress.completedUnitCount, 2)
+        try assertProtected(url, password: "fallback")
+        try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        await session.close()
+    }
+
+    func testSevenZipPasswordEditsStillUseRewriter() async throws {
+        let directory = try ArchiveTestDirectory(), url = try archive(in: directory, format: .sevenZip)
+        let session = try ArchiveSession(url: url)
+        for action: ArchivePasswordAction in [.set, .change, .remove] {
+            let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([]), progress = Progress()
+            try await ArchiveStageDiagnostics.observer.withValue({ event in
+                if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+            }) {
+                let result = try await session.updatePassword(action,
+                    settings: .init(password: action == .set ? "first" : "second"), progress: progress)
+                XCTAssertNil(result.reloadFailure)
+            }
+            XCTAssertTrue(stages.withLock { $0.contains(.rewriterOpen) })
+            XCTAssertFalse(stages.withLock { $0.contains(.updaterOpen) })
+            XCTAssertEqual(progress.totalUnitCount, 2)
+            XCTAssertEqual(progress.completedUnitCount, 2)
+        }
+        await session.close()
+    }
+
+    @MainActor func testCorruptReencryptedOutputDoesNotPromptOrDisableEditing() async throws {
+        let directory = try ArchiveTestDirectory()
+        let url = try archive(in: directory, format: .zip, settings: .init(password: "old"))
+        let original = try Data(contentsOf: url)
+        let (document, _) = try await document(at: url, directory: directory, password: "old")
+        let session = try XCTUnwrap(document.session), prompts = Mutex(0), damaged = Mutex(false)
+        session.setPasswordPrompt { _ in prompts.withLock { $0 += 1 }; throw CancellationError() }
+        do {
+            try await ZipReencryption.$observer.withValue({ event in
+                guard event.phase == .v0 else { return }
+                let parent = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil)
+                    .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") })
+                let work = parent.appendingPathComponent("archive.zip")
+                let reader = try ArchiveReader.open(url: work, options: .init(password: "new"))
+                let raw = try XCTUnwrap(reader.zipRawRecordLayout(at: 0))
+                var bytes = try Data(contentsOf: work)
+                bytes[Int(raw.payloadRange.upperBound - 1)] ^= 1
+                try bytes.write(to: work)
+                damaged.withLock { $0 = true }
+            }) {
+                _ = try await document.updatePassword(.change, settings: .init(password: "new"))
+            }
+            XCTFail("Corrupt output must not publish")
+        } catch {
+            guard case UpdaterError.reencryptionFailed = error else { return XCTFail("Unexpected error: \(error)") }
+            XCTAssertNil(ArchivePasswordChallenge(error))
+        }
+        XCTAssertTrue(damaged.withLock { $0 }); XCTAssertEqual(prompts.withLock { $0 }, 0)
+        XCTAssertTrue(session.capabilities.canEdit)
+        let password = await session.password
+        XCTAssertEqual(password, "old")
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
+        try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        _ = try await document.updatePassword(.change, settings: .init(password: "retry"))
+        try assertProtected(url, password: "retry", rejectedPassword: "old")
     }
 
     func testNewArchiveCreationCarriesEncryptionAndValidatesProtectedHeaders() throws {

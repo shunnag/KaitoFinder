@@ -157,7 +157,7 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
         }
     }
 
-    func testZIPUpdaterKeepsDirectoryPayloadAndPasswordRewriteNormalizesIt() async throws {
+    func testZIPUpdaterKeepsDirectoryPayloadIncludingPasswordEdits() async throws {
         let fixture = try ScenarioFixture(script: #"""
         with zipfile.ZipFile(p, 'w') as z:
             z.writestr('./', b'root')
@@ -170,13 +170,16 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
         let updated = try ArchiveReader.open(url: fixture.archive).entries
         XCTAssertEqual(updated.first { $0.name == "./" }?.uncompressedSize, 4)
         XCTAssertEqual(updated.first { $0.name == "directory/" }?.uncompressedSize, 25)
+        let original = try Data(contentsOf: fixture.archive)
         let session = try ArchiveSession(url: fixture.archive)
         let result = try await session.updatePassword(.set, settings: .init(password: "secret"), progress: Progress())
         XCTAssertNil(result.reloadFailure)
         await session.close()
         let reader = try ArchiveReader.open(url: fixture.archive, options: .init(password: "secret"))
-        XCTAssertEqual(reader.entries.map(\.name).sorted(), ["directory/", "link"])
-        XCTAssertEqual(reader.entries.first { $0.name == "directory/" }?.uncompressedSize, 0)
+        XCTAssertEqual(reader.entries.map(\.name).sorted(), ["./", "directory/", "link"])
+        XCTAssertEqual(reader.entries.first { $0.name == "./" }?.uncompressedSize, 4)
+        XCTAssertEqual(reader.entries.first { $0.name == "directory/" }?.uncompressedSize, 25)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), original)
         let link = try XCTUnwrap(reader.entries.first { $0.name == "link" })
         XCTAssertEqual(link.kind, .symlink)
         XCTAssertEqual(link.uncompressedSize, 5)

@@ -139,6 +139,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
             (UpdaterError.invalidArchive("EOCD がありません"), "アーカイブが不正です: EOCD がありません"),
             (UpdaterError.invalidEntryIndex(4), "項目の番号が不正です: 4"),
             (UpdaterError.nonRelocatableEntry(index: 2, name: "link", reason: "offset"), "移動できない項目があります: link(offset)"),
+            (UpdaterError.reencryptionFailed(index: 2, name: "file", reason: "CRC"), "暗号化を変更できない項目があります: file(CRC)"),
             (UpdaterError.sourceChanged, "アーカイブが変更されています。開き直してください"),
             (UpdaterError.invalidState, "内部状態が不正です")
         ])
@@ -196,6 +197,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
             (KaitoError.checksumMismatch(entry: 3), "The checksum for item 3 doesn’t match"),
             (WriterError.compression(-3), "Compression failed (code -3)"),
             (RewriterError.invalidArchive("missing EOCD"), "The archive is invalid: missing EOCD"),
+            (UpdaterError.reencryptionFailed(index: 0, name: "file", reason: "CRC"), "An item’s encryption cannot be changed: file (CRC)"),
             (UpdaterError.sourceChanged, "The archive has changed. Please reopen it")
         ]
         for (error, expected) in cases {

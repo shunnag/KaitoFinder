@@ -1,5 +1,5 @@
 import AppKit
-import GyoshukuKit
+@_spi(Testing) import GyoshukuKit
 import KaitoKit
 import Synchronization
 import XCTest
@@ -84,6 +84,86 @@ import XCTest
 }
 
 nonisolated final class DeferredSaveDocumentTests: XCTestCase {
+    @MainActor func testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document
+        defer { document.close() }
+        _ = try await document.rename(fixture.node("a.txt"), to: "renamed.txt", progress: Progress())
+        _ = try await document.remove([fixture.node("b.txt")], progress: Progress())
+        _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: Progress())
+        _ = try await document.createFolder(in: "", baseName: "new", progress: Progress())
+        _ = try await document.updatePassword(.set, settings: .init(password: "first"))
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+        let strategies = Mutex<[ArchiveUpdater.CommitStrategy?]>([]), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+        let adoptions = Mutex<[ArchiveReaderAdoption]>([])
+        try await ArchiveImportTransaction.didCommitUpdaterForTesting.withValue({ updater in
+            strategies.withLock { $0.append(updater.lastCommitStrategy) }
+        }) {
+            try await ArchiveStageDiagnostics.observer.withValue({ event in
+                if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+            }) {
+                try await ArchiveSession.readerAdoptionObserver.withValue({ event in adoptions.withLock { $0.append(event) } }) {
+                    try await fixture.save()
+                }
+            }
+        }
+        await document.waitForDeferredPreparationForTesting()
+        XCTAssertEqual(strategies.withLock { $0 }, [.stagedRebuild])
+        XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) && $0.contains(.replay) })
+        XCTAssertFalse(stages.withLock { $0.contains(.rewriterOpen) || $0.contains(.reloadOpen) })
+        XCTAssertEqual(adoptions.withLock { $0 }, [.adopted])
+        XCTAssertEqual(try DeferredSaveFixture.contents(fixture.archive, password: "first"),
+                       ["renamed.txt": Data("A".utf8), "folder/child.txt": Data("child".utf8), "added.txt": Data("new".utf8)])
+        XCTAssertEqual(try DeferredSaveFixture.inventory(fixture.archive)["new/"], .directory)
+        XCTAssertTrue(document.pendingChanges.isEmpty)
+        XCTAssertFalse(document.isDocumentEdited)
+        try ArchiveReencryptionTestSupport.assertEncryption(fixture.archive, settings: .init(password: "first"))
+        for action: ArchivePasswordAction in [.change, .remove] {
+            let settings = ArchiveEncryptionSettings(password: action == .remove ? nil : "second", zipEncryption: .zipCrypto)
+            _ = try await document.updatePassword(action, settings: settings)
+            try await fixture.save()
+            await document.waitForDeferredPreparationForTesting()
+            try ArchiveReencryptionTestSupport.assertEncryption(fixture.archive, settings: settings)
+        }
+    }
+
+    func testDeferredEncryptionFallbackResetsReplayAndCommitProgress() async throws {
+        for fallback in [false, true] {
+            let directory = try ArchiveTestDirectory(), url = directory.url.appendingPathComponent("original.zip")
+            let writer = try ArchiveWriter.create(url: url, options: .init(password: "old"))
+            try writer.add(data: Data("old contents".utf8), as: "old"); try writer.finish()
+            let session = try ArchiveSession(url: url, password: "old"), snapshot = try await session.deferredSnapshot()
+            var pending = ArchivePendingChanges()
+            pending.renames[.init(index: 0, expectedName: "old", baseGeneration: snapshot.generation)] = "renamed"
+            pending.outputEncryption = .init(password: "new", zipEncryption: .zipCrypto)
+            let progress = Progress(), attempts = Mutex(0), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+            let publication = ArchiveSavePublication(); defer { publication.finish() }
+            try await ArchiveStageDiagnostics.observer.withValue({ event in
+                if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+            }) {
+                try await ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({
+                    attempts.withLock { $0 += 1 }
+                    XCTAssertEqual(progress.completedUnitCount, 1)
+                    if fallback {
+                        progress.completedUnitCount += 300
+                        throw UpdaterError.nonRelocatableEntry(index: 0, name: "old", reason: "offset")
+                    }
+                }) {
+                    let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: progress, publication: publication)
+                    XCTAssertNil(result.reloadFailure)
+                }
+            }
+            XCTAssertEqual(attempts.withLock { $0 }, 1)
+            XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) })
+            XCTAssertEqual(stages.withLock { $0.contains(.rewriterOpen) }, fallback)
+            XCTAssertEqual(progress.totalUnitCount, fallback ? 3 : 1002)
+            XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
+            XCTAssertEqual(try DeferredSaveFixture.contents(url, password: "new"), ["renamed": Data("old contents".utf8)])
+            try ArchiveReencryptionTestSupport.assertEncryption(url, settings: pending.outputEncryption!)
+            try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+            await session.close()
+        }
+    }
+
     @MainActor func testDeferredSaveAsCallerCancellationReachesUnstructuredTask() async throws {
         let fixture = try DeferredSaveFixture(), document = fixture.document
         defer { document.close() }

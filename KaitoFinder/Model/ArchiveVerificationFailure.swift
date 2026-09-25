@@ -32,6 +32,7 @@ nonisolated enum ArchiveVerificationFailure: Sendable, Equatable, CustomStringCo
     case readerOpen(FailureCode)
     case format(expected: String, actual: String)
     case projection(expected: Entry?, actual: Entry?)
+    case encryption(index: Int, expected: String, actual: String?, isEncrypted: Bool)
     case outputProbe(FailureCode)
     case outputCount(expected: UInt64, actual: UInt64)
 
@@ -44,6 +45,8 @@ nonisolated enum ArchiveVerificationFailure: Sendable, Equatable, CustomStringCo
         case .format(let expected, let actual): "format: expected=\(expected) actual=\(actual)"
         case .projection(let expected, let actual):
             "projection: expected=\(expected.map(String.init(describing:)) ?? "none") actual=\(actual.map(String.init(describing:)) ?? "none")"
+        case .encryption(let index, let expected, let actual, let isEncrypted):
+            "encryption: entry[\(index)] expected=\(expected) actual=\(actual ?? "unknown") encrypted=\(isEncrypted)"
         case .outputProbe(let error): "output_probe: \(error)"
         case .outputCount(let expected, let actual): "output_count: expected=\(expected) actual=\(actual)"
         }

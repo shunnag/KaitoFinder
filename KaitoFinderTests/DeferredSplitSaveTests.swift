@@ -182,6 +182,108 @@ nonisolated final class DeferredSplitWorkCapture: Sendable {
 }
 
 nonisolated final class DeferredSplitSaveTests: XCTestCase {
+    @MainActor func testZIPPasswordMixedSavesUseUpdaterAndOnlyNonRelocatableFallsBack() async throws {
+        for fallback in [false, true] {
+            try await ArchiveReencryptionTestSupport.splitPasswordLifecycle(behavior: .onSave, fallback: fallback)
+        }
+    }
+
+    @MainActor func testSplitReencryptionFailureKeepsOriginalCapabilityAndPendingChanges() async throws {
+        for behavior: ArchivePreferences.SaveBehavior in [.onSave, .immediate] {
+            let fixture = try DeferredSplitSaveFixture(format: .zip, behavior: behavior), document = fixture.document
+            defer { document.close() }
+            document.splitSaveHooks.operations.coordinate = { _, _, queue, acquired in queue.addOperation { acquired(nil) } }
+            document.splitMutationConfirmation = { _ in .alertFirstButtonReturn }
+            let session = try XCTUnwrap(document.session), prompts = Mutex(0), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+            session.setPasswordPrompt { _ in prompts.withLock { $0 += 1 }; throw CancellationError() }
+            do {
+                try await ArchiveStageDiagnostics.observer.withValue({ event in
+                    if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+                }) {
+                    try await ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({
+                        throw UpdaterError.reencryptionFailed(index: 0, name: "file0.txt", reason: "verification")
+                    }) {
+                        _ = try await document.updatePassword(.set, settings: .init(password: "new"))
+                        if behavior == .onSave { try await fixture.save() }
+                    }
+                }
+                XCTFail("Re-encryption failure must not publish")
+            } catch { }
+            XCTAssertEqual(document.splitSaveFailure?.kind, .failed)
+            XCTAssertTrue(session.capabilities.canEdit)
+            XCTAssertFalse(session.requiresSplitRecovery)
+            XCTAssertFalse(stages.withLock { $0.contains(.rewriterOpen) })
+            XCTAssertEqual(prompts.withLock { $0 }, 0)
+            XCTAssertEqual(try fixture.parts(), fixture.original)
+            XCTAssertEqual(document.pendingChanges.outputEncryption != nil, behavior == .onSave)
+        }
+    }
+
+    @MainActor func testSplitPasswordVerificationRejectsOnePlainFile() async throws {
+        let fixture = try DeferredSplitSaveFixture(format: .zip), document = fixture.document
+        defer { document.close() }
+        document.splitSaveHooks.operations.coordinate = { _, _, queue, acquired in queue.addOperation { acquired(nil) } }
+        let mixed = fixture.directory.url.appendingPathComponent("mixed.zip")
+        let writer = try ArchiveWriter.create(url: mixed, options: .init(password: "new"))
+        for name in fixture.contents.keys.sorted() where name != "file1.txt" { try writer.add(data: fixture.contents[name]!, as: name) }
+        try writer.finish()
+        let updater = try ArchiveUpdater.open(url: mixed)
+        try updater.add(data: fixture.contents["file1.txt"]!, as: "file1.txt", modificationDate: nil, permissions: nil)
+        try updater.commit()
+        let incorrect = try Data(contentsOf: mixed)
+        document.splitSaveHooks.didProduceWork = { try incorrect.write(to: $0) }
+        _ = try await document.updatePassword(.set, settings: .init(password: "new"))
+        do { try await fixture.save(); XCTFail("Mixed encryption must not publish") } catch { }
+        XCTAssertEqual(try fixture.parts(), fixture.original)
+        XCTAssertTrue(try XCTUnwrap(document.session).capabilities.canEdit)
+        XCTAssertNotNil(document.pendingChanges.outputEncryption)
+    }
+
+    @MainActor func testZIPPasswordWorkProducerProgressFallbackAndRealFailures() async throws {
+        for encryption in [false, true] {
+            for failure: UpdaterError? in [nil, .nonRelocatableEntry(index: 0, name: "file", reason: "offset"),
+                                           .reencryptionFailed(index: 0, name: "file", reason: "verification")] {
+                let fixture = try DeferredSplitSaveFixture(format: .zip), session = try XCTUnwrap(fixture.document.session)
+                defer { fixture.document.close() }
+                let snapshot = try await session.deferredSnapshot(), layout = try XCTUnwrap(session.volumeLayout)
+                let source = try ArchiveVolumeInput(layout: layout, expected: await session.sourceIdentity)
+                let work = fixture.directory.url.appendingPathComponent("work.zip"), progress = Progress(totalUnitCount: 2)
+                var pending = ArchivePendingChanges()
+                pending.renames[.init(index: 0, expectedName: "file0.txt", baseGeneration: snapshot.generation)] = "renamed.txt"
+                if encryption { pending.outputEncryption = .init(password: "new") }
+                let options = (pending.outputEncryption ?? .init()).applying(to: .init(), format: .zip)
+                let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: snapshot.generation, pending: pending, format: .zip)
+                let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+                do {
+                    let result = try ArchiveStageDiagnostics.observer.withValue({ event in
+                        if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
+                    }) {
+                        try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({
+                            if let failure { progress.completedUnitCount += 300; throw failure }
+                        }) {
+                            try ArchiveSplitWorkProducer.produce(source: source, workURL: work, mode: .inPlace, password: nil,
+                                options: options, plan: plan, progress: progress, verifyAssembledInput: { try source.verify($0) })
+                        }
+                    }
+                    let fallback: Bool
+                    if case .nonRelocatableEntry = failure { fallback = true } else { fallback = false }
+                    XCTAssertTrue(failure == nil || encryption && fallback)
+                    XCTAssertEqual(result.recompressedZIP, fallback)
+                    XCTAssertEqual(result.mode, fallback ? .rewrite(.zip) : .inPlace)
+                    XCTAssertEqual(progress.totalUnitCount, fallback ? 6 : encryption ? 1002 : 2)
+                    XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount - 1)
+                    try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: work, options: .kaitoFinder(password: options.password)),
+                        plan: plan, mode: result.mode, zipEncryption: encryption ? .init(options) : nil)
+                } catch {
+                    XCTAssertEqual(error as? UpdaterError, failure)
+                    XCTAssertFalse(stages.withLock { $0.contains(.rewriterOpen) })
+                    if case UpdaterError.reencryptionFailed = error { XCTAssertNil(ArchivePasswordChallenge(error)) }
+                }
+                XCTAssertEqual(try fixture.parts(), fixture.original)
+            }
+        }
+    }
+
     @MainActor func testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing() async throws {
         for format: GyoshukuKit.ArchiveFormat in [.sevenZip, .tar, .tarGzip, .tarBzip2, .tarXZ, .lha, .zip] {
             let fixture = try DeferredSplitSaveFixture(format: format), document = fixture.document

@@ -3,6 +3,14 @@ import GyoshukuKit
 import KaitoKit
 
 nonisolated struct ArchiveOutputProjection: Sendable {
+    enum ExpectedZipEncryption: String, Sendable {
+        case none, zipCrypto = "ZipCrypto", aes256 = "AES-256"
+
+        init(_ options: WriterOptions) {
+            self = options.password == nil ? .none : options.zipEncryption == .zipCrypto ? .zipCrypto : .aes256
+        }
+    }
+
     struct Entry: Sendable {
         let name: String
         var kind: EntryKind
@@ -34,23 +42,25 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     let entries: [Entry]
+    let zipEncryption: ExpectedZipEncryption?
 
-    init(projected: [ArchiveEntry], mode: ArchiveCapabilities.Mode) {
-        self.init(existing: projected, mode: mode)
+    init(projected: [ArchiveEntry], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
+        self.init(existing: projected, mode: mode, zipEncryption: zipEncryption)
     }
 
-    init(plan: ArchiveSaveReplayPlan, mode: ArchiveCapabilities.Mode) {
+    init(plan: ArchiveSaveReplayPlan, mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
         let identities = Dictionary(uniqueKeysWithValues: plan.additions.compactMap { addition in
             addition.stagedStamp.hardLinkIdentity.map { (addition.id, $0) }
         })
         self.init(existing: plan.edits.existing, removing: plan.edits.removals.map(\.index), renaming: plan.edits.renames,
                   additions: plan.projected.filter { $0.pendingID != nil }.map {
                       Entry($0, hardLinkIdentity: $0.pendingID.flatMap { identities[$0] })
-                  }, mode: mode)
+                  }, mode: mode, zipEncryption: zipEncryption)
     }
 
     init(existing: [ArchiveEntry], removing: [Int] = [], renaming: [ArchiveEditPlan.Rename] = [],
-         additions: [Entry] = [], mode: ArchiveCapabilities.Mode) {
+         additions: [Entry] = [], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
+        self.zipEncryption = zipEncryption
         let removed = Set(removing)
         // 保存時の循環改名は、最後の名前だけを照合する。
         let names = renaming.reduce(into: [Int: String]()) { $0[$1.entry.index] = $1.path }
@@ -160,6 +170,13 @@ nonisolated struct ArchiveOutputProjection: Sendable {
         }
         // 同名項目も件数を保つ。サイズ既知の項目から消費し、追加だけサイズを問わない。
         for entry in actual {
+            if let zipEncryption {
+                let expected: ExpectedZipEncryption = entry.kind == .file ? zipEncryption : .none
+                guard entry.isEncrypted == (expected != .none), entry.formatSpecific["encryption"] == expected.rawValue else {
+                    return .encryption(index: entry.index, expected: expected.rawValue,
+                        actual: entry.formatSpecific["encryption"], isEncrypted: entry.isEncrypted)
+                }
+            }
             let shape = Shape(name: entry.name, kind: entry.kind)
             let sized = Sized(shape: shape, size: entry.uncompressedSize)
             if let count = carried[sized] {

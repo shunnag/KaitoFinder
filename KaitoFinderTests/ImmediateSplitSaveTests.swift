@@ -7,6 +7,12 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ImmediateSplitSaveTests: XCTestCase {
+    @MainActor func testZIPPasswordEditsUseUpdaterAndOnlyNonRelocatableFallsBack() async throws {
+        for fallback in [false, true] {
+            try await ArchiveReencryptionTestSupport.splitPasswordLifecycle(behavior: .immediate, fallback: fallback)
+        }
+    }
+
     @MainActor func testEveryEditConfirmsBeforeWritingAndUsesTheSameSplitPipeline() async throws {
         for format: GyoshukuKit.ArchiveFormat in [.sevenZip, .tarGzip, .zip] {
             let clones = Mutex(0)

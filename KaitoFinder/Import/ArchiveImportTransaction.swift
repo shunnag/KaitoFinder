@@ -445,6 +445,7 @@ nonisolated enum ArchiveImportTransaction {
     static let didVerifyForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
     static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
     static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
     #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
@@ -525,6 +526,7 @@ nonisolated enum ArchiveImportTransaction {
 
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
     @discardableResult static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
+                        commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)? = nil,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: ArchiveSetIdentity? = nil,
@@ -562,7 +564,12 @@ nonisolated enum ArchiveImportTransaction {
             let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: archive, output: work, options: options) }
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
             try ArchiveImportPlan.checkCancellation(progress)
-            try ArchiveStageDiagnostics.measure(.commit) { try updater.commit() }
+            try ArchiveStageDiagnostics.measure(.commit) {
+                #if DEBUG
+                try willCommitUpdaterForTesting.get()?()
+                #endif
+                try updater.commit(progress: commitProgress)
+            }
             #if DEBUG
             try didCommitUpdaterForTesting.get()?(updater)
             #endif

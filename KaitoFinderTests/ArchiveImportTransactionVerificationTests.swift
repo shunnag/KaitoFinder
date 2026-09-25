@@ -6,6 +6,46 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
+    func testPasswordPublicationRejectsOnePlainFileForImmediateDeferredAndFallback() async throws {
+        for deferred in [false, true] {
+            for fallback in [false, true] {
+                let directory = try ArchiveTestDirectory(), url = try archive(directory, format: .zip)
+                let original = try Data(contentsOf: url), session = try ArchiveSession(url: url)
+                let snapshot = try await session.deferredSnapshot(), options = WriterOptions(password: "new")
+                let wrong = directory.url.appendingPathComponent("mixed.zip")
+                let writer = try ArchiveWriter.create(url: wrong, options: options)
+                try writer.add(data: Data(repeating: 42, count: 2048), as: "keep")
+                try writer.add(data: Data([3]), as: "remove"); try writer.finish()
+                let updater = try ArchiveUpdater.open(url: wrong)
+                try updater.add(data: Data([2]), as: "second", modificationDate: nil, permissions: nil); try updater.commit()
+                let incorrect = try Data(contentsOf: wrong), failures = Mutex<[ArchiveVerificationFailure]>([])
+                do {
+                    try await ArchiveVerificationFailure.observer.withValue({ value in failures.withLock { $0.append(value) } }) {
+                        try await ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({
+                            if fallback { throw UpdaterError.nonRelocatableEntry(index: 0, name: "keep", reason: "offset") }
+                        }) {
+                            try await ArchiveImportTransaction.didCommitForTesting.withValue({ work in try incorrect.write(to: work) }) {
+                                if deferred {
+                                    var pending = ArchivePendingChanges(); pending.outputEncryption = .init(password: "new")
+                                    let publication = ArchiveSavePublication(); defer { publication.finish() }
+                                    _ = try await session.savePending(pending, baseGeneration: snapshot.generation,
+                                        progress: Progress(), publication: publication)
+                                } else { _ = try await session.updatePassword(.set, settings: .init(password: "new"), progress: Progress()) }
+                            }
+                        }
+                    }
+                    XCTFail("One plaintext file must fail verification")
+                } catch { XCTAssertEqual(error as? ArchivePublicationError, .verificationFailed) }
+                XCTAssertEqual(failures.withLock { $0 }, [.encryption(index: 2, expected: "AES-256", actual: "none", isEncrypted: false)])
+                XCTAssertEqual(try Data(contentsOf: url), original)
+                XCTAssertTrue(session.capabilities.canEdit)
+                XCTAssertFalse(session.hasKnownPassword)
+                try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+                await session.close()
+            }
+        }
+    }
+
     private static let tarFormats: [GyoshukuKit.ArchiveFormat] = [.tar, .tarGzip, .tarBzip2, .tarXZ]
 
     private func archive(_ directory: ArchiveTestDirectory, format: GyoshukuKit.ArchiveFormat,

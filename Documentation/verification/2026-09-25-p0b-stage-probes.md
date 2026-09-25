@@ -393,3 +393,10 @@ PROBE_ASSERT、開く専用 probe の有効実行、100k / 500k・256 MiB、全�
 - [TSV の検査結果](../../build/S1Verification/tsv-check.log)
 - [全スイッチ未設定](../../build/S1Verification/skip-all.log) / [従来 probe と ENCRYPTION 未設定](../../build/S1Verification/plain-and-skip.log)
 - [Xcode ビルド初回](../../build/S1Verification/xcode-build.log) / [cache 使用の再試行](../../build/S1Verification/xcode-build-cached.log)
+
+### S8 以後の password probe
+
+P1b の実装後は ZIP の全 password 公開で `updater_open` を要求し、`rewriter_open` を禁止する。
+上の S1 基準は当時の rewriter の実測として維持する。
+実装後の小規模実行と、100k / 500k / 256 MiB の正式な比較の残件は
+[P1b / S8 の検証記録](2026-09-25-p1b.md) に記載した。

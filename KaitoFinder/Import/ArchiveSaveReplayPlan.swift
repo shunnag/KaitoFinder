@@ -187,7 +187,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         try ArchiveStageDiagnostics.measure(.representabilityProbe) { try ArchiveRewriter.probe(entries: planned, format: format) }
     }
 
-    func replay(on editor: any ArchiveEditing, progress: Progress) throws {
+    func replay(on editor: any ArchiveEditing, sourcePassword: String? = nil, progress: Progress) throws {
         try edits.verifyNames(editor.entryNames)
         try validate()
         try ArchiveImportPlan.checkCancellation(progress)
@@ -210,6 +210,9 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             try ArchiveImportPlan.checkCancellation(progress)
             try addDirectory(folder.path, date: folder.date, to: editor)
             progress.completedUnitCount += 1
+        }
+        if outputEncryption != nil, let updater = editor as? ArchiveUpdater {
+            try updater.reencryptExistingEntries(currentPassword: sourcePassword)
         }
     }
 
