@@ -82,7 +82,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P6 | 取込み・新規作成・移動の進捗のバイト化（GyoshukuKit の公開 API） | GyoshukuKit, KaitoFinder |
 | P7 | 小ファイル多数の作成の並列先読み | GyoshukuKit |
 | P8 | 検索の絞り込みを MainActor 外で計算 | KaitoFinder |
-| P9 | 圧縮の並列数の設定 | KaitoFinder |
+| P9 | 圧縮の並列数の設定。S27 [実装と検証](../verification/2026-09-26-p9-threads.md)。通常ビルド・全件試験・GUI・7z作成時間の計測はオーケストレータ待ち | KaitoFinder |
 | P10 | 現在のフォルダへの移動（戻る・進む）と ⌘J の表示オプション | KaitoFinder |
 | P11 | zstd の復号（計測してから） | KaitoKit |
 | P12 | 分割巻の保存で重複する全体の読み取りを減らす（設計上必要な証明は残す） | KaitoFinder |

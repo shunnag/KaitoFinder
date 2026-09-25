@@ -143,14 +143,16 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                     try snapshot(controller.tabController.view, name: "\(language)-settings-compression-level-9")
                 }
-                if index == 0 || index == 2 {
+                if index <= 2 {
                     let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup]
+                        : index == 1 ? [controller.compressionThreadsPopup]
                         : [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup]
                     for popup in popups {
                         for item in 0..<popup.numberOfItems {
                             popup.selectItem(at: item)
                             XCTAssertTrue(popup.sendAction(popup.action, to: popup.target))
                             window.layoutIfNeeded()
+                            XCTAssertEqual(content.bounds.height, pane.preferredContentSize.height, accuracy: 0.5, language)
                             checkOverflow(controller.tabController.view, name: "\(language)-settings-\(tab)-\(item)", file: #filePath, line: #line)
                         }
                     }

@@ -277,8 +277,7 @@ actor ArchiveSession {
                                            progress: Progress? = nil) throws -> Set<Int> {
         guard !entries.isEmpty else { return [] }
         let threads = writerOptions(passwordFormat ?? .zip).compressionThreads
-            ?? min(ProcessInfo.processInfo.activeProcessorCount, 8,
-                   Int(ProcessInfo.processInfo.physicalMemory / (1 << 30)))
+            ?? ArchiveHardware.current.automaticCompressionThreads
         return try ArchivePasswordVerification.verify(entries, using: reader, workers: max(1, threads), progress: progress)
     }
 

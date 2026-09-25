@@ -41,6 +41,24 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testCompressionThreadWordingHasAllTwentySixTranslations() throws {
+        let keys = ["圧縮の並列数:", "自動（%lld）", "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。",
+                    "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。"]
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in keys {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages), key)
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+        XCTAssertEqual(catalog.strings["圧縮の並列数:"]?.localizations["fr"]?.stringUnit.value, "Nombre de threads de compression\u{00a0}:")
+    }
+
     func testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations() throws {
         let keys = ["追加した項目の位置:", "末尾", "先頭（編集のたびに全体を書き直す）", "ZIPでは常に末尾に追加します。",
                     "追加するファイルの所有者ID(uid / gid)を保存", "変更しない項目の所有者ID:", "そのまま保つ",
@@ -318,6 +336,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertFalse(text.contains("「%@」"), key)
             // Wave A の指定ラベルは、形式名・ファイル名を区切る空白も仕様どおりに保つ。
             if ![".DS_Store を含めない", "tar.xz、7z、LHA の圧縮レベルは固定です", "tar と LHA は暗号化できません",
+                  "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。",
                   "この形式は暗号化できません。別名で保存で ZIP か 7z にしてください。"].contains(key) {
                 XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)
             }

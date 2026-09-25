@@ -3,6 +3,94 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchivePreferencesUITests: XCTestCase {
+    @MainActor func testCompressionThreadViewModelChoicesAndMemoryWarning() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30),
+                         ArchiveHardware(processors: 16, memory: 128 << 30),
+                         ArchiveHardware(processors: 4, memory: 2 << 30)] {
+            store.preferences.compressionThreads = 0
+            let model = PreferencesViewModel(store: store, hardware: hardware)
+            XCTAssertEqual(model.compressionThreadChoices, Array(0...hardware.processors))
+            XCTAssertEqual(model.compressionThreadIndex, 0)
+            for index in model.compressionThreadChoices {
+                model.selectCompressionThreads(at: index)
+                XCTAssertEqual(store.preferences.compressionThreads, index)
+                XCTAssertEqual(model.compressionThreadIndex, index)
+                let threads = index == 0 ? hardware.automaticCompressionThreads : index
+                let bytes = ArchiveHardware.estimatedLZMA2Memory(threads: threads)
+                XCTAssertTrue(model.memoryNote.text.contains(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .memory)))
+                XCTAssertEqual(model.memoryNote.warns, bytes > hardware.memory / 4)
+            }
+            let before = store.preferences
+            model.selectCompressionThreads(at: -1)
+            model.selectCompressionThreads(at: hardware.processors + 1)
+            XCTAssertEqual(store.preferences, before)
+        }
+        store.preferences.compressionThreads = 4
+        let threshold = ArchiveHardware.estimatedLZMA2Memory(threads: 4) * 4
+        XCTAssertFalse(PreferencesViewModel(store: store, hardware: .init(processors: 4, memory: threshold)).memoryNote.warns)
+        XCTAssertTrue(PreferencesViewModel(store: store, hardware: .init(processors: 4, memory: threshold - 4)).memoryNote.warns)
+    }
+
+    @MainActor func testCompressionThreadPopupPersistsRefreshesAndKeepsTabHeight() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30),
+                         ArchiveHardware(processors: 16, memory: 128 << 30),
+                         ArchiveHardware(processors: 4, memory: 2 << 30)] {
+            for saved in [0, 20] {
+                store.preferences.compressionThreads = saved
+                let controller = PreferencesWindowController(store: store, hardware: hardware)
+                defer { controller.close() }
+                let window = try XCTUnwrap(controller.window)
+                window.setFrameAutosaveName("")
+                controller.tabController.selectedTabViewItemIndex = 1
+                window.layoutIfNeeded()
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+                let content = try XCTUnwrap(window.contentView)
+                let height = pane.preferredContentSize.height
+                let choices = Array(0...max(hardware.processors, saved))
+                let automatic = String(format: String(localized: "自動（%lld）"), hardware.automaticCompressionThreads)
+                XCTAssertEqual(controller.compressionThreadsPopup.itemTitles, [automatic] + choices.dropFirst().map { String($0) })
+                XCTAssertEqual(controller.compressionThreadsPopup.indexOfSelectedItem, saved)
+                XCTAssertEqual(controller.compressionThreadsPopup.accessibilityLabel(), String(localized: "圧縮の並列数:"))
+                for threads in choices {
+                    store.preferences.compressionThreads = saved
+                    controller.compressionThreadsPopup.selectItem(at: threads)
+                    sendAction(controller.compressionThreadsPopup)
+                    window.layoutIfNeeded()
+                    XCTAssertEqual(store.preferences.compressionThreads, threads)
+                    XCTAssertEqual(controller.compressionThreadsPopup.indexOfSelectedItem, threads)
+                    XCTAssertEqual(pane.preferredContentSize.height, height, accuracy: 0.5)
+                    XCTAssertEqual(content.bounds.height, height, accuracy: 0.5)
+                    XCTAssertEqual(controller.compressionMemoryNote.stringValue, controller.viewModel.memoryNote.text)
+                }
+                store.preferences.compressionThreads = 0
+                XCTAssertEqual(controller.compressionThreadsPopup.indexOfSelectedItem, 0)
+                controller.compressionThreadsPopup.selectItem(at: 1)
+                controller.showWindow(nil)
+                XCTAssertEqual(controller.compressionThreadsPopup.indexOfSelectedItem, 0)
+            }
+        }
+    }
+
+    @MainActor func testCompressionMemoryWarningTextAndColorFollowSelection() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let controller = PreferencesWindowController(store: store, hardware: .init(processors: 4, memory: 2 << 30))
+        defer { controller.close() }
+        let warning = String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。")
+        let automatic = controller.compressionMemoryNote.stringValue
+        XCTAssertFalse(automatic.contains(warning))
+        XCTAssertEqual(controller.compressionMemoryNote.textColor, .secondaryLabelColor)
+        controller.compressionThreadsPopup.selectItem(at: 4)
+        sendAction(controller.compressionThreadsPopup)
+        XCTAssertNotEqual(controller.compressionMemoryNote.stringValue, automatic)
+        XCTAssertTrue(controller.compressionMemoryNote.stringValue.contains(warning))
+        XCTAssertEqual(controller.compressionMemoryNote.textColor, .systemOrange)
+        store.preferences.compressionThreads = 0
+        XCTAssertEqual(controller.compressionMemoryNote.stringValue, automatic)
+        XCTAssertEqual(controller.compressionMemoryNote.textColor, .secondaryLabelColor)
+    }
+
     @MainActor func testViewModelEveryControlUpdatesStore() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let model = PreferencesViewModel(store: store)

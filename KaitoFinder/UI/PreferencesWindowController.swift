@@ -10,10 +10,45 @@ final class PreferencesViewModel {
     static let tarCarriedOwnerPolicies = ArchivePreferences.CarriedOwnerIDPolicy.allCases
     static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
     private let store: ArchivePreferencesStore
+    let hardware: ArchiveHardware
+    private let bundle: Bundle
 
-    init(store: ArchivePreferencesStore = .shared) { self.store = store }
+    init(store: ArchivePreferencesStore = .shared, hardware: ArchiveHardware = .current, bundle: Bundle = .main) {
+        self.store = store
+        self.hardware = hardware
+        self.bundle = bundle
+    }
 
     var preferences: ArchivePreferences { store.preferences }
+    var compressionThreadChoices: [Int] { Array(0...max(hardware.processors, preferences.compressionThreads)) }
+    var compressionThreadIndex: Int { compressionThreadChoices.firstIndex(of: preferences.compressionThreads)! }
+    var compressionThreadTitles: [String] {
+        compressionThreadChoices.map {
+            $0 == 0 ? String(format: String(localized: "自動（%lld）", bundle: bundle), hardware.automaticCompressionThreads) : String($0)
+        }
+    }
+    var memoryNote: (text: String, warns: Bool) {
+        let threads = preferences.compressionThreads == 0 ? hardware.automaticCompressionThreads : preferences.compressionThreads
+        let warns = ArchiveHardware.estimatedLZMA2Memory(threads: threads) > hardware.memory / 4
+        return (memoryNote(threads: threads, warns: warns), warns)
+    }
+    var maximumMemoryNote: String {
+        memoryNote(threads: compressionThreadChoices.last!, warns: true)
+    }
+
+    private func memoryNote(threads: Int, warns: Bool) -> String {
+        let memory = ByteCountFormatter.string(fromByteCount: Int64(ArchiveHardware.estimatedLZMA2Memory(threads: threads)),
+                                               countStyle: .memory)
+        let estimate = String(format: String(localized: "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。", bundle: bundle), memory)
+        return warns ? estimate + " " + String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。", bundle: bundle) : estimate
+    }
+
+    func selectCompressionThreads(at index: Int) {
+        let choices = compressionThreadChoices
+        guard choices.indices.contains(index) else { return }
+        store.preferences.compressionThreads = choices[index]
+    }
+
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
     var saveBehaviorIndex: Int { Self.saveBehaviors.firstIndex(of: preferences.saveBehavior)! }
     var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
@@ -111,6 +146,8 @@ final class PreferencesWindowController: NSWindowController {
     let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let additionPositionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
@@ -137,7 +174,7 @@ final class PreferencesWindowController: NSWindowController {
     let updateAvailabilityLabel: NSTextField
 
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main,
-         softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared) {
+         softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared, hardware: ArchiveHardware = .current) {
         self.bundle = bundle
         self.softwareUpdater = softwareUpdater
         automaticallyChecksForUpdatesCheckbox = NSButton(
@@ -165,7 +202,7 @@ final class PreferencesWindowController: NSWindowController {
             checkboxWithTitle: String(localized: "追加するファイルの所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
         revealsExtractedItemsInFinderCheckbox = NSButton(
             checkboxWithTitle: String(localized: "展開した項目をFinderに表示", bundle: bundle), target: nil, action: nil)
-        viewModel = PreferencesViewModel(store: store)
+        viewModel = PreferencesViewModel(store: store, hardware: hardware, bundle: bundle)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
@@ -179,6 +216,13 @@ final class PreferencesWindowController: NSWindowController {
         tabController.tabStyle = .toolbar
         tabController.canPropagateSelectedChildViewControllerTitle = false
         configureControls()
+        compressionMemoryNote.stringValue = viewModel.maximumMemoryNote
+        compressionMemoryNote.preferredMaxLayoutWidth = 360
+        compressionMemoryNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        compressionMemoryNote.textColor = .secondaryLabelColor
+        // 警告を含む最長の注記の高さを先に確保し、選択でタブの高さが変わらないようにする。
+        let memoryNoteSize = compressionMemoryNote.sizeThatFits(NSSize(width: 360, height: CGFloat.greatestFiniteMagnitude))
+        compressionMemoryNote.heightAnchor.constraint(greaterThanOrEqualToConstant: ceil(memoryNoteSize.height)).isActive = true
         let saveNote = NSTextField(wrappingLabelWithString: String(localized: "次に開くアーカイブから有効になります。", bundle: bundle))
         saveNote.preferredMaxLayoutWidth = 360
         saveNote.textColor = .secondaryLabelColor
@@ -209,6 +253,10 @@ final class PreferencesWindowController: NSWindowController {
         footnote.preferredMaxLayoutWidth = 520
         addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", sections: [
             group(rows: [checkboxRow(excludesDSStoreCheckbox), checkboxRow(excludesHiddenFilesCheckbox)], spanningRows: [0, 1]),
+            group(rows: [
+                row(String(localized: "圧縮の並列数:", bundle: bundle), control: compressionThreadsPopup),
+                row("", control: compressionMemoryNote)
+            ]),
             group(title: String(localized: "ZIP", bundle: bundle), rows: [
                 row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
                 row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
@@ -288,6 +336,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func configureControls() {
+        compressionThreadsPopup.addItems(withTitles: viewModel.compressionThreadTitles)
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         saveBehaviorPopup.addItems(withTitles: [String(localized: "すぐに書き込む", bundle: bundle),
                                                String(localized: "保存時にまとめて書き込む", bundle: bundle)])
@@ -316,6 +365,7 @@ final class PreferencesWindowController: NSWindowController {
             (openingBehaviorPopup, #selector(changeOpeningBehavior(_:))),
             (additionPositionPopup, #selector(changeAdditionPosition(_:))),
             (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
+            (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
@@ -504,6 +554,15 @@ final class PreferencesWindowController: NSWindowController {
         openingBehaviorPopup.selectItem(at: viewModel.openingBehaviorIndex)
         additionPositionPopup.selectItem(at: viewModel.additionPositionIndex)
         tarCarriedOwnerIDsPopup.selectItem(at: viewModel.tarCarriedOwnerIDsIndex)
+        let threadTitles = viewModel.compressionThreadTitles
+        if compressionThreadsPopup.itemTitles != threadTitles {
+            compressionThreadsPopup.removeAllItems()
+            compressionThreadsPopup.addItems(withTitles: threadTitles)
+        }
+        compressionThreadsPopup.selectItem(at: viewModel.compressionThreadIndex)
+        let memoryNote = viewModel.memoryNote
+        compressionMemoryNote.stringValue = memoryNote.text
+        compressionMemoryNote.textColor = memoryNote.warns ? .systemOrange : .secondaryLabelColor
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.integerValue = preferences.zipLevel
         zipLevelLabel.stringValue = viewModel.zipLevelLabel
@@ -541,6 +600,9 @@ final class PreferencesWindowController: NSWindowController {
         viewModel.changeTarCarriedOwnerIDs(to: PreferencesViewModel.tarCarriedOwnerPolicies[sender.indexOfSelectedItem])
     }
     @objc private func changeZipMethod(_ sender: NSPopUpButton) { viewModel.selectZipMethod(at: sender.indexOfSelectedItem) }
+    @objc private func changeCompressionThreads(_ sender: NSPopUpButton) {
+        viewModel.selectCompressionThreads(at: sender.indexOfSelectedItem)
+    }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }
     @objc private func changeTarGzipLevel(_ sender: NSSlider) { viewModel.changeTarGzipLevel(to: sender.integerValue) }

@@ -2,6 +2,24 @@ import CoreFoundation
 import Foundation
 import GyoshukuKit
 
+nonisolated struct ArchiveHardware: Sendable, Equatable {
+    var processors: Int
+    var memory: UInt64
+
+    static var current: Self {
+        .init(processors: ProcessInfo.processInfo.activeProcessorCount, memory: ProcessInfo.processInfo.physicalMemory)
+    }
+
+    var automaticCompressionThreads: Int {
+        // GK の resolvedCompressionThreads は internal のため、同じ式をここに写す。
+        max(1, min(processors, 8, Int(memory >> 30)))
+    }
+
+    static func estimatedLZMA2Memory(threads: Int) -> UInt64 {
+        UInt64(30 + 135 * threads) * (1 << 20)
+    }
+}
+
 /// 書き込み処理へ安全に渡せる設定値。展開設定は一括展開の入口から参照する。
 nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum ZipMethod: String, Sendable { case deflate, stored }
@@ -13,8 +31,10 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
 
     static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .sevenZip, .lha]
+    static let compressionThreadRange = 1...64
 
     var defaultFormat: GyoshukuKit.ArchiveFormat = .zip
+    var compressionThreads = 0
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
     var zipSkipsCompressedTypes = true
@@ -43,7 +63,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
         let placement: AdditionPlacement = additionPosition == .end ? .end : .beginning
         let owners: CarriedOwnerIDs = tarCarriedOwnerIDs == .keep ? .keep : .reset
-        return switch format {
+        var options: WriterOptions = switch format {
         case .zip:
             WriterOptions(compressionMethod: zipMethod == .stored ? .stored : .deflate,
                           deflateLevel: Self.clampedLevel(zipLevel),
@@ -57,9 +77,11 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             WriterOptions(bzip2Level: Self.clampedLevel(tarBzip2Level), preserveOwnerIDs: tarPreservesOwnerIDs,
                           additionPlacement: placement, carriedTarOwnerIDs: owners)
         case .sevenZip, .lha:
-            // 固定のエンコーダーへ、他形式の設定を持ち込まない。
+            // 固定のエンコーダーへ他形式の設定は持ち込まず、共通の並列数だけを後で写す。
             WriterOptions(additionPlacement: placement)
         }
+        if compressionThreads != 0 { options.compressionThreads = compressionThreads }
+        return options
     }
 
     static func clampedLevel(_ level: Int) -> Int { min(9, max(1, level)) }
@@ -72,6 +94,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum Key {
         // 保存パネルが従来使っていたキーと拡張子の表現を引き継ぐ。
         static let defaultFormat = "ArchiveCreationFormat"
+        static let compressionThreads = "ArchiveCompressionThreads"
         static let zipMethod = "ArchiveZipMethod"
         static let zipLevel = "ArchiveZipLevel"
         static let zipSkipsCompressedTypes = "ArchiveZipSkipsCompressedTypes"
@@ -105,6 +128,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.defaultFormat = ArchivePreferences.formats.first {
                 ArchiveCreationPlan.filenameExtension(for: $0) == savedFormat
             } ?? value.defaultFormat
+            value.compressionThreads = threads(forKey: Key.compressionThreads)
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod
             value.zipLevel = level(forKey: Key.zipLevel)
@@ -139,6 +163,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         }
         set {
             defaults.set(ArchiveCreationPlan.filenameExtension(for: newValue.defaultFormat), forKey: Key.defaultFormat)
+            defaults.set(ArchivePreferences.compressionThreadRange.contains(newValue.compressionThreads)
+                         ? newValue.compressionThreads : 0, forKey: Key.compressionThreads)
             defaults.set(newValue.zipMethod.rawValue, forKey: Key.zipMethod)
             defaults.set(ArchivePreferences.clampedLevel(newValue.zipLevel), forKey: Key.zipLevel)
             defaults.set(newValue.zipSkipsCompressedTypes, forKey: Key.zipSkipsCompressedTypes)
@@ -162,6 +188,14 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。
             NotificationCenter.default.post(name: Self.didChange, object: self)
         }
+    }
+
+    private func threads(forKey key: String) -> Int {
+        guard let number = defaults.object(forKey: key) as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == Double(number.intValue),
+              number.intValue == 0 || ArchivePreferences.compressionThreadRange.contains(number.intValue) else { return 0 }
+        return number.intValue
     }
 
     private func level(forKey key: String, fallback: Int = 6) -> Int {
