@@ -116,6 +116,10 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     func validate(_ reader: ArchiveReader, format: GyoshukuKit.ArchiveFormat? = nil) throws {
+        if validationFailure(reader, format: format) != nil { throw VolumePublishError.validationFailed }
+    }
+
+    func validationFailure(_ reader: ArchiveReader, format: GyoshukuKit.ArchiveFormat? = nil) -> ArchiveVerificationFailure? {
         if let format {
             let expected: KaitoKit.ArchiveFormat
             switch format {
@@ -124,18 +128,35 @@ nonisolated struct ArchiveOutputProjection: Sendable {
             case .sevenZip: expected = .sevenZip
             case .lha: expected = .lha
             }
-            guard reader.format == expected else { throw VolumePublishError.validationFailed }
+            guard reader.format == expected else {
+                return .format(expected: String(describing: expected), actual: String(describing: reader.format))
+            }
         }
-        try validate(entries: reader.entries)
+        return validationFailure(entries: reader.entries)
     }
 
     func validate(entries actual: [ArchiveEntry]) throws {
+        if validationFailure(entries: actual) != nil { throw VolumePublishError.validationFailed }
+    }
+
+    func validationFailure(entries actual: [ArchiveEntry]) -> ArchiveVerificationFailure? {
         var carried: [Sized: Int] = [:], added: [Shape: Int] = [:]
         for entry in entries {
             let shape = Shape(name: entry.name, kind: entry.kind)
             // .expose の AppleDouble も通常の項目として数える。
             if entry.isAddition { added[shape, default: 0] += 1 }
             else { carried[Sized(shape: shape, size: entry.size), default: 0] += 1 }
+        }
+        // 不一致のときだけ残りの期待値を走査する。辞書の列挙順に依存しない診断にする。
+        func firstRemaining(key: String? = nil) -> ArchiveVerificationFailure.Entry? {
+            for (index, entry) in entries.enumerated() {
+                let shape = Shape(name: entry.name, kind: entry.kind)
+                if let key, shape.key != key { continue }
+                if entry.isAddition ? added[shape] != nil : carried[Sized(shape: shape, size: entry.size)] != nil {
+                    return .init(index: index, name: entry.name, kind: String(describing: entry.kind), size: entry.size)
+                }
+            }
+            return nil
         }
         // 同名項目も件数を保つ。サイズ既知の項目から消費し、追加だけサイズを問わない。
         for entry in actual {
@@ -147,8 +168,12 @@ nonisolated struct ArchiveOutputProjection: Sendable {
             } else if let count = added[shape] {
                 if count == 1 { added.removeValue(forKey: shape) }
                 else { added[shape] = count - 1 }
-            } else { throw VolumePublishError.validationFailed }
+            } else {
+                return .projection(expected: firstRemaining(key: shape.key) ?? firstRemaining(),
+                    actual: .init(index: entry.index, name: entry.name, kind: String(describing: entry.kind), size: entry.uncompressedSize))
+            }
         }
-        guard carried.isEmpty, added.isEmpty else { throw VolumePublishError.validationFailed }
+        guard carried.isEmpty, added.isEmpty else { return .projection(expected: firstRemaining(), actual: nil) }
+        return nil
     }
 }

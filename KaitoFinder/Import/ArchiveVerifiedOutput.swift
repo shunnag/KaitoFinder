@@ -9,13 +9,15 @@ nonisolated final class ArchiveVerifiedFileSource: ByteSource {
     let descriptor: Int32
     let length: UInt64
     let identity: ArchiveSetIdentity
+    let fileIdentity: ArchiveFileIdentity
 
     init(url: URL) throws {
         let fd = Darwin.open(url.path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)
         guard fd >= 0 else { throw ExtractionFailure.system(errno) }
         do {
-            identity = try ArchiveSetIdentity.capture(descriptor: fd, url: url)
-            length = identity.volumes[0].size
+            fileIdentity = try ArchiveFileIdentity.capture(descriptor: fd)
+            identity = ArchiveSetIdentity(file: fileIdentity, url: url)
+            length = fileIdentity.size
             descriptor = fd
         } catch { Darwin.close(fd); throw error }
     }
@@ -34,12 +36,7 @@ nonisolated final class ArchiveVerifiedFileSource: ByteSource {
     }
 
     func isUnchanged() -> Bool {
-        var info = stat()
-        guard fstat(descriptor, &info) == 0 else { return false }
-        let original = identity.volumes[0]
-        return info.st_ino == original.inode && info.st_size >= 0 && UInt64(info.st_size) == original.size
-            && Int64(info.st_mtimespec.tv_sec) == original.modificationSeconds
-            && Int64(info.st_mtimespec.tv_nsec) == original.modificationNanoseconds
+        (try? ArchiveFileIdentity.capture(descriptor: descriptor).contentEquals(fileIdentity)) == true
     }
 }
 

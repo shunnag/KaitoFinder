@@ -10,8 +10,14 @@ nonisolated struct ArchiveImportResult: Sendable {
     var publishedIdentity: ArchiveSetIdentity?
 }
 
-nonisolated enum ArchivePublicationError: Error, Equatable, LocalizedError {
-    case verificationFailed
+nonisolated struct ArchivePublicationError: Error, Equatable, LocalizedError, CustomNSError {
+    static let verificationFailed = Self(reason: nil)
+    let reason: ArchiveVerificationFailure?
+    // 診断の詳細は利用者向けの error の同値性と NSError に混ぜない。
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+    static var errorDomain: String { "KaitoFinder.ArchivePublicationError" }
+    var errorCode: Int { 0 }
+    var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: message()] }
 
     var errorDescription: String? { message() }
 
@@ -438,6 +444,7 @@ nonisolated enum ArchiveImportTransaction {
     static let didOpenVerificationSourceForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
     static let didVerifyForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
     static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
+    static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
     #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
@@ -551,13 +558,15 @@ nonisolated enum ArchiveImportTransaction {
         case .inPlace:
             outputFormat = .zip
             work = directory.appendingPathComponent("archive.zip")
-            try ArchiveStageDiagnostics.measure(.workCopy) { try FileManager.default.copyItem(at: archive, to: work) }
             try willOpenUpdater?()
-            let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: work, options: options) }
+            let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: archive, output: work, options: options) }
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
             try ArchiveImportPlan.checkCancellation(progress)
-            // commit の属性復元が失敗しても、変わるのは作業コピーだけ。
             try ArchiveStageDiagnostics.measure(.commit) { try updater.commit() }
+            #if DEBUG
+            try didCommitUpdaterForTesting.get()?(updater)
+            #endif
+            try preserveAttributes(from: archive, to: work, includingCreationDate: true)
         case .rewrite(let format):
             outputFormat = format
             work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: format))
@@ -599,25 +608,33 @@ nonisolated enum ArchiveImportTransaction {
         let verified: ArchiveReader
         let adoptable = ArchiveVerifiedOutput.usesPublishedName(archive, format: outputFormat)
         let hint = adoptable ? archive.standardizedFileURL : work
+        do { source = try ArchiveVerifiedFileSource(url: work) }
+        catch { throw ArchiveVerificationFailure.sourceOpen(.init(error)).reported(file: archive) }
+        #if DEBUG
+        try didOpenVerificationSourceForTesting.get()?(work)
+        #endif
+        try verifyWorkIdentity(source: source, work: work, phase: .beforeVerification, archive: archive)
+        identity = source.identity
         do {
-            source = try ArchiveVerifiedFileSource(url: work)
-            #if DEBUG
-            try didOpenVerificationSourceForTesting.get()?(work)
-            #endif
-            guard try ArchiveSetIdentity.capture(url: work) == source.identity else { throw ArchivePublicationError.verificationFailed }
-            identity = source.identity
             verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
                 try ArchiveReader.open(source: source, sourceURL: hint, options: .kaitoFinderVerification(password: options.password))
             }
-            if outputFormat == .zip {
-                try ArchiveStageDiagnostics.measure(.outputProbe) {
-                    let probe = try ArchiveUpdater.probe(url: work)
-                    guard probe.entryCount == UInt64(verified.entries.count) else { throw ArchivePublicationError.verificationFailed }
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw ArchiveVerificationFailure.readerOpen(.init(error)).reported(file: archive) }
+        if outputFormat == .zip {
+            try ArchiveStageDiagnostics.measure(.outputProbe) {
+                let count: UInt64
+                do { count = try ArchiveUpdater.probe(url: work).entryCount }
+                catch is CancellationError { throw CancellationError() }
+                catch { throw ArchiveVerificationFailure.outputProbe(.init(error)).reported(file: archive) }
+                guard count == UInt64(verified.entries.count) else {
+                    throw ArchiveVerificationFailure.outputCount(expected: UInt64(verified.entries.count), actual: count).reported(file: archive)
                 }
             }
-            try ArchiveStageDiagnostics.measure(.entryComparison) { try expectedOutput.validate(verified, format: outputFormat) }
-        } catch is CancellationError { throw CancellationError() }
-        catch { throw ArchivePublicationError.verificationFailed }
+        }
+        try ArchiveStageDiagnostics.measure(.entryComparison) {
+            if let failure = expectedOutput.validationFailure(verified, format: outputFormat) { throw failure.reported(file: archive) }
+        }
         #if DEBUG
         try didVerifyForTesting.get()?(work)
         #endif
@@ -634,9 +651,7 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
-        guard let current = try? ArchiveSetIdentity.capture(url: work), current == identity, source.isUnchanged() else {
-            throw ArchivePublicationError.verificationFailed
-        }
+        try verifyWorkIdentity(source: source, work: work, phase: .beforePublication, archive: archive)
         try (publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
         #if DEBUG
@@ -650,12 +665,41 @@ nonisolated enum ArchiveImportTransaction {
         return identity
     }
 
-    private static func preserveAttributes(from archive: URL, to work: URL) throws {
+    private static func verifyWorkIdentity(source: ArchiveVerifiedFileSource, work: URL,
+                                           phase: ArchiveVerificationFailure.Phase, archive: URL) throws {
+        // volume UUID の取得成否や URL の resource cache に依存させない。
+        // ctime/atime は xattr・Spotlight・読み出しでも変わるので内容の同一性には使わない。
+        for anchor in [ArchiveVerificationFailure.Anchor.descriptor, .path] {
+            let current: ArchiveFileIdentity
+            do {
+                current = try anchor == .descriptor ? ArchiveFileIdentity.capture(descriptor: source.descriptor)
+                    : ArchiveFileIdentity.capture(url: work)
+            } catch {
+                throw ArchiveVerificationFailure.identity(phase, anchor, expected: source.fileIdentity,
+                    actual: nil, error: .init(error)).reported(file: archive)
+            }
+            guard current == source.fileIdentity else {
+                throw ArchiveVerificationFailure.identity(phase, anchor, expected: source.fileIdentity,
+                    actual: current, error: nil).reported(file: archive)
+            }
+        }
+    }
+
+    private static func preserveAttributes(from archive: URL, to work: URL, includingCreationDate: Bool = false) throws {
         var info = stat()
         guard lstat(archive.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
         guard chmod(work.path, info.st_mode & 0o7777) == 0 else { throw ExtractionFailure.system(errno) }
-        // copyItem のない rewrite でも、Finder タグや quarantine を含む全 xattr を運ぶ。
-        // 原本の属性が途中で変われば、公開直前の identity 照合でも拒否される。
+        if includingCreationDate {
+            // Date の浮動小数への往復で原本の作成日の精度を落とさない。
+            var attributes = attrlist()
+            attributes.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+            attributes.commonattr = attrgroup_t(ATTR_CMN_CRTIME)
+            var created = info.st_birthtimespec
+            guard setattrlist(work.path, &attributes, &created, MemoryLayout<timespec>.size, UInt32(FSOPT_NOFOLLOW)) == 0 else {
+                throw ExtractionFailure.system(errno)
+            }
+        }
+        // 単一作業ファイルと rewrite の両方で、Finder タグや quarantine を含む全 xattr を運ぶ。
         let size = listxattr(archive.path, nil, 0, XATTR_NOFOLLOW)
         guard size >= 0 else { throw ExtractionFailure.system(errno) }
         var names = [CChar](repeating: 0, count: size)

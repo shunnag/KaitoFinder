@@ -41,10 +41,71 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
             (WriterError.sourceChanged("note.txt"), "追加中にファイルが変更されました: note.txt"),
             (WriterError.invalidDate, "日付が不正です"),
             (WriterError.invalidState, "内部状態が不正です"),
-            (WriterError.io(operation: "open", code: ENOENT), "open: \(String(cString: strerror(ENOENT)))"),
+            (WriterError.io(operation: "open", code: ENOENT), String(cString: strerror(ENOENT))),
             (WriterError.compression(-3), "圧縮に失敗しました(コード -3)"),
             (WriterError.sizeOverflow, "サイズが上限を超えています")
         ])
+    }
+
+    // P1-G の clone・snapshot・output と、従来の spool / crypto の処理名も表示しない。
+    private static let writerIOOperations = [
+        "AES CBC finish", "AES CBC update", "AES ECB", "chmod clone",
+        "clear output flags", "clear snapshot flags", "clone output", "clone source",
+        "close ZipCrypto spool", "configure LHA spool", "create", "create AES CBC",
+        "create LHA spool", "create ZipCrypto spool", "create entry buffer", "derive ZIP key",
+        "fstat after read", "fstat output", "fstat source", "lstat",
+        "lstat output", "open archive", "open clone", "open output",
+        "open source", "pread appended", "pread archive", "pwrite archive",
+        "random", "read", "read LHA spool", "read ZipCrypto spool",
+        "read quarantine", "read quarantine size", "readlink", "restore quarantine",
+        "seek ZipCrypto spool", "source flags", "unlink LHA spool", "unlink ZipCrypto spool",
+        "write ZipCrypto spool",
+        "future internal operation /private/source.zip"
+    ]
+
+    func testEveryWriterIOOperationUsesTheSameOutOfSpaceMessage() {
+        let expected = ArchiveErrorText.describe(CocoaError(.fileWriteOutOfSpace))
+        for operation in Self.writerIOOperations {
+            for code in [ENOSPC, EDQUOT] {
+                XCTAssertEqual(ArchiveErrorText.describe(WriterError.io(operation: operation, code: code)), expected, operation)
+            }
+        }
+    }
+
+    func testWriterPermissionFailuresUsePermissionMessageWithoutInternalOperations() {
+        let expected = ArchiveErrorText.describe(CocoaError(.fileWriteNoPermission))
+        for operation in Self.writerIOOperations {
+            for code in [EPERM, EACCES, EROFS] {
+                XCTAssertEqual(ArchiveErrorText.describe(WriterError.io(operation: operation, code: code)), expected, operation)
+            }
+        }
+    }
+
+    func testOtherWriterIOFailuresKeepTheirCauseWithoutInternalOperations() {
+        for operation in Self.writerIOOperations {
+            for code in [EIO, ENOENT, EMFILE, Int32(-50)] {
+                let text = ArchiveErrorText.describe(WriterError.io(operation: operation, code: code))
+                XCTAssertEqual(text, String(cString: strerror(code)), operation)
+                XCTAssertFalse(text.contains(operation))
+            }
+        }
+    }
+
+    func testImmutableArchiveRefusalUsesPermissionMessageAndKeepsTypedCause() throws {
+        let directory = try ArchiveTestDirectory()
+        defer { withExtendedLifetime(directory) {} }
+        let archive = directory.url.appendingPathComponent("locked.zip")
+        let original = ReleaseReviewFixtures.zip([("keep", Data([1]))])
+        try original.write(to: archive)
+        guard chflags(archive.path, UInt32(UF_IMMUTABLE)) == 0 else { throw ExtractionFailure.system(errno) }
+        defer { XCTAssertEqual(chflags(archive.path, 0), 0) }
+        let before = try FileManager.default.contentsOfDirectory(atPath: directory.url.path).sorted()
+        XCTAssertThrowsError(try ArchiveUpdater.open(url: archive, output: directory.url.appendingPathComponent("output.zip"))) {
+            XCTAssertEqual($0 as? WriterError, .io(operation: "source flags", code: EPERM))
+            XCTAssertEqual(ArchiveErrorText.describe($0), ArchiveErrorText.describe(CocoaError(.fileWriteNoPermission)))
+        }
+        XCTAssertEqual(try Data(contentsOf: archive), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.url.path).sorted(), before)
     }
 
     func testEveryRewriterErrorInJapanese() throws {

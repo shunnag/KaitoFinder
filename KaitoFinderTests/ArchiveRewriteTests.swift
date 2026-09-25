@@ -557,6 +557,35 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         }
     }
 
+    @MainActor func testTarAppendOwnerIDsVerificationStress() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let failures = Mutex<[ArchiveVerificationFailure]>([])
+        for format in [Format.tar, .tgz, .tbz2, .txz] {
+            let fixture = try Fixture(format), document = try document(fixture, preferencesStore: store)
+            for iteration in 0..<32 {
+                let preserve = iteration.isMultiple(of: 2)
+                store.preferences.tarPreservesOwnerIDs = preserve
+                let name = "stress-\(iteration).txt"
+                do {
+                    let result = try await ArchiveVerificationFailure.observer.withValue({ reason in failures.withLock { $0.append(reason) } }) {
+                        try await document.append(urls: [fixture.file(name)], to: "", progress: Progress())
+                    }
+                    XCTAssertEqual(result.addedPaths, [name]); XCTAssertNil(result.reloadFailure)
+                    let reader = try ArchiveReader.open(url: fixture.archive)
+                    let entry = try XCTUnwrap(reader.entries.first { $0.name == name })
+                    XCTAssertEqual(entry.formatSpecific["uid"], String(preserve ? getuid() : 0))
+                    XCTAssertEqual(entry.formatSpecific["gid"], String(preserve ? getgid() : 0))
+                    XCTAssertEqual(reader.entries.count, Fixture.original.count + iteration + 1)
+                } catch {
+                    XCTFail("format=\(format) iteration=\(iteration) reason=\(failures.withLock { $0 }) error=\(error)")
+                    throw error
+                }
+            }
+            try assertNoWorkDirectory(fixture.directory.url)
+        }
+        XCTAssertEqual(failures.withLock { $0 }, [])
+    }
+
     @MainActor func testSessionRequestsOptionsForAppendCreateFolderAndEditInEveryMode() async throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences = ArchivePreferences(zipMethod: .stored, zipLevel: 9, zipSkipsCompressedTypes: false,

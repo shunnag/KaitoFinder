@@ -195,7 +195,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             trace.require([.total, .passwordVerification, .commit, .verificationOpen, .entryComparison,
                            .publish, .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display])
             trace.forbid([.reloadOpen])
-            if fixture.format == .zip { trace.require([.outputProbe]) }
+            if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy]) }
             trace.requireEditorOpen()
             XCTAssertEqual(session.hasEncryptedEntries, output != nil)
             XCTAssertTrue(document.undoManager?.canUndo == true)
@@ -246,7 +246,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                           .editingInstall, .editingPrepare, .treeBuild, .display])
             save.require([.saveSheet, .planKeys, .representabilityProbe])
             save.forbid([.reloadOpen])
-            if fixture.format == .zip { save.require([.outputProbe]); save.forbid([.updaterPreparation]) }
+            if fixture.format == .zip { save.require([.outputProbe]); save.forbid([.workCopy, .updaterPreparation]) }
             save.requireEditorOpen()
             XCTAssertNil(document.deferredReloadFailure)
             XCTAssertTrue(document.pendingChanges.isEmpty)
@@ -317,7 +317,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                            .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display,
                            fixture.format == .zip ? .updaterOpen : .rewriterOpen])
             trace.forbid([.reloadOpen])
-            if fixture.format == .zip { trace.require([.workCopy, .outputProbe]) }
+            if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy]) }
             XCTAssertEqual(conflicts.withLock { $0 }, operation == .replaceFile ? 1 : 0)
             let entries = try await document.projectedEntries()
             let delta = operation == .deleteStart || operation == .deleteEnd ? -1
@@ -387,7 +387,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                            fixture.format == .zip ? .updaterOpen : .rewriterOpen])
             trace.require([.saveSheet, .planKeys, .representabilityProbe])
             trace.forbid([.reloadOpen])
-            if fixture.format == .zip { trace.require([.workCopy, .outputProbe]); trace.forbid([.updaterPreparation]) }
+            if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy, .updaterPreparation]) }
             XCTAssertNil(document.deferredReloadFailure)
             let saved = try await document.projectedEntries().map(\.name).sorted()
             XCTAssertEqual(saved, expected)

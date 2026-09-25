@@ -31,7 +31,13 @@ nonisolated enum ArchiveErrorText {
             case .sourceChanged(let path): return String(localized: "追加中にファイルが変更されました: \(path)", bundle: bundle)
             case .invalidDate: return String(localized: "日付が不正です", bundle: bundle)
             case .invalidState: return String(localized: "内部状態が不正です", bundle: bundle)
-            case .io(let operation, let code): return String(localized: "\(operation): \(posix(code))", bundle: bundle)
+            case .io(_, let code):
+                // operation はライブラリ内の処理名。利用者向けには原因だけを示す。
+                switch code {
+                case ENOSPC, EDQUOT: return CocoaError(.fileWriteOutOfSpace).localizedDescription
+                case EPERM, EACCES, EROFS: return CocoaError(.fileWriteNoPermission).localizedDescription
+                default: return posix(code)
+                }
             case .compression(let code): return String(localized: "圧縮に失敗しました(コード \(code))", bundle: bundle)
             case .sizeOverflow: return String(localized: "サイズが上限を超えています", bundle: bundle)
             }
