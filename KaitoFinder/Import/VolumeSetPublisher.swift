@@ -40,6 +40,7 @@ nonisolated final class VolumeSetPublication: Sendable {
     private let setLock: VolumePublishLock
     private let stagingLock: VolumePublishLock
     private let isNetworkVolume: Bool
+    private let stampsProveContent: Bool
     private let index: RecoverableWorkIndex
     private let renamer: VolumeExclusiveRename
     private let initialRecord: VolumePublishJournalRecord
@@ -55,7 +56,7 @@ nonisolated final class VolumeSetPublication: Sendable {
 
     private init(target: VolumeSetTarget, parent: VolumePublishDirectory, staging: VolumePublishDirectory,
                  journal: VolumePublishJournal, setLock: VolumePublishLock, stagingLock: VolumePublishLock,
-                 isNetworkVolume: Bool, index: RecoverableWorkIndex,
+                 isNetworkVolume: Bool, stampsProveContent: Bool, index: RecoverableWorkIndex,
                  renamer: VolumeExclusiveRename, record: VolumePublishJournalRecord, options: ReaderOptions,
                  coordinationTimeout: TimeInterval, criticalSection: VolumePublishCriticalSection, operations: VolumePublishOperations,
                  metadataStore: ArchiveVolumeMetadataStore,
@@ -63,6 +64,7 @@ nonisolated final class VolumeSetPublication: Sendable {
         self.target = target; self.parent = parent; self.staging = staging; self.journal = journal
         self.setLock = setLock; self.index = index; self.renamer = renamer; initialRecord = record
         self.stagingLock = stagingLock; self.isNetworkVolume = isNetworkVolume
+        self.stampsProveContent = stampsProveContent
         self.options = options; self.coordinationTimeout = coordinationTimeout
         self.criticalSection = criticalSection; self.hook = hook; self.operations = operations; self.metadataStore = metadataStore
     }
@@ -80,6 +82,8 @@ nonisolated final class VolumeSetPublication: Sendable {
                                   scheme: target.scheme, layout: target.layout)
         let parent = try VolumePublishDirectory(target.parent)
         let volume = try operations.volumeInfo(parent)
+        // ns mtime を信頼できる APFS だけ。永続化せず、回復は従来の全文 hash を使う。
+        let stampsProveContent = operations.allowsStampRecheck && volume.fileSystem == "apfs" && volume.hazard == nil
         let volumeRoot = try VolumePublishFS.volumeRoot(parent)
         try checkWorkLength(estimatedOutputLength, fileSystem: volume.fileSystem)
         if let hazard = volume.hazard, !target.allowHazardousVolume { throw VolumePublishError.hazardousVolume(hazard) }
@@ -162,7 +166,8 @@ nonisolated final class VolumeSetPublication: Sendable {
             try staging.sync(); try parent.sync()
             try checkCancellation()
             return VolumeSetPublication(target: target, parent: parent, staging: staging, journal: journal, setLock: setLock,
-                stagingLock: stagingLock, isNetworkVolume: !volume.isLocal, index: index, renamer: renamer, record: record,
+                stagingLock: stagingLock, isNetworkVolume: !volume.isLocal, stampsProveContent: stampsProveContent,
+                index: index, renamer: renamer, record: record,
                 options: options, coordinationTimeout: coordinationTimeout,
                 criticalSection: criticalSection, operations: operations, metadataStore: metadataStore, hook: fault)
         } catch is SimulatedCrash { throw SimulatedCrash() }
@@ -224,7 +229,8 @@ nonisolated final class VolumeSetPublication: Sendable {
         defer { journal.release(); stagingLock.release(); setLock.release(); state.withLock { $0.finished = true } }
         var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
             renamer: renamer, index: index, record: initialRecord, operations: operations,
-            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume, metadataStore: metadataStore)
+            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume, stampsProveContent: stampsProveContent,
+            metadataStore: metadataStore)
         var critical = false
         do {
             try checkCancellation(progress)
@@ -235,14 +241,15 @@ nonisolated final class VolumeSetPublication: Sendable {
             try Self.checkOccupancy(plan: plan, oldCount: initialRecord.oldVolumes.count, parent: parent)
             try Self.checkSpace(requiredOutput: 0, additionalWorkBytes: 0, largest: plan.largestVolume,
                                 available: operations.volumeInfo(parent).available)
+            let draft: ArchiveVolumeMetadata.PublicationDraft?
             if target.writesVolumeMetadata {
                 if let layout = target.layout, try VolumePublishFS.usesAppleDouble(parent) {
                     transaction.record.previousMetadata = try? metadataStore.entry(for: layout.gateURL)?.publication
                 }
-                transaction.record.metadata = try ArchiveVolumeMetadata.prepare(plan: plan, schedule: target.schedule,
-                    oldLayout: target.layout, work: workURL, store: metadataStore, additionalQuarantine: target.additionalQuarantine,
-                    checkCancellation: { try self.checkCancellation(progress) })
-            }
+                // 世代の上限と旧属性の読み取りは W を切り出す前に確定する。
+                draft = try ArchiveVolumeMetadata.prepareDraft(plan: plan, schedule: target.schedule,
+                    oldLayout: target.layout, store: metadataStore, additionalQuarantine: target.additionalQuarantine)
+            } else { draft = nil }
             transaction.record.newVolumes = try ArchiveStageDiagnostics.measure(.splitCopy) {
                 try VolumeSplitter.split(workURL: workURL, into: staging.directory("new"),
                     plan: plan, oldLayout: target.layout,
@@ -250,6 +257,7 @@ nonisolated final class VolumeSetPublication: Sendable {
                     additionalQuarantine: target.additionalQuarantine, checkCancellation: { try self.checkCancellation(progress) })
             }
             transaction.record.totalLength = plan.totalLength
+            transaction.record.metadata = try draft?.finish(volumes: transaction.record.newVolumes)
             if let metadata = transaction.record.metadata { try ArchiveVolumeMetadata.writeNative(metadata, in: staging.directory("new")) }
             try transaction.validateNew(in: staging.directory("new"), options: options, validation: validation)
             try transaction.phase(.prepared)

@@ -11,5 +11,6 @@ nonisolated enum ArchiveTestCounters {
     static let keys = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
     static let slowRepresentability = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
     static let mainThreadFilters = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
+    static let splitInputHashes = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
 }
 #endif

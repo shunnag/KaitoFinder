@@ -58,17 +58,22 @@ nonisolated struct ArchiveVolumeInput: Sendable {
             var before = stat(), after = stat()
             guard fstat(fd, &before) == 0, let path = try parent.info(volume.name),
                   VolumePublishFS.sameFile(before, path) else { throw VolumePublishError.setChanged }
-            var copied: UInt64 = 0, hash = SHA256()
+            // hash と比べない入力でも、fd・path・stamp の前後の照合は必ず残す。
+            var copied: UInt64 = 0
+            var hash: SHA256? = usesHashes ? SHA256() : nil
+            #if DEBUG
+            if usesHashes { ArchiveTestCounters.splitInputHashes.get()?.increment() }
+            #endif
             while copied < volume.size {
                 try checkCancellation()
                 let data = try VolumePublishFS.read(fd, length: Int(min(1024 * 1024, volume.size - copied)), offset: copied)
-                hash.update(data: data)
+                hash?.update(data: data)
                 try VolumePublishFS.write(output, data: data, offset: offset + copied)
                 copied += UInt64(data.count)
                 didRead(data.count)
             }
             try checkCancellation()
-            let digest = hash.finalize().map { String(format: "%02x", $0) }.joined()
+            let digest = hash?.finalize().map { String(format: "%02x", $0) }.joined()
             guard !usesHashes || digest == volume.sha256,
                   fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
                   let pathAfter = try parent.info(volume.name),

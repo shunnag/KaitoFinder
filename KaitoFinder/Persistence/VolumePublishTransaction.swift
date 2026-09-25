@@ -13,6 +13,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
     var operations = VolumePublishOperations()
     var stagingLock: VolumePublishLock? = nil
     var isNetworkVolume = false
+    var stampsProveContent = false
     var metadataStore = ArchiveVolumeMetadataStore.shared
     var indexedURL: URL? = nil
     var oldProof: [String: Stamp] = [:]
@@ -265,9 +266,34 @@ nonisolated struct VolumePublishTransaction: Sendable {
                 diagnostic: "Published and verified by hash; placed inode changed")
         }
     }
+    mutating func recheckStamps(in directory: VolumePublishDirectory, beforeProof: [String: Stamp],
+                               inodes: [String: UInt64]? = nil) throws {
+        try record.validate(stagingName: staging.url.lastPathComponent)
+        try directory.verifyPath()
+        try directory.requireAbsent(record.nextName)
+        for volume in record.newVolumes {
+            // hash の最終 path 検査と証拠の stat の間も、mtime 等の変化は全文で照合し直す。
+            guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG,
+                  info.st_size == volume.length, beforeProof[volume.name] == newProof[volume.name],
+                  newProof[volume.name] == Stamp(info),
+                  inodes == nil || inodes?[volume.name] == info.st_ino else {
+                try validateHashes(in: directory, inodes: inodes)
+                return
+            }
+            operations.didRecheckStamps(directory.url.appendingPathComponent(volume.name))
+        }
+        try directory.requireAbsent(record.nextName)
+    }
     mutating func validateNew(in directory: VolumePublishDirectory, inodes: [String: UInt64]? = nil,
                              options: ReaderOptions = .kaitoFinder(), validation: (@Sendable (ArchiveReader) throws -> Void)? = nil) throws {
+        var beforeProof: [String: Stamp] = [:]
         try ArchiveStageDiagnostics.measure(directory.url != parent.url ? .splitStagedProof : .splitPlacedProof) {
+            if stampsProveContent, validation != nil {
+                // 採取できない巻は近道を使わず、従来の全文 hash に判定を任せる。
+                for volume in record.newVolumes {
+                    if let info = try? directory.info(volume.name) { beforeProof[volume.name] = Stamp(info) }
+                }
+            }
             try validateHashes(in: directory, inodes: inodes)
         }
         do {
@@ -298,7 +324,8 @@ nonisolated struct VolumePublishTransaction: Sendable {
         }
         if validation != nil {
             try ArchiveStageDiagnostics.measure(directory.url != parent.url ? .splitStagedRecheck : .splitPlacedRecheck) {
-                try validateHashes(in: directory, inodes: inodes)
+                if stampsProveContent { try recheckStamps(in: directory, beforeProof: beforeProof, inodes: inodes) }
+                else { try validateHashes(in: directory, inodes: inodes) }
             }
         }
         try directory.requireAbsent(record.nextName)

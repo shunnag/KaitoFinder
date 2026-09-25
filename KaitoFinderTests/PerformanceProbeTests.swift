@@ -231,9 +231,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 trace.finish(outputs: document.session?.volumeLayout?.volumes.map(\.url) ?? [], status: "error")
                 throw error
             }
-            trace.require([.total, .splitWorkValidation, .splitMetadataDigest, .splitCopy,
+            trace.require([.total, .splitMetadataDigest, .splitCopy,
                            .splitStagedProof, .splitStagedReader, .splitStagedRecheck,
                            .splitPlacedProof, .splitPlacedReader, .splitPlacedRecheck])
+            trace.forbid([.splitWorkValidation])
             if payload.format == .zip { trace.require([.splitInputCopy]) }
             else { trace.forbid([.splitInputCopy]) }
             if deferred { trace.forbid([.splitDisposeProof]) }

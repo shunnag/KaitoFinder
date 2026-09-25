@@ -150,10 +150,7 @@ nonisolated enum ArchiveSplitSavePipeline {
             started = split
             defer { split.cancel() }
             let produced = try produce(split)
-            try ArchiveStageDiagnostics.measure(.splitWorkValidation) {
-                try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan,
-                                                     mode: produced.mode, zipEncryption: zipEncryption)
-            }
+            // S4 が W と同じ byte の巻を計画と照合する。拒否は引き続き S5 より前。
             try hooks.didProduceWork(split.workURL)
             try plan.validate()
             try willPublish?()

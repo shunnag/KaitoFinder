@@ -24,6 +24,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
             let hashes = Mutex<[URL: Int]>([:]), rechecks = Mutex(0)
             let stages = Mutex<[ArchiveStageDiagnostics.Stage: Int]>([:]), active = Mutex<Set<UUID>>([])
             var operations = VolumePublishOperations()
+            operations.allowsStampRecheck = false
             operations.coordinate = { _, _, queue, acquired in queue.addOperation { acquired(nil) } }
             operations.trash = { url in
                 if trashFails { throw Injected.failure }
@@ -67,7 +68,10 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
             XCTAssertEqual(bytes, fixture.newBytes)
             let marker = try XCTUnwrap(ArchiveVolumeMetadata.read(ArchiveVolumeMetadata.Marker.self,
                 key: ArchiveVolumeMetadata.setKey, at: published.gateURL))
-            XCTAssertEqual(marker.totalSHA256, SHA256.hash(data: fixture.newBytes).map { String(format: "%02x", $0) }.joined())
+            let digests = try published.layout.volumes.reduce(into: Data()) {
+                $0.append(contentsOf: SHA256.hash(data: try Data(contentsOf: $1.url)))
+            }
+            XCTAssertEqual(marker.totalSHA256, SHA256.hash(data: digests).map { String(format: "%02x", $0) }.joined())
         }
     }
     #endif
