@@ -25,6 +25,18 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             check()
             XCTAssertEqual(model.openingBehaviorIndex, index)
         }
+        for (index, position) in PreferencesViewModel.additionPositions.enumerated() {
+            model.changeAdditionPosition(to: position)
+            expected.additionPosition = position
+            check()
+            XCTAssertEqual(model.additionPositionIndex, index)
+        }
+        for (index, owners) in PreferencesViewModel.tarCarriedOwnerPolicies.enumerated() {
+            model.changeTarCarriedOwnerIDs(to: owners)
+            expected.tarCarriedOwnerIDs = owners
+            check()
+            XCTAssertEqual(model.tarCarriedOwnerIDsIndex, index)
+        }
         for (index, method) in PreferencesViewModel.zipMethods.enumerated() {
             model.selectZipMethod(at: index)
             expected.zipMethod = method
@@ -138,6 +150,18 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         controller.openingBehaviorPopup.selectItem(at: 1)
         sendAction(controller.openingBehaviorPopup)
         XCTAssertEqual(store.preferences.openingBehavior, .newTab)
+        controller.additionPositionPopup.selectItem(at: 1)
+        sendAction(controller.additionPositionPopup)
+        XCTAssertEqual(store.preferences.additionPosition, .beginning)
+        controller.tarCarriedOwnerIDsPopup.selectItem(at: 1)
+        sendAction(controller.tarCarriedOwnerIDsPopup)
+        XCTAssertEqual(store.preferences.tarCarriedOwnerIDs, .reset)
+        store.preferences.additionPosition = .end
+        store.preferences.tarCarriedOwnerIDs = .keep
+        XCTAssertEqual(controller.additionPositionPopup.indexOfSelectedItem, 0)
+        XCTAssertEqual(controller.tarCarriedOwnerIDsPopup.indexOfSelectedItem, 0)
+        XCTAssertEqual(controller.additionPositionPopup.accessibilityLabel(), String(localized: "追加した項目の位置"))
+        XCTAssertEqual(controller.tarCarriedOwnerIDsPopup.accessibilityLabel(), String(localized: "変更しない項目の所有者ID"))
         controller.zipLevelSlider.integerValue = 9
         sendAction(controller.zipLevelSlider)
         XCTAssertEqual(store.preferences.zipLevel, 9)

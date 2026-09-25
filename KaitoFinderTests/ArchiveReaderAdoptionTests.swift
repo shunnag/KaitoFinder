@@ -81,7 +81,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         }
     }
 
-    func testFiveChangeSavesAdoptIncludingTarOwnerRestoration() async throws {
+    func testFiveChangeSavesAdoptIncludingPreservedTarOwners() async throws {
         for (format, suffix) in Self.spellings {
             for owners in format == .tar ? [false, true] : [false] {
                 let directory = try ArchiveTestDirectory(), url = try archive(directory.url, format: format, suffix: suffix)
@@ -102,7 +102,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
                 try await adopting({
                     let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
                     XCTAssertNil(result.reloadFailure)
-                }, opens: owners ? 2 : 1)
+                }, opens: 1)
                 try await assertCurrent(session)
                 await session.close()
             }

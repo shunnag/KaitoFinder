@@ -808,7 +808,7 @@ import Synchronization
         let format: GyoshukuKit.ArchiveFormat
         switch opened.capabilities.mode {
         case .inPlace: format = .zip
-        case .rewrite(let outputFormat): format = outputFormat
+        case .rewrite(let outputFormat), .update(let outputFormat): format = outputFormat
         case nil:
             await opened.close()
             throw ExtractionFailure.refused(String(localized: "対応していないフォーマットです。"))

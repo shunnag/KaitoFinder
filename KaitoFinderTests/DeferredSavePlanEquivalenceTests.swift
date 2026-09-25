@@ -172,6 +172,8 @@ nonisolated final class DeferredSavePlanEquivalenceTests: XCTestCase {
         let entryNames: [String]
         init(_ names: [String]) { entryNames = names }
         func add(contentsOf url: URL, as path: String) throws {}
+        func add(contentsOf url: URL, as path: String, ownerIDs: ArchiveOwnerIDs?) throws {}
+        func addDirectory(_ path: String, modificationDate: Date?, ownerIDs: ArchiveOwnerIDs?) throws {}
         func add(data: Data, as path: String, modificationDate: Date?, permissions: UInt16?) throws {}
         func addDirectory(_ path: String) throws {}
         func remove(entriesAt indices: [Int]) throws {}

@@ -68,8 +68,14 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
                     let reader = try ArchiveReader.open(url: fixture.archive)
                     XCTAssertEqual(reader.entries.count, 4 - removed.count, "\(suffix) \(action) deferred=\(deferred)")
                     for entry in reader.entries {
-                        let direct = entry.name == "chain" ? "direct" : "target"
-                        let file = entry.name == "target" || entry.name == "renamed" || removed.contains(direct)
+                        var direct = entry.name == "chain" ? "direct" : "target"
+                        let file: Bool
+                        if suffix == "tar" {
+                            file = entry.index == 0
+                            if removed.contains(direct) { direct = reader.entries[0].name }
+                        } else {
+                            file = entry.name == "target" || entry.name == "renamed" || removed.contains(direct)
+                        }
                         XCTAssertEqual(entry.kind, file ? .file : .hardlink, entry.name)
                         XCTAssertEqual(entry.uncompressedSize, file ? 7 : 0, entry.name)
                         if file { XCTAssertEqual(try reader.read(entry), Data("payload".utf8), entry.name) }

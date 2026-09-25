@@ -77,14 +77,11 @@ nonisolated enum ArchiveCreationTransaction {
                     let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init(), format: plan.format)
                     _ = try ArchiveSplitWorkProducer.produce(existing: existing, workURL: output, format: plan.format,
                         options: plan.options, plan: replay, progress: progress, didRead: splitHooks.didReadInputBytes)
-                } else if let pending = existing.pending, imported.items.isEmpty,
-                   ArchiveDeferredTarWriter.isNeeded(format: plan.format, options: plan.options) {
-                    try ArchiveDeferredTarWriter.write(source: existing.url, password: existing.password, output: output,
-                                                       format: plan.format, options: plan.options, plan: pending, progress: progress)
                 } else {
                     let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
                                                             output: output, format: plan.format, options: plan.options)
-                    try existing.pending?.replay(on: rewriter, progress: progress)
+                    try existing.pending?.replay(on: rewriter, progress: progress,
+                                                 preservingOwnerIDs: plan.options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(plan.format))
                     try add(imported.items, progress: progress, directory: rewriter.addDirectory,
                             file: rewriter.add(contentsOf:as:))
                     try ArchiveImportPlan.checkCancellation(progress)

@@ -1060,7 +1060,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     @MainActor private func assertDocumentMoveUndoRedo(tar: Bool) async throws {
         let fixture = try moveFixture(realDirectory: true, tar: tar), document = try document(fixture)
         let session = try XCTUnwrap(document.session), before = try digest(fixture.archive), contents = try moveContents(fixture.archive)
-        XCTAssertEqual(session.capabilities.mode, tar ? .rewrite(.tar) : .inPlace)
+        XCTAssertEqual(session.capabilities.mode, tar ? .update(.tar) : .inPlace)
         let folder = try await node("a", in: session), file = try await node("root.txt", in: session), published = Mutex(0)
         let result = try await document.move([folder, file], to: "b", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
         XCTAssertTrue(result.published)

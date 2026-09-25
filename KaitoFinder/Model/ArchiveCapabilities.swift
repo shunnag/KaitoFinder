@@ -7,6 +7,20 @@ nonisolated struct ArchiveCapabilities: Sendable {
     enum Mode: Sendable, Equatable {
         case inPlace
         case rewrite(GyoshukuKit.ArchiveFormat)
+        case update(GyoshukuKit.ArchiveFormat)
+
+        var outputFormat: GyoshukuKit.ArchiveFormat {
+            switch self {
+            case .inPlace: .zip
+            case .rewrite(let format), .update(let format): format
+            }
+        }
+
+        func resolved(with options: WriterOptions) -> Mode {
+            guard case .update(let format) = self else { return self }
+            let resetsTar = [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format) && options.carriedTarOwnerIDs == .reset
+            return options.additionPlacement == .beginning || resetsTar ? .rewrite(format) : self
+        }
     }
 
     enum Refusal: Sendable, Equatable {
@@ -136,9 +150,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
             } catch {
                 return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
-            let format: GyoshukuKit.ArchiveFormat
-            switch mode { case .inPlace: format = .zip; case .rewrite(let output): format = output }
-            try ArchiveRewriter.probe(reader: reader, format: format)
+            try ArchiveRewriter.probe(reader: reader, format: mode.outputFormat)
             return Self(mode: mode, splitSave: true)
         } catch { return Self(refusal: refusal(for: error)) }
     }
@@ -166,7 +178,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 // ArchiveReader は圧縮 tar の内側を報告する。外側の判定もエンジンに任せ、
                 // skippable frame や tar のファイル名を短い圧縮署名と取り違えない。
                 switch try FormatDetector.detect(url: url) {
-                case .tar: mode = .rewrite(.tar)
+                case .tar:
+                    // TarUpdater の R7 と同じく、一巻だけでも分割名は書き直す。
+                    mode = ArchiveVolumeSet.parse(fileName: url.lastPathComponent) == nil ? .update(.tar) : .rewrite(.tar)
                 case .gzip: mode = .rewrite(.tarGzip)
                 case .bzip2: mode = .rewrite(.tarBzip2)
                 case .xz: mode = .rewrite(.tarXZ)
@@ -186,7 +200,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                   FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path) else {
                 return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
-            if case .rewrite(let outputFormat) = mode {
+            if mode != .inPlace {
                 // 従来の rewriter open と同じく、原本が通常ファイル（symlink でない）であることを確かめてから
                 // 全 entry の表現可能性を検査する。ファイルもディレクトリも作らず、書庫も開き直さない。
                 var info = stat()
@@ -195,7 +209,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 }
                 let reader = try open()
                 if let set = reader.volumeSet { return Self(refusal: splitRefusal(for: url, scheme: set.scheme)) }
-                try ArchiveRewriter.probe(reader: reader, format: outputFormat)
+                try ArchiveRewriter.probe(reader: reader, format: mode.outputFormat)
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
             }
             return Self(mode: mode)

@@ -317,8 +317,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             }
             trace.require([.total, .mutate, .commit, .verificationOpen, .entryComparison, .publish,
                            .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display,
-                           fixture.format == .zip ? .updaterOpen : .rewriterOpen])
+                           (fixture.format == .zip || fixture.format == .tar) ? .updaterOpen : .rewriterOpen])
             trace.forbid([.reloadOpen])
+            if fixture.format == .tar { trace.forbid([.rewriterOpen, .workCopy]) }
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy]) }
             XCTAssertEqual(conflicts.withLock { $0 }, operation == .replaceFile ? 1 : 0)
             let entries = try await document.projectedEntries()
@@ -386,9 +387,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             trace.require([.total, .replayPlan, .validateRepresentability, .replay, .commit, .verificationOpen,
                            .entryComparison, .publish, .reload, .readerAdoption, .capabilityProbe,
                            .editingInstall, .editingPrepare, .treeBuild, .display,
-                           fixture.format == .zip ? .updaterOpen : .rewriterOpen])
+                           (fixture.format == .zip || fixture.format == .tar) ? .updaterOpen : .rewriterOpen])
             trace.require([.saveSheet, .planKeys, .representabilityProbe])
             trace.forbid([.reloadOpen])
+            if fixture.format == .tar { trace.forbid([.rewriterOpen, .workCopy]) }
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy, .updaterPreparation]) }
             XCTAssertNil(document.deferredReloadFailure)
             let saved = try await document.projectedEntries().map(\.name).sorted()
@@ -411,6 +413,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                     let editor: any ArchiveEditing
                     if fixture.format == .zip {
                         editor = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: input, options: options) }
+                    } else if fixture.format == .tar {
+                        editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                            try TarUpdater.open(url: input, output: output, options: options)
+                        }
                     } else {
                         editor = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
                             try ArchiveRewriter.open(url: input, output: output, format: fixture.format.writerFormat, options: options)
@@ -422,7 +428,8 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             }
             trace.finish(output: output)
         } catch { trace.finish(output: output, status: "error"); throw error }
-        trace.require([.total, .remove, .commit, fixture.format == .zip ? .updaterOpen : .rewriterOpen])
+        trace.require([.total, .remove, .commit, (fixture.format == .zip || fixture.format == .tar) ? .updaterOpen : .rewriterOpen])
+        if fixture.format == .tar { trace.forbid([.rewriterOpen, .workCopy]) }
         let entries = try ArchiveReader.open(url: output).entries
         XCTAssertEqual(entries.count, fixture.entryCount - 1)
         XCTAssertFalse(entries.contains { $0.name == (nearStart ? fixture.firstPath : fixture.lastPath) })

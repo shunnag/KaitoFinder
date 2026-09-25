@@ -187,7 +187,8 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         try ArchiveStageDiagnostics.measure(.representabilityProbe) { try ArchiveRewriter.probe(entries: planned, format: format) }
     }
 
-    func replay(on editor: any ArchiveEditing, sourcePassword: String? = nil, progress: Progress) throws {
+    func replay(on editor: any ArchiveEditing, sourcePassword: String? = nil, progress: Progress,
+                preservingOwnerIDs: Bool = false) throws {
         try edits.verifyNames(editor.entryNames)
         try validate()
         try ArchiveImportPlan.checkCancellation(progress)
@@ -202,13 +203,20 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         }
         for addition in additions {
             try ArchiveImportPlan.checkCancellation(progress)
-            if addition.sourceStamp.kind == .directory { try addDirectory(addition.path, date: addition.savedDate, to: editor) }
+            if addition.sourceStamp.kind == .directory {
+                try editor.addDirectory(addition.path, modificationDate: addition.savedDate,
+                                        ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
+            } else if preservingOwnerIDs {
+                try editor.add(contentsOf: addition.stagedURL, as: addition.path,
+                               ownerIDs: .init(user: addition.sourceStamp.userID, group: addition.sourceStamp.groupID))
+            }
             else { try editor.add(contentsOf: addition.stagedURL, as: addition.path) }
             progress.completedUnitCount += 1
         }
         for folder in folders {
             try ArchiveImportPlan.checkCancellation(progress)
-            try addDirectory(folder.path, date: folder.date, to: editor)
+            try editor.addDirectory(folder.path, modificationDate: folder.date,
+                                    ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
             progress.completedUnitCount += 1
         }
         if outputEncryption != nil, let updater = editor as? ArchiveUpdater {
@@ -216,14 +224,6 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         }
     }
 
-    private func addDirectory(_ path: String, date: Date, to editor: any ArchiveEditing) throws {
-        // addDirectory は保存時の Date() を使うため、0755 の空ディレクトリから予約日時を渡す。
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-directory-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false,
-                                               attributes: [.posixPermissions: 0o755, .modificationDate: date])
-        defer { try? FileManager.default.removeItem(at: url) }
-        try editor.add(contentsOf: url, as: path)
-    }
 }
 
 /// 単一ファイルでも rename から文書の同期完了までは終了期限と取消しを越える。

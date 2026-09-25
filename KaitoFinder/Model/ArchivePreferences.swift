@@ -9,6 +9,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum FolderPolicy: String, Sendable { case always, whenMultipleTopLevelItems, never }
     enum SaveBehavior: String, Sendable, CaseIterable { case immediate, onSave }
     enum OpeningBehavior: String, Sendable, CaseIterable { case system, newTab, newWindow }
+    enum AdditionPosition: String, Sendable, CaseIterable { case end, beginning }
+    enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
 
     static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .sevenZip, .lha]
 
@@ -19,6 +21,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var tarGzipLevel = 6
     var tarBzip2Level = 9
     var tarPreservesOwnerIDs = false
+    var additionPosition: AdditionPosition = .end
+    var tarCarriedOwnerIDs: CarriedOwnerIDPolicy = .keep
     var extractionDestination: ExtractionDestination = .sameFolder
     var folderPolicy: FolderPolicy = .whenMultipleTopLevelItems
     var trashesArchiveAfterExtraction = false
@@ -37,20 +41,24 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     }
 
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
-        switch format {
+        let placement: AdditionPlacement = additionPosition == .end ? .end : .beginning
+        let owners: CarriedOwnerIDs = tarCarriedOwnerIDs == .keep ? .keep : .reset
+        return switch format {
         case .zip:
             WriterOptions(compressionMethod: zipMethod == .stored ? .stored : .deflate,
                           deflateLevel: Self.clampedLevel(zipLevel),
-                          useCompressionHeuristic: zipSkipsCompressedTypes)
+                          useCompressionHeuristic: zipSkipsCompressedTypes, additionPlacement: .end)
         case .tar, .tarXZ:
-            WriterOptions(preserveOwnerIDs: tarPreservesOwnerIDs)
+            WriterOptions(preserveOwnerIDs: tarPreservesOwnerIDs, additionPlacement: placement, carriedTarOwnerIDs: owners)
         case .tarGzip:
-            WriterOptions(deflateLevel: Self.clampedLevel(tarGzipLevel), preserveOwnerIDs: tarPreservesOwnerIDs)
+            WriterOptions(deflateLevel: Self.clampedLevel(tarGzipLevel), preserveOwnerIDs: tarPreservesOwnerIDs,
+                          additionPlacement: placement, carriedTarOwnerIDs: owners)
         case .tarBzip2:
-            WriterOptions(bzip2Level: Self.clampedLevel(tarBzip2Level), preserveOwnerIDs: tarPreservesOwnerIDs)
+            WriterOptions(bzip2Level: Self.clampedLevel(tarBzip2Level), preserveOwnerIDs: tarPreservesOwnerIDs,
+                          additionPlacement: placement, carriedTarOwnerIDs: owners)
         case .sevenZip, .lha:
             // 固定のエンコーダーへ、他形式の設定を持ち込まない。
-            WriterOptions()
+            WriterOptions(additionPlacement: placement)
         }
     }
 
@@ -70,6 +78,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let tarGzipLevel = "ArchiveTarGzipLevel"
         static let tarBzip2Level = "ArchiveTarBzip2Level"
         static let tarPreservesOwnerIDs = "ArchiveTarPreservesOwnerIDs"
+        static let additionPosition = "ArchiveAdditionPlacement"
+        static let tarCarriedOwnerIDs = "ArchiveTarCarriedOwnerIDs"
         static let extractionDestination = "ArchiveExtractionDestination"
         static let folderPolicy = "ArchiveFolderPolicy"
         static let trashesArchiveAfterExtraction = "ArchiveTrashesArchiveAfterExtraction"
@@ -102,6 +112,10 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.tarGzipLevel = level(forKey: Key.tarGzipLevel)
             value.tarBzip2Level = level(forKey: Key.tarBzip2Level, fallback: 9)
             value.tarPreservesOwnerIDs = boolean(forKey: Key.tarPreservesOwnerIDs, fallback: value.tarPreservesOwnerIDs)
+            value.additionPosition = defaults.string(forKey: Key.additionPosition)
+                .flatMap(ArchivePreferences.AdditionPosition.init(rawValue:)) ?? value.additionPosition
+            value.tarCarriedOwnerIDs = defaults.string(forKey: Key.tarCarriedOwnerIDs)
+                .flatMap(ArchivePreferences.CarriedOwnerIDPolicy.init(rawValue:)) ?? value.tarCarriedOwnerIDs
             value.extractionDestination = defaults.string(forKey: Key.extractionDestination)
                 .flatMap(ArchivePreferences.ExtractionDestination.init(rawValue:)) ?? value.extractionDestination
             value.folderPolicy = defaults.string(forKey: Key.folderPolicy)
@@ -131,6 +145,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchivePreferences.clampedLevel(newValue.tarGzipLevel), forKey: Key.tarGzipLevel)
             defaults.set(ArchivePreferences.clampedLevel(newValue.tarBzip2Level), forKey: Key.tarBzip2Level)
             defaults.set(newValue.tarPreservesOwnerIDs, forKey: Key.tarPreservesOwnerIDs)
+            defaults.set(newValue.additionPosition.rawValue, forKey: Key.additionPosition)
+            defaults.set(newValue.tarCarriedOwnerIDs.rawValue, forKey: Key.tarCarriedOwnerIDs)
             defaults.set(newValue.extractionDestination.rawValue, forKey: Key.extractionDestination)
             defaults.set(newValue.folderPolicy.rawValue, forKey: Key.folderPolicy)
             defaults.set(newValue.trashesArchiveAfterExtraction, forKey: Key.trashesArchiveAfterExtraction)

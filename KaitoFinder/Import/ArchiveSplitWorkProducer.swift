@@ -123,6 +123,7 @@ nonisolated enum ArchiveSplitWorkProducer {
             #if DEBUG
             try ArchiveImportTransaction.didCommitUpdaterForTesting.get()?(updater)
             #endif
+        case .update: throw ArchiveEditError.staleSelection
         case .rewrite(let format):
             try rewrite(source: source, workURL: workURL, format: format, password: password, options: options,
                         plan: plan, progress: progress, verifyAssembledInput: verifyAssembledInput)
@@ -181,23 +182,19 @@ nonisolated enum ArchiveSplitWorkProducer {
     private static func rewrite(sourceURL: URL, workURL: URL, format: GyoshukuKit.ArchiveFormat,
                                 password: String?, options: WriterOptions, plan: ArchiveSaveReplayPlan,
                                 progress: Progress, verifyAssembledInput: (ArchiveVolumeSet?) throws -> Void) throws {
-        if ArchiveDeferredTarWriter.isNeeded(format: format, options: options) {
-            try ArchiveDeferredTarWriter.write(source: sourceURL, password: password, output: workURL,
-                format: format, options: options, plan: plan, progress: progress, verifyAssembledInput: { set in
-                    try verifyAssembledInput(set)
-                })
-        } else {
-            let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
-                try ArchiveRewriter.open(url: sourceURL, password: password, output: workURL, format: format, options: options)
-            }
-            try verifyAssembledInput(rewriter.volumeSet)
-            try ArchiveStageDiagnostics.measure(.replay) { try plan.replay(on: rewriter, progress: progress) }
-            progress.totalUnitCount += Int64(rewriter.entryNames.count)
-            try ArchiveStageDiagnostics.measure(.commit) {
-                try rewriter.commit { _, _ in
-                    progress.completedUnitCount += 1
-                    try ArchiveImportPlan.checkCancellation(progress)
-                }
+        let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+            try ArchiveRewriter.open(url: sourceURL, password: password, output: workURL, format: format, options: options)
+        }
+        try verifyAssembledInput(rewriter.volumeSet)
+        try ArchiveStageDiagnostics.measure(.replay) {
+            try plan.replay(on: rewriter, progress: progress,
+                            preservingOwnerIDs: options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format))
+        }
+        progress.totalUnitCount += Int64(rewriter.entryNames.count)
+        try ArchiveStageDiagnostics.measure(.commit) {
+            try rewriter.commit { _, _ in
+                progress.completedUnitCount += 1
+                try ArchiveImportPlan.checkCancellation(progress)
             }
         }
     }

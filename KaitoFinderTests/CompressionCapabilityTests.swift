@@ -313,7 +313,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
             writer.addfile(entry, io.BytesIO(b'payload'))
         """, suffix: "tar")
         XCTAssertEqual(try ArchiveReader.open(url: fixture.archive).format, .tar)
-        XCTAssertEqual(ArchiveCapabilities.inspect(url: fixture.archive, format: .tar).mode, .rewrite(.tar))
+        XCTAssertEqual(ArchiveCapabilities.inspect(url: fixture.archive, format: .tar).mode, .update(.tar))
     }
 
     // 新形式の期待 SHA-256 は各 fixture ディレクトリの manifest.json に記録された原文の値。

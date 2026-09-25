@@ -316,11 +316,13 @@ actor ArchiveSession {
             plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
                                                progress: progress, options: importOptions(), format: reservationFormat)
         }
-        let mode = capabilities.mode!
+        let base = capabilities.mode!
+        let options = options(for: base)
+        let mode = base.resolved(with: options)
         var (result, verified) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
-                                                     options: options(for: mode), password: password, progress: progress,
+                                                     options: options, password: password, progress: progress,
                                                      didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
             return (result, verifiedOutput.take())
         }
@@ -384,11 +386,13 @@ actor ArchiveSession {
         try verifyBeforeEditing(progress: progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
-        let mode = capabilities.mode!
+        let base = capabilities.mode!
+        let options = options(for: base)
+        let mode = base.resolved(with: options)
         var (result, verified) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
-                                                               options: options(for: mode), password: password, progress: progress,
+                                                               options: options, password: password, progress: progress,
                                                                willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
             return (result, verifiedOutput.take())
         }
@@ -417,11 +421,13 @@ actor ArchiveSession {
         try verifyBeforeEditing(progress: progress)
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
                                              existing: reader.entries, format: reservationFormat)
-        let mode = capabilities.mode!
+        let base = capabilities.mode!
+        let options = options(for: base)
+        let mode = base.resolved(with: options)
         var (result, verified) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
-                                                   options: options(for: mode), password: password, progress: progress,
+                                                   options: options, password: password, progress: progress,
                                                    willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
             return (result, verifiedOutput.take())
         }
@@ -526,18 +532,15 @@ actor ArchiveSession {
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
                                             format: reservationFormat, progress: progress)
         guard !plan.isEmpty else { return .init() }
-        var mode = capabilities.mode!
-        var output = options(for: mode)
+        let base = capabilities.mode!
+        var output = options(for: base)
+        var mode = base.resolved(with: output)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
             mode = format == .zip ? .inPlace : .rewrite(format)
             output = encryption.applying(to: writerOptions(format), format: format)
         }
-        let outputFormat: GyoshukuKit.ArchiveFormat
-        switch mode {
-        case .inPlace: outputFormat = .zip
-        case .rewrite(let format): outputFormat = format
-        }
+        let outputFormat = mode.outputFormat
         try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: outputFormat)
         let baseUnits = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? =
@@ -559,7 +562,8 @@ actor ArchiveSession {
                     }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine,
                     publication: publication, deferredPlan: plan,
                     expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption)) { editor in
-                        try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress)
+                        try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress,
+                                        preservingOwnerIDs: output.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(outputFormat))
                     }
             }
             let identity: ArchiveSetIdentity
@@ -590,14 +594,15 @@ actor ArchiveSession {
               snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
                                             format: reservationFormat, progress: progress)
-        var mode = capabilities.mode!, output = options(for: capabilities.mode!)
+        let base = capabilities.mode!
+        var output = options(for: base)
+        var mode = base.resolved(with: output)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
             mode = format == .zip ? .inPlace : .rewrite(format)
             output = encryption.applying(to: writerOptions(format), format: format)
         }
-        let format: GyoshukuKit.ArchiveFormat
-        switch mode { case .inPlace: format = .zip; case .rewrite(let value): format = value }
+        let format = mode.outputFormat
         try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: format)
         var target = target
         target.writesVolumeMetadata = true
@@ -645,11 +650,7 @@ actor ArchiveSession {
     }
 
     private func options(for mode: ArchiveCapabilities.Mode) -> WriterOptions {
-        let format: GyoshukuKit.ArchiveFormat
-        switch mode {
-        case .inPlace: format = .zip
-        case .rewrite(let output): format = output
-        }
+        let format = mode.outputFormat
         return encryptionSettings().applying(to: writerOptions(format), format: format)
     }
 
@@ -963,7 +964,6 @@ actor ArchiveSession {
 
 nonisolated extension ArchiveSession {
     var reservationFormat: GyoshukuKit.ArchiveFormat {
-        if case .rewrite(let format) = capabilities.mode { return format }
-        return .zip
+        capabilities.mode?.outputFormat ?? .zip
     }
 }

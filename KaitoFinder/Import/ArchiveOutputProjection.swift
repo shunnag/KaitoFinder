@@ -17,6 +17,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
         var size: UInt64?
         let isAddition: Bool
         var hardLinkIdentity: [Int64]?
+        var hardLinkTarget: String?
 
         init(_ entry: ArchiveEntry, name: String? = nil, hardLinkIdentity: [Int64]? = nil) {
             self.name = name ?? entry.name
@@ -43,6 +44,17 @@ nonisolated struct ArchiveOutputProjection: Sendable {
 
     let entries: [Entry]
     let zipEncryption: ExpectedZipEncryption?
+    private let mode: ArchiveCapabilities.Mode
+    private let existing: [ArchiveEntry]
+    private let removing: [Int]
+    private let renaming: [ArchiveEditPlan.Rename]
+    private let additions: [Entry]
+
+    func resolving(_ mode: ArchiveCapabilities.Mode) -> Self {
+        guard mode != self.mode else { return self }
+        return Self(existing: existing, removing: removing, renaming: renaming, additions: additions,
+                    mode: mode, zipEncryption: zipEncryption)
+    }
 
     init(projected: [ArchiveEntry], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
         self.init(existing: projected, mode: mode, zipEncryption: zipEncryption)
@@ -61,11 +73,18 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     init(existing: [ArchiveEntry], removing: [Int] = [], renaming: [ArchiveEditPlan.Rename] = [],
          additions: [Entry] = [], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
         self.zipEncryption = zipEncryption
+        self.mode = mode
+        self.existing = existing
+        self.removing = removing
+        self.renaming = renaming
+        self.additions = additions
         let removed = Set(removing)
         // 保存時の循環改名は、最後の名前だけを照合する。
         let names = renaming.reduce(into: [Int: String]()) { $0[$1.entry.index] = $1.path }
         let format: GyoshukuKit.ArchiveFormat?
-        switch mode { case .inPlace: format = nil; case .rewrite(let output): format = output }
+        switch mode { case .inPlace: format = nil; case .rewrite(let output), .update(let output): format = output }
+        let updates: Bool
+        if case .update = mode { updates = true } else { updates = false }
         let isTar = format.map { [.tar, .tarGzip, .tarBzip2, .tarXZ].contains($0) } ?? false
         var dataTargets: [Int: Int] = [:]
         if format != nil {
@@ -78,18 +97,42 @@ nonisolated struct ArchiveOutputProjection: Sendable {
                 }
             }
         }
-        var addedFiles: Set<[Int64]> = []
+        var addedFiles: [[Int64]: String] = [:]
         let added = additions.map { entry in
             var entry = entry
+            if isTar, entry.kind == .symlink || entry.kind == .directory { entry.size = 0 }
             // tar writer は追加元の同じ inode を二度目から hard link にする。
-            if isTar, entry.kind == .file, let identity = entry.hardLinkIdentity,
-               !addedFiles.insert(identity).inserted { entry.kind = .hardlink }
+            if isTar, entry.kind == .file, let identity = entry.hardLinkIdentity {
+                if let target = addedFiles[identity] {
+                    entry.kind = .hardlink
+                    entry.size = 0
+                    entry.hardLinkTarget = target
+                } else { addedFiles[identity] = entry.name }
+            }
             return entry
         }
+        var holders: [Int: Int] = [:]
+        for target in dataTargets.values where !removed.contains(target) { holders[target] = target }
         entries = existing.compactMap { entry -> Entry? in
             guard !removed.contains(entry.index) else { return nil }
             var expected = Entry(entry, name: names[entry.index])
             guard format != nil, !expected.isAddition else { return expected }
+            if updates {
+                if entry.kind == .hardlink, let direct = entry.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
+                   let data = dataTargets[entry.index] {
+                    let target: Int?
+                    if !removed.contains(direct) { target = direct }
+                    else if let holder = holders[data] { target = holder }
+                    else {
+                        target = nil
+                        expected.kind = .file
+                        expected.size = existing[data].uncompressedSize
+                        holders[data] = entry.index
+                    }
+                    if let target { expected.hardLinkTarget = names[target] ?? existing[target].name }
+                }
+                return expected
+            }
             switch entry.kind {
             case .directory:
                 if ArchiveEditPlan.key(expected.name).isEmpty { return nil }
@@ -126,6 +169,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     func validate(_ reader: ArchiveReader, format: GyoshukuKit.ArchiveFormat? = nil) throws {
+        try validateMode()
         if validationFailure(reader, format: format) != nil { throw VolumePublishError.validationFailed }
     }
 
@@ -146,10 +190,12 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     func validate(entries actual: [ArchiveEntry]) throws {
+        try validateMode()
         if validationFailure(entries: actual) != nil { throw VolumePublishError.validationFailed }
     }
 
     func validationFailure(entries actual: [ArchiveEntry]) -> ArchiveVerificationFailure? {
+        if case .update = mode { return orderedValidationFailure(actual) }
         var carried: [Sized: Int] = [:], added: [Shape: Int] = [:]
         for entry in entries {
             let shape = Shape(name: entry.name, kind: entry.kind)
@@ -191,6 +237,37 @@ nonisolated struct ArchiveOutputProjection: Sendable {
             }
         }
         guard carried.isEmpty, added.isEmpty else { return .projection(expected: firstRemaining(), actual: nil) }
+        return nil
+    }
+
+    private func validateMode() throws {
+        if case .update(let format) = mode, ![.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format) {
+            throw ArchiveEditError.staleSelection
+        }
+    }
+
+    private func orderedValidationFailure(_ actual: [ArchiveEntry]) -> ArchiveVerificationFailure? {
+        func detail(_ index: Int, _ entry: Entry) -> ArchiveVerificationFailure.Entry {
+            .init(index: index, name: entry.name, kind: String(describing: entry.kind), size: entry.size)
+        }
+        for index in 0..<max(entries.count, actual.count) {
+            let expected = entries.indices.contains(index) ? entries[index] : nil
+            let found = actual.indices.contains(index) ? actual[index] : nil
+            guard let expected, let found,
+                  Shape(name: expected.name, kind: expected.kind) == Shape(name: found.name, kind: found.kind),
+                  expected.size == nil || expected.size == found.uncompressedSize else {
+                return .projection(expected: expected.map { detail(index, $0) },
+                                   actual: found.map { detail(index, Entry($0)) })
+            }
+            if expected.kind == .hardlink, let target = expected.hardLinkTarget {
+                let actualTarget = found.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init)
+                    .flatMap { actual.indices.contains($0) ? actual[$0] : nil }
+                guard actualTarget.map({ ArchiveEditPlan.key($0.name) }) == ArchiveEditPlan.key(target) else {
+                    return .hardLink(index: index, expected: .init(index: index, name: target, kind: "target", size: nil),
+                                     actual: actualTarget.map { detail($0.index, Entry($0)) })
+                }
+            }
+        }
         return nil
     }
 }

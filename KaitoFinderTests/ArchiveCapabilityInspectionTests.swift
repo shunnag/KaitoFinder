@@ -6,6 +6,54 @@ import XCTest
 
 /// B1: 編集可否は session が開いた reader から導き、書庫を開き直さない。
 nonisolated final class ArchiveCapabilityInspectionTests: XCTestCase {
+    func testSingleTarSpellingsUseUpdaterAndSplitTarStillRewrites() throws {
+        let directory = try ArchiveTestDirectory()
+        for name in ["sample.tar", "sample.TAR", "no-extension"] {
+            let archive = try TarUpdateFixture.archive(directory.url, name: name)
+            let reader = try ArchiveReader.open(url: archive)
+            let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
+            XCTAssertEqual(capability.mode, .update(.tar)); XCTAssertNil(capability.rewriteNotice)
+        }
+        let split = try SplitArchiveFixture(.tar), reader = try ArchiveReader.open(url: split.archive)
+        XCTAssertEqual(ArchiveCapabilities.inspect(reader: reader, url: split.archive, allowsSplitSave: true).mode, .rewrite(.tar))
+    }
+
+    func testSingleTarWithSplitVolumeNameStillRewritesWithoutSiblings() throws {
+        let directory = try ArchiveTestDirectory()
+        for name in ["single.tar.001", "wide.TAR.0001"] {
+            let archive = try TarUpdateFixture.archive(directory.url, name: name)
+            XCTAssertNotNil(ArchiveVolumeSet.parse(fileName: name))
+            XCTAssertFalse(ArchiveSplitVolume.isSplitVolumeMember(archive))
+            let reader = try ArchiveReader.open(url: archive)
+            XCTAssertNil(reader.volumeSet)
+            for capability in [ArchiveCapabilities.inspect(reader: reader, url: archive),
+                               ArchiveCapabilities.inspect(url: archive, format: reader.format)] {
+                XCTAssertTrue(capability.canEdit, name)
+                XCTAssertEqual(capability.mode, .rewrite(.tar), name)
+            }
+        }
+    }
+
+    func testTarUpdaterKeepsTheExistingRepresentabilityGate() throws {
+        let directory = try ArchiveTestDirectory()
+        let empty = Data()
+        let fixtures = [TarUpdateFixture.member("device", type: 51, body: empty),
+                        TarUpdateFixture.member("fifo", type: 54, body: empty),
+                        TarUpdateFixture.member("link", type: 49, body: empty, link: "absent"),
+                        TarUpdateFixture.member("same") + TarUpdateFixture.member("/same"),
+                        TarUpdateFixture.member("a/./b"), TarUpdateFixture.member("a/../b")]
+        for bytes in fixtures {
+            let archive = try TarUpdateFixture.archive(directory.url, bytes: bytes + Data(count: 1024))
+            let reader = try ArchiveReader.open(url: archive)
+            let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
+            XCTAssertFalse(capability.canEdit)
+            do { try ArchiveRewriter.probe(reader: reader, format: .tar); XCTFail("Expected refusal") }
+            catch RewriterError.unrepresentable(let name, let reason) {
+                XCTAssertEqual(capability.refusal, .unrepresentable(name + ": " + reason))
+            }
+        }
+    }
+
     private func openCount() -> Int { ReaderOptions.kaitoFinderOpenCount.withLock { $0 } }
 
     func testSessionOpenParsesZIPOnceAndInspectsFromTheReader() async throws {

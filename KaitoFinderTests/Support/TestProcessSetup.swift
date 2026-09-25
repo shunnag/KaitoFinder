@@ -11,6 +11,8 @@ nonisolated final class TestProcessSetup: NSObject, XCTestObservation {
         "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)",
         "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)",
         "ArchiveSaveBehavior",
+        "ArchiveAdditionPlacement",
+        "ArchiveTarCarriedOwnerIDs",
         "ArchiveKeepsFoldersOnTop"
     ]
 

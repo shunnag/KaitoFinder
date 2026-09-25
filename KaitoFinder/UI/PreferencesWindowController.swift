@@ -6,6 +6,8 @@ final class PreferencesViewModel {
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
     static let saveBehaviors = ArchivePreferences.SaveBehavior.allCases
+    static let additionPositions = ArchivePreferences.AdditionPosition.allCases
+    static let tarCarriedOwnerPolicies = ArchivePreferences.CarriedOwnerIDPolicy.allCases
     static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
     private let store: ArchivePreferencesStore
 
@@ -15,6 +17,8 @@ final class PreferencesViewModel {
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
     var saveBehaviorIndex: Int { Self.saveBehaviors.firstIndex(of: preferences.saveBehavior)! }
     var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
+    var additionPositionIndex: Int { Self.additionPositions.firstIndex(of: preferences.additionPosition)! }
+    var tarCarriedOwnerIDsIndex: Int { Self.tarCarriedOwnerPolicies.firstIndex(of: preferences.tarCarriedOwnerIDs)! }
     var zipMethodIndex: Int { Self.zipMethods.firstIndex(of: preferences.zipMethod)! }
     var extractionDestinationIndex: Int { Self.extractionDestinations.firstIndex(of: preferences.extractionDestination)! }
     var afterExpansionIndex: Int { preferences.trashesArchiveAfterExtraction ? 1 : 0 }
@@ -42,6 +46,9 @@ final class PreferencesViewModel {
         guard Self.zipMethods.indices.contains(index) else { return }
         store.preferences.zipMethod = Self.zipMethods[index]
     }
+
+    func changeAdditionPosition(to value: ArchivePreferences.AdditionPosition) { store.preferences.additionPosition = value }
+    func changeTarCarriedOwnerIDs(to value: ArchivePreferences.CarriedOwnerIDPolicy) { store.preferences.tarCarriedOwnerIDs = value }
 
     func changeZipLevel(to level: Int) { store.preferences.zipLevel = ArchivePreferences.clampedLevel(level) }
     func changeZipSkipsCompressedTypes(to enabled: Bool) { store.preferences.zipSkipsCompressedTypes = enabled }
@@ -102,6 +109,8 @@ final class PreferencesWindowController: NSWindowController {
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let saveBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let additionPositionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
@@ -153,7 +162,7 @@ final class PreferencesWindowController: NSWindowController {
         zipSkipsCompressedTypesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納", bundle: bundle), target: nil, action: nil)
         tarPreservesOwnerIDsCheckbox = NSButton(
-            checkboxWithTitle: String(localized: "所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
+            checkboxWithTitle: String(localized: "追加するファイルの所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
         revealsExtractedItemsInFinderCheckbox = NSButton(
             checkboxWithTitle: String(localized: "展開した項目をFinderに表示", bundle: bundle), target: nil, action: nil)
         viewModel = PreferencesViewModel(store: store)
@@ -174,12 +183,18 @@ final class PreferencesWindowController: NSWindowController {
         saveNote.preferredMaxLayoutWidth = 360
         saveNote.textColor = .secondaryLabelColor
         saveNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let additionNote = NSTextField(wrappingLabelWithString: String(localized: "ZIPでは常に末尾に追加します。", bundle: bundle))
+        additionNote.preferredMaxLayoutWidth = 360
+        additionNote.textColor = .secondaryLabelColor
+        additionNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", sections: [
             group(rows: [
                 row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
                 row(String(localized: "アーカイブを開くとき:", bundle: bundle), control: openingBehaviorPopup),
                 row(String(localized: "変更の書き込み:", bundle: bundle), control: saveBehaviorPopup),
-                row("", control: saveNote)
+                row("", control: saveNote),
+                row(String(localized: "追加した項目の位置:", bundle: bundle), control: additionPositionPopup),
+                row("", control: additionNote)
             ]),
             group(rows: [
                 checkboxRow(showsHiddenFilesCheckbox),
@@ -202,7 +217,8 @@ final class PreferencesWindowController: NSWindowController {
             group(title: String(localized: "tar", bundle: bundle), rows: [
                 row(String(localized: "gzipレベル:", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel)),
                 row(String(localized: "bzip2レベル:", bundle: bundle), control: levelControl(tarBzip2LevelSlider, label: tarBzip2LevelLabel)),
-                checkboxRow(tarPreservesOwnerIDsCheckbox)
+                checkboxRow(tarPreservesOwnerIDsCheckbox),
+                row(String(localized: "変更しない項目の所有者ID:", bundle: bundle), control: tarCarriedOwnerIDsPopup)
             ], spanningRows: [2]),
             footnote
         ])
@@ -240,6 +256,8 @@ final class PreferencesWindowController: NSWindowController {
             updateAvailabilityLabel,
             updateActions
         ])
+        additionPositionPopup.setAccessibilityLabel(String(localized: "追加した項目の位置", bundle: bundle))
+        tarCarriedOwnerIDsPopup.setAccessibilityLabel(String(localized: "変更しない項目の所有者ID", bundle: bundle))
         // 長い翻訳も省略しない共通の幅を選び、高さはタブの内容に合わせる。
         let width = tabController.tabViewItems.reduce(CGFloat(600)) { width, item in
             max(width, item.viewController?.preferredContentSize.width ?? 0)
@@ -276,6 +294,10 @@ final class PreferencesWindowController: NSWindowController {
         openingBehaviorPopup.addItems(withTitles: [String(localized: "macOSの設定に従う", bundle: bundle),
                                                   String(localized: "新しいタブ", bundle: bundle),
                                                   String(localized: "新しいウインドウ", bundle: bundle)])
+        additionPositionPopup.addItems(withTitles: [String(localized: "末尾", bundle: bundle),
+            String(localized: "先頭（編集のたびに全体を書き直す）", bundle: bundle)])
+        tarCarriedOwnerIDsPopup.addItems(withTitles: [String(localized: "そのまま保つ", bundle: bundle),
+            String(localized: "0に戻す（編集のたびに全体を書き直す）", bundle: bundle)])
         zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle)])
         extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じディレクトリ内", bundle: bundle), String(localized: "場所を選択…", bundle: bundle)])
         afterExpansionPopup.addItems(withTitles: [String(localized: "アーカイブをそのままにする", bundle: bundle),
@@ -292,6 +314,8 @@ final class PreferencesWindowController: NSWindowController {
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
             (saveBehaviorPopup, #selector(changeSaveBehavior(_:))),
             (openingBehaviorPopup, #selector(changeOpeningBehavior(_:))),
+            (additionPositionPopup, #selector(changeAdditionPosition(_:))),
+            (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
@@ -478,6 +502,8 @@ final class PreferencesWindowController: NSWindowController {
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
         saveBehaviorPopup.selectItem(at: viewModel.saveBehaviorIndex)
         openingBehaviorPopup.selectItem(at: viewModel.openingBehaviorIndex)
+        additionPositionPopup.selectItem(at: viewModel.additionPositionIndex)
+        tarCarriedOwnerIDsPopup.selectItem(at: viewModel.tarCarriedOwnerIDsIndex)
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.integerValue = preferences.zipLevel
         zipLevelLabel.stringValue = viewModel.zipLevelLabel
@@ -506,6 +532,14 @@ final class PreferencesWindowController: NSWindowController {
     }
     @objc private func changeExcludesDSStore(_ sender: NSButton) { viewModel.changeExcludesDSStore(to: sender.state == .on) }
     @objc private func changeExcludesHiddenFiles(_ sender: NSButton) { viewModel.changeExcludesHiddenFiles(to: sender.state == .on) }
+    @objc private func changeAdditionPosition(_ sender: NSPopUpButton) {
+        guard PreferencesViewModel.additionPositions.indices.contains(sender.indexOfSelectedItem) else { return }
+        viewModel.changeAdditionPosition(to: PreferencesViewModel.additionPositions[sender.indexOfSelectedItem])
+    }
+    @objc private func changeTarCarriedOwnerIDs(_ sender: NSPopUpButton) {
+        guard PreferencesViewModel.tarCarriedOwnerPolicies.indices.contains(sender.indexOfSelectedItem) else { return }
+        viewModel.changeTarCarriedOwnerIDs(to: PreferencesViewModel.tarCarriedOwnerPolicies[sender.indexOfSelectedItem])
+    }
     @objc private func changeZipMethod(_ sender: NSPopUpButton) { viewModel.selectZipMethod(at: sender.indexOfSelectedItem) }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }

@@ -446,6 +446,8 @@ nonisolated enum ArchiveImportTransaction {
     static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
     static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
     static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
+    static let didCommitTarUpdaterForTesting = TaskLocal<(@Sendable (TarUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didFallBackToRewriteForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
     #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
@@ -554,12 +556,33 @@ nonisolated enum ArchiveImportTransaction {
         defer { registry.removeAndUnregister(directory) }
         do { try registry.recordIdentity(directory) }
         catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
-        let work: URL
-        let outputFormat: GyoshukuKit.ArchiveFormat
+        let outputFormat = mode.outputFormat
+        let work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: outputFormat))
+        var publishedMode = mode
+        func rewriteBranch(format: GyoshukuKit.ArchiveFormat) throws {
+            var info = stat()
+            guard lstat(work.path, &info) != 0 else { throw ExtractionFailure.system(EEXIST) }
+            guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
+            let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+                try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+            }
+            // 入力の復号鍵と出力の暗号化設定を分離する。
+            guard !rewriter.hasEncryptedEntries || password != nil else {
+                throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
+            }
+            try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
+            try ArchiveImportPlan.checkCancellation(progress)
+            progress.totalUnitCount += Int64(rewriter.entryNames.count)
+            try ArchiveStageDiagnostics.measure(.commit) {
+                try rewriter.commit { _, _ in
+                    progress.completedUnitCount += 1
+                    try ArchiveImportPlan.checkCancellation(progress)
+                }
+            }
+            try preserveAttributes(from: archive, to: work)
+        }
         switch mode {
         case .inPlace:
-            outputFormat = .zip
-            work = directory.appendingPathComponent("archive.zip")
             try willOpenUpdater?()
             let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: archive, output: work, options: options) }
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
@@ -575,31 +598,45 @@ nonisolated enum ArchiveImportTransaction {
             #endif
             try preserveAttributes(from: archive, to: work, includingCreationDate: true)
         case .rewrite(let format):
-            outputFormat = format
-            work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: format))
             try willOpenUpdater?()
-            if let deferredPlan, ArchiveDeferredTarWriter.isNeeded(format: format, options: options) {
-                try ArchiveDeferredTarWriter.write(source: archive, password: password, output: work, format: format,
-                                                   options: options, plan: deferredPlan, progress: progress)
-            } else {
-                let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
-                    try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+            try rewriteBranch(format: format)
+        case .update(let format):
+            guard format == .tar else { throw ArchiveEditError.staleSelection }
+            try willOpenUpdater?()
+            var updater: TarUpdater?
+            do {
+                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                    try TarUpdater.open(url: archive, output: work, options: options)
                 }
-                // 入力の復号鍵と出力の暗号化設定を分離し、削除だけが平文へ書き直せる。
-                guard !rewriter.hasEncryptedEntries || password != nil else {
-                    throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
-                }
-                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
-                try ArchiveImportPlan.checkCancellation(progress)
-                progress.totalUnitCount += Int64(rewriter.entryNames.count)
-                try ArchiveStageDiagnostics.measure(.commit) {
-                    try rewriter.commit { _, _ in
-                        progress.completedUnitCount += 1
-                        try ArchiveImportPlan.checkCancellation(progress)
-                    }
-                }
+            } catch TarUpdaterError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
             }
-            try preserveAttributes(from: archive, to: work)
+            if let updater {
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                progress.totalUnitCount += ArchiveReencryptionProgress.units
+                let meter = ArchiveReencryptionProgress(progress)
+                do {
+                    try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        try updater.commit(progress: meter.update)
+                    }
+                } catch let error as TarUpdaterError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitTarUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+            } else {
+                publishedMode = .rewrite(format)
+                try rewriteBranch(format: format)
+            }
         }
         if let additionalQuarantine {
             // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
@@ -640,7 +677,9 @@ nonisolated enum ArchiveImportTransaction {
             }
         }
         try ArchiveStageDiagnostics.measure(.entryComparison) {
-            if let failure = expectedOutput.validationFailure(verified, format: outputFormat) { throw failure.reported(file: archive) }
+            if let failure = expectedOutput.resolving(publishedMode).validationFailure(verified, format: outputFormat) {
+                throw failure.reported(file: archive)
+            }
         }
         #if DEBUG
         try didVerifyForTesting.get()?(work)

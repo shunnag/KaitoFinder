@@ -6,6 +6,19 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveImportCorrectionTests: XCTestCase {
+    func testDeferredTarPreservingOwnersUsesOneVerificationOpen() async throws {
+        let directory = try ArchiveTestDirectory(), archive = try TarUpdateFixture.archive(directory.url)
+        let session = try ArchiveSession(url: archive, writerOptions: { _ in .init(preserveOwnerIDs: true) })
+        let snapshot = try await session.deferredSnapshot()
+        var pending = ArchivePendingChanges(); pending.createdFolders = [.init(id: UUID(), path: "new/")]
+        let publication = ArchiveSavePublication(); defer { publication.finish() }
+        let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
+        let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
+        XCTAssertNil(result.reloadFailure)
+        XCTAssertEqual(ReaderOptions.kaitoFinderOpenCount.withLock { $0 } - before, 1)
+        await session.close()
+    }
+
     func testImportUsesSessionSnapshotWithoutAnExtraOpen() async throws {
         for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip, .lha, .tar, .tarGzip, .tarBzip2, .tarXZ] {
             for replacing in [false, true] {

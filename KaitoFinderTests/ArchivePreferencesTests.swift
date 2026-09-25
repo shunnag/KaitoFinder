@@ -23,6 +23,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(value.tarGzipLevel, 6)
         XCTAssertEqual(value.tarBzip2Level, 9)
         XCTAssertFalse(value.tarPreservesOwnerIDs)
+        XCTAssertEqual(value.additionPosition, .end)
+        XCTAssertEqual(value.tarCarriedOwnerIDs, .keep)
         XCTAssertEqual(value.extractionDestination, .sameFolder)
         XCTAssertEqual(value.folderPolicy, .whenMultipleTopLevelItems)
         XCTAssertFalse(value.trashesArchiveAfterExtraction)
@@ -141,6 +143,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(actual.deflateLevel, expected.deflateLevel, file: file, line: line)
         XCTAssertEqual(actual.bzip2Level, expected.bzip2Level, file: file, line: line)
         XCTAssertEqual(actual.useCompressionHeuristic, expected.useCompressionHeuristic, file: file, line: line)
+        XCTAssertEqual(actual.additionPlacement, expected.additionPlacement, file: file, line: line)
+        XCTAssertEqual(actual.carriedTarOwnerIDs, expected.carriedTarOwnerIDs, file: file, line: line)
         XCTAssertEqual(actual.preserveOwnerIDs, expected.preserveOwnerIDs, file: file, line: line)
         XCTAssertEqual(actual.preserveMacOSMetadata, expected.preserveMacOSMetadata, file: file, line: line)
     }

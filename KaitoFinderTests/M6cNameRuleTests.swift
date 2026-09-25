@@ -31,7 +31,7 @@ nonisolated final class M6cNameRuleTests: XCTestCase {
                 defer { document.close() }
                 let session = try XCTUnwrap(document.session)
                 XCTAssertTrue(session.capabilities.canEdit)
-                XCTAssertEqual(session.capabilities.mode, .rewrite(format))
+                XCTAssertEqual(session.capabilities.mode, format == .tar ? .update(.tar) : .rewrite(format))
                 XCTAssertEqual(session.reservationFormat, format)
                 let result = try await document.remove([fixture.node("other.txt")], progress: Progress())
                 XCTAssertEqual(result.removedPaths, ["other.txt"])

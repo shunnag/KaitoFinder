@@ -75,7 +75,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P1 | ZIP の大規模編集: KaitoKit の型付き raw 範囲 API（entry の同一性検査を省くなら SPI）と formatSpecific の共有、CD の一括読み取りと検証結果の再利用、連続範囲の一括移動とバッファ付きの CD 出力、削除だけのときの名前表の省略、置換は「詰めてから追記」にして二重書き込みを解消（KaitoKit による追記分の照合は残す）、作業ファイル 1 つへの直接の書き込み、検証した reader の再利用、保存時モードの全体検査は残して安くする（key の一度だけの計算、formatSpecific を複製しない） | 3 つとも |
 | P1b | 暗号化の設定・変更・解除を再圧縮なしで（ZIP）。AES の鍵の導出（entry ごとの PBKDF2）を並列にする | KaitoKit, GyoshukuKit, KaitoFinder |
 | P1c | 編集前の全件のパスワード確認（`verifyBeforeEditing`）の鍵の導出を並列にする（50 万件の AES で直列 152 s）。[KaitoFinder 実装・検証](../verification/2026-09-25-p1c.md)、通常ビルド・S1 実測待ち | KaitoKit, KaitoFinder |
-| P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで） | GyoshukuKit, KaitoFinder |
+| P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで）。GyoshukuKit efdb651・da0af7b（FAT32 / exFAT の修正）、KaitoFinder S13 [実装と検証](../verification/2026-09-26-p2-tar-update.md)。受入計測（P0b と B-P2 の比較）は検証記録に追記する | GyoshukuKit, KaitoFinder |
 | P3 | 圧縮 tar の区切り単位の編集（KaitoKit の member 配置と区切りの地図、xz / bzip2 / gzip の継ぎ、自前の書き込みの区切りの配置、復号済みの tar の再利用） | 3 つとも |
 | P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集 | KaitoKit, GyoshukuKit |
 | P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで | KaitoKit, GyoshukuKit |

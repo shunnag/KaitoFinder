@@ -70,15 +70,21 @@ nonisolated final class ArchiveEditPathTests: XCTestCase {
     }
 
     @MainActor func testRenameDirectoryWithLeadingDotComponentsPreservesEveryDescendant() async throws {
-        let fixture = try fixture(), session = try ArchiveSession(url: fixture.archive)
-        let folder = try await selection("folder", session: session)
-        let result = try await session.rename(folder, to: "renamed", progress: Progress())
-        XCTAssertNil(result.reloadFailure)
-        XCTAssertEqual(Set(result.renamedPaths), ["renamed/", "renamed/child.txt", "renamed/deeper/leaf.txt"])
-        XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), [
-            "renamed/child.txt": Data("child".utf8), "renamed/deeper/leaf.txt": Data("leaf".utf8), "target/keep.txt": Data("keep".utf8)
-        ])
-        await session.close()
+        for position in ArchivePreferences.AdditionPosition.allCases {
+            var preferences = ArchivePreferences()
+            preferences.additionPosition = position
+            let options = preferences.writerOptions(for: .tar)
+            let fixture = try fixture(), session = try ArchiveSession(url: fixture.archive, writerOptions: { _ in options })
+            let folder = try await selection("folder", session: session)
+            let result = try await session.rename(folder, to: "renamed", progress: Progress())
+            XCTAssertNil(result.reloadFailure)
+            XCTAssertEqual(Set(result.renamedPaths), ["renamed/", "renamed/child.txt", "renamed/deeper/leaf.txt"])
+            let keptName = position == .end ? "./target/keep.txt" : "target/keep.txt"
+            XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), [
+                "renamed/child.txt": Data("child".utf8), "renamed/deeper/leaf.txt": Data("leaf".utf8), keptName: Data("keep".utf8)
+            ], position.rawValue)
+            await session.close()
+        }
     }
 
     @MainActor func testMoveIntoDirectoryWithLeadingDotComponents() async throws {
@@ -92,12 +98,18 @@ nonisolated final class ArchiveEditPathTests: XCTestCase {
     }
 
     func testNewFolderResolvesDisplayedParentAndOccupiedNamesInDotPrefixedTar() async throws {
-        let fixture = try fixture(), session = try ArchiveSession(url: fixture.archive)
-        let result = try await session.createFolder(in: "target", baseName: "untitled", progress: Progress())
-        XCTAssertEqual(result.addedPaths, ["target/untitled 2/"])
-        XCTAssertNil(result.reloadFailure)
-        XCTAssertEqual(try ScenarioFixture.contents(fixture.archive)["target/keep.txt"], Data("keep".utf8))
-        await session.close()
+        for position in ArchivePreferences.AdditionPosition.allCases {
+            var preferences = ArchivePreferences()
+            preferences.additionPosition = position
+            let options = preferences.writerOptions(for: .tar)
+            let fixture = try fixture(), session = try ArchiveSession(url: fixture.archive, writerOptions: { _ in options })
+            let result = try await session.createFolder(in: "target", baseName: "untitled", progress: Progress())
+            XCTAssertEqual(result.addedPaths, ["target/untitled 2/"])
+            XCTAssertNil(result.reloadFailure)
+            let keptName = position == .end ? "./target/keep.txt" : "target/keep.txt"
+            XCTAssertEqual(try ScenarioFixture.contents(fixture.archive)[keptName], Data("keep".utf8), position.rawValue)
+            await session.close()
+        }
     }
 
     @MainActor func testDisplayedDirectoryCollisionIsRejectedBeforeOpeningUpdater() async throws {

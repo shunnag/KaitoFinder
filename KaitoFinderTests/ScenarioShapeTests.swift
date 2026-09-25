@@ -61,10 +61,10 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
             soft = tarfile.TarInfo('soft'); soft.type = tarfile.SYMTYPE; soft.linkname = 'body'; t.addfile(soft)
         """#, suffix: "tar")
         let session = try ArchiveSession(url: fixture.archive), source = try fixture.file("new.txt")
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.tar))
+        XCTAssertEqual(session.capabilities.mode, .update(.tar))
         _ = try await session.append(urls: [source], to: "", progress: Progress())
         let entries = await session.entries()
-        // rewriterは追加項目を先に書くため、名前と種類の対応で保存結果を検証する。
+        XCTAssertEqual(entries.map(\.name), ["body", "hard", "soft", "new.txt"])
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: entries.map { ($0.name, $0.kind) }),
                        ["body": .file, "hard": .hardlink, "soft": .symlink, "new.txt": .file])
         let out = try fixture.folder("out"), result = try await fixture.extract(to: out, session: session)

@@ -35,6 +35,8 @@ nonisolated enum ArchiveVerificationFailure: Sendable, Equatable, CustomStringCo
     case encryption(index: Int, expected: String, actual: String?, isEncrypted: Bool)
     case outputProbe(FailureCode)
     case outputCount(expected: UInt64, actual: UInt64)
+    case hardLink(index: Int, expected: Entry, actual: Entry?)
+    case updaterVerification(FailureCode)
 
     var description: String {
         switch self {
@@ -49,6 +51,9 @@ nonisolated enum ArchiveVerificationFailure: Sendable, Equatable, CustomStringCo
             "encryption: entry[\(index)] expected=\(expected) actual=\(actual ?? "unknown") encrypted=\(isEncrypted)"
         case .outputProbe(let error): "output_probe: \(error)"
         case .outputCount(let expected, let actual): "output_count: expected=\(expected) actual=\(actual)"
+        case .hardLink(let index, let expected, let actual):
+            "hard_link: entry[\(index)] expected=\(expected) actual=\(actual.map(String.init(describing:)) ?? "none")"
+        case .updaterVerification(let error): "updater_verification: \(error)"
         }
     }
 
