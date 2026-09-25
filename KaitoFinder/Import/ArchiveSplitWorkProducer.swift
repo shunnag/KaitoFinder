@@ -39,6 +39,10 @@ nonisolated struct ArchiveVolumeInput: Sendable {
 
     /// Stream, with fd and path checks before and after each member. Never follows a substituted symlink.
     func copy(to workURL: URL, progress: Progress, didRead: (Int) -> Void = { _ in }) throws {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.splitInputCopy)
+        defer { span?.end() }
+        #endif
         func checkCancellation() throws { try ArchiveImportPlan.checkCancellation(progress) }
         try verify(nil, requiresAssembledSet: false, checkCancellation: checkCancellation, hashes: false)
         let parent = try VolumePublishDirectory(layout.gateURL.deletingLastPathComponent())

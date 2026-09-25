@@ -66,6 +66,22 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         #endif
     }
 
+    @MainActor func testSplitSavesWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        ArchiveProbeTrace.header()
+        for format in configuration.formats where [.zip, .tarGzip].contains(format) {
+            let fixture = try await ArchiveProbeFixtures.splitFixture(format: format, configuration: configuration)
+            guard fixture.volumes.count > 1 else { throw XCTSkip("Use a larger payload or smaller split volume for split probes") }
+            for operation in SplitOperation.allCases {
+                try await probeSplit(operation, fixture: fixture, configuration: configuration)
+            }
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
     @MainActor func testTenConsecutiveCompressedTarEditsWhenEnabled() async throws {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()
@@ -129,6 +145,117 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         case deleteStart = "delete_start", deleteEnd = "delete_end", renameSame = "rename_same_length"
         case renameDifferent = "rename_different_length", renameFolder = "rename_folder", newFolder = "new_folder"
         case addFile = "add_file", replaceFile = "replace_file"
+    }
+
+    private enum SplitOperation: String, CaseIterable {
+        case addFile = "add_file", deleteEnd = "delete_end", saveRename = "save_rename"
+    }
+
+    @MainActor private func withSplitDocument(_ fixture: ArchiveProbeSplitFixture, mode: ArchivePreferences.SaveBehavior,
+        configuration: ArchiveProbeConfiguration,
+        _ body: @MainActor (ArchiveDocument, URL, URL) async throws -> Void) async throws {
+        let directory = try ArchiveTestDirectory(), local = try volumePublishTestURL(directory.url)
+        let root = local.appendingPathComponent("set", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        for volume in fixture.volumes {
+            try FileManager.default.copyItem(at: volume, to: root.appendingPathComponent(volume.lastPathComponent))
+        }
+        let gate = root.appendingPathComponent(try XCTUnwrap(fixture.volumes.first).lastPathComponent)
+        let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
+        store.preferences = ArchivePreferences()
+        store.preferences.saveBehavior = mode
+        store.preferences.additionPosition = configuration.additionPosition
+        let index = RecoverableWorkIndex(fileURL: local.appendingPathComponent("support/index.json"))
+        let metadata = ArchiveVolumeMetadataStore(fileURL: local.appendingPathComponent("support/metadata.json"))
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store,
+            volumeMetadataStore: metadata, volumeRecoveryIndex: index)
+        defer { document.close(); withExtendedLifetime((directory, defaults)) {} }
+        do {
+            try document.read(from: gate, ofType: ArchiveDocumentController.splitVolumeType)
+            document.fileURL = gate; document.fileType = ArchiveDocumentController.splitVolumeType
+            document.fileModificationDate = try FileManager.default.attributesOfItem(atPath: gate.path)[.modificationDate] as? Date
+            document.splitMutationConfirmation = { _ in .alertFirstButtonReturn }
+            document.splitSaveHooks.operations.coordinate = { _, _, queue, acquired in queue.addOperation { acquired(nil) } }
+            document.splitSaveHooks.operations.trash = { url in
+                let destination = local.appendingPathComponent("trash-" + UUID().uuidString)
+                try FileManager.default.moveItem(at: url, to: destination)
+                return destination
+            }
+            XCTAssertEqual(document.session?.volumeLayout?.volumes.count, fixture.volumes.count)
+            try await body(document, gate, local)
+            XCTAssertTrue(try index.entries().isEmpty)
+            await document.prepareForTermination()
+        } catch {
+            await document.prepareForTermination()
+            throw error
+        }
+    }
+
+    @MainActor private func probeSplit(_ operation: SplitOperation, fixture: ArchiveProbeSplitFixture,
+                                      configuration: ArchiveProbeConfiguration) async throws {
+        let deferred = operation == .saveRename, payload = fixture.payload
+        try await withSplitDocument(fixture, mode: deferred ? .onSave : .immediate, configuration: configuration) { document, gate, local in
+            let selected = try await node(deferred ? payload.firstPath : payload.lastPath, document: document)
+            let source = local.appendingPathComponent("added.txt")
+            try Data([43]).write(to: source)
+            let originalNames = try await document.projectedEntries().map(\.name)
+            let renamed = ArchivePath.components(payload.firstPath).dropLast().joined(separator: "/") + "/renamed.txt"
+            if deferred {
+                _ = try await document.rename(selected, to: "renamed.txt", progress: Progress())
+                XCTAssertTrue(document.isDocumentEdited)
+            }
+            let trace = ArchiveProbeTrace(fixture: payload, mode: deferred ? "deferred_split" : "immediate_split", operation: operation.rawValue)
+            do {
+                try await ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
+                    let total = ArchiveStageDiagnostics.begin(.total)
+                    defer { total?.end() }
+                    switch operation {
+                    case .addFile:
+                        let result = try await document.append(urls: [source], to: "", progress: Progress())
+                        XCTAssertTrue(result.failures.isEmpty); XCTAssertNil(result.reloadFailure)
+                        XCTAssertEqual(result.addedPaths, ["added.txt"])
+                    case .deleteEnd:
+                        let result = try await document.remove([selected], progress: Progress())
+                        XCTAssertTrue(result.published); XCTAssertNil(result.reloadFailure)
+                    case .saveRename:
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                            document.save(to: gate, ofType: ArchiveDocumentController.splitVolumeType, for: .saveOperation) { error in
+                                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                            }
+                        }
+                        await document.waitForDeferredPreparationForTesting()
+                    }
+                }
+                trace.finish(outputs: document.session?.volumeLayout?.volumes.map(\.url) ?? [])
+            } catch {
+                trace.finish(outputs: document.session?.volumeLayout?.volumes.map(\.url) ?? [], status: "error")
+                throw error
+            }
+            trace.require([.total, .splitWorkValidation, .splitMetadataDigest, .splitCopy,
+                           .splitStagedProof, .splitStagedReader, .splitStagedRecheck,
+                           .splitPlacedProof, .splitPlacedReader, .splitPlacedRecheck])
+            if payload.format == .zip { trace.require([.splitInputCopy]) }
+            else { trace.forbid([.splitInputCopy]) }
+            if deferred { trace.forbid([.splitDisposeProof]) }
+            else { trace.require([.splitDisposeProof]) }
+            XCTAssertNil(document.splitSaveFailure); XCTAssertNil(document.deferredReloadFailure)
+            XCTAssertNotNil(document.splitSaveResult)
+            XCTAssertTrue(document.pendingChanges.isEmpty); XCTAssertFalse(document.isDocumentEdited)
+            let expected: [String]
+            switch operation {
+            case .addFile: expected = originalNames + ["added.txt"]
+            case .deleteEnd: expected = originalNames.filter { $0 != payload.lastPath }
+            case .saveRename: expected = originalNames.map { $0 == payload.firstPath ? renamed : $0 }
+            }
+            let reader = try ArchiveReader.open(url: gate, options: .kaitoFinder())
+            XCTAssertEqual(reader.entries.map(\.name).sorted(), expected.sorted())
+            if operation != .deleteEnd {
+                let entry = try XCTUnwrap(reader.entries.first { $0.name == (deferred ? renamed : "added.txt") })
+                var bytes = Data()
+                try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { bytes.append(contentsOf: $0) }
+                XCTAssertEqual(bytes, deferred ? try ArchiveProbePayload.data(file: 0, size: payload.payloadMiB * 1_048_576 / 64) : Data([43]))
+            }
+        }
     }
 
     @MainActor private func probeOpening(_ fixture: ArchiveProbeFixture) async throws {

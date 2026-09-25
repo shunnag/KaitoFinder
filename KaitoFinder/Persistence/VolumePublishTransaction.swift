@@ -267,8 +267,14 @@ nonisolated struct VolumePublishTransaction: Sendable {
     }
     mutating func validateNew(in directory: VolumePublishDirectory, inodes: [String: UInt64]? = nil,
                              options: ReaderOptions = .kaitoFinder(), validation: (@Sendable (ArchiveReader) throws -> Void)? = nil) throws {
-        try validateHashes(in: directory, inodes: inodes)
+        try ArchiveStageDiagnostics.measure(directory.url != parent.url ? .splitStagedProof : .splitPlacedProof) {
+            try validateHashes(in: directory, inodes: inodes)
+        }
         do {
+            #if DEBUG
+            let span = ArchiveStageDiagnostics.begin(directory.url != parent.url ? .splitStagedReader : .splitPlacedReader)
+            defer { span?.end() }
+            #endif
             let reader = try operations.openReader(directory.url.appendingPathComponent(record.newGate), options)
             if record.newVolumes.count == 1 {
                 guard reader.volumeSet == nil else { throw VolumePublishError.validationFailed }
@@ -290,7 +296,11 @@ nonisolated struct VolumePublishTransaction: Sendable {
             }
             throw VolumePublishError.stagedReaderFailed(String(describing: error))
         }
-        if validation != nil { try validateHashes(in: directory, inodes: inodes) }
+        if validation != nil {
+            try ArchiveStageDiagnostics.measure(directory.url != parent.url ? .splitStagedRecheck : .splitPlacedRecheck) {
+                try validateHashes(in: directory, inodes: inodes)
+            }
+        }
         try directory.requireAbsent(record.nextName)
     }
 
@@ -393,7 +403,9 @@ nonisolated struct VolumePublishTransaction: Sendable {
             if name == "old" {
                 // Durable done is not evidence that the live copy still exists now.
                 var proof = self
-                do { try proof.validateHashes(in: parent) }
+                do {
+                    try ArchiveStageDiagnostics.measure(.splitDisposeProof) { try proof.validateHashes(in: parent) }
+                }
                 catch { return .kept(directory.url) }
             }
             do { try VolumePublishRemoval.remove(name, from: staging, operations: operations) }

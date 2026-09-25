@@ -12,6 +12,11 @@ nonisolated enum ArchiveStageDiagnostics {
         case treeBuild = "tree_build", display
         case passwordVerification = "password_verification"
         case total, remove, fixtureBuild = "fixture_build"
+        case splitWorkValidation = "split_work_validation", splitMetadataDigest = "split_metadata_digest"
+        case splitCopy = "split_copy"
+        case splitStagedProof = "split_staged_proof", splitStagedReader = "split_staged_reader", splitStagedRecheck = "split_staged_recheck"
+        case splitPlacedProof = "split_placed_proof", splitPlacedReader = "split_placed_reader", splitPlacedRecheck = "split_placed_recheck"
+        case splitDisposeProof = "split_dispose_proof", splitInputCopy = "split_input_copy"
     }
 
     #if DEBUG

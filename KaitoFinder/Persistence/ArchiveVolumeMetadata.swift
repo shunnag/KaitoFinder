@@ -109,7 +109,9 @@ nonisolated enum ArchiveVolumeMetadata {
                         checkCancellation: () throws -> Void) throws -> Publication {
         guard case .numbered(let stem, let width) = plan.scheme else { throw VolumePublishError.unsupportedScheme }
         let parent = try VolumePublishDirectory(work.deletingLastPathComponent())
-        let totalHash = try VolumePublishFS.hash(parent, work.lastPathComponent, checkCancellation: checkCancellation)
+        let totalHash = try ArchiveStageDiagnostics.measure(.splitMetadataDigest) {
+            try VolumePublishFS.hash(parent, work.lastPathComponent, checkCancellation: checkCancellation)
+        }
         var previous: Marker?
         var attributes: [[String: Data]]?
         if let oldLayout {

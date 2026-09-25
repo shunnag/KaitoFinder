@@ -54,6 +54,7 @@ nonisolated enum ProbeArchiveEncryption: String, Sendable {
 nonisolated struct ArchiveProbeConfiguration: Sendable {
     let entries: Int
     let payloadMiB: Int
+    let splitVolumeMiB: Int
     let formats: [ProbeArchiveFormat]
     let asserts: Bool
     let additionPosition: ArchivePreferences.AdditionPosition
@@ -71,6 +72,7 @@ nonisolated struct ArchiveProbeConfiguration: Sendable {
         }
         entries = try positive("KAITOFINDER_PROBE_ENTRIES", default: 100_000, minimum: 2)
         payloadMiB = try positive("KAITOFINDER_PROBE_PAYLOAD_MIB", default: 256, minimum: 1)
+        splitVolumeMiB = try positive("KAITOFINDER_PROBE_SPLIT_VOLUME_MIB", default: 32, minimum: 1)
         let names = (environment["KAITOFINDER_PROBE_FORMATS"] ?? "zip").lowercased()
             .split(whereSeparator: { $0 == "," || $0.isWhitespace })
         guard !names.isEmpty else { throw ConfigurationError.invalid("KAITOFINDER_PROBE_FORMATS") }
@@ -117,8 +119,48 @@ nonisolated enum ArchiveProbeFixtures {
     // 本文・暗号化の生成規則を変えたら更新する。
     private static let version = 3
     private static let cache = Mutex<[String: ArchiveProbeFixture]>([:])
+    private static let splitVersion = 1
+    private static let splitCache = Mutex<[String: ArchiveProbeSplitFixture]>([:])
 
-    static func removeAll() { cache.withLock { $0.removeAll() } }
+    static func removeAll() {
+        splitCache.withLock { $0.removeAll() }
+        cache.withLock { $0.removeAll() }
+    }
+
+    @concurrent static func splitFixture(format: ProbeArchiveFormat, configuration: ArchiveProbeConfiguration) async throws
+        -> ArchiveProbeSplitFixture {
+        let payload = try await fixture(.payload, format: format, configuration: configuration)
+        return try splitCache.withLock { cache in
+            let key = "\(format.rawValue)-\(configuration.payloadMiB)-\(configuration.splitVolumeMiB)-v\(version)-split-v\(splitVersion)"
+            if let fixture = cache[key] { return fixture }
+            let directory = try ArchiveTestDirectory()
+            let length = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: payload.url.path)[.size] as? NSNumber).uint64Value
+            let plan = try VolumePlan(totalLength: length, schedule: .uniform(size: UInt64(configuration.splitVolumeMiB) * 1_048_576),
+                                      scheme: .numbered(stem: "fixture." + format.rawValue, width: 3))
+            let input = try FileHandle(forReadingFrom: payload.url)
+            defer { try? input.close() }
+            var volumes: [URL] = []
+            for volume in plan.volumes {
+                let url = directory.url.appendingPathComponent(volume.name)
+                guard FileManager.default.createFile(atPath: url.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
+                let output = try FileHandle(forWritingTo: url)
+                defer { try? output.close() }
+                var remaining = volume.length
+                while remaining > 0 {
+                    guard let bytes = try input.read(upToCount: Int(min(1_048_576, remaining))), !bytes.isEmpty else {
+                        throw CocoaError(.fileReadCorruptFile)
+                    }
+                    try output.write(contentsOf: bytes)
+                    remaining -= UInt64(bytes.count)
+                }
+                volumes.append(url)
+            }
+            let fixture = ArchiveProbeSplitFixture(directory: directory, payload: payload, volumes: volumes)
+            ArchiveProbeTrace.line("PROBE-SPLIT-FIXTURE\tversion=\(splitVersion)\tformat=\(format.rawValue)\tvolume_mib=\(configuration.splitVolumeMiB)\tvolumes=\(volumes.count)\tarchive_bytes=\(length)")
+            cache[key] = fixture
+            return fixture
+        }
+    }
 
     @concurrent static func fixture(_ kind: ArchiveProbeFixture.Kind, format: ProbeArchiveFormat,
                                     configuration: ArchiveProbeConfiguration,
@@ -165,6 +207,12 @@ nonisolated enum ArchiveProbeFixtures {
             return fixture
         }
     }
+}
+
+nonisolated struct ArchiveProbeSplitFixture: Sendable {
+    let directory: ArchiveTestDirectory
+    let payload: ArchiveProbeFixture
+    let volumes: [URL]
 }
 
 nonisolated enum ArchiveProbePayload {
@@ -393,9 +441,14 @@ nonisolated final class ArchiveProbeTrace: Sendable {
     }
 
     func finish(output: URL, status: String = "ok") {
+        finish(outputs: [output], status: status)
+    }
+
+    func finish(outputs: [URL], status: String = "ok") {
         let snapshot = state.withLock { $0 }
         XCTAssertTrue(snapshot.active.isEmpty, "Unfinished probe stages: \(operation)")
-        let size = (try? FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.stringValue ?? "NA"
+        let sizes = outputs.compactMap { (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? NSNumber)?.uint64Value }
+        let size = !outputs.isEmpty && sizes.count == outputs.count ? String(sizes.reduce(0, +)) : "NA"
         for stage in snapshot.samples.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             let samples = snapshot.samples[stage]!
             let duration = samples.reduce(Duration.zero) { $0 + $1.duration }

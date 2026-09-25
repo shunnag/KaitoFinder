@@ -150,8 +150,10 @@ nonisolated enum ArchiveSplitSavePipeline {
             started = split
             defer { split.cancel() }
             let produced = try produce(split)
-            try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan,
-                                                 mode: produced.mode, zipEncryption: zipEncryption)
+            try ArchiveStageDiagnostics.measure(.splitWorkValidation) {
+                try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan,
+                                                     mode: produced.mode, zipEncryption: zipEncryption)
+            }
             try hooks.didProduceWork(split.workURL)
             try plan.validate()
             try willPublish?()

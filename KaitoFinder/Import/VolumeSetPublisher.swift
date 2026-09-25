@@ -243,10 +243,12 @@ nonisolated final class VolumeSetPublication: Sendable {
                     oldLayout: target.layout, work: workURL, store: metadataStore, additionalQuarantine: target.additionalQuarantine,
                     checkCancellation: { try self.checkCancellation(progress) })
             }
-            transaction.record.newVolumes = try VolumeSplitter.split(workURL: workURL, into: staging.directory("new"),
-                plan: plan, oldLayout: target.layout,
-                avoidsAppleDouble: target.writesVolumeMetadata && (try VolumePublishFS.usesAppleDouble(parent)),
-                additionalQuarantine: target.additionalQuarantine, checkCancellation: { try self.checkCancellation(progress) })
+            transaction.record.newVolumes = try ArchiveStageDiagnostics.measure(.splitCopy) {
+                try VolumeSplitter.split(workURL: workURL, into: staging.directory("new"),
+                    plan: plan, oldLayout: target.layout,
+                    avoidsAppleDouble: target.writesVolumeMetadata && (try VolumePublishFS.usesAppleDouble(parent)),
+                    additionalQuarantine: target.additionalQuarantine, checkCancellation: { try self.checkCancellation(progress) })
+            }
             transaction.record.totalLength = plan.totalLength
             if let metadata = transaction.record.metadata { try ArchiveVolumeMetadata.writeNative(metadata, in: staging.directory("new")) }
             try transaction.validateNew(in: staging.directory("new"), options: options, validation: validation)
@@ -255,6 +257,9 @@ nonisolated final class VolumeSetPublication: Sendable {
             let gateURL = parent.url.appendingPathComponent(plan.gateName)
             try operations.willCoordinate(gateURL)
             let coordinator = VolumePublishCoordination(gate: gateURL, presenter: target.filePresenter, request: operations.coordinate)
+            #if DEBUG
+            let observer = ArchiveStageDiagnostics.observer.get()
+            #endif
             return try coordinator.withAccess(gate: gateURL, timeout: coordinationTimeout) {
                 try checkCancellation(progress)
                 try Self.verifyExpected(target, parent: parent)
@@ -265,7 +270,7 @@ nonisolated final class VolumeSetPublication: Sendable {
                 critical = true
                 progress.isCancellable = false
                 let prepared = transaction
-                return try VolumePublishUncancelled.run { [self] in
+                let publishPrepared: @Sendable () throws -> PublishedVolumeSet = { [self] in
                     var transaction = prepared
                     do {
                         try hook(.s5)
@@ -328,6 +333,14 @@ nonisolated final class VolumeSetPublication: Sendable {
                         oldVolumesDisposal: disposal, usedExclusiveRenameFallback: renamer.usesFallback,
                         outcome: .committed(cleanupFailed: cleanupFailure), metadataWarning: metadataWarning)
                 }
+                #if DEBUG
+                // TaskLocal は detach した thread へ自動では渡らない。
+                return try VolumePublishUncancelled.run {
+                    try ArchiveStageDiagnostics.observer.withValue(observer) { try publishPrepared() }
+                }
+                #else
+                return try VolumePublishUncancelled.run(publishPrepared)
+                #endif
             }
         } catch is SimulatedCrash { throw SimulatedCrash() }
         catch {
