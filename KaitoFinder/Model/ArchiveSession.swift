@@ -35,6 +35,8 @@ nonisolated struct ArchiveEntryVerification: Sendable {
 /// スレッドセーフではない reader を所有し、値型の一覧だけを外へ渡す。
 actor ArchiveSession {
     #if DEBUG
+    nonisolated static let readerAdoptionObserver = TaskLocal<(@Sendable (ArchiveReaderAdoption) -> Void)?>(wrappedValue: nil)
+    nonisolated static let willAdoptReaderForTesting = TaskLocal<(@Sendable (ArchiveVerifiedOutput) -> Void)?>(wrappedValue: nil)
     nonisolated static let passwordVerificationBytes = Mutex<UInt64>(0)
     private var promiseSourceForTesting: (any ByteSource)?
     func setPromiseSourceForTesting(_ source: any ByteSource) { promiseSourceForTesting = source }
@@ -334,12 +336,16 @@ actor ArchiveSession {
                                                progress: progress, options: importOptions(), format: reservationFormat)
         }
         let mode = capabilities.mode!
-        var result = try publishing { try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
+        var (result, verified) = try publishing {
+            let verifiedOutput = ArchiveVerifiedOutputSink()
+            let result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                      options: options(for: mode), password: password, progress: progress,
-                                                     didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity) }
+                                                     didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
+            return (result, verifiedOutput.take())
+        }
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
-            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }) }
+            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
             catch { result.reloadFailure = Self.reloadFailureMessage }
         }
         return result
@@ -398,10 +404,14 @@ actor ArchiveSession {
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
         let mode = capabilities.mode!
-        var result = try publishing { try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
+        var (result, verified) = try publishing {
+            let verifiedOutput = ArchiveVerifiedOutputSink()
+            let result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
                                                                options: options(for: mode), password: password, progress: progress,
-                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity) }
-        do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }) }
+                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
+            return (result, verifiedOutput.take())
+        }
+        do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
         catch { result.reloadFailure = Self.reloadFailureMessage }
         return result
     }
@@ -427,11 +437,15 @@ actor ArchiveSession {
         let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
                                              existing: reader.entries, format: reservationFormat)
         let mode = capabilities.mode!
-        var result = try publishing { try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
+        var (result, verified) = try publishing {
+            let verifiedOutput = ArchiveVerifiedOutputSink()
+            let result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                    options: options(for: mode), password: password, progress: progress,
-                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity) }
+                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
+            return (result, verifiedOutput.take())
+        }
         if result.published {
-            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }) }
+            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
             catch { result.reloadFailure = Self.reloadFailureMessage }
         }
         return result
@@ -465,6 +479,7 @@ actor ArchiveSession {
         try verifyBeforeEditing()
         if format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation {
             // probe は終端だけ。CD と local record の照合は open を一世代につき一度通す。
+            ArchiveReservationDiagnostics.record(.deferredUpdaterOpen)
             try publishing { _ = try ArchiveUpdater.open(url: sourceURL) }
             deferredUpdaterGeneration = generation
         }
@@ -548,22 +563,24 @@ actor ArchiveSession {
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
-        let identity = try publishing {
-            try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: output, password: password,
+        let (identity, verified) = try publishing {
+            let verifiedOutput = ArchiveVerifiedOutputSink()
+            let identity = try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: output, password: password,
                 progress: progress, willPublish: {
                     try plan.validate()
                     try willPublish?()
-                }, expectedIdentity: sourceIdentity, additionalQuarantine: quarantine,
+                }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine,
                 publication: publication, deferredPlan: plan, expectedOutput: .init(plan: plan, mode: mode)) { editor in
                     try plan.replay(on: editor, progress: progress)
                 }
+            return (identity, verifiedOutput.take())
         }
         if let encryption = plan.outputEncryption {
             password = encryption.password
             passwordRevision &+= 1
             encryptsSevenZipHeaders = encryption.encryptsSevenZipHeaders
         }
-        do { try reloadAfterMutation(willOpen: willReload, verification: .init(identity: identity, indices: nil)); return .init() }
+        do { try reloadAfterMutation(willOpen: willReload, verification: .init(identity: identity, indices: nil), adopting: consume verified); return .init() }
         catch { return .init(reloadFailure: Self.reloadFailureMessage) }
     }
 
@@ -675,15 +692,19 @@ actor ArchiveSession {
         // ZIP は書き直しで暗号化を変えるが、その場更新の門番（G4 の中央ディレクトリ照合）を通らない ZIP を
         // 書き直しで通してしまわないよう、公開前に同じ検査を一度だけ行う（拒否は編集可否に残る）。
         if format == .zip { try publishing { _ = try ArchiveUpdater.open(url: sourceURL) } }
-        let identity = try publishing { try ArchiveImportTransaction.publish(archive: sourceURL, mode: .rewrite(format),
+        let (identity, verified) = try publishing {
+            let verifiedOutput = ArchiveVerifiedOutputSink()
+            let identity = try ArchiveImportTransaction.publish(archive: sourceURL, mode: .rewrite(format),
             options: output.applying(to: writerOptions(format), format: format), password: password,
-            progress: progress, willPublish: willPublish, expectedIdentity: sourceIdentity,
-            expectedOutput: .init(projected: reader.entries, mode: .rewrite(format))) { _ in } }
+            progress: progress, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+            expectedOutput: .init(projected: reader.entries, mode: .rewrite(format))) { _ in }
+            return (identity, verifiedOutput.take())
+        }
         // 公開後にだけ新しい鍵を採用する。取消しや競合では旧鍵を維持する。
         password = output.password
         passwordRevision &+= 1
         encryptsSevenZipHeaders = output.encryptsSevenZipHeaders
-        do { try reloadAfterMutation(verification: .init(identity: identity, indices: nil)); return ArchivePasswordEditResult() }
+        do { try reloadAfterMutation(verification: .init(identity: identity, indices: nil), adopting: consume verified); return ArchivePasswordEditResult() }
         catch { return ArchivePasswordEditResult(reloadFailure: Self.reloadFailureMessage) }
     }
 
@@ -722,18 +743,22 @@ actor ArchiveSession {
 
     // KaitoKit の公開 entry metadata は header の暗号化を含まない。
     // パスワードなしで一覧を読めるかを調べ、既存の名前の保護を編集でも維持する。
-    private static func hasEncryptedHeaders(url: URL, format: KaitoKit.ArchiveFormat, password: String?) -> Bool {
+    private static func hasEncryptedHeaders(url: URL, format: KaitoKit.ArchiveFormat, password: String?, afterPublication: Bool = false) -> Bool {
         guard format == .sevenZip, password != nil else { return false }
-        do { _ = try ArchiveReader.open(url: url, options: .kaitoFinder()); return false }
+        do {
+            if afterPublication { _ = try ArchiveVerifiedOutput.openAfterPublication(url: url, options: .kaitoFinder()) }
+            else { _ = try ArchiveReader.open(url: url, options: .kaitoFinder()) }
+            return false
+        }
         catch KaitoError.passwordRequired { return true }
         catch KaitoError.wrongPassword { return true }
         catch { return false }
     }
 
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。
-    // reopen() は旧 inode を保持するので、URL から開き直す。
+    // 検証した inode が今のパスと一致するときだけ、解析を引き継ぐ。
     func reloadAfterMutation(willOpen: (@Sendable () throws -> Void)? = nil,
-                             verification: ArchiveEntryVerification? = nil) throws {
+                             verification: ArchiveEntryVerification? = nil, adopting output: consuming ArchiveVerifiedOutput? = nil) throws {
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.reload)
         defer { span?.end() }
@@ -748,8 +773,12 @@ actor ArchiveSession {
         capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(String(localized: "変更後のアーカイブを読み直せませんでした。"))) }
         try willOpen?()
         let original = try ArchiveSetIdentity.capture(url: sourceURL)
-        let replacement = try ArchiveStageDiagnostics.measure(.reloadOpen) {
-            try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: password))
+        var output = consume output
+        let adopted = adoptVerifiedReader(output, identity: original)
+        // fallback の open より先に staging と eager なキャッシュを解放する。
+        output = nil
+        let replacement = try adopted ?? ArchiveStageDiagnostics.measure(.reloadOpen) {
+            try ArchiveVerifiedOutput.openAfterPublication(url: sourceURL, options: .kaitoFinder(password: password))
         }
         let metadata = try ArchiveVolumeMetadata.inspect(url: sourceURL, volumeSet: replacement.volumeSet, store: volumeMetadataStore)
         let layout = metadata.layout
@@ -772,7 +801,7 @@ actor ArchiveSession {
         encryptionStorage.withLock {
             $0 = EncryptionState(hasEncryptedEntries: replacement.entries.contains(where: \.isEncrypted), hasKnownPassword: password != nil)
         }
-        encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: sourceURL, format: replacement.format, password: password)
+        encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: sourceURL, format: replacement.format, password: password, afterPublication: true)
         if let verification, password != nil, verification.matches(identity) {
             // 自前の公開は CRC/HMAC 検証済みの本文を保持するか、既知の鍵で新規作成する。
             // 公開した inode・長さ・mtime が一致する場合だけ、新しい index に検証結果を継ぐ。
@@ -781,8 +810,37 @@ actor ArchiveSession {
             }.map(\.index))
             rememberVerification()
         }
+        deferredUpdaterGeneration = adopted != nil && replacement.format == .zip && layout == nil ? generation : nil
         invalidated = false
         invalidationStorage.withLock { $0 = false }
+    }
+
+    private func adoptVerifiedReader(_ output: ArchiveVerifiedOutput?, identity: ArchiveSetIdentity) -> ArchiveReader? {
+        func fallback(_ reason: ArchiveReaderAdoption.Reason) -> ArchiveReader? {
+            #if DEBUG
+            Self.readerAdoptionObserver.get()?(.fallback(reason))
+            #endif
+            return nil
+        }
+        guard let output else { return fallback(.noOutput) }
+        #if DEBUG
+        Self.willAdoptReaderForTesting.get()?(output)
+        #endif
+        guard output.hint == sourceURL.standardizedFileURL else { return fallback(.hint) }
+        guard identity.contentEqualsAfterMove(output.identity) else { return fallback(.identity) }
+        guard output.source.isUnchanged() else { return fallback(.descriptor) }
+        guard !ArchiveSplitVolume.isSplitVolumeMember(sourceURL) else { return fallback(.splitSibling) }
+        guard output.verificationPassword == nil || output.verificationPassword == password else { return fallback(.password) }
+        guard let verified = output.reader, [.zip, .tar, .sevenZip, .lha].contains(verified.format) else { return fallback(.format) }
+        do {
+            verified.password = password
+            let replacement = try ArchiveStageDiagnostics.measure(.readerAdoption) { try verified.reopen() }
+            output.reader = nil
+            #if DEBUG
+            Self.readerAdoptionObserver.get()?(.adopted)
+            #endif
+            return replacement
+        } catch { return fallback(.reopenFailed) }
     }
 
     // ReaderOptions や下位エラーの説明を公開結果へ持ち込まず、秘密を含まない文言に限定する。

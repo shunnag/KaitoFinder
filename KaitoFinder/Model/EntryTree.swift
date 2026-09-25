@@ -197,6 +197,9 @@ nonisolated struct EntryTreeFilter: Sendable {
     private(set) var matchingCount = 0
 
     init(root: EntryNode, query: String, showsHiddenFiles: Bool = false) {
+        #if DEBUG
+        if Thread.isMainThread { ArchiveTestCounters.mainThreadFilters.get()?.increment() }
+        #endif
         unfiltered = query.isEmpty
         self.showsHiddenFiles = showsHiddenFiles
         totalSize = showsHiddenFiles ? root.size : root.visibleSize

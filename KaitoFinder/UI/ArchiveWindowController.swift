@@ -67,6 +67,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return preparedRenameOccupancy ?? root.editOccupancy
     }
     private var listLoadingToken: UUID?
+    #if DEBUG
+    var listLoadingTokenForTesting: UUID? { listLoadingToken }
+    #endif
     private var listLoadingRevealTask: Task<Void, Never>?
     let listLoadingIndicator = NSProgressIndicator()
     var isListLoadingVisible: Bool { !listLoadingIndicator.isHidden }
@@ -661,12 +664,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil, preparedFilter: EntryTreeFilter? = nil,
-                 indexingRenames: Bool = false) {
+                 indexingRenames: Bool = false, loadingToken: UUID? = nil) {
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.display)
         defer { span?.end() }
         #endif
-        cancelListWork()
+        if let loadingToken, isCurrentListLoading(loadingToken) { cancelRenameIndex() }
+        else { cancelListWork() }
         let state = captureViewState()
         thumbnailProvider?.cancelAll()
         thumbnailProvider = nil

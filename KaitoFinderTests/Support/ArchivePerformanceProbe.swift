@@ -349,6 +349,13 @@ nonisolated final class ArchiveProbeTrace: Sendable {
         }
     }
 
+    func forbid(_ stages: [ArchiveStageDiagnostics.Stage], file: StaticString = #filePath, line: UInt = #line) {
+        let recorded = state.withLock { Set($0.samples.keys) }
+        for stage in stages {
+            XCTAssertFalse(recorded.contains(stage), "Unexpected stage: \(mode)/\(operation)/\(stage.rawValue)", file: file, line: line)
+        }
+    }
+
     func requireEditorOpen(file: StaticString = #filePath, line: UInt = #line) {
         let recorded = state.withLock { Set($0.samples.keys) }
         XCTAssertFalse(recorded.isDisjoint(with: [.updaterOpen, .rewriterOpen]),

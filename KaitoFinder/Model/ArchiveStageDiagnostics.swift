@@ -5,6 +5,8 @@ nonisolated enum ArchiveStageDiagnostics {
         case workCopy = "work_copy", updaterOpen = "updater_open", rewriterOpen = "rewriter_open"
         case mutate, replay, commit, verificationOpen = "verification_open", entryComparison = "entry_comparison"
         case publish, reload, reloadOpen = "reload_open", capabilityProbe = "capability_probe"
+        case readerAdoption = "reader_adoption", outputProbe = "output_probe", saveSheet = "save_sheet"
+        case planKeys = "plan_keys", representabilityProbe = "representability_probe"
         case replayPlan = "replay_plan", validateRepresentability = "validate_representability"
         case editingInstall = "editing_install", editingPrepare = "editing_prepare", updaterPreparation = "updater_preparation"
         case treeBuild = "tree_build", display, ownerRestoration = "owner_restoration"

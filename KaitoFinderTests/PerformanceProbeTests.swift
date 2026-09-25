@@ -193,7 +193,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 XCTAssertNil(result.reloadFailure)
             }
             trace.require([.total, .passwordVerification, .commit, .verificationOpen, .entryComparison,
-                           .publish, .reload, .reloadOpen, .capabilityProbe, .treeBuild, .display])
+                           .publish, .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display])
+            trace.forbid([.reloadOpen])
+            if fixture.format == .zip { trace.require([.outputProbe]) }
             trace.requireEditorOpen()
             XCTAssertEqual(session.hasEncryptedEntries, output != nil)
             XCTAssertTrue(document.undoManager?.canUndo == true)
@@ -228,15 +230,23 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             let save = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
                 operation: "save_password_change_" + transition + "_rename", reportsPasswordVerification: true)
             try await Self.traced(save, output: archive) {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
-                        if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                let sheet = ArchiveStageDiagnostics.begin(.saveSheet)
+                do {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
+                            if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                        }
                     }
-                }
+                    sheet?.end()
+                } catch { sheet?.end(); throw error }
+                await document.waitForDeferredPreparationForTesting()
             }
             save.require([.total, .passwordVerification, .replayPlan, .validateRepresentability, .replay, .commit,
-                          .verificationOpen, .entryComparison, .publish, .reload, .reloadOpen, .capabilityProbe,
+                          .verificationOpen, .entryComparison, .publish, .reload, .readerAdoption, .capabilityProbe,
                           .editingInstall, .editingPrepare, .treeBuild, .display])
+            save.require([.saveSheet, .planKeys, .representabilityProbe])
+            save.forbid([.reloadOpen])
+            if fixture.format == .zip { save.require([.outputProbe]); save.forbid([.updaterPreparation]) }
             save.requireEditorOpen()
             XCTAssertNil(document.deferredReloadFailure)
             XCTAssertTrue(document.pendingChanges.isEmpty)
@@ -304,9 +314,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 }
             }
             trace.require([.total, .mutate, .commit, .verificationOpen, .entryComparison, .publish,
-                           .reload, .reloadOpen, .capabilityProbe, .treeBuild, .display,
+                           .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display,
                            fixture.format == .zip ? .updaterOpen : .rewriterOpen])
-            if fixture.format == .zip { trace.require([.workCopy]) }
+            trace.forbid([.reloadOpen])
+            if fixture.format == .zip { trace.require([.workCopy, .outputProbe]) }
             XCTAssertEqual(conflicts.withLock { $0 }, operation == .replaceFile ? 1 : 0)
             let entries = try await document.projectedEntries()
             let delta = operation == .deleteStart || operation == .deleteEnd ? -1
@@ -359,17 +370,24 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             let expected = try await document.projectedEntries().map(\.name).sorted()
             let trace = ArchiveProbeTrace(fixture: fixture, mode: "deferred", operation: renameOnly ? "save_rename_only" : "save_five_changes")
             try await Self.traced(trace, output: archive) {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
-                        if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                let sheet = ArchiveStageDiagnostics.begin(.saveSheet)
+                do {
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                        document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
+                            if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+                        }
                     }
-                }
+                    sheet?.end()
+                } catch { sheet?.end(); throw error }
+                await document.waitForDeferredPreparationForTesting()
             }
             trace.require([.total, .replayPlan, .validateRepresentability, .replay, .commit, .verificationOpen,
-                           .entryComparison, .publish, .reload, .reloadOpen, .capabilityProbe,
+                           .entryComparison, .publish, .reload, .readerAdoption, .capabilityProbe,
                            .editingInstall, .editingPrepare, .treeBuild, .display,
                            fixture.format == .zip ? .updaterOpen : .rewriterOpen])
-            if fixture.format == .zip { trace.require([.workCopy, .updaterPreparation]) }
+            trace.require([.saveSheet, .planKeys, .representabilityProbe])
+            trace.forbid([.reloadOpen])
+            if fixture.format == .zip { trace.require([.workCopy, .outputProbe]); trace.forbid([.updaterPreparation]) }
             XCTAssertNil(document.deferredReloadFailure)
             let saved = try await document.projectedEntries().map(\.name).sorted()
             XCTAssertEqual(saved, expected)

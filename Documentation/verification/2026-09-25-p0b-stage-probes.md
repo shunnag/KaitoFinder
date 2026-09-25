@@ -88,23 +88,33 @@ I/O はプロセス全体の proc_pid_rusage(RUSAGE_INFO_V2) の差分で、失�
 | mutate / replay | 即時操作の検証・削除・改名・追加、または保存計画の replay |
 | remove | 直接編集テストの remove(entriesAt:) だけ |
 | commit | GyoshukuKit の commit 呼び出しが返るまで |
-| verification_open | 公開前の厳密な ArchiveReader.open |
+| verification_open | 公開前の厳密な ArchiveReader.open（P1 段階 A は検証用の記述子から開く） |
+| output_probe | P1 段階 A: ZIP 出力の終端 probe と entry 数の照合 |
 | entry_comparison | P0-A の出力形式・名前・種類・件数・サイズの計画照合 |
 | publish | willPublish（undo 退避も含む）、原本・作業ファイルの同一性検査、rename |
 | reload | reloadAfterMutation 全体 |
-| reload_open / capability_probe | reload 内の reader open / 書き込み可否の再検査 |
+| reload_open / capability_probe | reload 内の fallback reader open / 書き込み可否の再検査 |
+| reader_adoption | P1 段階 A: 公開した inode と検証 reader を照合し、解析を共有する reopen |
 | replay_plan / validate_representability | 保存計画の構築 / 表現可能性の全件検査 |
+| plan_keys | P1 段階 A: 保存計画の key・基底占有・改名先の準備 |
+| representability_probe | P1 段階 A: validate_representability 内の GyoshukuKit probe |
+| save_sheet | P1 段階 A: document.save の開始から completion まで |
 | updater_preparation | ZIP の保存後などに行う編集準備の identity / updater open |
 | editing_install / editing_prepare | 未キャッシュの基底検証 / projection・木・filter の準備 |
 | tree_build / display | EntryNode の木の構築 / controller の同期的な再表示 |
 | owner_restoration | 所有者 ID を保持する tar 保存経路での中間 tar 修正 |
 | fixture_build / total | fixture 作成 / 操作の wall time |
 
-**段は入れ子を含み、全行を足して total にしない。** reload は reload_open と capability_probe を含み、
+**段は入れ子を含み、全行を足して total にしない。** reload は reader_adoption または reload_open と capability_probe を含み、
 editing_prepare は tree_build を含む。同じ段が複数ある tar の所有者 ID 保持経路は calls に現れる。
 通らない段の行は出さない（例: rewriter にアプリ側の work_copy はない）。
 total と段の差には即時編集の計画、undo の後処理、属性保存、作業ディレクトリの片付け、計測出力なども入る。
-display 後に非同期で作る改名索引の完成は編集 total の外で待ち、次の操作へ持ち越さない。
+display 後に非同期で作る改名索引の完成は即時編集 total の外で待ち、次の操作へ持ち越さない。
+P1 段階 A の保存は save_sheet の後も同じ trace 内で編集準備を待ち、total に含める。
+全形式の即時編集・保存（S1 のパスワード probe を含む）は reader_adoption を要求し、reload_open を禁止する。
+ZIP は output_probe を要求し、保存後の updater_preparation を禁止する。保存は save_sheet・plan_keys・
+representability_probe・editing_install・editing_prepare・tree_build・display を要求する。
+段階 A では既存の work_copy 要件を残す。段階 B の単一作業ファイル mode は未実装。
 
 GyoshukuKit の内部には計測を追加していない。ZIP updater の内部 clone は updater_open に含まれ、
 rewriter の本文読み込み・再圧縮は実際に行われる open / mutate / commit の呼び出しに含まれる。

@@ -21,8 +21,8 @@ nonisolated final class ArchiveImportCorrectionTests: XCTestCase {
                 let resolver: ArchiveImportConflict.Resolver = { _ in .init(choice: .replace) }
                 let result = try await session.append(urls: [source], to: "", progress: Progress(),
                                                       resolveConflict: replacing ? resolver : nil)
-                // 公開前の検証と公開後の再読込だけ。projection 用の open は不要。
-                XCTAssertEqual(ReaderOptions.kaitoFinderOpenCount.withLock { $0 } - before, 2,
+                // 公開前の検証だけ開き、公開後はその解析を採用する。
+                XCTAssertEqual(ReaderOptions.kaitoFinderOpenCount.withLock { $0 } - before, 1,
                                "\(format), replacing=\(replacing)")
                 XCTAssertEqual(result.addedPaths, ["added"])
                 XCTAssertNil(result.reloadFailure)

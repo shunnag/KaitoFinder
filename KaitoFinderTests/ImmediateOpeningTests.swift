@@ -251,7 +251,14 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
             try await revert.value
             try await scenarioWait { controller.outlineView.numberOfRows == 1 }
             XCTAssertNotNil(try node("external.txt", in: controller))
+            await document.waitForDeferredPreparationForTesting()
+            XCTAssertNil(controller.listLoadingTokenForTesting)
             XCTAssertFalse(controller.isListLoadingVisible)
+            if mode == .onSave {
+                let snapshot = await document.session!.snapshot()
+                XCTAssertEqual(document.pendingEditor?.baseGeneration, snapshot.generation)
+                XCTAssertEqual(document.pendingEditor?.base, snapshot.entries)
+            }
         }
     }
 

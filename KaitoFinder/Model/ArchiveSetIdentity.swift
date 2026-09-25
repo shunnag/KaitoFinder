@@ -50,6 +50,16 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
         Self(volumes: [try captureVolume(url)], nextVolumeName: nil)
     }
 
+    static func capture(descriptor: Int32, url: URL) throws -> Self {
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0 else { throw refusal }
+        return Self(volumes: [Volume(fileName: url.lastPathComponent,
+            volumeUUID: volumeUUID(for: url, device: UInt64(UInt32(bitPattern: info.st_dev))),
+            inode: info.st_ino, size: UInt64(info.st_size), mode: info.st_mode,
+            modificationSeconds: Int64(info.st_mtimespec.tv_sec),
+            modificationNanoseconds: Int64(info.st_mtimespec.tv_nsec))], nextVolumeName: nil)
+    }
+
     static func capture(layout: ArchiveVolumeLayout) throws -> Self {
         let volumes = try layout.volumes.map { try captureVolume($0.url) }
         var info = stat()

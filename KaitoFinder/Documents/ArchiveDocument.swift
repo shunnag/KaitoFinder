@@ -132,6 +132,18 @@ import Synchronization
     private(set) var sessionCleanup: Task<Void, Never>?
     var generation: UInt64 { session?.generation ?? 0 }
     private var loadingTask: Task<Void, Never>?
+    private var deferredPreparationID: UUID?
+    #if DEBUG
+    nonisolated static let preparationFailureForTesting = TaskLocal<(any Error)?>(wrappedValue: nil)
+    var presentedErrorObserverForTesting: ((any Error) -> Void)?
+
+    func waitForDeferredPreparationForTesting() async {
+        while let task = loadingTask {
+            await task.value
+            if loadingTask == task { return }
+        }
+    }
+    #endif
     private var materialization: ArchiveMaterializationController?
     private(set) var materializationCleanup: Task<Void, Never>?
     private(set) var archiveUndoStack: ArchiveUndoStack
@@ -766,10 +778,11 @@ import Synchronization
     func reloadAfterMutation() async throws {
         guard !closed, let session else { return }
         let loading = beginListLoading()
-        defer { finishListLoading(loading) }
+        var handedOff = false
+        defer { if !handedOff { finishListLoading(loading) } }
         disposeMaterialization()
         try await session.reloadAfterMutation()
-        await displayAfterMutation(loading: loading)
+        handedOff = await displayAfterMutation(loading: loading)
     }
 
     func switchBackingFile(to url: URL, password: String? = nil) async throws {
@@ -862,32 +875,96 @@ import Synchronization
         for (controller, token) in loading { controller.finishListLoading(token) }
     }
 
-    private func displayAfterMutation(loading existingLoading: ListLoading? = nil) async {
-        guard !closed, let session else { return }
+    @discardableResult private func displayAfterMutation(loading existingLoading: ListLoading? = nil) async -> Bool {
+        guard !closed, let session else { return false }
         let loading = existingLoading ?? beginListLoading()
-        defer { finishListLoading(loading) }
+        var handedOff = false
+        defer { if !handedOff { finishListLoading(loading) } }
         disposeMaterialization()
         let snapshot = await session.snapshot()
-        guard !session.isInvalidated else { return }
+        guard !session.isInvalidated else { return false }
         if saveBehavior == .onSave {
             do {
+                if let editor = pendingEditor, editor.changes.isEmpty {
+                    let revision = editor.changes.revision
+                    let configurations = Set(loading.map { $0.controller.filterConfiguration })
+                    // 公開後の一覧は取消しに左右されず、編集の準備だけを背景へ渡す。
+                    let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+                    let filters = await Self.prepareFilters(tree, configurations: configurations)
+                    guard !closed, self.session === session, session.generation == snapshot.generation,
+                          pendingEditor === editor, editor.changes.isEmpty, editor.changes.revision == revision else { return false }
+                    session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
+                                                            changes: editor.changes, staging: nil))
+                    for (controller, token) in loading where controller.isCurrentListLoading(token) {
+                        controller.display(tree, session: session, generation: snapshot.generation,
+                            materializationController: materializationController(), preparedFilter: filters[controller.filterConfiguration], loadingToken: token)
+                    }
+                    let previous = loadingTask
+                    previous?.cancel()
+                    let preparationID = UUID()
+                    deferredPreparationID = preparationID
+                    loadingTask = Task {
+                        defer { finishListLoading(loading) }
+                        @MainActor func isCurrent() -> Bool {
+                            !closed && self.session === session && session.generation == snapshot.generation
+                                && pendingEditor === editor && editor.changes.revision == revision
+                                && deferredPreparationID == preparationID
+                        }
+                        do {
+                            await previous?.value
+                            guard !Task.isCancelled, isCurrent() else { return }
+                            await session.prepareDeferredEditing()
+                            guard !Task.isCancelled, isCurrent() else { return }
+                            #if DEBUG
+                            if let error = Self.preparationFailureForTesting.get() { throw error }
+                            #endif
+                            try await editor.install(base: snapshot.entries, generation: snapshot.generation,
+                                format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: true)
+                            guard !Task.isCancelled, isCurrent() else { return }
+                            let prepared = try await editor.prepare(generation: snapshot.generation, filters: configurations,
+                                                                    baseTree: tree, checksCancellation: true)
+                            guard !Task.isCancelled, isCurrent() else { return }
+                            session.setPendingReadSnapshot(prepared.reading)
+                        } catch {
+                            finishListLoading(loading)
+                            if isCurrent(), !(error is CancellationError) { presentPreparationError(error) }
+                        }
+                    }
+                    handedOff = true
+                    return true
+                }
                 await session.prepareDeferredEditing()
-                guard !closed, self.session === session, session.generation == snapshot.generation else { return }
+                guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
                 try await pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: false)
-                guard !closed, self.session === session, session.generation == snapshot.generation else { return }
+                guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
                 try await displayPending(checksCancellation: false)
             } catch {
                 finishListLoading(loading)
-                if !closed { presentError(error) }
+                if !closed { presentPreparationError(error) }
             }
-            return
+            return false
         }
         let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
-        guard !closed, self.session === session, session.generation == snapshot.generation else { return }
+        guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
         for (controller, token) in loading where controller.isCurrentListLoading(token) {
             controller.display(tree, session: session, generation: snapshot.generation,
                                materializationController: materializationController(), indexingRenames: true)
         }
+        return false
+    }
+
+    @concurrent private static func prepareFilters(_ tree: EntryNode, configurations: Set<EntryTreeFilter.Configuration>) async
+        -> [EntryTreeFilter.Configuration: EntryTreeFilter] {
+        Dictionary(uniqueKeysWithValues: configurations.map {
+            ($0, EntryTreeFilter(root: tree, query: $0.query, showsHiddenFiles: $0.showsHiddenFiles))
+        })
+    }
+
+    private func presentPreparationError(_ error: any Error) {
+        #if DEBUG
+        if let observer = presentedErrorObserverForTesting { observer(error); return }
+        #endif
+        presentError(error)
     }
 
     /// 公開待ちの文書があっても、全ての文書へ先に取消しを届ける。
@@ -1043,7 +1120,7 @@ import Synchronization
             do { try super.revert(toContentsOf: url, ofType: typeName) }
             catch { finishListLoading(loading); throw error }
             loadingTask?.cancel()
-            loadingTask = Task { await displayAfterMutation(loading: loading) }
+            loadingTask = Task { _ = await displayAfterMutation(loading: loading) }
             return
         }
         guard !hasWorkInFlight, !closed, url == (fileURL ?? session?.sourceURL) else { throw ArchiveEditError.staleSelection }
@@ -1633,7 +1710,8 @@ extension ArchiveDocument {
         try Task.checkCancellation()
         guard let session, pendingEditor != nil, !closed else { throw CancellationError() }
         let loading = beginListLoading()
-        defer { finishListLoading(loading) }
+        var handedOff = false
+        defer { if !handedOff { finishListLoading(loading) } }
         try await synchronizeDeferredLocation()
         var changed = false
         do { try await session.verifyDeferredIdentity() }
@@ -1645,7 +1723,7 @@ extension ArchiveDocument {
         undoActions.removeAll()
         await stagingCleanup?.value
         updateChangeCount(withToken: token, for: .saveOperation)
-        await displayAfterMutation(loading: loading)
+        handedOff = await displayAfterMutation(loading: loading)
         fileModificationDate = modificationDate
     }
 

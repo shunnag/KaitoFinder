@@ -252,13 +252,15 @@ nonisolated struct ArchiveEditPlan: Sendable {
     }
 
     func validate(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
-                  allowsRepeatedRenames: Bool = false, occupancy: ArchivePathOccupancy.Overlay? = nil) throws {
+                  allowsRepeatedRenames: Bool = false, occupancy: ArchivePathOccupancy.Overlay? = nil,
+                  baseKeys: [String]? = nil) throws {
         for entry in removals + renames.map(\.entry) { try Self.validate(entry, entries: entries) }
-        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames, occupancy: occupancy)
+        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames, occupancy: occupancy, baseKeys: baseKeys)
     }
 
     func validateChanges(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
-                         allowsRepeatedRenames: Bool = false, occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws {
+                         allowsRepeatedRenames: Bool = false, occupancy cached: ArchivePathOccupancy.Overlay? = nil,
+                         baseKeys: [String]? = nil) throws {
         let removed = Set(removals.map(\.index))
         guard !renames.isEmpty || !additions.isEmpty else { return }
         var initial = ArchivePathOccupancy()
@@ -274,7 +276,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
         if cached != nil {
             for index in removed {
                 let entry = entries[index]
-                occupied.remove(Self.key(entry.name), directory: entry.kind == .directory)
+                occupied.remove(baseKeys?[index] ?? Self.key(entry.name), directory: entry.kind == .directory)
             }
         }
         for change in renames {
@@ -284,7 +286,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory, format: format)
             let key = Self.key(path)
             // updater は予約順で衝突を調べる。最終形だけでなく途中の全予約も先に検証する。
-            if let previous = names[change.entry.index] ?? (cached == nil ? nil : Self.key(change.entry.expectedName)) {
+            if let previous = names[change.entry.index] ?? (cached == nil ? nil : baseKeys?[change.entry.index] ?? Self.key(change.entry.expectedName)) {
                 occupied.remove(previous, directory: change.entry.isDirectory)
             }
             guard !occupied.collides(key, directory: change.entry.isDirectory) else {
@@ -320,6 +322,9 @@ nonisolated struct ArchiveEditPlan: Sendable {
     }
 
     static func key(_ path: String) -> String {
+        #if DEBUG
+        ArchiveTestCounters.keys.get()?.increment()
+        #endif
         let displayed = displayPath(path)
         return (displayed.hasSuffix("/") ? String(displayed.dropLast()) : displayed).precomposedStringWithCanonicalMapping
     }
@@ -394,7 +399,8 @@ nonisolated enum ArchiveEditTransaction {
     static func run(plan: ArchiveEditPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveEditResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
@@ -402,6 +408,7 @@ nonisolated enum ArchiveEditTransaction {
         progress.completedUnitCount = 0
         let identity = try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
+            verifiedOutput: verifiedOutput,
             expectedOutput: .init(existing: plan.existing, removing: plan.removals.map(\.index), renaming: plan.renames, mode: mode)) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try plan.verifyNames(updater.entryNames)
@@ -428,6 +435,7 @@ nonisolated enum ArchiveImportTransaction {
     #if DEBUG
     static let willAddFileForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
     static let didCommitForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
+    static let didOpenVerificationSourceForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
     static let didVerifyForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
     static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
     #endif
@@ -435,11 +443,13 @@ nonisolated enum ArchiveImportTransaction {
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
+                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil) throws -> ArchiveImportResult {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
         let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
+            verifiedOutput: verifiedOutput,
             expectedOutput: .init(existing: plan.existing, additions: [.init(adding: plan.path, kind: .directory)], mode: mode)) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
             try ArchiveImportPlan.checkCancellation(progress)
@@ -453,7 +463,8 @@ nonisolated enum ArchiveImportTransaction {
     static func run(plan: ArchiveImportPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil) throws -> ArchiveImportResult {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
@@ -473,7 +484,7 @@ nonisolated enum ArchiveImportTransaction {
             for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
             try willPublish?()
         },
-            expectedIdentity: expectedIdentity, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
+            expectedIdentity: expectedIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
             expectedOutput: expectedOutput) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing)
             if !plan.replacingEntries.isEmpty {
@@ -510,6 +521,7 @@ nonisolated enum ArchiveImportTransaction {
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: ArchiveSetIdentity? = nil,
+                        verifiedOutput: ArchiveVerifiedOutputSink? = nil,
                         additionalQuarantine: Data? = nil,
                         registry: PendingWorkRegistry = .shared,
                         publication: ArchiveSavePublication? = nil,
@@ -583,10 +595,25 @@ nonisolated enum ArchiveImportTransaction {
         #endif
         // 検証前の実体を記録し、公開直前までの差し替え・書き換えを拒否する。
         let identity: ArchiveSetIdentity
+        let source: ArchiveVerifiedFileSource
+        let verified: ArchiveReader
+        let adoptable = ArchiveVerifiedOutput.usesPublishedName(archive, format: outputFormat)
+        let hint = adoptable ? archive.standardizedFileURL : work
         do {
-            identity = try ArchiveSetIdentity.capture(url: work)
-            let verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
-                try ArchiveReader.open(url: work, options: .kaitoFinderVerification(password: options.password))
+            source = try ArchiveVerifiedFileSource(url: work)
+            #if DEBUG
+            try didOpenVerificationSourceForTesting.get()?(work)
+            #endif
+            guard try ArchiveSetIdentity.capture(url: work) == source.identity else { throw ArchivePublicationError.verificationFailed }
+            identity = source.identity
+            verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
+                try ArchiveReader.open(source: source, sourceURL: hint, options: .kaitoFinderVerification(password: options.password))
+            }
+            if outputFormat == .zip {
+                try ArchiveStageDiagnostics.measure(.outputProbe) {
+                    let probe = try ArchiveUpdater.probe(url: work)
+                    guard probe.entryCount == UInt64(verified.entries.count) else { throw ArchivePublicationError.verificationFailed }
+                }
             }
             try ArchiveStageDiagnostics.measure(.entryComparison) { try expectedOutput.validate(verified, format: outputFormat) }
         } catch is CancellationError { throw CancellationError() }
@@ -607,7 +634,7 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
-        guard let current = try? ArchiveSetIdentity.capture(url: work), current == identity else {
+        guard let current = try? ArchiveSetIdentity.capture(url: work), current == identity, source.isUnchanged() else {
             throw ArchivePublicationError.verificationFailed
         }
         try (publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
@@ -615,6 +642,10 @@ nonisolated enum ArchiveImportTransaction {
         #if DEBUG
         didPublishForTesting.get()?(archive)
         #endif
+        if adoptable {
+            verifiedOutput?.output = ArchiveVerifiedOutput(identity: identity, reader: verified, source: source,
+                hint: hint, verificationPassword: options.password, format: outputFormat)
+        }
         progress.completedUnitCount += 1
         return identity
     }

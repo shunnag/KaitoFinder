@@ -124,6 +124,8 @@ nonisolated final class DeferredSplitWorkCapture: Sendable {
                 if let error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
+        // 保存の completion は一覧まで。基底の検査は背景の準備が終わってから照合する。
+        await document.waitForDeferredPreparationForTesting()
         if hadChanges {
             XCTAssertNil(document.deferredReloadFailure)
             let published = try XCTUnwrap(document.splitSaveResult), layout = try XCTUnwrap(session.volumeLayout)
