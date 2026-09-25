@@ -76,7 +76,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P1b | 暗号化の設定・変更・解除を再圧縮なしで（ZIP）。AES の鍵の導出（entry ごとの PBKDF2）を並列にする | KaitoKit, GyoshukuKit, KaitoFinder |
 | P1c | 編集前の全件のパスワード確認（`verifyBeforeEditing`）の鍵の導出を並列にする（50 万件の AES で直列 152 s）。[KaitoFinder 実装・検証](../verification/2026-09-25-p1c.md)、通常ビルド・S1 実測待ち | KaitoKit, KaitoFinder |
 | P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで）。GyoshukuKit efdb651・da0af7b（FAT32 / exFAT の修正）、KaitoFinder S13 [実装と検証](../verification/2026-09-26-p2-tar-update.md)。受入計測も合格（B-P2 を採り直して比較） | GyoshukuKit, KaitoFinder |
-| P3 | 圧縮 tar の区切り単位の編集（KaitoKit の member 配置と区切りの地図、xz / bzip2 / gzip の継ぎ、自前の書き込みの区切りの配置、復号済みの tar の再利用） | 3 つとも |
+| P3 | 圧縮 tar の区切り単位の編集。KK d35f2da / GK d5c51b3、KF S16 [実装と検証](../verification/2026-09-26-p3-compressed-tar-update.md)。通常全件1,508件で判明した hard-link の期待値を補正。修正後の hosted・非APFS実機・B-P3 受入計測待ち | 3 つとも |
 | P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集 | KaitoKit, GyoshukuKit |
 | P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで | KaitoKit, GyoshukuKit |
 | P6 | 取込み・新規作成・移動の進捗のバイト化（GyoshukuKit の公開 API） | GyoshukuKit, KaitoFinder |

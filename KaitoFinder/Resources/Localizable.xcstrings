@@ -162,6 +162,326 @@
         }
       }
     },
+    "最初の保存でアーカイブ全体を再圧縮します" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Při prvním ukládání se celý archiv znovu komprimuje"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hele det komprimerede arkiv komprimeres igen ved første arkivering"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim ersten Sichern wird das gesamte Archiv neu komprimiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first save recompresses the entire archive"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al guardar por primera vez se vuelve a comprimir todo el archivo comprimido"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ensimmäinen tallennus pakkaa koko arkiston uudelleen"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le premier enregistrement recompresse toute l’archive"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पहली बार सहेजने पर पूरा आर्काइव फिर से कंप्रेस होगा"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan pertama akan mengompresi ulang seluruh arsip"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il primo salvataggio ricomprime l’intero archivio"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最初の保存でアーカイブ全体を再圧縮します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "처음 저장하면 전체 아카이브를 다시 압축합니다"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Penyimpanan pertama akan memampatkan semula seluruh arkib"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hele arkivet komprimeres på nytt ved første lagring"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bij de eerste keer bewaren wordt het hele archief opnieuw gecomprimeerd"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pierwsze zachowanie powoduje ponowną kompresję całego archiwum"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salvar pela primeira vez compacta novamente todo o arquivo comprimido"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar pela primeira vez volta a comprimir todo o arquivo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При первом сохранении весь архив сжимается заново"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hela arkivet komprimeras om när det sparas första gången"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การบันทึกครั้งแรกจะบีบอัดที่เก็บถาวรทั้งหมดอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İlk kaydetme tüm arşivi yeniden sıkıştırır"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Під час першого збереження весь архів стискається знову"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lần lưu đầu tiên sẽ nén lại toàn bộ tệp lưu trữ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次保存时将重新压缩整个归档"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次儲存時會重新壓縮整個封存檔"
+          }
+        }
+      }
+    },
+    "最初の編集でアーカイブ全体を再圧縮します" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Při první úpravě se celý archiv znovu zkomprimuje."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ved første redigering komprimeres hele arkivet igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim ersten Bearbeiten wird das gesamte Archiv erneut komprimiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first edit will recompress the entire archive."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al editar por primera vez, se volverá a comprimir todo el archivo comprimido"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ensimmäinen muokkaus pakkaa koko arkiston uudelleen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La première modification recompressera toute l’archive"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पहली बार संपादन करने पर पूरा आर्काइव फिर से कंप्रेस होगा।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pengeditan pertama akan mengompresi ulang seluruh arsip."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La prima modifica ricomprimerà l’intero archivio"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最初の編集でアーカイブ全体を再圧縮します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "처음 편집하면 전체 아카이브가 다시 압축됩니다"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pengeditan pertama akan memampatkan semula keseluruhan arkib."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Den første redigeringen komprimerer hele arkivet på nytt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bij de eerste bewerking wordt het hele archief opnieuw gecomprimeerd."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pierwsza edycja spowoduje ponowną kompresję całego archiwum."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A primeira edição recomprimirá todo o arquivo comprimido"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A primeira edição irá comprimir novamente todo o arquivo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При первом редактировании весь архив будет сжат заново."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vid den första redigeringen komprimeras hela arkivet på nytt."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การแก้ไขครั้งแรกจะบีบอัดที่เก็บถาวรทั้งหมดใหม่"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İlk düzenleme, arşivin tamamını yeniden sıkıştırır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Під час першого редагування весь архів буде стиснуто знову."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lần sửa đầu tiên sẽ nén lại toàn bộ tệp lưu trữ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次编辑时将重新压缩整个归档"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次編輯時將重新壓縮整個封存檔"
+          }
+        }
+      }
+    },
     "自動（%lld）" : {
       "extractionState" : "manual",
       "localizations" : {

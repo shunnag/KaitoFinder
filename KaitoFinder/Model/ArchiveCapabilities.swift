@@ -39,11 +39,14 @@ nonisolated struct ArchiveCapabilities: Sendable {
     let refusal: Refusal?
     let splitSave: Bool
     let splitIrreversible: Bool
+    let compressedTarAssessment: CompressedTarAssessment?
 
-    init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false) {
+    init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false,
+         compressedTarAssessment: CompressedTarAssessment? = nil) {
         self.mode = mode
         self.splitSave = splitSave
         self.splitIrreversible = splitIrreversible
+        self.compressedTarAssessment = compressedTarAssessment
         refusal = nil
     }
 
@@ -52,12 +55,29 @@ nonisolated struct ArchiveCapabilities: Sendable {
         self.refusal = refusal
         splitSave = false
         splitIrreversible = false
+        compressedTarAssessment = nil
     }
 
     var canEdit: Bool { refusal == nil }
     var rewriteNotice: String? {
         guard case .rewrite = mode else { return nil }
         return String(localized: "編集するとアーカイブ全体を再圧縮します")
+    }
+
+    func editNotice(options: WriterOptions, onSave: Bool) -> String? {
+        switch mode?.resolved(with: options) {
+        case .rewrite where mode != .update(.tar):
+            break
+        case .update(let format) where [.tarGzip, .tarBzip2, .tarXZ].contains(format):
+            if let assessment = compressedTarAssessment {
+                guard assessment.nextEditReencodesEverything else { return nil }
+                return onSave ? String(localized: "最初の保存でアーカイブ全体を再圧縮します")
+                    : String(localized: "最初の編集でアーカイブ全体を再圧縮します")
+            }
+        default: return nil
+        }
+        return onSave ? String(localized: "保存するとアーカイブ全体を再圧縮します")
+            : String(localized: "編集するとアーカイブ全体を再圧縮します")
     }
     var readOnlyReason: String? { readOnlyReason(bundle: .main) }
 
@@ -181,9 +201,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 case .tar:
                     // TarUpdater の R7 と同じく、一巻だけでも分割名は書き直す。
                     mode = ArchiveVolumeSet.parse(fileName: url.lastPathComponent) == nil ? .update(.tar) : .rewrite(.tar)
-                case .gzip: mode = .rewrite(.tarGzip)
-                case .bzip2: mode = .rewrite(.tarBzip2)
-                case .xz: mode = .rewrite(.tarXZ)
+                case .gzip: mode = .update(.tarGzip)
+                case .bzip2: mode = .update(.tarBzip2)
+                case .xz: mode = .update(.tarXZ)
                 case .compress: return Self(refusal: .format("tar.Z"))
                 case .zstd: return Self(refusal: .format("tar.zst"))
                 case .lz4: return Self(refusal: .format("tar.lz4"))
@@ -211,6 +231,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 if let set = reader.volumeSet { return Self(refusal: splitRefusal(for: url, scheme: set.scheme)) }
                 try ArchiveRewriter.probe(reader: reader, format: mode.outputFormat)
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
+                if case .update(let format) = mode, [.tarGzip, .tarBzip2, .tarXZ].contains(format) {
+                    return Self(mode: mode, compressedTarAssessment: CompressedTarUpdater.assess(reader: reader))
+                }
             }
             return Self(mode: mode)
         } catch { return Self(refusal: refusal(for: error)) }

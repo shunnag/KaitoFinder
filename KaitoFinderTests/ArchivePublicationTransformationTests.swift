@@ -6,8 +6,8 @@ import XCTest
 
 nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
     private func edit(_ archive: URL, removing: [String] = ["remove"], renaming: [String: String] = [:],
-                      deferred: Bool) async throws {
-        let session = try ArchiveSession(url: archive)
+                      deferred: Bool, options: WriterOptions = .init()) async throws {
+        let session = try ArchiveSession(url: archive, writerOptions: { _ in options })
         let snapshot = try await session.deferredSnapshot()
         func reference(_ entry: ArchiveEntry) -> ArchivePendingChanges.BaseReference {
             .init(index: entry.index, expectedName: entry.name, baseGeneration: snapshot.generation)
@@ -44,45 +44,58 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
 
     func testHardLinkDirectTargetsAndChainsPublishImmediatelyAndDeferred() async throws {
         for suffix in ["tar", "tar.gz", "tar.bz2", "tar.xz"] {
-            for deferred in [false, true] {
-                for action in ["remove-target", "rename-target", "remove-link", "remove-both"] {
-                    let fixture = try ScenarioFixture(script: #"""
-                    mode = 'w' + ({'gz': ':gz', 'bz2': ':bz2', 'xz': ':xz'}.get(p.split('.')[-1], ''))
-                    with tarfile.open(p, mode) as t:
-                        m = tarfile.TarInfo('target'); m.size = 7; t.addfile(m, io.BytesIO(b'payload'))
-                        for name, target in [('direct', 'target'), ('chain', 'direct'), ('second', 'target')]:
-                            m = tarfile.TarInfo(name); m.type = tarfile.LNKTYPE; m.linkname = target; t.addfile(m)
-                    """#, suffix: suffix)
-                    let before = try ArchiveReader.open(url: fixture.archive).entries
-                    XCTAssertEqual(before.map(\.kind), [.file, .hardlink, .hardlink, .hardlink])
-                    XCTAssertEqual(before.map { $0.formatSpecific["hardLinkTargetIndex"] }, [nil, "0", "1", "0"])
-                    let removed: [String]
-                    switch action {
-                    case "remove-target": removed = ["target"]
-                    case "remove-link": removed = ["direct"]
-                    case "remove-both": removed = ["target", "direct"]
-                    default: removed = []
+            try await assertHardLinkPublications(suffix: suffix, usesUpdaterRule: true)
+        }
+    }
+
+    func testCompressedTarHardLinksUseRewriterRuleWithAdditionsFirst() async throws {
+        try await assertHardLinkPublications(suffix: "tar.gz", options: .init(additionPlacement: .beginning),
+                                            usesUpdaterRule: false)
+    }
+
+    private func assertHardLinkPublications(suffix: String, options: WriterOptions = .init(),
+                                            usesUpdaterRule: Bool) async throws {
+        for deferred in [false, true] {
+            for action in ["remove-target", "rename-target", "remove-link", "remove-both"] {
+                let context = "\(suffix) \(action) deferred=\(deferred) placement=\(options.additionPlacement)"
+                let fixture = try ScenarioFixture(script: #"""
+                mode = 'w' + ({'gz': ':gz', 'bz2': ':bz2', 'xz': ':xz'}.get(p.split('.')[-1], ''))
+                with tarfile.open(p, mode) as t:
+                    m = tarfile.TarInfo('target'); m.size = 7; t.addfile(m, io.BytesIO(b'payload'))
+                    for name, target in [('direct', 'target'), ('chain', 'direct'), ('second', 'target')]:
+                        m = tarfile.TarInfo(name); m.type = tarfile.LNKTYPE; m.linkname = target; t.addfile(m)
+                """#, suffix: suffix)
+                let before = try ArchiveReader.open(url: fixture.archive).entries
+                XCTAssertEqual(before.map(\.kind), [.file, .hardlink, .hardlink, .hardlink], context)
+                XCTAssertEqual(before.map { $0.formatSpecific["hardLinkTargetIndex"] }, [nil, "0", "1", "0"], context)
+                let removed: [String]
+                switch action {
+                case "remove-target": removed = ["target"]
+                case "remove-link": removed = ["direct"]
+                case "remove-both": removed = ["target", "direct"]
+                default: removed = []
+                }
+                try await edit(fixture.archive, removing: removed,
+                               renaming: action == "rename-target" ? ["target": "renamed"] : [:],
+                               deferred: deferred, options: options)
+                let reader = try ArchiveReader.open(url: fixture.archive)
+                XCTAssertEqual(reader.entries.count, 4 - removed.count, context)
+                for entry in reader.entries {
+                    var direct = entry.name == "chain" ? "direct" : "target"
+                    let file: Bool
+                    if usesUpdaterRule {
+                        file = entry.index == 0
+                        if removed.contains(direct) { direct = reader.entries[0].name }
+                    } else {
+                        file = entry.name == "target" || entry.name == "renamed" || removed.contains(direct)
                     }
-                    try await edit(fixture.archive, removing: removed,
-                                   renaming: action == "rename-target" ? ["target": "renamed"] : [:], deferred: deferred)
-                    let reader = try ArchiveReader.open(url: fixture.archive)
-                    XCTAssertEqual(reader.entries.count, 4 - removed.count, "\(suffix) \(action) deferred=\(deferred)")
-                    for entry in reader.entries {
-                        var direct = entry.name == "chain" ? "direct" : "target"
-                        let file: Bool
-                        if suffix == "tar" {
-                            file = entry.index == 0
-                            if removed.contains(direct) { direct = reader.entries[0].name }
-                        } else {
-                            file = entry.name == "target" || entry.name == "renamed" || removed.contains(direct)
-                        }
-                        XCTAssertEqual(entry.kind, file ? .file : .hardlink, entry.name)
-                        XCTAssertEqual(entry.uncompressedSize, file ? 7 : 0, entry.name)
-                        if file { XCTAssertEqual(try reader.read(entry), Data("payload".utf8), entry.name) }
-                        if !file {
-                            XCTAssertEqual(entry.formatSpecific["linkPath"],
-                                           direct == "target" && action == "rename-target" ? "renamed" : direct)
-                        }
+                    let memberContext = "\(context) \(entry.name)"
+                    XCTAssertEqual(entry.kind, file ? .file : .hardlink, memberContext)
+                    XCTAssertEqual(entry.uncompressedSize, file ? 7 : 0, memberContext)
+                    if file { XCTAssertEqual(try reader.read(entry), Data("payload".utf8), memberContext) }
+                    if !file {
+                        XCTAssertEqual(entry.formatSpecific["linkPath"],
+                                       direct == "target" && action == "rename-target" ? "renamed" : direct, memberContext)
                     }
                 }
             }

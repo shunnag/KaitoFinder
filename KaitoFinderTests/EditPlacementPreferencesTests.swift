@@ -7,6 +7,27 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class EditPlacementPreferencesTests: XCTestCase {
+    #if DEBUG
+    func testProbePlacementEnvironmentMatchesSessionOptionsAndRequiredStage() throws {
+        for placement in [nil, "end", "beginning"] {
+            var environment = ["KAITOFINDER_PERFORMANCE_PROBES": "1"]
+            environment["KAITOFINDER_PROBE_ADDITION_PLACEMENT"] = placement
+            let configuration = try ArchiveProbeConfiguration(environment: environment)
+            var preferences = ArchivePreferences()
+            preferences.additionPosition = configuration.additionPosition
+            for format: ProbeArchiveFormat in [.tar, .tarGzip, .tarBzip2, .tarXZ] {
+                let mode = ArchiveCapabilities.Mode.update(format.writerFormat).resolved(with: preferences.writerOptions(for: format.writerFormat))
+                XCTAssertEqual(mode, placement == "beginning" ? .rewrite(format.writerFormat) : .update(format.writerFormat))
+                XCTAssertEqual(format.editorStage(placement: configuration.additionPosition), placement == "beginning" ? .rewriterOpen : .updaterOpen)
+            }
+            XCTAssertEqual(preferences.writerOptions(for: .zip).additionPlacement, .end)
+            XCTAssertEqual(ProbeArchiveFormat.zip.editorStage(placement: configuration.additionPosition), .updaterOpen)
+        }
+        XCTAssertThrowsError(try ArchiveProbeConfiguration(environment: ["KAITOFINDER_PERFORMANCE_PROBES": "1",
+            "KAITOFINDER_PROBE_ADDITION_PLACEMENT": "unknown"]))
+    }
+    #endif
+
     @MainActor func testRoundTripAndUnknownValuesUseEndAndKeep() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         XCTAssertEqual(store.preferences.additionPosition, .end); XCTAssertEqual(store.preferences.tarCarriedOwnerIDs, .keep)

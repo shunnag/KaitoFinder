@@ -220,6 +220,47 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         }
     }
 
+    @MainActor func testCompressedTarNoticeRefreshesWhenPreferencesChange() async throws {
+        let fixture = try DeferredSaveFixture(format: .tarGzip), document = fixture.document
+        defer { document.close() }
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        document.addWindowController(controller)
+        controller.display(EntryNode.tree(from: try await document.projectedEntries()), session: document.session)
+        XCTAssertEqual(controller.capabilityNotice.stringValue, "")
+        fixture.store.preferences.additionPosition = .beginning
+        XCTAssertEqual(controller.capabilityNotice.stringValue, String(localized: "保存するとアーカイブ全体を再圧縮します"))
+        fixture.store.preferences.additionPosition = .end
+        XCTAssertEqual(controller.capabilityNotice.stringValue, "")
+        fixture.store.preferences.tarCarriedOwnerIDs = .reset
+        XCTAssertEqual(controller.capabilityNotice.stringValue, String(localized: "保存するとアーカイブ全体を再圧縮します"))
+        fixture.store.preferences.tarCarriedOwnerIDs = .keep
+        XCTAssertEqual(controller.capabilityNotice.stringValue, "")
+    }
+
+    @MainActor func testExternalCompressedTarNoticeDisappearsAfterFirstSave() async throws {
+        let directory = try ArchiveTestDirectory()
+        let archive = try CompressedTarFixture.compress(CompressedTarFixture.externalBytes, in: directory, format: .tarGzip)
+        let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
+        store.preferences.saveBehavior = .onSave
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)
+        defer { document.close() }
+        try document.read(from: archive, ofType: "public.data")
+        document.fileURL = archive; document.fileType = "public.data"
+        document.fileModificationDate = try FileManager.default.attributesOfItem(atPath: archive.path)[.modificationDate] as? Date
+        let controller = ArchiveWindowController(preferencesStore: store)
+        document.addWindowController(controller)
+        controller.display(EntryNode.tree(from: try await document.projectedEntries()), session: document.session)
+        XCTAssertEqual(controller.capabilityNotice.stringValue, String(localized: "最初の保存でアーカイブ全体を再圧縮します"))
+        _ = try await document.createFolder(in: "", baseName: "new", progress: Progress())
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            document.save(to: archive, ofType: "public.data", for: .saveOperation) { error in
+                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
+        XCTAssertEqual(controller.capabilityNotice.stringValue, "")
+        withExtendedLifetime((directory, defaults)) {}
+    }
+
     @MainActor func testProjectionRefreshesNoticeAndEnablesPendingExtractionActions() async throws {
         let fixture = try DeferredSaveFixture(format: .tarGzip), document = fixture.document
         defer { document.close() }
@@ -227,7 +268,7 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         document.addWindowController(controller)
         let session = try XCTUnwrap(document.session)
         controller.display(EntryNode.tree(from: try await document.projectedEntries()), session: session)
-        XCTAssertEqual(controller.capabilityNotice.stringValue, String(localized: "保存するとアーカイブ全体を再圧縮します"))
+        XCTAssertEqual(controller.capabilityNotice.stringValue, "")
         _ = try await document.append(urls: [fixture.file("added")], to: "", progress: Progress())
         XCTAssertTrue(controller.capabilityNotice.stringValue.contains(String(localized: "未保存の変更\(1)件")))
         let entry = try XCTUnwrap((0..<controller.outlineView.numberOfRows).compactMap { controller.outlineView.item(atRow: $0) as? EntryNode }.first { $0.name == "added" })
@@ -246,7 +287,7 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         XCTAssertTrue(document.pendingChanges.isEmpty)
         XCTAssertTrue(controller.capabilityNotice.stringValue.contains(String(localized: "未保存の変更\(0)件")))
         try await fixture.save()
-        XCTAssertEqual(controller.capabilityNotice.stringValue, String(localized: "保存するとアーカイブ全体を再圧縮します"))
+        XCTAssertEqual(controller.capabilityNotice.stringValue, "")
     }
 
     @MainActor func testPendingSidebarOpenWithMenuAndDragCarryCurrentOriginAndBytes() async throws {

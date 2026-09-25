@@ -41,6 +41,20 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testFirstCompressedTarEditWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["最初の編集でアーカイブ全体を再圧縮します", "最初の保存でアーカイブ全体を再圧縮します"] {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated"); XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+    }
+
     func testCompressionThreadWordingHasAllTwentySixTranslations() throws {
         let keys = ["圧縮の並列数:", "自動（%lld）", "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。",
                     "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。"]

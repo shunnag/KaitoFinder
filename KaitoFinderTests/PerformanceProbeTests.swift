@@ -1,6 +1,6 @@
 import AppKit
-import GyoshukuKit
-import KaitoKit
+@_spi(Testing) import GyoshukuKit
+@_spi(TarEditLayout) import KaitoKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -19,8 +19,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         ArchiveProbeTrace.header()
         preserveArchiveWindowFrame()
         for format in configuration.formats {
-            let fixture = try await ArchiveProbeFixtures.fixture(.entries, format: format, configuration: configuration)
-            try await probeOpening(fixture)
+            for kind in ArchiveProbeFixture.Kind.allCases {
+                let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
+                try await probeOpening(fixture)
+            }
         }
         #else
         throw XCTSkip("Stage probes require DEBUG")
@@ -56,6 +58,40 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
                 for nearStart in [true, false] {
                     try await Self.probeDirect(fixture, nearStart: nearStart)
+                }
+            }
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
+    @MainActor func testTenConsecutiveCompressedTarEditsWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        ArchiveProbeTrace.header()
+        for format in configuration.formats where [.tarGzip, .tarBzip2, .tarXZ].contains(format) {
+            for kind in ArchiveProbeFixture.Kind.allCases {
+                let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
+                try await withDocument(fixture, mode: .immediate) { document, controller, archive, _ in
+                    for index in 1...10 {
+                        let trace = ArchiveProbeTrace(fixture: fixture, mode: "consecutive", operation: "new_folder_\(index)")
+                        try await Self.traced(trace, output: archive) {
+                            try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
+                                if let snapshot = output.reader?.tarEditingSnapshot() {
+                                    // K5 exposes the resulting ByteSource, including materialized images after its leaf/fragment limit.
+                                    let storage = String(reflecting: type(of: snapshot.image))
+                                    ArchiveProbeTrace.line("PROBE-SPLICE-IMAGE\t\(format.rawValue)\t\(kind.rawValue)\t\(index)\t\(storage)\t\(snapshot.image.length)")
+                                }
+                            }) {
+                                let result = try await document.createFolder(in: "", baseName: "consecutive-\(index)", progress: Progress())
+                                XCTAssertNil(result.reloadFailure)
+                            }
+                        }
+                        trace.requireRoute(placement: configuration.additionPosition)
+                        trace.require([.readerAdoption]); trace.forbid([.reloadOpen])
+                        try await waitForRenameIndex(controller)
+                    }
                 }
             }
         }
@@ -100,6 +136,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let recordsRecents = documents.recordsRecentDocuments, preferences = ArchivePreferencesStore.shared.preferences
         documents.recordsRecentDocuments = false
         ArchivePreferencesStore.shared.preferences.saveBehavior = .immediate
+        ArchivePreferencesStore.shared.preferences.additionPosition = try ArchiveProbeConfiguration().additionPosition
         defer {
             documents.recordsRecentDocuments = recordsRecents
             ArchivePreferencesStore.shared.preferences = preferences
@@ -144,6 +181,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let store = ArchivePreferencesStore(defaults: defaults.defaults)
         store.preferences = ArchivePreferences()
         store.preferences.saveBehavior = mode
+        store.preferences.additionPosition = try ArchiveProbeConfiguration().additionPosition
         let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)
         defer { document.close(); withExtendedLifetime((directory, defaults)) {} }
         do {
@@ -317,9 +355,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             }
             trace.require([.total, .mutate, .commit, .verificationOpen, .entryComparison, .publish,
                            .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display,
-                           (fixture.format == .zip || fixture.format == .tar) ? .updaterOpen : .rewriterOpen])
+                           fixture.format.editorStage(placement: try ArchiveProbeConfiguration().additionPosition)])
             trace.forbid([.reloadOpen])
-            if fixture.format == .tar { trace.forbid([.rewriterOpen, .workCopy]) }
+            trace.requireRoute(placement: try ArchiveProbeConfiguration().additionPosition)
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy]) }
             XCTAssertEqual(conflicts.withLock { $0 }, operation == .replaceFile ? 1 : 0)
             let entries = try await document.projectedEntries()
@@ -387,10 +425,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             trace.require([.total, .replayPlan, .validateRepresentability, .replay, .commit, .verificationOpen,
                            .entryComparison, .publish, .reload, .readerAdoption, .capabilityProbe,
                            .editingInstall, .editingPrepare, .treeBuild, .display,
-                           (fixture.format == .zip || fixture.format == .tar) ? .updaterOpen : .rewriterOpen])
+                           fixture.format.editorStage(placement: try ArchiveProbeConfiguration().additionPosition)])
             trace.require([.saveSheet, .planKeys, .representabilityProbe])
             trace.forbid([.reloadOpen])
-            if fixture.format == .tar { trace.forbid([.rewriterOpen, .workCopy]) }
+            trace.requireRoute(placement: try ArchiveProbeConfiguration().additionPosition)
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy, .updaterPreparation]) }
             XCTAssertNil(document.deferredReloadFailure)
             let saved = try await document.projectedEntries().map(\.name).sorted()
@@ -408,28 +446,41 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let index = nearStart ? 0 : fixture.entryCount - 1
         do {
             try ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
-                try ArchiveStageDiagnostics.measure(.total) {
-                    let options = ArchivePreferences().writerOptions(for: fixture.format.writerFormat)
-                    let editor: any ArchiveEditing
-                    if fixture.format == .zip {
-                        editor = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: input, options: options) }
-                    } else if fixture.format == .tar {
-                        editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
-                            try TarUpdater.open(url: input, output: output, options: options)
-                        }
-                    } else {
-                        editor = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
-                            try ArchiveRewriter.open(url: input, output: output, format: fixture.format.writerFormat, options: options)
-                        }
+                var preferences = ArchivePreferences()
+                preferences.additionPosition = try ArchiveProbeConfiguration().additionPosition
+                let options = preferences.writerOptions(for: fixture.format.writerFormat)
+                // Session opening is measured separately. Keep the independent reader out of a nested measurement closure.
+                let compressedReader = try [.tarGzip, .tarBzip2, .tarXZ].contains(fixture.format) && preferences.additionPosition == .end
+                    ? ArchiveReader.open(url: input, options: .kaitoFinder()) : nil
+                let total = ArchiveStageDiagnostics.begin(.total)
+                defer { total?.end() }
+                let editor: any ArchiveEditing
+                if fixture.format == .zip {
+                    editor = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: input, options: options) }
+                } else if fixture.format.editorStage(placement: preferences.additionPosition) == .updaterOpen, fixture.format == .tar {
+                    editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                        try TarUpdater.open(url: input, output: output, options: options)
                     }
-                    try ArchiveStageDiagnostics.measure(.remove) { try editor.remove(entriesAt: [index]) }
-                    try ArchiveStageDiagnostics.measure(.commit) { try editor.commit() }
+                } else if let compressedReader {
+                    let span = ArchiveStageDiagnostics.begin(.updaterOpen)
+                    defer { span?.end() }
+                    editor = try CompressedTarUpdater.open(reader: compressedReader, output: output,
+                        format: fixture.format.writerFormat, options: options)
+                } else {
+                    editor = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+                        try ArchiveRewriter.open(url: input, output: output, format: fixture.format.writerFormat, options: options)
+                    }
+                }
+                try ArchiveStageDiagnostics.measure(.remove) { try editor.remove(entriesAt: [index]) }
+                try ArchiveStageDiagnostics.measure(.commit) { try editor.commit() }
+                if let updater = editor as? CompressedTarUpdater {
+                    trace.recordSplice(try XCTUnwrap(updater.lastCommitStatistics))
                 }
             }
             trace.finish(output: output)
         } catch { trace.finish(output: output, status: "error"); throw error }
-        trace.require([.total, .remove, .commit, (fixture.format == .zip || fixture.format == .tar) ? .updaterOpen : .rewriterOpen])
-        if fixture.format == .tar { trace.forbid([.rewriterOpen, .workCopy]) }
+        trace.require([.total, .remove, .commit])
+        trace.requireRoute(placement: try ArchiveProbeConfiguration().additionPosition)
         let entries = try ArchiveReader.open(url: output).entries
         XCTAssertEqual(entries.count, fixture.entryCount - 1)
         XCTAssertFalse(entries.contains { $0.name == (nearStart ? fixture.firstPath : fixture.lastPath) })
@@ -442,7 +493,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             let value = try await ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
                 let span = ArchiveStageDiagnostics.begin(.total)
                 defer { span?.end() }
-                return try await action()
+                return try await ArchiveImportTransaction.didCommitCompressedTarUpdaterForTesting.withValue({ updater in
+                    trace.recordSplice(try XCTUnwrap(updater.lastCommitStatistics))
+                }) { try await action() }
             }
             trace.finish(output: output)
             return value

@@ -2,7 +2,7 @@
 import CommonCrypto
 import Darwin
 import Foundation
-import GyoshukuKit
+@_spi(Testing) import GyoshukuKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -20,6 +20,11 @@ nonisolated enum ProbeArchiveFormat: String, Sendable {
         case .sevenZip: .sevenZip
         case .lha: .lha
         }
+    }
+
+    func editorStage(placement: ArchivePreferences.AdditionPosition) -> ArchiveStageDiagnostics.Stage {
+        if self == .zip { return .updaterOpen }
+        return placement == .end && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(self) ? .updaterOpen : .rewriterOpen
     }
 }
 
@@ -51,9 +56,9 @@ nonisolated struct ArchiveProbeConfiguration: Sendable {
     let payloadMiB: Int
     let formats: [ProbeArchiveFormat]
     let asserts: Bool
+    let additionPosition: ArchivePreferences.AdditionPosition
 
-    init() throws {
-        let environment = ProcessInfo.processInfo.environment
+    init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
         guard environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
             throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run performance probes")
         }
@@ -76,6 +81,10 @@ nonisolated struct ArchiveProbeConfiguration: Sendable {
         }
         self.formats = formats
         asserts = environment["KAITOFINDER_PROBE_ASSERT"] == "1"
+        guard let placement = ArchivePreferences.AdditionPosition(rawValue: environment["KAITOFINDER_PROBE_ADDITION_PLACEMENT"] ?? "end") else {
+            throw ConfigurationError.invalid("KAITOFINDER_PROBE_ADDITION_PLACEMENT")
+        }
+        additionPosition = placement
     }
 
     private enum ConfigurationError: Error { case invalid(String) }
@@ -321,6 +330,27 @@ nonisolated final class ArchiveProbeTrace: Sendable {
     static func header() {
         line("PROBE-TSV-HEADER\tversion\tformat\tfixture\tmode\toperation\tstage\tcalls\tduration_ms\tread_bytes\twritten_bytes\toutput_bytes\tentries\tpayload_mib\tstatus")
         line("PROBE-PROCESS pid=\(getpid()) diskio=RUSAGE_INFO_V2")
+        line("PROBE-SPLICE-HEADER\tversion\tformat\tfixture\tmode\toperation\tstrategy\tplan_ms\tencode_ms\tcopy_ms\tself_check_ms\treencoded_old_image_bytes\tcarried_compressed_bytes\tscratch_bytes\treencoded_image_bytes\tcarried_chunks\treencoded_chunks")
+    }
+
+    func recordSplice(_ statistics: CompressedTarCommitStatistics) {
+        let strategy: String
+        switch statistics.strategy {
+        case .unchanged: strategy = "unchanged"
+        case .splice: strategy = "splice"
+        case .fullEncode: strategy = "fullEncode"
+        }
+        func ms(_ seconds: Double) -> String { String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), seconds * 1_000) }
+        Self.line(["PROBE-SPLICE", "1", fixture.format.rawValue, fixture.kind.rawValue, mode, operation, strategy,
+            ms(statistics.planningSeconds), ms(statistics.encodingSeconds), ms(statistics.copyingSeconds), ms(statistics.selfCheckSeconds),
+            String(statistics.reencodedOldImageBytes), String(statistics.carriedCompressedBytes), String(statistics.scratchBytes),
+            String(statistics.reencodedImageBytes), String(statistics.carriedChunks), String(statistics.reencodedChunks)].joined(separator: "\t"))
+    }
+
+    func requireRoute(placement: ArchivePreferences.AdditionPosition) {
+        let stage = fixture.format.editorStage(placement: placement)
+        require([stage])
+        forbid([stage == .updaterOpen ? .rewriterOpen : .updaterOpen, .workCopy])
     }
 
     func record(_ event: ArchiveStageDiagnostics.Event) {

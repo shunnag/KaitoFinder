@@ -322,7 +322,9 @@ actor ArchiveSession {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                      options: options, password: password, progress: progress,
-                                                     didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
+                                                     didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                                                     sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
+                                                         ? try reader.reopen() : nil)
             return (result, verifiedOutput.take())
         }
         if !result.addedPaths.isEmpty {
@@ -392,7 +394,9 @@ actor ArchiveSession {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
                                                                options: options, password: password, progress: progress,
-                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
+                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                                                               sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
+                                                         ? try reader.reopen() : nil)
             return (result, verifiedOutput.take())
         }
         do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
@@ -427,7 +431,9 @@ actor ArchiveSession {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                    options: options, password: password, progress: progress,
-                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput)
+                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                                                   sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
+                                                         ? try reader.reopen() : nil)
             return (result, verifiedOutput.take())
         }
         if result.published {
@@ -558,7 +564,10 @@ actor ArchiveSession {
                     progress: progress, commitProgress: zipEncryption == nil ? nil : meter.update, willPublish: {
                         try plan.validate()
                         try willPublish?()
-                    }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine,
+                    }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                    sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
+                        ? try requireCurrentReader().reopen() : nil,
+                    additionalQuarantine: quarantine,
                     publication: publication, deferredPlan: plan,
                     expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption)) { editor in
                         try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress,

@@ -778,11 +778,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func refreshCapabilityNotice(session: ArchiveSession?) {
-        var notice = session?.capabilities.readOnlyReason ?? session?.capabilities.rewriteNotice ?? ""
+        let onSave = (document as? ArchiveDocument)?.saveBehavior == .onSave
+        let editNotice = session?.capabilities.mode.flatMap { mode in
+            session?.capabilities.editNotice(options: preferencesStore.preferences.writerOptions(for: mode.outputFormat), onSave: onSave)
+        }
+        var notice = session?.capabilities.readOnlyReason ?? editNotice ?? ""
         if let document = document as? ArchiveDocument, document.saveBehavior == .onSave {
-            if session?.capabilities.readOnlyReason == nil, session?.capabilities.rewriteNotice != nil {
-                notice = String(localized: "保存するとアーカイブ全体を再圧縮します", bundle: bundle)
-            }
             if session?.capabilities.readOnlyReason == nil, let split = document.splitArchiveNotice(bundle: bundle) { notice = split }
             let count = document.pendingChanges.count
             if count > 0 || document.isDocumentEdited {
@@ -871,6 +872,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     @objc private func preferencesDidChange(_ notification: Notification) {
         let preferences = preferencesStore.preferences
+        refreshCapabilityNotice(session: (document as? ArchiveDocument)?.session)
         outlineView.renamesOnClick = preferences.renamesOnClick
         let visibilityChanged = showsHiddenFiles != preferences.showsHiddenFiles
         guard visibilityChanged || keepsFoldersOnTop != preferences.keepsFoldersOnTop else { return }

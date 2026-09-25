@@ -1,11 +1,11 @@
 import Darwin
 import Foundation
 import GyoshukuKit
-import KaitoKit
+@_spi(TarEditLayout) import KaitoKit
 import Synchronization
 
 /// 検証した記述子を公開後まで保持し、パスの差し替えと区別する。
-nonisolated final class ArchiveVerifiedFileSource: ByteSource {
+nonisolated final class ArchiveVerifiedFileSource: ByteSourceFileIdentityProviding {
     let descriptor: Int32
     let length: UInt64
     let identity: ArchiveSetIdentity
@@ -37,6 +37,12 @@ nonisolated final class ArchiveVerifiedFileSource: ByteSource {
 
     func isUnchanged() -> Bool {
         (try? ArchiveFileIdentity.capture(descriptor: descriptor).contentEquals(fileIdentity)) == true
+    }
+
+    func currentFileIdentity() throws -> ByteSourceFileIdentity {
+        let current = try ArchiveFileIdentity.capture(descriptor: descriptor)
+        return ByteSourceFileIdentity(device: current.device, inode: current.inode, size: current.size,
+            modificationSeconds: current.modificationSeconds, modificationNanoseconds: current.modificationNanoseconds)
     }
 }
 

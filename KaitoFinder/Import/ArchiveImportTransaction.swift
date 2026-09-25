@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 import GyoshukuKit
-import KaitoKit
+@_spi(TarEditLayout) import KaitoKit
 
 nonisolated struct ArchiveImportResult: Sendable {
     let addedPaths: [String]
@@ -406,7 +406,8 @@ nonisolated enum ArchiveEditTransaction {
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                     willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
-                    verifiedOutput: ArchiveVerifiedOutputSink? = nil) throws -> ArchiveEditResult {
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                    sessionReader: sending ArchiveReader? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
@@ -414,7 +415,7 @@ nonisolated enum ArchiveEditTransaction {
         progress.completedUnitCount = 0
         let identity = try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
-            verifiedOutput: verifiedOutput,
+            verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             expectedOutput: .init(existing: plan.existing, removing: plan.removals.map(\.index), renaming: plan.renames, mode: mode)) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try plan.verifyNames(updater.entryNames)
@@ -447,19 +448,22 @@ nonisolated enum ArchiveImportTransaction {
     static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
     static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
     static let didCommitTarUpdaterForTesting = TaskLocal<(@Sendable (TarUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didCommitCompressedTarUpdaterForTesting = TaskLocal<(@Sendable (CompressedTarUpdater) throws -> Void)?>(wrappedValue: nil)
     static let didFallBackToRewriteForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
+    static let didFallBackToFullVerificationForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
     #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                              willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
-                    verifiedOutput: ArchiveVerifiedOutputSink? = nil) throws -> ArchiveImportResult {
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                    sessionReader: sending ArchiveReader? = nil) throws -> ArchiveImportResult {
         progress.totalUnitCount = 2
         progress.completedUnitCount = 0
         let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
-            verifiedOutput: verifiedOutput,
+            verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             expectedOutput: .init(existing: plan.existing, additions: [.init(adding: plan.path, kind: .directory)], mode: mode)) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
             try ArchiveImportPlan.checkCancellation(progress)
@@ -474,7 +478,8 @@ nonisolated enum ArchiveImportTransaction {
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,
                     willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
-                    verifiedOutput: ArchiveVerifiedOutputSink? = nil) throws -> ArchiveImportResult {
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                    sessionReader: sending ArchiveReader? = nil) throws -> ArchiveImportResult {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
@@ -494,7 +499,8 @@ nonisolated enum ArchiveImportTransaction {
             for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
             try willPublish?()
         },
-            expectedIdentity: expectedIdentity, verifiedOutput: verifiedOutput, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
+            expectedIdentity: expectedIdentity, verifiedOutput: verifiedOutput, sessionReader: sessionReader,
+            additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
             expectedOutput: expectedOutput) { updater in
             try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing)
             if !plan.replacingEntries.isEmpty {
@@ -533,6 +539,7 @@ nonisolated enum ArchiveImportTransaction {
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: ArchiveSetIdentity? = nil,
                         verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                        sessionReader: sending ArchiveReader? = nil,
                         additionalQuarantine: Data? = nil,
                         registry: PendingWorkRegistry = .shared,
                         publication: ArchiveSavePublication? = nil,
@@ -559,6 +566,8 @@ nonisolated enum ArchiveImportTransaction {
         let outputFormat = mode.outputFormat
         let work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: outputFormat))
         var publishedMode = mode
+        var spliceBase: TarEditingSnapshot?
+        var spliced: CompressedTarCommitResult?
         func rewriteBranch(format: GyoshukuKit.ArchiveFormat) throws {
             var info = stat()
             guard lstat(work.path, &info) != 0 else { throw ExtractionFailure.system(EEXIST) }
@@ -600,8 +609,50 @@ nonisolated enum ArchiveImportTransaction {
         case .rewrite(let format):
             try willOpenUpdater?()
             try rewriteBranch(format: format)
-        case .update(let format):
-            guard format == .tar else { throw ArchiveEditError.staleSelection }
+        case .update(let format) where [.tarGzip, .tarBzip2, .tarXZ].contains(format):
+            guard let reader = sessionReader else { throw ArchiveEditError.staleSelection }
+            // 同じ独立 reader から Sendable な base を採り、reader の所有権は GK へ渡す。
+            spliceBase = reader.tarEditingSnapshot()
+            try willOpenUpdater?()
+            var updater: CompressedTarUpdater?
+            do {
+                // sending の reader を計測 closure に捕捉せず、一度だけ移す。
+                #if DEBUG
+                let span = ArchiveStageDiagnostics.begin(.updaterOpen)
+                defer { span?.end() }
+                #endif
+                updater = try CompressedTarUpdater.open(reader: reader, output: work, format: format, options: options)
+            } catch TarUpdaterError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                progress.totalUnitCount += ArchiveReencryptionProgress.units
+                let meter = ArchiveReencryptionProgress(progress)
+                do {
+                    spliced = try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        return try updater.commit(progress: meter.update)
+                    }
+                } catch let error as TarUpdaterError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitCompressedTarUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+            } else {
+                spliceBase = nil
+                publishedMode = .rewrite(format)
+                try rewriteBranch(format: format)
+            }
+        case .update(.tar):
             try willOpenUpdater?()
             var updater: TarUpdater?
             do {
@@ -634,9 +685,10 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
                 try preserveAttributes(from: archive, to: work, includingCreationDate: true)
             } else {
-                publishedMode = .rewrite(format)
-                try rewriteBranch(format: format)
+                publishedMode = .rewrite(.tar)
+                try rewriteBranch(format: .tar)
             }
+        case .update: throw ArchiveEditError.staleSelection
         }
         if let additionalQuarantine {
             // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
@@ -659,9 +711,30 @@ nonisolated enum ArchiveImportTransaction {
         #endif
         try verifyWorkIdentity(source: source, work: work, phase: .beforeVerification, archive: archive)
         identity = source.identity
+        if let spliced {
+            let actual = source.fileIdentity, expected = spliced.output
+            guard actual.device == expected.device, actual.inode == expected.inode, actual.size == expected.size,
+                  actual.modificationSeconds == expected.modificationSeconds,
+                  actual.modificationNanoseconds == expected.modificationNanoseconds else {
+                throw ArchiveVerificationFailure.updaterVerification(.init(
+                    TarUpdaterError.outputVerificationFailed(reason: "output identity"))).reported(file: archive)
+            }
+        }
         do {
+            let verificationOptions = ReaderOptions.kaitoFinderVerification(password: options.password)
             verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
-                try ArchiveReader.open(source: source, sourceURL: hint, options: .kaitoFinderVerification(password: options.password))
+                guard let spliced, let spliceBase else {
+                    return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
+                }
+                do {
+                    return try ArchiveReader.openSplicedCompressedTar(output: source, sourceURL: hint, base: spliceBase,
+                        splice: CompressedTarSplice(segments: spliced.segments.map(Self.kaitoKitSegment)), options: verificationOptions)
+                } catch let error as TarSpliceVerificationError where error.reason == .baseNotSpliceable {
+                    #if DEBUG
+                    didFallBackToFullVerificationForTesting.get()?("\(error.reason)")
+                    #endif
+                    return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
+                }
             }
         } catch is CancellationError { throw CancellationError() }
         catch { throw ArchiveVerificationFailure.readerOpen(.init(error)).reported(file: archive) }
@@ -709,6 +782,13 @@ nonisolated enum ArchiveImportTransaction {
         }
         progress.completedUnitCount += 1
         return identity
+    }
+
+    private static func kaitoKitSegment(_ segment: CompressedTarOutputSegment) -> CompressedTarSplice.Segment {
+        switch segment {
+        case .reused(let output, let base): .reused(output: output, base: base)
+        case .encoded(let output): .encoded(output: output)
+        }
     }
 
     private static func verifyWorkIdentity(source: ArchiveVerifiedFileSource, work: URL,
