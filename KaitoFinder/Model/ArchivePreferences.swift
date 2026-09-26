@@ -28,11 +28,16 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum SaveBehavior: String, Sendable, CaseIterable { case immediate, onSave }
     enum OpeningBehavior: String, Sendable, CaseIterable { case system, newTab, newWindow }
     enum FolderOpening: String, Sendable, CaseIterable { case enter, expand }
+    enum ListIconSize: String, Sendable, CaseIterable {
+        case small, large
+        var pointSize: CGFloat { self == .small ? 16 : 32 }
+    }
     enum AdditionPosition: String, Sendable, CaseIterable { case end, beginning }
     enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
 
     static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .sevenZip, .lha]
     static let compressionThreadRange = 1...64
+    static let listTextSizeRange = 10...16
 
     var defaultFormat: GyoshukuKit.ArchiveFormat = .zip
     var compressionThreads = 0
@@ -55,6 +60,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var saveBehavior: SaveBehavior = .immediate
     var openingBehavior: OpeningBehavior = .system
     var folderOpening: FolderOpening = .enter
+    var listIconSize: ListIconSize = .small
+    var listTextSize = 13
     var excludesDSStore = true
     var excludesHiddenFiles = false
 
@@ -116,6 +123,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let saveBehavior = "ArchiveSaveBehavior"
         static let openingBehavior = "ArchiveOpeningBehavior"
         static let folderOpening = "ArchiveFolderOpening"
+        static let listIconSize = "ArchiveListIconSize"
+        static let listTextSize = "ArchiveListTextSize"
         static let excludesDSStore = "ArchiveExcludesDSStore"
         static let excludesHiddenFiles = "ArchiveExcludesHiddenFiles"
     }
@@ -162,6 +171,13 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                 .flatMap(ArchivePreferences.OpeningBehavior.init(rawValue:)) ?? value.openingBehavior
             value.folderOpening = defaults.string(forKey: Key.folderOpening)
                 .flatMap(ArchivePreferences.FolderOpening.init(rawValue:)) ?? value.folderOpening
+            value.listIconSize = defaults.string(forKey: Key.listIconSize)
+                .flatMap(ArchivePreferences.ListIconSize.init(rawValue:)) ?? value.listIconSize
+            if let number = defaults.object(forKey: Key.listTextSize) as? NSNumber,
+               CFGetTypeID(number) != CFBooleanGetTypeID(),
+               number.doubleValue == Double(number.intValue), ArchivePreferences.listTextSizeRange.contains(number.intValue) {
+                value.listTextSize = number.intValue
+            }
             value.excludesDSStore = boolean(forKey: Key.excludesDSStore, fallback: value.excludesDSStore)
             value.excludesHiddenFiles = boolean(forKey: Key.excludesHiddenFiles, fallback: value.excludesHiddenFiles)
             return value
@@ -189,6 +205,9 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.saveBehavior.rawValue, forKey: Key.saveBehavior)
             defaults.set(newValue.openingBehavior.rawValue, forKey: Key.openingBehavior)
             defaults.set(newValue.folderOpening.rawValue, forKey: Key.folderOpening)
+            defaults.set(newValue.listIconSize.rawValue, forKey: Key.listIconSize)
+            defaults.set(ArchivePreferences.listTextSizeRange.contains(newValue.listTextSize) ? newValue.listTextSize : 13,
+                         forKey: Key.listTextSize)
             defaults.set(newValue.excludesDSStore, forKey: Key.excludesDSStore)
             defaults.set(newValue.excludesHiddenFiles, forKey: Key.excludesHiddenFiles)
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。

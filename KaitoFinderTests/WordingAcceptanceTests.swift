@@ -41,6 +41,23 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testViewOptionsWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["表示オプション", "表示オプションを表示", "表示オプションを隠す", "並べ順:", "順序:", "昇順", "降順",
+                    "列:", "アイコンのサイズ:", "小", "大", "文字のサイズ:"] {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+                if language == "fr", key.hasSuffix(":") { XCTAssertTrue(unit.value.hasSuffix("\u{00a0}:")) }
+            }
+        }
+    }
+
     func testFolderNavigationWordingHasAllTwentySixTranslations() throws {
         let catalog = try LocalizationAcceptance.catalog()
         for key in ["戻る", "進む", "内包フォルダ", "戻る/進む", "フォルダを開くとき:", "フォルダに移動", "その場で展開"] {
@@ -915,6 +932,14 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertEqual(LocalizationAcceptance.normalizedTitle(clear.title), title("メニューを消去"))
             try check(clear, #selector(NSDocumentController.clearRecentDocuments(_:)), "")
             try check(item(file, title("開く")), #selector(ArchiveWindowController.openEntry(_:)), "o")
+            let view = try XCTUnwrap(item(menu, title("表示"))?.submenu)
+            let options = try XCTUnwrap(item(view, title("表示オプションを表示")))
+            XCTAssertTrue(options === view.items.last)
+            XCTAssertTrue(view.items[view.items.count - 2].isSeparatorItem)
+            XCTAssertEqual(options.action, #selector(AppDelegate.toggleViewOptions(_:)))
+            XCTAssertTrue(options.target === delegate)
+            XCTAssertEqual(options.keyEquivalent, "j")
+            XCTAssertEqual(options.keyEquivalentModifierMask, [.command])
             let go = try XCTUnwrap(item(menu, goTitle)?.submenu)
             XCTAssertEqual(go.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
                            [title("戻る"), title("進む"), "", title("内包フォルダ")])

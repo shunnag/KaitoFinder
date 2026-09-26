@@ -416,18 +416,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func row(_ title: String, control: NSView) -> [NSView] {
-        let label = NSTextField(labelWithString: title)
-        label.alignment = .left
-        if label.intrinsicContentSize.width > 260 {
-            // 長い翻訳だけを二行まで折り返し、行のコントロールはグリッドで中央に揃える。
-            label.usesSingleLineMode = false
-            label.cell?.wraps = true
-            label.lineBreakMode = .byWordWrapping
-            label.maximumNumberOfLines = 2
-            label.preferredMaxLayoutWidth = 260
-        }
-        control.setAccessibilityLabel(title)
-        return [label, control]
+        ArchiveFormRow.make(title, control: control)
     }
 
     private func checkboxRow(_ button: NSButton) -> [NSView] {

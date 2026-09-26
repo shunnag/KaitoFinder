@@ -4,6 +4,28 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class LayoutOverflowTests: XCTestCase {
+    @MainActor func testViewOptionsPanelInEveryLanguageAndPopupSelection() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        preserveArchiveWindowFrame()
+        let archive = ArchiveWindowController(preferencesStore: store)
+        defer { archive.close() }
+        try forEachLanguage { language, bundle in
+            let panel = ArchiveViewOptionsController(store: store, bundle: bundle, mainWindow: { archive.window })
+            defer { panel.close() }
+            let window = try XCTUnwrap(panel.window)
+            window.setFrameAutosaveName("")
+            try snapshot(window, name: "\(language)-view-options")
+            let content = try XCTUnwrap(window.contentView)
+            for popup in [panel.sortPopup, panel.orderPopup, panel.iconSizePopup, panel.textSizePopup] {
+                XCTAssertNotNil(popup.accessibilityLabel())
+                for index in 0..<popup.numberOfItems {
+                    popup.selectItem(at: index)
+                    checkOverflow(content, name: "\(language)-\(popup.titleOfSelectedItem ?? "")", file: #filePath, line: #line)
+                }
+            }
+        }
+    }
+
     private var longArchiveName: String {
         String(String(repeating: "旅行の写真 Archive ", count: 6).prefix(66)) + ".zip"
     }

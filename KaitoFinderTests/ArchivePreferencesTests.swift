@@ -13,6 +13,37 @@ nonisolated final class ArchivePreferencesTestDefaults {
 }
 
 nonisolated final class ArchivePreferencesTests: XCTestCase {
+    @MainActor func testListSizesPersistAndInvalidValuesUseDefaults() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        XCTAssertEqual(store.preferences.listIconSize, .small)
+        XCTAssertEqual(store.preferences.listTextSize, 13)
+        XCTAssertEqual(ArchivePreferences.ListIconSize.small.pointSize, 16)
+        XCTAssertEqual(ArchivePreferences.ListIconSize.large.pointSize, 32)
+        for icon in ArchivePreferences.ListIconSize.allCases {
+            for size in ArchivePreferences.listTextSizeRange {
+                store.preferences.listIconSize = icon
+                store.preferences.listTextSize = size
+                let reopened = ArchivePreferencesStore(defaults: suite.defaults)
+                XCTAssertEqual(reopened.preferences.listIconSize, icon)
+                XCTAssertEqual(reopened.preferences.listTextSize, size)
+                XCTAssertEqual(suite.defaults.string(forKey: "ArchiveListIconSize"), icon.rawValue)
+                XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveListTextSize"), size)
+            }
+        }
+        for value: Any in ["huge", 32, true, Data([0])] {
+            suite.defaults.set(value, forKey: "ArchiveListIconSize")
+            XCTAssertEqual(store.preferences.listIconSize, .small)
+        }
+        for value: Any in [9, 17, -1, 13.5, "13", true, Data([0])] {
+            suite.defaults.set(value, forKey: "ArchiveListTextSize")
+            XCTAssertEqual(store.preferences.listTextSize, 13)
+        }
+        for value in [9, 17, Int.max, Int.min] {
+            store.preferences.listTextSize = value
+            XCTAssertEqual(store.preferences.listTextSize, 13)
+        }
+    }
+
     @MainActor func testFolderOpeningPersistsAndUnknownValuesUseEnter() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for mode in ArchivePreferences.FolderOpening.allCases {

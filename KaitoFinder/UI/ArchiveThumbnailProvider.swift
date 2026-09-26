@@ -16,7 +16,7 @@ import QuickLookThumbnailing
     private let session: ArchiveSession
     private let generation: UInt64
     private let pendingRevision: UInt64?
-    private let pointSize: CGFloat
+    let pointSize: CGFloat
     private let scale: CGFloat
     private let generate: Generate
     // テストだけが名前で画像を判定する。通常は種類の判定（パッケージや実行権を含む）に従う。

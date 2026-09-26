@@ -4,6 +4,18 @@ import XCTest
 
 /// ドラッグ画像は行のセルビューに依存せず、アイコンと名前から組み立てる。
 nonisolated final class ArchiveDragImageTests: XCTestCase {
+    @MainActor func testLargeIconsAndTextUseRequestedSizeAndSpacing() {
+        let font = NSFont.systemFont(ofSize: 16)
+        let icon = NSWorkspace.shared.icon(for: .plainText)
+        let components = ArchiveDragImage.components(icon: icon, name: "sample.txt", height: 40, font: font, iconSize: 32)
+        let layout = ArchiveDragImage.layout(name: "sample.txt", height: 40, font: font, iconSize: 32)
+        XCTAssertEqual(components[0].frame.size, NSSize(width: 32, height: 32))
+        XCTAssertEqual(components[0].frame.minY, 4)
+        XCTAssertEqual(components[1].frame, layout.labelFrame)
+        XCTAssertEqual(layout.labelFrame.minX, 42)
+        XCTAssertGreaterThan(layout.labelFrame.width, ArchiveDragImage.layout(name: "sample.txt", height: 40).labelFrame.width)
+    }
+
     @MainActor func testComponentsHaveIconAndReadableLabelWithinTheRowHeight() throws {
         let icon = NSWorkspace.shared.icon(for: .plainText)
         let components = ArchiveDragImage.components(icon: icon, name: "report-2026-09-19.txt", height: 22)

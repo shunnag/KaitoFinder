@@ -29,6 +29,9 @@ nonisolated final class AutosaveIsolationTests: XCTestCase {
             "ArchiveSaveBehavior",
             "ArchiveCompressionThreads",
             "ArchiveFolderOpening",
+            "ArchiveListIconSize",
+            "ArchiveListTextSize",
+            "NSWindow Frame \(ArchiveViewOptionsController.frameAutosaveName)",
             "ArchiveKeepsFoldersOnTop",
             "ArchiveAdditionPlacement",
             "ArchiveTarCarriedOwnerIDs"

@@ -1,8 +1,9 @@
-# S35 / P10-a: 現在のフォルダへの移動
+# S35 / P10-a・S36 / P10-b: フォルダへの移動と表示オプション
 
-2026-09-26。S35（AC-a1〜a9）の実装。**未コミット。S36 / P10-b は未着手**。
-初回の実装・検証記録を残し、[S35 correction 1](#s35-correction-1) に追加修正と検証を追記した。
-通常のアプリ test host の修正後の再検証、実キー入力、UI、50万件の受入計測はオーケストレータ待ち。
+2026-09-26。S35 はオーケストレータが検証し、`4d4be0b` にコミットした。
+以下に S35 初回・[correction 1](#s35-correction-1)・オーケストレータの検証を残し、
+末尾に [S36 / P10-b](#s36--p10-b-表示オプション) を追記した。**S36 は未コミット**。
+各段の通常host・実入力の実施状況は、それぞれの節を参照。
 
 仕様: [P8-P9-P10 の P10-a](../pending/specs-2026-09-26/P8-P9-P10.md)、
 [ORDER-P6-P13 §2](../pending/specs-2026-09-26/ORDER-P6-P13.md)。
@@ -327,3 +328,176 @@ git diff --check
 `testGoMenuCommandsAndToolbarNavigateTheActiveArchive` は既知のネイティブのドラッグの試験と同じく、Mac が空いていて host が前面になれるときにしか通らない。
 `Tools/verify_ui_integration.py` の「commands」の組（ApplicationCommandIntegrationTests を含む）に入っているので、最後の GUI の確認で利用者に流してもらう。
 AC-a5（実のキー入力、`python3 Tools/verify_finder_interactions.py --focused`）も同じく利用者の実行待ち。AC-a7（50 万件の移動の main の時間）は下に追記する。
+
+## S36 / P10-b: 表示オプション
+
+2026-09-26。S35 の確定済み `4d4be0b2738766fcf0d59440567225406041bf35`、clean な canonical tree から着手。
+P10-b AC-b1〜b10 の製品・試験を実装した。**未コミット。通常hostの全件と実入力のGUI受入は未実施**。
+指定された型・関数は名前で確認でき、欠落はなかった。
+`Documentation/pending/2026-09-24-large-archive-edit-plan.md` と公開済みrelease notesは変更していない。
+
+### 実装と受入項目
+
+- **b1 / b5**: AppDelegate が一つの `ArchiveViewOptionsController` を遅延生成。
+  ⌘J で表示・非表示を切り替え、メニューの題も切り替わる。
+  NSPanel は floating / hidesOnDeactivate、key にはなれるが main にはならない。
+  main の変更・辞退・closeを監視し、weakなアーカイブ対象を更新する。
+  対象なしでは並べ順・順序・列を無効にし、アプリ全体の設定は使える。
+  AppDelegate の列の操作・メニュー生成・validationも mainWindow を使う。
+  ロック中は新しい⌘Jメニューを無効にし、表示中のパネルも対象ウインドウの操作を無効にする。
+- **b2**: 並べ順と昇順・降順、名前以外の列を操作できる。隠れた列で並べると列を表示する。
+  既存の `sortDescriptorsDidChange` を通し、不正な改名で並べ順が戻ったときはパネルも戻す。
+  `toggleColumn` とソートの完了・拒否を `viewOptionsDidChange` で通知し、ヘッダ操作にも追随する。
+  列のautosave形式・keyは変更しない。
+- **b3**: フォルダを先頭・隠しファイル・大きさは注入されたstoreを更新し、開いている全ウインドウへ同期反映する。
+  checkboxは `performClick`、popupは選択後にそのcontrolの `sendAction` を通して試験した。
+- **b4**: 小16pt / 大32pt、文字10…16pt（既定13）。不正な保存値は既定へ戻す。
+  既定は `.default`、それ以外は `.custom` と仕様の高さの式を使う。
+  `ArchiveEntryCellView` が適用済み世代を持ち、再利用時にfontとアイコンのconstraintを更新する。
+  サイズ変更は選択・展開・先頭行を復元し、サイズだけの変更では `sortedChildren` を消さない。
+  サムネイルの組立を共有し、アイコンサイズ変更時に旧providerをcancelして作り直す。
+  文字サイズだけならproviderを保つ。ドラッグ画像にも現在のfont / iconSizeを渡す。
+  P8のrequested/appliedの区別と、S35のcollapse後の `displayedRoot` 代入は維持した。
+- **b6**: `ArchiveListIconSize` / `ArchiveListTextSize` / `NSWindow Frame ArchiveViewOptions` を
+  `TestProcessSetup.autosaveKeys` と `AutosaveIsolationTests` の両方に追加。
+- **b7 / b8 / AC-W**: 指定の12キーだけを追加し、26言語すべてtranslated（312値）。
+  小・大に「アイコンのサイズ」のcommentを付け、French colonの前はNBSP。
+  既存434キーの値・状態は不変。設定画面とパネルで `ArchiveFormRow` を共有し、controlのaccessibility labelも同じ規則にした。
+  LayoutOverflowTestsに26言語・全popup項目の検査、WordingAcceptanceTestsに文言と⌘Jメニューの検査を追加。
+- **b9 / b10**: 試験・GUI runnerへの登録まで実装。通常hostでの全件成功、実クリック・実Tab・目視での受入はオーケストレータ待ち。
+
+`ArchiveViewOptionsTests` の7件は注入したmain-window取得関数を使い、前面化なしでcontrolの動作を検証する。
+実際の `NSApp.isActive` / key / main を使う試験は
+`ApplicationCommandIntegrationTests.testViewOptionsCommandJTracksMainArchiveWhilePanelIsKey` と
+`ArchiveColumnsTests.testViewSubmenuTracksMainWindowWhilePanelIsKeyAndSharesHeaderActions`。
+後者のクラスとArchiveViewOptionsTestsも `Tools/verify_ui_integration.py` の commands に追加した。
+これらの前面化試験は**ロック解除済みで、利用者が別アプリを操作していないMac**で実行する。
+
+### 隔離ビルド
+
+`build/P10S36Verification/layout/{KaitoFinder,GyoshukuKit,KaitoKit}` に `git archive` で展開した。
+KFの基底は上記S35、GK `52655cbd76f73f97f4715d06baed1478d6b30a47`、
+KK `823ad460faab055b6b7051da10583480785e8f68`。KFの製品・試験・Toolsのみcanonicalから同期した。
+全KK1,513 / GK295ファイルがarchiveと一致。live siblingとGyoshukuKit-p14はビルドしていない。
+S35との比較は同じ固定依存moduleを使い、KFのS35 archiveを `baseline/layout/KaitoFinder` へ展開して製品・試験を新規ビルドした。
+
+macOS 27.2 (26B5091g)、Swift 6.4。全コンパイルは `arm64-apple-macos26.0` target。
+直接swiftcでKK207 / GK62 / KF107 / 試験151 Swift filesをコンパイル・リンクした。
+macOS26実機での実行ではなく、`xcodebuild` / `swift test` も起動していない。
+
+実行したbuild.pyの呼出しは順に次の5回で、全て成功した。
+
+```sh
+python3 build/P10S36Verification/build.py --prepare KaitoKit GyoshukuKit
+python3 build/P10S36Verification/build.py --sync app
+python3 build/P10S36Verification/build.py --sync app test
+python3 build/P10S36Verification/build.py --sync app test
+python3 build/P10S36Verification/build.py --sync app
+```
+
+このほか `baseline-build.py` のS35製品・試験の2コンパイル、非DEBUGの `swiftc -typecheck` も成功。
+製品のcompiler診断はなく、試験のwarningは既存のArchiveDocumentControllerTests・ArchiveEditTests・ArchiveImportSafetyTestsのみ。
+[build-runs.json](../../build/P10S36Verification/build-runs.json)、各 `*-command.json` / `*-build.log`、
+[非DEBUG引数](../../build/P10S36Verification/release-typecheck-command.json) に全引数を保存した。
+
+### XCTestの実行結果
+
+主試験は `run-tests.py <class[/method]>…` から直接 `xctest -XCTest KaitoFinderTests.<selector> <bundle>` で起動した。
+[全61起動の一覧](data/2026-09-26/p10-view-options-s36-test-runs.tsv) と
+[command・環境・case・log](../../build/P10S36Verification/test-results.json) に途中・反復・中断を含めて保存した。
+全61起動の完了caseは **169成功・4失敗・11skip**。別にArchiveSortingTestsの1起動がSIGTRAP（exit -5）で途中終了した。
+同じcaseの最新結果で数えると **121成功・4失敗・8skip**。
+
+| 対象 | 最新結果と範囲 |
+|---|---|
+| ArchiveViewOptionsTests | 新規7件すべて成功（最終製品でも再実行） |
+| ArchivePreferencesTests / AutosaveIsolationTests / ArchiveDragImageTests | 8 / 2 / 3件成功 |
+| ArchiveColumnsTests | 前面化する1件を除く5件成功 |
+| ArchiveSortingTests | メニューを使う1件を除いて7成功・1skip（LaunchServicesのpackage種別判定） |
+| ArchiveThumbnailTests | 14成功・2失敗。下記のS35比較でも同じ2件が失敗 |
+| ArchiveHiddenFilesTests | 7成功・1失敗（直接hostにRecentDocumentsMenu.nibがない） |
+| ArchiveFolderNavigationTests | 19成功・3skip（pasteboard、通常hostのfailure sheet、opt-in規模計測） |
+| AsyncSearchFilterTests | 18成功・3skip（通常hostのシート・password・Quick Look） |
+| WordingAcceptanceTests | 26言語style・catalog全体の書式/状態・ellipsisの計28 selector成功 |
+| ArchivePreferencesUITests | testSettingsControlsPersistAndRefreshWithoutReopening成功。testToolbarSwitchesPanesWithoutMovingControlsOffScreenはNSScreenがnilで失敗 |
+| ArchiveDisplayTests | testToolbarWithoutSessionKeepsOnlySearchEnabled / testLockedPlaceholderRestoresListToolbarAndStatusAfterUnlockの2件成功 |
+| 新規ApplicationCommandIntegrationTestsの⌘J試験 | compiled nibがない直接hostのためskip |
+
+ArchiveSortingTestsの中断は `testFoldersPreferencePersistsUpdatesAllWindowsAndPreservesSelectionAndExpansion` の
+`preserveApplicationMenus()` で `NSApp` がnilだったため。その他のselectorは個別に実行した。
+既存のGUI試験を環境に合わせて弱める変更はしていない。
+
+サムネイルの失敗は次の2件で、Quick Look生成の5秒待ちが完了しない。
+ログに `sandbox_extension_issue_file ... Operation not permitted` がある。
+S35を固定archiveから作り直して各1回実行し、**2件とも同じタイムアウト・画像nilを再現した**。
+[比較の2起動](data/2026-09-26/p10-view-options-s35_baseline-test-runs.tsv)、
+[S35のcommand・環境・log](../../build/P10S36Verification/baseline/test-results.json)。
+
+- ArchiveThumbnailTests/testDisplayReplacesAndCancelsThePreviousThumbnailProvider
+- ArchiveThumbnailTests/testPNGThumbnailReplacesNameIconWithoutPasswordProgressOrTemporaryCopies
+
+### 26言語の描画と既定表示の比較
+
+`xcrun xcstringstool compile KaitoFinder/Resources/Localizable.xcstrings --output-directory build/P10S36Verification/CompiledStrings --serialization-format binary`
+を1回実行、成功。コンパイルした `.strings` の追加312値をcatalogと照合した。
+通常アプリbundleがない直接hostでも実際の翻訳を使えるよう、隔離build内に補助XCTest bundleを作った。
+製品のcontrollerへ上記の各言語bundleを注入し、リポジトリの **UISnapshot.swiftそのもの**で描画・overflow検査する。
+通常hostのLayoutOverflowTestsの実行を代替したという扱いにはしない。
+
+補助bundleのコンパイルは `build-probes.py` をS36で2回、`build-probes.py --baseline` をS35で1回。
+実行は `run-probes.py` をS36で3回、`run-probes.py --baseline` をS35で1回。
+初回はラベルのAppKit alignment rectが左へ2pt出ていることを検出した。
+既存設定画面と同じgridの余白を追加し、2回目と最終製品の3回目は
+**26言語×全22 popup選択（計572選択）と各言語の初期表示が全てoverflowなし**で成功した。
+補助XCTest全4起動は6成功・1失敗（初回のpadding修正前）。
+[補助試験の全結果](data/2026-09-26/p10-view-options-probes.json)。
+
+`AppearanceProbe` はS35とS36へ同じ表示・同じAqua外観を設定して描画した。
+最終比較は **2080×1200画素が全て一致**、寸法も一致した。
+rowHeight 24pt、rowSizeStyle `.default`、font `.SFNS-Regular` 13pt、アイコン16×16pt、
+ラベルのframe、既定ドラッグ画像のicon / labelのframeが同じ。
+最初のPython/Pillowによる画素比較はPillow未導入で起動できなかったため、
+`compare-defaults.swift` からNSBitmapImageRepのbitmapを比較した（2回とも一致）。
+
+| S35の既定 | S36の既定 |
+|---|---|
+| ![S35の既定表示](data/2026-09-26/p10-view-options-default-s35.png) | ![S36の既定表示](data/2026-09-26/p10-view-options-default-s36.png) |
+
+パネルのオフスクリーン描画（GUI受入の実画面キャプチャではない）:
+
+| 日本語 | フランス語 | ヒンディー語 |
+|---|---|---|
+| ![日本語](data/2026-09-26/p10-view-options-ja.png) | ![フランス語](data/2026-09-26/p10-view-options-fr.png) | ![ヒンディー語](data/2026-09-26/p10-view-options-hi.png) |
+
+全26画像と補助source・build引数・logは `build/P10S36Verification/` 以下に保存した。
+最終主試験・補助試験のlogに、controlの非対応API警告やAuto Layout制約競合はなかった。
+新しいsendabilityの回避指定もなく、`git diff --check` は成功。
+コンパイル入力とcanonical、固定archiveとの照合結果・文言・画素比較の値は
+[検査結果](data/2026-09-26/p10-view-options-checks.json) にまとめた。
+
+### 未実行と引継ぎ
+
+通常Xcode test hostでのbuild-for-testing・全件、正式なLayoutOverflowTestsの26言語、
+WordingAcceptanceTestsのbuilt app bundle照合、前面化が必要な⌘J/main-window試験、
+`Tools/verify_ui_integration.py`、実マウス・キー・Tab入力、目視・実画面キャプチャは未実行。
+HFS+ / FAT32 / exFAT のvolume試験も実行していない（S36は書庫I/Oを変更しない）。
+
+オーケストレータは同じ固定三つ組の隔離layoutで仕様の関連クラスと全件を実行する。
+GUIは、そのlayout内のTools/verify_ui_integration.pyを、ロック解除済みのidle Macで実行する。
+パネルをkeyにしたままA/Bのメイン対象を切り替え、⌘J、列メニュー、Tab移動を確認し、AC-b9の実画面画像を本節へ追記する。
+
+Release note用の文（公開済み文書は変更していない）:
+「表示メニューの『表示オプションを表示』（⌘J）から、並べ順や列の表示、アイコンと文字の大きさを変更できるようになりました。」
+
+## オーケストレータの検証（S36、通常の Xcode test host、2026-09-26）
+
+隔離の三つ組（KaitoKit 823ad46・GyoshukuKit 52655cb は `git archive`、KaitoFinder は作業ツリー）、画面ロック無し、利用者は別のアプリで作業中。
+
+| 実行 | 結果 |
+|---|---|
+| build-for-testing | 成功 |
+| 関係する 14 クラス（S35 の 11 クラスに ArchiveViewOptions・ArchiveColumns・ArchiveDragImage を加えたもの） | 187 件、skip 2、失敗 4（予期しないもの 2）。予期しない 2 件は、host を前面にする必要のある `testGoMenuCommandsAndToolbarNavigateTheActiveArchive` と `testViewOptionsCommandJTracksMainArchiveWhilePanelIsKey`（どちらも `NSApp.isActive` の待ちが時間切れ） |
+| 全件 | 1,639 件、skip 32、失敗 11（予期しないもの 4）。予期しないものは上の 2 件、Quick Look の `ArchiveDocumentOpeningTests.testQuickLookForXZAndLegacyZstandardZIPRows`（host が前面でないとメニューが無効）、ネイティブのドラッグ。どれも `Tools/verify_ui_integration.py` の組に入っている、Mac が空いているときにしか通らない試験 |
+
+最後の GUI の確認で、利用者に `Tools/verify_ui_integration.py`（ApplicationCommandIntegrationTests・ArchiveColumnsTests・ArchiveViewOptionsTests を含む）と
+`python3 Tools/verify_finder_interactions.py --focused`（AC-a5）を Mac が空いた状態で流してもらう。

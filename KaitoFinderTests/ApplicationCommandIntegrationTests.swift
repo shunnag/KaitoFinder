@@ -4,6 +4,71 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
+    @MainActor func testViewOptionsCommandJTracksMainArchiveWhilePanelIsKey() async throws {
+        guard Bundle(for: AppDelegate.self).url(forResource: "RecentDocumentsMenu", withExtension: "nib") != nil else {
+            throw XCTSkip("The application test host with compiled menu resources is required")
+        }
+        preserveApplicationMenus()
+        let fixture = try ScenarioFixture()
+        let (_, first) = try await scenarioDocument(fixture)
+        let (_, second) = try await scenarioDocument(fixture)
+        let delegate = AppDelegate(), menu = delegate.makeMenu()
+        defer { delegate.viewOptionsController?.close(); withExtendedLifetime(delegate) {} }
+        NSApp.mainMenu = menu
+        let window = try XCTUnwrap(first.window)
+        window.tabbingMode = .disallowed
+        second.window?.tabbingMode = .disallowed
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+        try await scenarioWait { NSApp.isActive && NSApp.keyWindow === window && NSApp.mainWindow === window }
+        let item = try menuItem(#selector(AppDelegate.toggleViewOptions(_:)), in: menu)
+        XCTAssertTrue(delegate.validateMenuItem(item))
+        XCTAssertEqual(item.title, String(localized: "表示オプションを表示"))
+        XCTAssertEqual(item.keyEquivalent, "j")
+        XCTAssertEqual(item.keyEquivalentModifierMask, [.command])
+        func commandJ() throws {
+            item.menu?.update()
+            let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
+                timestamp: 0, windowNumber: NSApp.keyWindow?.windowNumber ?? window.windowNumber, context: nil,
+                characters: "j", charactersIgnoringModifiers: "j", isARepeat: false, keyCode: 38))
+            XCTAssertTrue(menu.performKeyEquivalent(with: event))
+        }
+        try commandJ()
+        let panel = try XCTUnwrap(delegate.viewOptionsController)
+        let panelWindow = try XCTUnwrap(panel.window)
+        try await scenarioWait { NSApp.keyWindow === panelWindow }
+        XCTAssertTrue(NSApp.mainWindow === window)
+        XCTAssertTrue(panel.target === first)
+        XCTAssertTrue(delegate.validateMenuItem(item))
+        XCTAssertEqual(item.title, String(localized: "表示オプションを隠す"))
+        for (popup, index) in [(panel.sortPopup, 2), (panel.orderPopup, 1)] {
+            popup.selectItem(at: index)
+            XCTAssertTrue(popup.sendAction(try XCTUnwrap(popup.action), to: popup.target))
+        }
+        XCTAssertEqual(first.outlineView.sortDescriptors.first?.key, "compressedSize")
+        XCTAssertEqual(first.outlineView.sortDescriptors.first?.ascending, false)
+        XCTAssertEqual(second.outlineView.sortDescriptors.first?.key, "name")
+        XCTAssertTrue(NSApp.mainWindow === window)
+        XCTAssertTrue(panelWindow.makeFirstResponder(panel.sortPopup))
+        panelWindow.selectNextKeyView(nil)
+        XCTAssertTrue(panelWindow.firstResponder === panel.orderPopup)
+        second.window?.makeKeyAndOrderFront(nil)
+        second.window?.makeMain()
+        try await scenarioWait { panel.target === second }
+        XCTAssertEqual(panel.sortPopup.indexOfSelectedItem, 0)
+        XCTAssertEqual(panel.orderPopup.indexOfSelectedItem, 0)
+        try commandJ()
+        XCTAssertFalse(panelWindow.isVisible)
+        try commandJ()
+        XCTAssertTrue(delegate.viewOptionsController === panel)
+        XCTAssertTrue(panelWindow.isVisible)
+        second.displayLocked()
+        XCTAssertFalse(delegate.validateMenuItem(item))
+        XCTAssertFalse(panel.sortPopup.isEnabled)
+        XCTAssertFalse(panel.orderPopup.isEnabled)
+    }
+
     @MainActor func testGoMenuCommandsAndToolbarNavigateTheActiveArchive() async throws {
         guard Bundle(for: AppDelegate.self).url(forResource: "RecentDocumentsMenu", withExtension: "nib") != nil else {
             throw XCTSkip("The application test host with compiled menu resources is required")

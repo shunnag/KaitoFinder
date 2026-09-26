@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private let preferencesStore: ArchivePreferencesStore
     private let softwareUpdater: any SoftwareUpdating
     private(set) var preferencesWindowController: PreferencesWindowController?
+    private(set) var viewOptionsController: ArchiveViewOptionsController?
     private(set) var welcomeWindowController: WelcomeWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
@@ -89,13 +90,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     @objc func toggleFoldersOnTop(_ sender: Any?) { preferencesStore.preferences.keepsFoldersOnTop.toggle() }
 
+    @objc func toggleViewOptions(_ sender: Any?) {
+        guard (NSApp.mainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false else { return }
+        if let controller = viewOptionsController, controller.window?.isVisible == true {
+            controller.window?.orderOut(sender)
+        } else {
+            if viewOptionsController == nil { viewOptionsController = ArchiveViewOptionsController(store: preferencesStore) }
+            viewOptionsController?.showWindow(sender)
+        }
+    }
+
     @objc func toggleArchiveColumn(_ sender: NSMenuItem) {
-        (NSApp.keyWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
+        (NSApp.mainWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu === columnsMenu else { return }
-        let controller = NSApp.keyWindow?.windowController as? ArchiveWindowController
+        let controller = NSApp.mainWindow?.windowController as? ArchiveWindowController
         ArchiveColumn.populate(menu, bundle: columnsMenuBundle, table: controller?.outlineView,
                                target: self, action: #selector(toggleArchiveColumn(_:)))
     }
@@ -104,6 +115,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(toggleViewOptions(_:)):
+            menuItem.title = viewOptionsController?.window?.isVisible == true
+                ? String(localized: "表示オプションを隠す", bundle: columnsMenuBundle)
+                : String(localized: "表示オプションを表示", bundle: columnsMenuBundle)
+            return (NSApp.mainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false
         case #selector(checkForUpdates(_:)):
             return softwareUpdater.canCheckForUpdates
         case #selector(newArchive(_:)):
@@ -113,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(forgetArchivePasswords(_:)):
             return forgetPasswordsTask == nil
         case #selector(toggleArchiveColumn(_:)):
-            guard let controller = NSApp.keyWindow?.windowController as? ArchiveWindowController else {
+            guard let controller = NSApp.mainWindow?.windowController as? ArchiveWindowController else {
                 menuItem.state = .off
                 return false
             }
@@ -535,6 +551,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                                       action: #selector(toggleFoldersOnTop(_:)), keyEquivalent: "")
         folders.target = self
         folders.state = preferencesStore.preferences.keepsFoldersOnTop ? .on : .off
+        viewMenu.addItem(.separator())
+        let options = viewMenu.addItem(withTitle: String(localized: "表示オプションを表示", bundle: bundle),
+                                      action: #selector(toggleViewOptions(_:)), keyEquivalent: "j")
+        options.target = self
         let goMenu = NSMenu(title: String(localized: "移動", table: "GoMenu", bundle: bundle))
         goMenu.addItem(withTitle: String(localized: "戻る", bundle: bundle),
                        action: #selector(ArchiveWindowController.goBack(_:)), keyEquivalent: "[")

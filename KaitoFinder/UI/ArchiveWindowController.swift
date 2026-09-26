@@ -43,6 +43,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     nonisolated static let frameAutosaveName = "ArchiveWindow"
     nonisolated static let columnsAutosaveName = "ArchiveColumns"
     nonisolated static let toolbarAutosaveName = "ArchiveToolbar"
+    static let viewOptionsDidChange = Notification.Name("ArchiveViewOptionsDidChange")
+    var canChangeViewOptions: Bool { !isLocked }
 
     private let bundle: Bundle
     private let preferencesStore: ArchivePreferencesStore
@@ -50,6 +52,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var requestedShowsHiddenFiles: Bool
     private var keepsFoldersOnTop: Bool
     private var folderOpening: ArchivePreferences.FolderOpening
+    private var listIconSize: ArchivePreferences.ListIconSize
+    private var listTextSize: Int
+    private var displayGeneration: UInt64 = 0
+    private var defaultRowHeight: CGFloat = 0
     let kindResolver: ArchiveKindResolver
     // 非表示になったフォルダの展開状態も、再表示まで保持する。
     private var hiddenExpandedPaths: Set<String> = []
@@ -191,6 +197,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         currentFolder = root
         displayedRoot = root
         folderOpening = preferencesStore.preferences.folderOpening
+        listIconSize = preferencesStore.preferences.listIconSize
+        listTextSize = preferencesStore.preferences.listTextSize
         let kindResolver = ArchiveKindResolver(bundle: bundle)
         self.kindResolver = kindResolver
         previewSidebar = ArchivePreviewSidebar(bundle: bundle, kindResolver: kindResolver)
@@ -229,6 +237,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.allowsMultipleSelection = true
         outlineView.columnAutoresizingStyle = .noColumnAutoresizing
         outlineView.rowSizeStyle = .default
+        defaultRowHeight = outlineView.rowHeight
+        applyListSizing()
         for definition in ArchiveColumn.allCases {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(definition.rawValue))
             column.title = definition.title(bundle: bundle)
@@ -581,6 +591,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func displayLocked() {
+        defer { NotificationCenter.default.post(name: Self.viewOptionsDidChange, object: self) }
         cancelFilterWork()
         display(EntryNode.tree(from: []))
         currentFolder = root
@@ -819,29 +830,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
             controller.failed = { [weak self] reason in self?.reportFailure(reason) }
             materialization = controller
-            if let worker = controller.entryMaterializer {
-                let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: generation,
-                                                        kindResolver: kindResolver)
-                provider.isVisible = { [weak self] node in
-                    guard let outline = self?.outlineView else { return false }
-                    let row = outline.row(forItem: node)
-                    let rows = outline.rows(in: outline.visibleRect)
-                    return row >= 0 && rows.length > 0 && row >= max(0, rows.location - 3)
-                        && row < min(outline.numberOfRows, NSMaxRange(rows) + 3)
-                }
-                if (document as? ArchiveDocument)?.saveBehavior == .onSave {
-                    provider.canRead = { [weak self] _ in self?.canReadEntries == true }
-                }
-                provider.didProduce = { [weak self, weak provider] node in
-                    guard let self, let provider, self.thumbnailProvider === provider else { return }
-                    let row = self.outlineView.row(forItem: node)
-                    let column = self.outlineView.column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
-                    guard row >= 0, column >= 0 else { return }
-                    self.outlineView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: column))
-                }
-                controller.cancelBackgroundWorkOnClose { [weak provider] in provider?.cancelAll() }
-                thumbnailProvider = provider
-            }
+            rebuildThumbnailProvider()
         } else { materialization = nil }
         let prepared = preparedFilter.flatMap { $0.isBuilt(for: root, configuration: filterConfiguration) ? $0 : nil }
         #if DEBUG
@@ -854,8 +843,48 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         #if DEBUG
         treeDisplayedAt = .now
         #endif
+        NotificationCenter.default.post(name: Self.viewOptionsDidChange, object: self)
         ArchiveReservationDiagnostics.record(.treeDisplayed)
         if indexingRenames, let session { prepareRenameIndex(for: root, session: session, generation: generation) }
+    }
+
+    private func rebuildThumbnailProvider() {
+        thumbnailProvider?.cancelAll()
+        thumbnailProvider = nil
+        if let session = archiveSession, let controller = materialization, let worker = controller.entryMaterializer {
+            let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: generation,
+                                                    kindResolver: kindResolver, pointSize: listIconSize.pointSize)
+            provider.isVisible = { [weak self] node in
+                guard let outline = self?.outlineView else { return false }
+                let row = outline.row(forItem: node)
+                let rows = outline.rows(in: outline.visibleRect)
+                return row >= 0 && rows.length > 0 && row >= max(0, rows.location - 3)
+                    && row < min(outline.numberOfRows, NSMaxRange(rows) + 3)
+            }
+            if (document as? ArchiveDocument)?.saveBehavior == .onSave {
+                provider.canRead = { [weak self] _ in self?.canReadEntries == true }
+            }
+            provider.didProduce = { [weak self, weak provider] node in
+                guard let self, let provider, self.thumbnailProvider === provider else { return }
+                let row = self.outlineView.row(forItem: node)
+                let column = self.outlineView.column(withIdentifier: NSUserInterfaceItemIdentifier("name"))
+                guard row >= 0, column >= 0 else { return }
+                self.outlineView.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: column))
+            }
+            controller.cancelBackgroundWorkOnClose { [weak provider] in provider?.cancelAll() }
+            thumbnailProvider = provider
+        }
+    }
+
+    private func applyListSizing() {
+        if listIconSize == .small, listTextSize == 13 {
+            outlineView.rowHeight = defaultRowHeight
+            outlineView.rowSizeStyle = .default
+        } else {
+            outlineView.rowSizeStyle = .custom
+            outlineView.rowHeight = max(listIconSize.pointSize + 4,
+                ceil(NSFont.systemFont(ofSize: CGFloat(listTextSize)).boundingRectForFont.height) + 6)
+        }
     }
 
     var selectedNodes: [EntryNode] {
@@ -1169,19 +1198,31 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             window?.toolbar?.validateVisibleItems()
         }
         let visibilityChanged = requestedShowsHiddenFiles != preferences.showsHiddenFiles
-        guard visibilityChanged || keepsFoldersOnTop != preferences.keepsFoldersOnTop else { return }
+        let sortingChanged = keepsFoldersOnTop != preferences.keepsFoldersOnTop
+        let iconSizeChanged = listIconSize != preferences.listIconSize
+        let sizingChanged = iconSizeChanged || listTextSize != preferences.listTextSize
+        guard visibilityChanged || sortingChanged || sizingChanged else { return }
+        // 表示範囲だけの変更は requestFilter が状態を採る。サイズ用の再読込だけ先に復元する。
+        let state = sizingChanged || !visibilityChanged ? captureViewState() : nil
         keepsFoldersOnTop = preferences.keepsFoldersOnTop
         outlineView.cancelRenaming()
+        if sortingChanged { sortedChildren.removeAll() }
+        if sizingChanged {
+            listIconSize = preferences.listIconSize
+            listTextSize = preferences.listTextSize
+            displayGeneration &+= 1
+            applyListSizing()
+            if iconSizeChanged { rebuildThumbnailProvider() }
+        }
+        if let state {
+            outlineView.reloadData()
+            restoreViewState(state)
+        }
         if visibilityChanged {
             closePreview()
             requestedShowsHiddenFiles = preferences.showsHiddenFiles
             cancelFilterWork()
             requestFilter(reason: requestedFilterQuery == filterQuery ? .hiddenFiles : .query)
-        } else {
-            let state = captureViewState()
-            sortedChildren.removeAll()
-            outlineView.reloadData()
-            restoreViewState(state)
         }
     }
 
@@ -1392,9 +1433,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             let name = node.name
             var frame = item.draggingFrame
             let height = frame.height > 0 ? frame.height : self.outlineView.rowHeight
-            frame.size = NSSize(width: ArchiveDragImage.layout(name: name, height: height).width, height: height)
+            let font = NSFont.systemFont(ofSize: CGFloat(self.listTextSize))
+            let iconSize = self.listIconSize.pointSize
+            frame.size = NSSize(width: ArchiveDragImage.layout(name: name, height: height, font: font, iconSize: iconSize).width,
+                                height: height)
             item.draggingFrame = frame
-            item.imageComponentsProvider = { ArchiveDragImage.components(icon: image, name: name, height: height) }
+            item.imageComponentsProvider = { ArchiveDragImage.components(icon: image, name: name, height: height, font: font, iconSize: iconSize) }
         }
     }
 
@@ -2491,6 +2535,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let column = toggleableColumn(for: sender) else { return }
         column.isHidden.toggle()
         sender.state = column.isHidden ? .off : .on
+        NotificationCenter.default.post(name: Self.viewOptionsDidChange, object: self)
     }
 
     private func toggleableColumn(for item: NSMenuItem) -> NSTableColumn? {
@@ -2722,6 +2767,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     func outlineView(_ outlineView: NSOutlineView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         guard !restoringSort else { return }
+        defer { NotificationCenter.default.post(name: Self.viewOptionsDidChange, object: self) }
         // 列ヘッダへのクリックでも確定を試し、不正な入力のまま cell を作り直さない。
         if !self.outlineView.commitRenaming() {
             restoringSort = true
@@ -2738,44 +2784,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         guard let node = item as? EntryNode, let column = tableColumn, !column.isHidden else { return nil }
         let key = column.identifier.rawValue
-        let cell: NSTableCellView
-        if let reused = outlineView.makeView(withIdentifier: column.identifier, owner: self) as? NSTableCellView {
-            cell = reused
-        } else {
-            cell = NSTableCellView()
-            cell.identifier = column.identifier
-            let label = NSTextField(labelWithString: "")
-            label.lineBreakMode = .byTruncatingTail
-            label.translatesAutoresizingMaskIntoConstraints = false
-            cell.addSubview(label)
-            cell.textField = label
-            var leading = cell.leadingAnchor
-            var padding: CGFloat = 4
-            if key == "name" {
-                let icon = NSImageView()
-                icon.translatesAutoresizingMaskIntoConstraints = false
-                cell.addSubview(icon)
-                cell.imageView = icon
-                NSLayoutConstraint.activate([
-                    icon.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
-                    icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                    icon.widthAnchor.constraint(equalToConstant: 16),
-                    icon.heightAnchor.constraint(equalToConstant: 16)
-                ])
-                leading = icon.trailingAnchor
-                padding = 6
-            }
-            let definition = ArchiveColumn(rawValue: key)
-            label.alignment = definition?.isNumeric == true ? .right : .left
-            if definition?.usesMonospacedDigits == true {
-                label.font = .monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-            }
-            NSLayoutConstraint.activate([
-                label.leadingAnchor.constraint(equalTo: leading, constant: padding),
-                label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
-                label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
-            ])
-        }
+        guard let definition = ArchiveColumn(rawValue: key) else { return nil }
+        let cell = outlineView.makeView(withIdentifier: column.identifier, owner: self) as? ArchiveEntryCellView
+            ?? ArchiveEntryCellView(column: definition)
+        cell.apply(iconSize: listIconSize.pointSize, textSize: listTextSize, generation: displayGeneration)
         cell.textField?.stringValue = text(for: node, key: key)
         if key == "name" {
             cell.imageView?.image = thumbnailProvider?.thumbnail(for: node) ?? icon(for: node)

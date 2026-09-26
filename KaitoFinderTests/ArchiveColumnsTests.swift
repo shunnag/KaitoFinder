@@ -95,7 +95,7 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         XCTAssertEqual(next.outlineView.sortDescriptors.first?.ascending, false)
     }
 
-    @MainActor func testViewSubmenuTracksKeyWindowAndSharesHeaderActions() async throws {
+    @MainActor func testViewSubmenuTracksMainWindowWhilePanelIsKeyAndSharesHeaderActions() async throws {
         preserveApplicationMenus()
         let first = try controller(), second = try controller()
         let app = AppDelegate(), menu = app.makeMenu()
@@ -110,9 +110,13 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         window.makeMain()
         NSApp.activate()
         try await Task.sleep(for: .milliseconds(100))
-        guard NSApp.keyWindow === window else {
-            throw XCTSkip("Key-window menu routing requires an active, unlocked GUI session")
+        guard NSApp.mainWindow === window else {
+            throw XCTSkip("Main-window menu routing requires an active, unlocked GUI session")
         }
+        let panel = ArchiveViewOptionsController()
+        defer { panel.close() }
+        panel.showWindow(nil)
+        try await scenarioWait { NSApp.keyWindow === panel.window && NSApp.mainWindow === window }
         app.menuNeedsUpdate(columns)
         let item = try XCTUnwrap(columns.items.first { $0.representedObject as? String == "ratio" })
         XCTAssertTrue(app.validateMenuItem(item))
@@ -125,6 +129,7 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         XCTAssertEqual(header.items.first { $0.representedObject as? String == "ratio" }?.state, .on)
         second.window?.tabbingMode = .disallowed
         second.window?.makeKeyAndOrderFront(nil)
+        second.window?.makeMain()
         XCTAssertTrue(app.validateMenuItem(item))
         XCTAssertEqual(item.state, .off)
         app.toggleArchiveColumn(item)
@@ -133,6 +138,7 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         other.isReleasedWhenClosed = false
         defer { other.close() }
         other.makeKeyAndOrderFront(nil)
+        other.makeMain()
         XCTAssertFalse(app.validateMenuItem(item))
         app.toggleArchiveColumn(item)
         XCTAssertFalse(try column("ratio", in: first).isHidden)
