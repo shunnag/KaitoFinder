@@ -1,0 +1,8 @@
+S2 mixed   blocks=239 full_S=148 under_S/16=3 max_uncomp=2097152 --lzma2=dict=8MiB
+S2 payload blocks=194 full_S=128 under_S/16=66 max_uncomp=2097152 --lzma2=dict=8MiB
+S4 mixed   blocks=121 full_S=76 under_S/16=3 max_uncomp=4194304 --lzma2=dict=8MiB
+S4 payload blocks=130 full_S=64 under_S/16=66 max_uncomp=4194304 --lzma2=dict=8MiB
+S8 mixed   blocks=63 full_S=35 under_S/16=3 max_uncomp=8388608 --lzma2=dict=8MiB
+S8 payload blocks=65 full_S=0 under_S/16=1 max_uncomp=4195328 --lzma2=dict=8MiB
+S16 mixed   blocks=34 full_S=19 under_S/16=3 max_uncomp=16777216 --lzma2=dict=8MiB
+S16 payload blocks=23 full_S=0 under_S/16=1 max_uncomp=12584960 --lzma2=dict=8MiB

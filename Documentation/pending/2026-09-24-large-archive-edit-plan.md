@@ -88,7 +88,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P11 | zstd の復号（計測してから）。KaitoKit の worktree `KaitoKit-p11`（branch feature/2026-09-26-p11-zstd）で Stage 1・2 が門 G1・G2 を通過、Stage 3 は途中（未コミット） | KaitoKit |
 | P12 | 分割巻の保存で重複する全体の読み取りを減らす（設計上必要な証明は残す）。完了（71549c2・e48d8ad、反証レビューと受入計測に合格） | KaitoFinder |
 | P13 | tar の `\` を含む名前の展開（tar ではただの文字として扱う）、変換で受け取る名前の規則を出力形式の決定後に適用。完了（54c2b8d） | KaitoFinder |
-| P14 | tar.xz の block の大きさ（P3 の区切りの配置と合わせて実測で決める） | GyoshukuKit |
+| P14 | tar.xz の block の大きさ（P3 の区切りの配置と合わせて実測で決める）。[仕様](specs-2026-09-26/P14.md)を実測から作成（小さな member は 4 MiB に詰め、大きな本文は 16 MiB の片のまま。小さなファイルの削除・改名 4.5 s → 約 1 s、サイズ +5〜12 %）。利用者の判断待ち、実装は未着手 | GyoshukuKit |
 
 分割巻の一部の巻だけを書き直す公開は、クラッシュ時の整合性の中核に触れるため、P12 の後に改めて判断する。
 
@@ -107,7 +107,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
    thread を再開するときは、最初にこの定数を確かめて戻させ（掃引をやり直すなら script が最後に選んだ値を書き戻すこと）、その後で
    掃引・V1–V8・最終の門を続ける。この worktree は中途の状態のままコミットしない。
 3. KaitoFinder: S21（P4-A）→ S33（P1d-A。S21 の後に B-P1d を採り直す）→ S34（P8）→ S35・S36（P10、利用者の了承が要る）→ S25（P5-A）→
-   S38–S41（P6・P7）。P14（tar.xz の block の大きさ）の仕様は未作成。
+   S38–S41（P6・P7）。P14-G（GyoshukuKit）は仕様あり・利用者の判断待ち（S24 の後、S38 の前の案）。
 （確認: 本線の組み合わせ KaitoFinder 31509ff・GyoshukuKit 6e7cd9b・KaitoKit 0cbd809 で、アプリの全件 1,531 件。失敗は画面ロック中の既知の GUI 系 9 試験だけ）
 
 4. 実 disk の試験（hdiutil の FAT32 / exFAT / HFS+）は Codex の sandbox では動かず、オーケストレータの検証でだけ実行される（efdb651 の exFAT の不具合はそこで見つかった）。各段の検証で必ず回す。
