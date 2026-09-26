@@ -1,0 +1,11 @@
+Test Suite 'Selected tests' started at 2026-09-27 02:25:07.091.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 02:25:07.092.
+Test Suite 'DragInTests' started at 2026-09-27 02:25:07.092.
+Test Case '-[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched]' started.
+Test Case '-[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched]' passed (0.116 seconds).
+Test Suite 'DragInTests' passed at 2026-09-27 02:25:07.208.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.116 (0.116) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 02:25:07.208.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.116 (0.116) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 02:25:07.208.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.116 (0.117) seconds

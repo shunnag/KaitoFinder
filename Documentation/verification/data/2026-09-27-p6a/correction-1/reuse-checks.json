@@ -1,0 +1,16 @@
+{
+  "KaitoKit": {
+    "archive_source_files": 216,
+    "archive_mismatches": [],
+    "compiled_hash_mismatches": []
+  },
+  "GyoshukuKit": {
+    "archive_source_files": 64,
+    "archive_mismatches": [],
+    "compiled_hash_mismatches": []
+  },
+  "app": {
+    "compiled_source_files": 108,
+    "canonical_mismatches": []
+  }
+}

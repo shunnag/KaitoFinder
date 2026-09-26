@@ -205,40 +205,48 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
     }
 
     func replay(on editor: any ArchiveEditing, sourcePassword: String? = nil, progress: Progress,
-                preservingOwnerIDs: Bool = false) throws {
+                preservingOwnerIDs: Bool = false, ledger: ArchiveWriteProgress? = nil, additionBase: Int = 0) throws {
         try edits.verifyNames(editor.entryNames)
         try validate()
         try ArchiveImportPlan.checkCancellation(progress)
         if !edits.removals.isEmpty {
             try editor.remove(entriesAt: edits.removals.map(\.index))
-            progress.completedUnitCount += Int64(edits.removals.count)
+            if let ledger { ledger.didCount(edits.removals.count) }
+            else { progress.completedUnitCount += Int64(edits.removals.count) }
         }
         for rename in edits.renames {
             try ArchiveImportPlan.checkCancellation(progress)
             try editor.rename(entryAt: rename.entry.index, to: rename.path)
-            progress.completedUnitCount += 1
+            if let ledger { ledger.didCount() }
+            else { progress.completedUnitCount += 1 }
         }
         // 7z の追加位置は、暗号化を変える既存 pack の長さを先に含めて決める。
         if outputEncryption != nil, let updater = editor as? any ArchiveReencrypting {
             try updater.reencryptExistingEntries(currentPassword: sourcePassword)
         }
-        for addition in additions {
+        for (index, addition) in additions.enumerated() {
             try ArchiveImportPlan.checkCancellation(progress)
             if addition.sourceStamp.kind == .directory {
                 try editor.addDirectory(addition.path, modificationDate: addition.savedDate,
                                         ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
+            } else if let ledger {
+                try editor.add(contentsOf: addition.stagedURL, as: addition.path,
+                               ownerIDs: preservingOwnerIDs ? .init(user: addition.sourceStamp.userID, group: addition.sourceStamp.groupID) : nil,
+                               progress: ledger.addition(additionBase + index))
             } else if preservingOwnerIDs {
                 try editor.add(contentsOf: addition.stagedURL, as: addition.path,
                                ownerIDs: .init(user: addition.sourceStamp.userID, group: addition.sourceStamp.groupID))
             }
             else { try editor.add(contentsOf: addition.stagedURL, as: addition.path) }
-            progress.completedUnitCount += 1
+            if let ledger { ledger.didFinishAddition(additionBase + index) }
+            else { progress.completedUnitCount += 1 }
         }
         for folder in folders {
             try ArchiveImportPlan.checkCancellation(progress)
             try editor.addDirectory(folder.path, modificationDate: folder.date,
                                     ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
-            progress.completedUnitCount += 1
+            if let ledger { ledger.didCount() }
+            else { progress.completedUnitCount += 1 }
         }
     }
 

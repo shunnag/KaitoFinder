@@ -21,7 +21,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
                     }
                     trace.assertRoute([.updaterOpen])
                     XCTAssertEqual(trace.strategies.withLock { $0 }, [.reencrypted])
-                    XCTAssertEqual(progress.totalUnitCount, 1001)
+                    XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
                     XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
                     let reader = try SevenZipUpdateFixture.reader(archive, password: password)
                     try ArchiveOutputProjection(projected: reader.entries, mode: .update(.sevenZip), sevenZipEncryption: password != nil).validate(reader)

@@ -437,8 +437,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertTrue(appended.failures.isEmpty)
         XCTAssertNil(appended.reloadFailure)
         XCTAssertEqual(Set(appended.addedPaths), ["first.txt", "second.bin", "incoming", "incoming/child.txt", "incoming/empty"])
-        let commitUnits = [.tar, .lha, .sevenZip].contains(format.input) ? ArchiveReencryptionProgress.units : Int64(Fixture.original.count)
-        XCTAssertEqual(progress.totalUnitCount, Int64(appended.addedPaths.count + 1) + commitUnits)
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, appended.addedPaths.count)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         expected.merge(["first.txt": .file(first), "second.bin": .file(second), "incoming": .directory,
                         "incoming/child.txt": .file(child), "incoming/empty": .directory]) { _, new in new }
@@ -649,23 +648,25 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let fixture = try Fixture(format), document = try document(fixture, preferencesStore: store)
             let before = try Data(contentsOf: fixture.archive), progress = Progress()
             let carried = Mutex(false), published = Mutex(false)
-            let total = Int64(Fixture.original.count + 2)
-            // 追加一件の後、commit の最初の carry が進捗を増やした瞬間に同期的に取り消す。
-            let observation = progress.observe(\.completedUnitCount, options: [.new]) { @Sendable observed, change in
-                if observed.totalUnitCount == total, change.newValue == 2 {
-                    carried.withLock { $0 = true }
-                    observed.cancel()
-                }
-            }
-            defer { observation.invalidate() }
+            let commitStart = Mutex<Int64?>(nil)
+            // The first commit notification marks the carry slot before any of its bytes advance.
             do {
-                _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: progress,
-                                              willPublish: { published.withLock { $0 = true } })
+                try await ArchiveWriteProgress.didCreditForTesting.withValue({ slot, completed, _ in
+                    if slot == .commit, commitStart.withLock({ value in
+                        guard value == nil else { return false }; value = completed; return true
+                    }) {
+                        carried.withLock { $0 = true }
+                        progress.cancel()
+                    }
+                }) {
+                    _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: progress,
+                                                  willPublish: { published.withLock { $0 = true } })
+                }
                 XCTFail("carry 中の取消しを無視しました: \(format)")
             } catch { XCTAssertTrue(error is CancellationError, "\(error)") }
             XCTAssertTrue(carried.withLock { $0 })
             XCTAssertFalse(published.withLock { $0 })
-            XCTAssertEqual(progress.completedUnitCount, 2)
+            XCTAssertEqual(progress.completedUnitCount, commitStart.withLock { $0 })
             XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
             XCTAssertEqual(document.generation, 0)
             XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)

@@ -766,8 +766,8 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             XCTAssertEqual(surviving.nameBytes, record.nameBytes, name)
         }
         XCTAssertEqual(session.generation, 1)
-        XCTAssertEqual(progress.completedUnitCount, 2)
-        XCTAssertEqual(progress.totalUnitCount, 2)
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
+        XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         XCTAssertTrue(try fixture.directory.run("/usr/bin/unzip", ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 

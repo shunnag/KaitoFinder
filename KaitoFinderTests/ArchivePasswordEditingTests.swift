@@ -304,34 +304,39 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             let body = Data(repeating: 0x5a, count: 8 * 1024 * 1024)
             let writer = try ArchiveWriter.create(url: url, options: .init(compressionMethod: .stored))
             try writer.add(data: body, as: entryName); try writer.finish()
-            let original = try Data(contentsOf: url), progress = Progress(totalUnitCount: 1001)
-            let meter = ArchiveReencryptionProgress(progress), options = WriterOptions(password: "updater-key")
+            let original = try Data(contentsOf: url), progress = Progress()
+            let options = WriterOptions(password: "updater-key")
             let entries = try ArchiveReader.open(url: url).entries
-            var values: [ArchiveUpdater.CommitProgress] = [], units: [Int64] = []
+            let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: 1, additions: [], itemCount: 1,
+                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: true))
+            let units = Mutex<[Int64]>([])
             do {
-                try ArchiveImportTransaction.publish(archive: url, mode: .inPlace, options: options, progress: progress,
-                    commitProgress: { value in
-                        values.append(value)
-                        if cancel, value.completedBytes > 0 { progress.cancel() }
-                        try meter.update(value)
-                        units.append(progress.completedUnitCount)
-                    }, willPublish: nil,
-                    expectedOutput: .init(projected: entries, mode: .inPlace, zipEncryption: .init(options))) { editor in
-                        try XCTUnwrap(editor as? ArchiveUpdater).reencryptExistingEntries(currentPassword: nil)
-                    }
+                try ArchiveWriteProgress.didCreditForTesting.withValue({ slot, done, total in
+                    guard slot == .commit else { return }
+                    XCTAssertLessThan(done, total)
+                    units.withLock { $0.append(done) }
+                    if cancel, done > 1 { progress.cancel() }
+                }) {
+                    try ArchiveImportTransaction.publish(archive: url, mode: .inPlace, options: options, progress: progress,
+                        ledger: ledger, willPublish: nil,
+                        expectedOutput: .init(projected: entries, mode: .inPlace, zipEncryption: .init(options))) { editor in
+                            try XCTUnwrap(editor as? ArchiveUpdater).reencryptExistingEntries(currentPassword: nil)
+                            ledger.didCount()
+                        }
+                }
                 XCTAssertFalse(cancel)
                 XCTAssertEqual(try contents(url, password: "updater-key"), [entryName: body])
-                XCTAssertEqual(progress.completedUnitCount, 1001)
-                XCTAssertEqual(values.last?.completedBytes, values.last?.totalBytes)
-                XCTAssertEqual(units.last, 1000)
-                XCTAssertTrue(zip(values, values.dropFirst()).allSatisfy { $0.completedBytes <= $1.completedBytes })
-                XCTAssertTrue(zip(units, units.dropFirst()).allSatisfy { $0 <= $1 })
-                XCTAssertTrue(units.contains { $0 > 0 && $0 < 1000 })
+                XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
+                XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
+                let values = units.withLock { $0 }
+                XCTAssertEqual(values.last, progress.totalUnitCount - 1)
+                XCTAssertTrue(zip(values, values.dropFirst()).allSatisfy { $0 <= $1 })
+                XCTAssertTrue(values.contains { $0 > 1 && $0 < progress.totalUnitCount - 1 })
             } catch is CancellationError {
                 XCTAssertTrue(cancel)
                 XCTAssertEqual(try Data(contentsOf: url), original)
             }
-            XCTAssertFalse(values.isEmpty)
+            XCTAssertFalse(units.withLock { $0.isEmpty })
             try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
         }
     }
@@ -361,7 +366,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
                 XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) })
                 XCTAssertFalse(stages.withLock { $0.contains(.rewriterOpen) || $0.contains(.reloadOpen) })
                 XCTAssertEqual(adoptions.withLock { $0 }, [.adopted])
-                XCTAssertEqual(progress.totalUnitCount, 1001); XCTAssertEqual(progress.completedUnitCount, 1001)
+                XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1); XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
                 XCTAssertEqual(try ArchiveReencryptionTestSupport.snapshot(url, password: settings.password), original)
                 try ArchiveReencryptionTestSupport.assertEncryption(url, settings: settings)
                 await session.close()
@@ -372,6 +377,14 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
     func testNonRelocatablePasswordEditFallsBackOnceAndResetsProgress() async throws {
         let directory = try ArchiveTestDirectory(), url = try archive(in: directory, format: .zip)
         let session = try ArchiveSession(url: url), progress = Progress(), attempts = Mutex(0)
+        let resets = Mutex((last: Int64(0), count: 0))
+        let observation = progress.observe(\.completedUnitCount) { value, _ in
+            resets.withLock {
+                if value.completedUnitCount == 0 && $0.last > 0 { $0.count += 1 }
+                $0.last = value.completedUnitCount
+            }
+        }
+        defer { observation.invalidate() }
         let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
         try await ArchiveStageDiagnostics.observer.withValue({ event in
             if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
@@ -386,8 +399,9 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             }
         }
         XCTAssertEqual(attempts.withLock { $0 }, 1)
+        XCTAssertEqual(resets.withLock { $0.count }, 1)
         XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) && $0.contains(.rewriterOpen) })
-        XCTAssertEqual(progress.totalUnitCount, 2); XCTAssertEqual(progress.completedUnitCount, 2)
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1); XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         try assertProtected(url, password: "fallback")
         try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
         await session.close()
@@ -407,8 +421,8 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             }
             XCTAssertTrue(stages.withLock { $0.contains(.rewriterOpen) })
             XCTAssertFalse(stages.withLock { $0.contains(.updaterOpen) })
-            XCTAssertEqual(progress.totalUnitCount, 2)
-            XCTAssertEqual(progress.completedUnitCount, 2)
+            XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
+            XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         }
         await session.close()
     }

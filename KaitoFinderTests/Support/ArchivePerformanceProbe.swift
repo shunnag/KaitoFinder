@@ -65,6 +65,7 @@ nonisolated struct ArchiveProbeConfiguration: Sendable {
     let entries: Int
     let payloadMiB: Int
     let splitVolumeMiB: Int
+    let addFiles: Int
     let formats: [ProbeArchiveFormat]
     let asserts: Bool
     let additionPosition: ArchivePreferences.AdditionPosition
@@ -80,7 +81,8 @@ nonisolated struct ArchiveProbeConfiguration: Sendable {
             }
             return value
         }
-        entries = try positive("KAITOFINDER_PROBE_ENTRIES", default: 100_000, minimum: 2)
+        entries = try positive("KAITOFINDER_PROBE_ENTRIES", default: 100_000, minimum: 1)
+        addFiles = try positive("KAITOFINDER_PROBE_ADD_FILES", default: 0, minimum: 0)
         payloadMiB = try positive("KAITOFINDER_PROBE_PAYLOAD_MIB", default: 256, minimum: 1)
         splitVolumeMiB = try positive("KAITOFINDER_PROBE_SPLIT_VOLUME_MIB", default: 32, minimum: 1)
         let names = (environment["KAITOFINDER_PROBE_FORMATS"] ?? "zip").lowercased()
@@ -365,6 +367,11 @@ nonisolated final class ArchiveProbeTrace: Sendable {
         var starts: [UUID: DiskIO] = [:]
         var active: Set<UUID> = []
         var samples: [ArchiveStageDiagnostics.Stage: [Sample]] = [:]
+        var credits = 0
+        var distinctCompleted: Set<Int64> = []
+        var lastCredit: ContinuousClock.Instant?
+        var maximumGap: Duration = .zero
+        var tail: Duration?
     }
 
     private let fixture: ArchiveProbeFixture
@@ -372,6 +379,27 @@ nonisolated final class ArchiveProbeTrace: Sendable {
     private let operation: String
     private let reportsPasswordVerification: Bool
     private let state = Mutex(State())
+
+    func recordProgress(_ slot: ArchiveWriteProgress.Slot, _ completed: Int64, _ total: Int64) {
+        let now = ContinuousClock.now
+        state.withLock {
+            if let previous = $0.lastCredit { $0.maximumGap = max($0.maximumGap, previous.duration(to: now)) }
+            $0.lastCredit = now
+            $0.credits += 1
+            $0.distinctCompleted.insert(completed)
+        }
+    }
+
+    func recordProgressLifecycle(_ event: ArchiveWriteProgress.Lifecycle) {
+        let now = ContinuousClock.now
+        state.withLock {
+            switch event {
+            case .began: $0.lastCredit = now
+            case .reset: $0.lastCredit = nil
+            case .published: $0.tail = $0.lastCredit?.duration(to: now)
+            }
+        }
+    }
 
     init(fixture: ArchiveProbeFixture, mode: String, operation: String, reportsPasswordVerification: Bool = false) {
         self.fixture = fixture
@@ -480,6 +508,15 @@ nonisolated final class ArchiveProbeTrace: Sendable {
 
     func finish(outputs: [URL], status: String = "ok") {
         let snapshot = state.withLock { $0 }
+        if snapshot.credits > 0, mode == "immediate" || operation == "create_many" {
+            func ms(_ duration: Duration) -> String {
+                String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"),
+                       Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1e15)
+            }
+            Self.line(["PROBE-PROGRESS", fixture.format.rawValue, fixture.kind.rawValue, operation,
+                       String(snapshot.credits), String(snapshot.distinctCompleted.count), ms(snapshot.maximumGap),
+                       snapshot.tail.map(ms) ?? "NA"].joined(separator: "\t"))
+        }
         XCTAssertTrue(snapshot.active.isEmpty, "Unfinished probe stages: \(operation)")
         let sizes = outputs.compactMap { (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? NSNumber)?.uint64Value }
         let size = !outputs.isEmpty && sizes.count == outputs.count ? String(sizes.reduce(0, +)) : "NA"

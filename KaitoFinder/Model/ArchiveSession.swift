@@ -677,12 +677,14 @@ actor ArchiveSession {
         }
         let outputFormat = mode.outputFormat
         try validatePendingRepresentability(pending, plan: plan, base: snapshot.entries, generation: baseGeneration, format: outputFormat)
-        let baseUnits = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
+        let counted = plan.edits.removals.count + plan.edits.renames.count + plan.folders.count
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: counted,
+            additions: plan.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 },
+            itemCount: counted + plan.additions.count, carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected),
+            changesExisting: !plan.edits.removals.isEmpty || !plan.edits.renames.isEmpty || plan.outputEncryption != nil))
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? =
             outputFormat == .zip && plan.outputEncryption != nil ? .init(output) : nil
         let sevenZipEncryption: Bool? = outputFormat == .sevenZip && plan.outputEncryption != nil ? output.password != nil : nil
-        progress.totalUnitCount = baseUnits + (zipEncryption == nil ? 0 : ArchiveReencryptionProgress.units)
-        progress.completedUnitCount = 0
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
@@ -690,9 +692,8 @@ actor ArchiveSession {
         let (identity, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             func publish(_ mode: ArchiveCapabilities.Mode) throws -> ArchiveSetIdentity {
-                let meter = ArchiveReencryptionProgress(progress)
                 return try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: output, password: password,
-                    progress: progress, commitProgress: zipEncryption == nil ? nil : meter.update, willPublish: {
+                    progress: progress, ledger: ledger, willPublish: {
                         try plan.validate()
                         try willPublish?()
                     }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
@@ -702,14 +703,13 @@ actor ArchiveSession {
                     publication: publication, deferredPlan: plan,
                     expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)) { editor in
                         try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress,
-                                        preservingOwnerIDs: output.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(outputFormat))
+                                        preservingOwnerIDs: output.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(outputFormat), ledger: ledger)
                     }
             }
             let identity: ArchiveSetIdentity
             do { identity = try publish(mode) }
             catch UpdaterError.nonRelocatableEntry where zipEncryption != nil {
-                progress.totalUnitCount = baseUnits
-                progress.completedUnitCount = 0
+                ledger.reset()
                 identity = try publish(.rewrite(.zip))
             }
             return (identity, verifiedOutput.take(), verifiedOutput.publishedMode ?? .rewrite(outputFormat))
@@ -833,14 +833,13 @@ actor ArchiveSession {
         }
         let sevenZipEncryption: Bool? = format == .sevenZip ? options.password != nil : nil
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = format == .zip ? .init(options) : nil
-        progress.totalUnitCount = 1 + (format == .zip ? ArchiveReencryptionProgress.units : 0)
-        progress.completedUnitCount = 0
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: 1, additions: [], itemCount: 1,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(reader.entries), changesExisting: true))
         let (identity, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             func publish(_ mode: ArchiveCapabilities.Mode) throws -> ArchiveSetIdentity {
-                let meter = ArchiveReencryptionProgress(progress)
                 return try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: options, password: password,
-                    progress: progress, commitProgress: format == .zip ? meter.update : nil,
+                    progress: progress, ledger: ledger,
                     willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
                     expectedOutput: .init(projected: reader.entries, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)) { editor in
                         if mode == .inPlace {
@@ -849,13 +848,13 @@ actor ArchiveSession {
                         } else if format == .sevenZip {
                             try (editor as? any ArchiveReencrypting)?.reencryptExistingEntries(currentPassword: sourcePassword)
                         }
+                        ledger.didCount()
                     }
             }
             let identity: ArchiveSetIdentity
             do { identity = try publish(mode) }
             catch UpdaterError.nonRelocatableEntry where format == .zip {
-                progress.totalUnitCount = 1
-                progress.completedUnitCount = 0
+                ledger.reset()
                 identity = try publish(.rewrite(.zip))
             }
             return (identity, verifiedOutput.take(), verifiedOutput.publishedMode ?? .rewrite(format))

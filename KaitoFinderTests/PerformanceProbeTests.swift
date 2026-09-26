@@ -160,6 +160,85 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         #endif
     }
 
+    @MainActor func testManyFileAdditionsAndCreationWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        guard configuration.addFiles > 0 else { throw XCTSkip("Set KAITOFINDER_PROBE_ADD_FILES to run many-file probes") }
+        ArchiveProbeTrace.header()
+        let directory = try ArchiveTestDirectory()
+        let source = try await Self.makeManyFiles(in: directory.url, count: configuration.addFiles)
+        for format in configuration.formats {
+            // A single existing member is independent of the normal entries/payload probe sizes.
+            let url = directory.url.appendingPathComponent("one." + format.rawValue)
+            let writer = try ArchiveWriter.create(url: url, format: format.writerFormat)
+            try writer.add(data: Data([42]), as: "seed.txt"); try writer.finish()
+            let fixture = ArchiveProbeFixture(directory: directory, url: url, format: format, kind: .entries,
+                smallCount: 1, payloadMiB: 0, encryption: nil)
+            try await withDocument(fixture, mode: .immediate) { document, _, archive, _ in
+                let trace = ArchiveProbeTrace(fixture: fixture, mode: "immediate", operation: "add_many")
+                let result = try await Self.traced(trace, output: archive) {
+                    try await document.append(urls: [source], to: "", progress: Progress())
+                }
+                XCTAssertTrue(result.failures.isEmpty); XCTAssertNil(result.reloadFailure)
+                trace.require([.mutate, .commit, .total])
+                let saved = try await document.projectedEntries()
+                XCTAssertEqual(saved.filter { $0.kind == .file }.count, configuration.addFiles + 1)
+            }
+            let output = directory.url.appendingPathComponent("created." + format.rawValue)
+            let trace = ArchiveProbeTrace(fixture: fixture, mode: "creation", operation: "create_many")
+            _ = try await Self.traced(trace, output: output) {
+                try await Self.createMany(source: source, output: output, format: format.writerFormat)
+            }
+            trace.require([.mutate, .total])
+            XCTAssertEqual(try ArchiveReader.open(url: output).entries.filter { $0.kind == .file }.count, configuration.addFiles)
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
+    #if DEBUG
+    @concurrent private static func createMany(source: URL, output: URL, format: GyoshukuKit.ArchiveFormat) async throws -> URL {
+        try ArchiveCreationTransaction.run(plan: .init(sources: [source], destination: output, format: format,
+            options: ArchivePreferences().writerOptions(for: format)), progress: Progress())
+    }
+
+    @concurrent private static func makeManyFiles(in directory: URL, count: Int) async throws -> URL {
+        let root = directory.appendingPathComponent("small")
+        let words = ArchiveProbePayload.WordList()
+        var seed: UInt64 = 20260926
+        func next(_ bound: Int) -> Int {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return Int((seed >> 32) % UInt64(bound))
+        }
+        var paths: [URL] = []
+        for index in 0..<count {
+            let parent = root.appendingPathComponent(String(format: "d%03d/s%d", index / 1000, (index / 100) % 10))
+            if index % 100 == 0 { try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true) }
+            let url = parent.appendingPathComponent(String(format: "f%06d.txt", index))
+            let size = 202 + next(3801)
+            var data = Data()
+            while data.count < size { data.append(words.bytes.subdata(in: words.ranges[next(words.ranges.count)])) }
+            data = data.prefix(size - 1); data.append(10)
+            try data.write(to: url)
+            paths.append(url)
+        }
+        let directories = try FileManager.default.subpathsOfDirectory(atPath: root.path).map { root.appendingPathComponent($0) }
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+        paths += directories + [root]
+        // Set both timestamps together: GK's source identity guard requires atime >= mtime.
+        for offset in stride(from: 0, to: paths.count, by: 500) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/touch")
+            process.arguments = ["-t", "202609260000"] + paths[offset..<min(paths.count, offset + 500)].map(\.path)
+            try process.run(); process.waitUntilExit()
+            guard process.terminationStatus == 0 else { throw CocoaError(.fileWriteUnknown) }
+        }
+        ArchiveProbeTrace.line("PROBE-MANY\tfiles=\(count)\tseed=20260926\tdictionary=\(words.source)")
+        return root
+    }
+    #endif
+
     @MainActor func testSplitSavesWhenEnabled() async throws {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()
@@ -743,7 +822,11 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 }) {
                     try await ArchiveImportTransaction.didCommitSevenZipUpdaterForTesting.withValue({ updater in
                         trace.recordSevenZip(try XCTUnwrap(updater.lastCommitStatistics))
-                    }) { try await action() }
+                    }) {
+                        try await ArchiveWriteProgress.lifecycleForTesting.withValue(trace.recordProgressLifecycle) {
+                            try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.recordProgress) { try await action() }
+                        }
+                    }
                 }
             }
             trace.finish(output: output)

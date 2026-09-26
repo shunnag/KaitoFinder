@@ -2,6 +2,7 @@ import AppKit
 import Darwin
 import GyoshukuKit
 import KaitoKit
+import Synchronization
 import XCTest
 @testable import KaitoFinder
 
@@ -45,6 +46,26 @@ nonisolated final class DragInTests: XCTestCase {
             result[entry.name] = bytes
         }
         return result
+    }
+
+    private final class AdditionProgressTrace: Sendable {
+        struct Sample: Sendable { let slot: ArchiveWriteProgress.Slot; let completed: Int64; let total: Int64 }
+        private let samples = Mutex<[Sample]>([])
+
+        func record(_ slot: ArchiveWriteProgress.Slot, _ completed: Int64, _ total: Int64) {
+            samples.withLock { $0.append(.init(slot: slot, completed: completed, total: total)) }
+        }
+
+        func assertStoppedAfterFirstItem(_ progress: Progress, file: StaticString = #filePath, line: UInt = #line) throws {
+            let all = samples.withLock { $0 }
+            XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1, file: file, line: line)
+            let firstSlotEnd = try XCTUnwrap(all.last { $0.slot == .addition(0) }, file: file, line: line)
+            XCTAssertEqual(progress.completedUnitCount, firstSlotEnd.completed, file: file, line: line)
+            let completed = [Int64(0)] + all.map(\.completed) + [progress.completedUnitCount]
+            XCTAssertTrue(zip(completed, completed.dropFirst()).allSatisfy { $0 <= $1 }, file: file, line: line)
+            XCTAssertTrue(all.allSatisfy { $0.completed <= $0.total }, file: file, line: line)
+            XCTAssertLessThanOrEqual(progress.completedUnitCount, progress.totalUnitCount, file: file, line: line)
+        }
     }
 
     func testAppendFilePreservesExistingBytesAndPassesUnzip() async throws {
@@ -187,12 +208,15 @@ nonisolated final class DragInTests: XCTestCase {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive)
         let progress = Progress()
+        let trace = AdditionProgressTrace()
         do {
-            _ = try await session.append(urls: [fixture.file("a"), fixture.file("b")], to: "", progress: progress,
+            _ = try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.record) {
+                try await session.append(urls: [fixture.file("a"), fixture.file("b")], to: "", progress: progress,
                                          didProcess: { _ in progress.cancel() })
+            }
             XCTFail("取消しが成功扱いです")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(progress.completedUnitCount, 1)
+        try trace.assertStoppedAfterFirstItem(progress)
         XCTAssertEqual(session.generation, 0)
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: fixture.root.path).contains { $0.hasPrefix(".KaitoFinder-add-") })
@@ -202,12 +226,15 @@ nonisolated final class DragInTests: XCTestCase {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive), progress = Progress()
         let second = try fixture.file("b")
+        let trace = AdditionProgressTrace()
         do {
-            _ = try await session.append(urls: [fixture.file("a"), second], to: "", progress: progress,
-                didProcess: { _ in try FileManager.default.removeItem(at: second) })
+            _ = try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.record) {
+                try await session.append(urls: [fixture.file("a"), second], to: "", progress: progress,
+                    didProcess: { _ in try FileManager.default.removeItem(at: second) })
+            }
             XCTFail("消えた入力を追加しました")
         } catch { XCTAssertTrue(String(describing: error).contains("b:")) }
-        XCTAssertEqual(progress.completedUnitCount, 1)
+        try trace.assertStoppedAfterFirstItem(progress)
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         XCTAssertEqual(session.generation, 0)
     }
@@ -385,7 +412,8 @@ nonisolated final class DragInTests: XCTestCase {
                                          willPublish: { progress.cancel() })
             XCTFail("公開直前の取消しを無視しました")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(progress.completedUnitCount, 1)
+        XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1)
+        XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount - 1)
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         XCTAssertEqual(session.generation, 0)
     }
@@ -398,7 +426,8 @@ nonisolated final class DragInTests: XCTestCase {
                 willPublish: { throw ExtractionFailure.refused("公開前の検証失敗") })
             XCTFail("公開前の失敗を無視しました")
         } catch { XCTAssertEqual(String(describing: error), "公開前の検証失敗") }
-        XCTAssertEqual(progress.completedUnitCount, 1)
+        XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1)
+        XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount - 1)
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         XCTAssertEqual(session.generation, 0)
     }

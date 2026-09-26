@@ -136,6 +136,14 @@ nonisolated final class DeferredSaveDocumentTests: XCTestCase {
             pending.renames[.init(index: 0, expectedName: "old", baseGeneration: snapshot.generation)] = "renamed"
             pending.outputEncryption = .init(password: "new", zipEncryption: .zipCrypto)
             let progress = Progress(), attempts = Mutex(0), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+            let resets = Mutex((last: Int64(0), count: 0))
+            let observation = progress.observe(\.completedUnitCount) { value, _ in
+                resets.withLock {
+                    if value.completedUnitCount == 0 && $0.last > 0 { $0.count += 1 }
+                    $0.last = value.completedUnitCount
+                }
+            }
+            defer { observation.invalidate() }
             let publication = ArchiveSavePublication(); defer { publication.finish() }
             try await ArchiveStageDiagnostics.observer.withValue({ event in
                 if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
@@ -153,9 +161,10 @@ nonisolated final class DeferredSaveDocumentTests: XCTestCase {
                 }
             }
             XCTAssertEqual(attempts.withLock { $0 }, 1)
+            XCTAssertEqual(resets.withLock { $0.count }, fallback ? 1 : 0)
             XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) })
             XCTAssertEqual(stages.withLock { $0.contains(.rewriterOpen) }, fallback)
-            XCTAssertEqual(progress.totalUnitCount, fallback ? 3 : 1002)
+            XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
             XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
             XCTAssertEqual(try DeferredSaveFixture.contents(url, password: "new"), ["renamed": Data("old contents".utf8)])
             try ArchiveReencryptionTestSupport.assertEncryption(url, settings: pending.outputEncryption!)

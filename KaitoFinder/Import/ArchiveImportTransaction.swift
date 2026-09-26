@@ -411,9 +411,11 @@ nonisolated enum ArchiveEditTransaction {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
-        progress.totalUnitCount = Int64(plan.removals.count + plan.renames.count + 1)
-        progress.completedUnitCount = 0
+        let count = plan.removals.count + plan.renames.count
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: count, additions: [], itemCount: count,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(plan.existing, removing: plan.removals.map(\.index)), changesExisting: true))
         let identity = try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
+            ledger: ledger,
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
             verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             expectedOutput: .init(existing: plan.existing, removing: plan.removals.map(\.index), renaming: plan.renames, mode: mode)) { updater in
@@ -425,12 +427,12 @@ nonisolated enum ArchiveEditTransaction {
             try ArchiveImportPlan.checkCancellation(progress)
             if !plan.removals.isEmpty {
                 try updater.remove(entriesAt: plan.removals.map(\.index))
-                progress.completedUnitCount += Int64(plan.removals.count)
+                ledger.didCount(plan.removals.count)
             }
             for change in plan.renames {
                 try ArchiveImportPlan.checkCancellation(progress)
                 try updater.rename(entryAt: change.entry.index, to: change.path)
-                progress.completedUnitCount += 1
+                ledger.didCount()
             }
         }
         return ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path), publishedIdentity: identity)
@@ -463,9 +465,10 @@ nonisolated enum ArchiveImportTransaction {
                              willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
                     verifiedOutput: ArchiveVerifiedOutputSink? = nil,
                     sessionReader: sending ArchiveReader? = nil) throws -> ArchiveImportResult {
-        progress.totalUnitCount = 2
-        progress.completedUnitCount = 0
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: 1, additions: [], itemCount: 1,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(plan.existing), changesExisting: false))
         let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
+            ledger: ledger,
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
             verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             expectedOutput: .init(existing: plan.existing, additions: [.init(adding: plan.path, kind: .directory)], mode: mode)) { updater in
@@ -474,7 +477,7 @@ nonisolated enum ArchiveImportTransaction {
             }
             try ArchiveImportPlan.checkCancellation(progress)
             try updater.addDirectory(plan.path)
-            progress.completedUnitCount += 1
+            ledger.didCount()
         }
         return ArchiveImportResult(addedPaths: [plan.path], failures: [], publishedIdentity: identity)
     }
@@ -494,14 +497,16 @@ nonisolated enum ArchiveImportTransaction {
             try ArchiveImportPlan.checkCancellation(progress)
             try stamp.verify()
         }
-        progress.totalUnitCount = Int64(plan.items.count + plan.replacingEntries.count + 1)
-        progress.completedUnitCount = 0
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: plan.replacingEntries.count,
+            additions: plan.items.map(\.byteCount), itemCount: plan.items.count,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(existing, removing: plan.replacingEntries),
+            changesExisting: !plan.replacingEntries.isEmpty))
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.items.lazy.map(\.url)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
         let expectedOutput = try ArchiveOutputProjection(existing: existing, removing: plan.replacingEntries,
                                                         additions: plan.items.map { try .init(adding: $0) }, mode: mode)
-        let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: {
+        let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, ledger: ledger, willPublish: {
             for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
             try willPublish?()
         },
@@ -513,7 +518,7 @@ nonisolated enum ArchiveImportTransaction {
             }
             if !plan.replacingEntries.isEmpty {
                 try updater.remove(entriesAt: plan.replacingEntries)
-                progress.completedUnitCount += Int64(plan.replacingEntries.count)
+                ledger.didCount(plan.replacingEntries.count)
             }
             for (index, item) in plan.items.enumerated() {
                 try ArchiveImportPlan.checkCancellation(progress)
@@ -524,12 +529,12 @@ nonisolated enum ArchiveImportTransaction {
                         #if DEBUG
                         willAddFileForTesting.get()?(item.url)
                         #endif
-                        try updater.add(contentsOf: item.url, as: item.path)
+                        try updater.add(contentsOf: item.url, as: item.path, ownerIDs: nil, progress: ledger.addition(index))
                     }
                 }
                 catch is CancellationError { throw CancellationError() }
                 catch { throw ExtractionFailure.refused("\(item.path): \(ArchiveErrorText.describe(error))") }
-                progress.completedUnitCount += 1
+                ledger.didFinishAddition(index)
                 try didProcess?(index)
             }
             for stamp in plan.sourceStamps {
@@ -542,6 +547,7 @@ nonisolated enum ArchiveImportTransaction {
 
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
     @discardableResult static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
+                        ledger: ArchiveWriteProgress? = nil,
                         commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)? = nil,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
@@ -557,6 +563,7 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         try ArchiveImportPlan.checkCancellation(progress)
         let original = try ArchiveSetIdentity.capture(url: archive)
+        let archiveBytes = ArchiveWriteProgress.sum(original.volumes.lazy.map(\.size))
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
         let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
         do { try registry.register(directory) }
@@ -576,6 +583,20 @@ nonisolated enum ArchiveImportTransaction {
         var publishedMode = mode
         var spliceBase: TarEditingSnapshot?
         var spliced: CompressedTarCommitResult?
+        func updateCommitProgress() -> (ArchiveUpdater.CommitProgress) throws -> Void {
+            if let ledger { return ledger.commit }
+            // Compatibility for ledger-free callers, including the existing transaction test doubles.
+            progress.totalUnitCount += 1_000
+            var completed: Int64 = 0
+            return { value in
+                try ArchiveImportPlan.checkCancellation(progress)
+                let units: Int64 = value.totalBytes == 0 ? 1_000
+                    : Int64(min(1, Double(value.completedBytes) / Double(value.totalBytes)) * 1_000)
+                let next = max(completed, units)
+                progress.completedUnitCount += next - completed
+                completed = next
+            }
+        }
         func rewriteBranch(format: GyoshukuKit.ArchiveFormat) throws {
             var info = stat()
             guard lstat(work.path, &info) != 0 else { throw ExtractionFailure.system(EEXIST) }
@@ -587,16 +608,19 @@ nonisolated enum ArchiveImportTransaction {
             guard !rewriter.hasEncryptedEntries || password != nil else {
                 throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
             }
+            ledger?.begin(.rewriter(format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit), archiveBytes: archiveBytes, options: options)
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
             try ArchiveImportPlan.checkCancellation(progress)
+            if let ledger { try rewriter.finishAdditions(progress: ledger.finishAdditions) }
             // LHA・7z の fallback は、削除済みの項目と root を carry の予算に含めない。
             let carryCount = [.lha, .sevenZip].contains(format)
                 ? expectedOutput.resolving(.rewrite(format)).entries.filter { !$0.isAddition }.count
                 : rewriter.entryNames.count
-            progress.totalUnitCount += Int64(carryCount)
+            if ledger == nil { progress.totalUnitCount += Int64(carryCount) }
             try ArchiveStageDiagnostics.measure(.commit) {
-                try rewriter.commit { _, _ in
-                    progress.completedUnitCount += 1
+                try rewriter.commit(progress: ledger?.commit) { done, total in
+                    if let ledger { ledger.didCarry(done, total) }
+                    else { progress.completedUnitCount += 1 }
                     try ArchiveImportPlan.checkCancellation(progress)
                 }
             }
@@ -606,13 +630,15 @@ nonisolated enum ArchiveImportTransaction {
         case .inPlace:
             try willOpenUpdater?()
             let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: archive, output: work, options: options) }
+            ledger?.begin(.updater(.zip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
             try ArchiveImportPlan.checkCancellation(progress)
+            if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
             try ArchiveStageDiagnostics.measure(.commit) {
                 #if DEBUG
                 try willCommitUpdaterForTesting.get()?()
                 #endif
-                try updater.commit(progress: commitProgress)
+                try updater.commit(progress: ledger?.commit ?? commitProgress)
             }
             #if DEBUG
             try didCommitUpdaterForTesting.get()?(updater)
@@ -640,16 +666,17 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
             }
             if let updater {
+                ledger?.begin(.updater(format, processesAdditionsAtCommit: true), archiveBytes: archiveBytes, options: options)
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
-                progress.totalUnitCount += ArchiveReencryptionProgress.units
-                let meter = ArchiveReencryptionProgress(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
                 do {
                     spliced = try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
                         try willCommitUpdaterForTesting.get()?()
                         #endif
-                        return try updater.commit(progress: meter.update)
+                        return try updater.commit(progress: commitCallback)
                     }
                 } catch let error as TarUpdaterError {
                     guard case .outputVerificationFailed = error else { throw error }
@@ -677,16 +704,17 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
             }
             if let updater {
+                ledger?.begin(.updater(.tar, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
-                progress.totalUnitCount += ArchiveReencryptionProgress.units
-                let meter = ArchiveReencryptionProgress(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
                 do {
                     try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
                         try willCommitUpdaterForTesting.get()?()
                         #endif
-                        try updater.commit(progress: meter.update)
+                        try updater.commit(progress: commitCallback)
                     }
                 } catch let error as TarUpdaterError {
                     guard case .outputVerificationFailed = error else { throw error }
@@ -713,16 +741,17 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
             }
             if let updater {
+                ledger?.begin(.updater(.lha, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
-                progress.totalUnitCount += ArchiveReencryptionProgress.units
-                let meter = ArchiveReencryptionProgress(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
                 do {
                     try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
                         try willCommitUpdaterForTesting.get()?()
                         #endif
-                        try updater.commit(progress: meter.update)
+                        try updater.commit(progress: commitCallback)
                     }
                 } catch let error as UpdaterRouteError {
                     guard case .outputVerificationFailed = error else { throw error }
@@ -749,16 +778,17 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
             }
             if let updater {
+                ledger?.begin(.updater(.sevenZip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
-                progress.totalUnitCount += ArchiveReencryptionProgress.units
-                let meter = ArchiveReencryptionProgress(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
                 do {
                     try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
                         try willCommitUpdaterForTesting.get()?()
                         #endif
-                        try updater.commit(progress: meter.update)
+                        try updater.commit(progress: commitCallback)
                     }
                 } catch let error as UpdaterRouteError {
                     guard case .outputVerificationFailed = error else { throw error }
@@ -865,7 +895,8 @@ nonisolated enum ArchiveImportTransaction {
             verifiedOutput?.output = ArchiveVerifiedOutput(identity: identity, reader: verified, source: source,
                 hint: hint, verificationPassword: options.password, format: outputFormat)
         }
-        progress.completedUnitCount += 1
+        if let ledger { ledger.didPublish() }
+        else { progress.completedUnitCount += 1 }
         return identity
     }
 

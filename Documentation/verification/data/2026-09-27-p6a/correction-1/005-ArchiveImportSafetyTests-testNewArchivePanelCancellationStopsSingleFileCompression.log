@@ -1,0 +1,6 @@
+Test Suite 'Selected tests' started at 2026-09-27 02:25:07.722.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 02:25:07.722.
+Test Suite 'ArchiveImportSafetyTests' started at 2026-09-27 02:25:07.722.
+Test Case '-[KaitoFinderTests.ArchiveImportSafetyTests testNewArchivePanelCancellationStopsSingleFileCompression]' started.
+2026-09-27 02:25:07.902 xctest[74039:13372632] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'ClientCallsAuxiliary': Connection invalid
+2026-09-27 02:25:07.903 xctest[74039:13372632] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'HostCallsAuxiliary': Connection invalid

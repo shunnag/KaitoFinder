@@ -98,7 +98,8 @@ nonisolated final class ArchiveImportSafetyTests: XCTestCase {
         let saving = Task { try await creator.create(sources: [source]) }
         try await scenarioWait { Self.isWriting(in: fixture.directory.url, prefix: ".KaitoFinder-new-", filename: "archive.zip") }
         let sheet = try XCTUnwrap(creator.progressSheet)
-        XCTAssertEqual(sheet.progress.completedUnitCount, 0)
+        XCTAssertEqual(sheet.progress.userInfo[.fileCompletedCountKey] as? Int, 0)
+        XCTAssertLessThan(sheet.progress.completedUnitCount, sheet.progress.totalUnitCount)
         sheet.cancelExtraction(nil)
         do { _ = try await saving.value; XCTFail("Cancelled creation succeeded") }
         catch { XCTAssertTrue(error is CancellationError) }

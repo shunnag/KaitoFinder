@@ -19,6 +19,7 @@ nonisolated struct ArchiveImportPlan: Sendable {
         let url: URL
         let path: String
         let isDirectory: Bool
+        var byteCount: UInt64 = 0
     }
     struct Failure: Sendable {
         let name: String
@@ -85,7 +86,8 @@ nonisolated struct ArchiveImportPlan: Sendable {
                     guard kind == S_IFREG || kind == S_IFDIR || kind == S_IFLNK else {
                         throw ExtractionFailure.refused(String(localized: "この種類のファイルは追加できません: \(source.lastPathComponent)。"))
                     }
-                    batch.append(Item(url: source, path: key, isDirectory: kind == S_IFDIR))
+                    batch.append(Item(url: source, path: key, isDirectory: kind == S_IFDIR,
+                                      byteCount: kind == S_IFREG ? UInt64(max(0, info.st_size)) : 0))
                     // リンクを再帰しない。writer が lstat でリンク自体を保存する。
                     if kind == S_IFDIR {
                         let children = try FileManager.default.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
