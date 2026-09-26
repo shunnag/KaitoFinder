@@ -477,7 +477,9 @@ import Synchronization
                     await session.prepareDeferredEditing()
                     guard !Task.isCancelled, !self.closed, self.session === session,
                           session.generation == snapshot.generation else { return }
-                    try await self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+                    try await self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
+                        index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
+                    session.adoptNameIndex(validation: self.pendingEditor?.validation, generation: snapshot.generation)
                     guard !Task.isCancelled, !self.closed, self.session === session else { return }
                     if let baseTree, let editor = self.pendingEditor {
                         let prepared = try await editor.prepare(generation: snapshot.generation, baseTree: baseTree)
@@ -918,8 +920,9 @@ import Synchronization
                             #if DEBUG
                             if let error = Self.preparationFailureForTesting.get() { throw error }
                             #endif
-                            try await editor.install(base: snapshot.entries, generation: snapshot.generation,
-                                format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: true)
+                            try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: true,
+                                index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
+                            session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
                             guard !Task.isCancelled, isCurrent() else { return }
                             let prepared = try await editor.prepare(generation: snapshot.generation, filters: configurations,
                                                                     baseTree: tree, checksCancellation: true)
@@ -935,7 +938,9 @@ import Synchronization
                 }
                 await session.prepareDeferredEditing()
                 guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
-                try await pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: false)
+                try await pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: false,
+                    index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
+                session.adoptNameIndex(validation: pendingEditor?.validation, generation: snapshot.generation)
                 guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
                 try await displayPending(checksCancellation: false)
             } catch {
@@ -1217,7 +1222,9 @@ extension ArchiveDocument {
         let temporaryStaging = immediate ? try StagingRegistry.temporary(beside: session.sourceURL) : nil
         defer { temporaryStaging?.remove() }
         let editor = pendingEditor ?? ArchivePendingEditor(registry: temporaryStaging?.registry ?? .shared)
-        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
+            index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
+        session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
         let previous = editor.changes
         let stagingCheckpoint = editor.stagingCheckpoint
         var state: ArchiveReservationState? = try await editor.prepare(generation: snapshot.generation)
@@ -1349,7 +1356,9 @@ extension ArchiveDocument {
         guard let editor = pendingEditor else { return snapshot.entries }
         await session.prepareDeferredEditing()
         guard !closed, self.session === session else { throw CancellationError() }
-        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
+            index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
+        session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
         let prepared = try await editor.prepare(generation: snapshot.generation)
         guard self.session === session, editor.baseSession == ObjectIdentifier(session), session.generation == snapshot.generation else { throw ArchiveEditError.staleSelection }
         session.setPendingReadSnapshot(prepared.reading)
@@ -1628,7 +1637,9 @@ extension ArchiveDocument {
         splitSaveNotice = nil
         var committedDate: Date?
         let snapshot = await session.snapshot()
-        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
+            index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
+        session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
         let pending = editor.changes
         if try await pending.requiresReplay(base: snapshot.entries, generation: snapshot.generation) {
             // AppKit の外部変更シートを Save anyway で越えても、この照合は省かない。
@@ -1762,7 +1773,9 @@ extension ArchiveDocument {
                 throw Self.deferredExternalChangeError
             }
             var existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
-            try await editor.install(base: existing.entries, generation: generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session))
+            try await editor.install(base: existing.entries, generation: generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
+                index: session.nameIndex(generation: generation, format: session.reservationFormat))
+            session.adoptNameIndex(validation: editor.validation, generation: generation)
             existing.pending = try await ArchiveSaveReplayPlan.build(base: existing.entries, generation: generation,
                 pending: editor.changes, format: session.reservationFormat, progress: progress)
             existing.publication = publication

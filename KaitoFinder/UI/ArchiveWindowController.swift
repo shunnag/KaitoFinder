@@ -646,7 +646,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func prepareRenameIndex(for root: EntryNode, session: ArchiveSession, generation: UInt64) {
         let entries = root.archiveEntries, format = session.reservationFormat
         renameIndexTask = Task { [weak self, weak root] in
-            var occupancy = await EntryNode.buildRenameOccupancy(from: entries, format: format)
+            var occupancy: ArchivePathOccupancy.Overlay?
+            let snapshot = await session.snapshot()
+            if !session.usesPendingReading, snapshot.generation == generation, snapshot.entries.count == entries.count {
+                occupancy = await session.prepareNameIndex(generation: generation)?.overlay
+            } else { occupancy = await EntryNode.buildRenameOccupancy(from: entries, format: format) }
             defer { ArchiveBackgroundRelease.release(&occupancy) }
             // 公開済みの木は変更せず、同じ木・セッション・世代にだけ結び付ける。
             guard !Task.isCancelled, let self, let root, self.root === root,

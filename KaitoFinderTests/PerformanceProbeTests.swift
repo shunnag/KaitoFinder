@@ -237,7 +237,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             trace.forbid([.splitWorkValidation])
             if payload.format == .zip { trace.require([.splitInputCopy]) }
             else { trace.forbid([.splitInputCopy]) }
-            if deferred { trace.forbid([.splitDisposeProof]) }
+            if deferred { trace.forbid([.splitDisposeProof]); trace.requireSaveValidation() }
             else { trace.require([.splitDisposeProof]) }
             XCTAssertNil(document.splitSaveFailure); XCTAssertNil(document.deferredReloadFailure)
             XCTAssertNotNil(document.splitSaveResult)
@@ -410,10 +410,11 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 } catch { sheet?.end(); throw error }
                 await document.waitForDeferredPreparationForTesting()
             }
-            save.require([.total, .passwordVerification, .replayPlan, .validateRepresentability, .replay, .commit,
+            save.require([.total, .passwordVerification, .replayPlan, .representabilityDifferential, .replay, .commit,
                           .verificationOpen, .entryComparison, .publish, .reload, .readerAdoption, .capabilityProbe,
                           .editingInstall, .editingPrepare, .treeBuild, .display])
-            save.require([.saveSheet, .planKeys, .representabilityProbe])
+            save.require([.saveSheet])
+            save.requireSaveValidation()
             save.forbid([.reloadOpen])
             if fixture.format == .zip { save.require([.outputProbe]); save.forbid([.workCopy, .updaterPreparation]) }
             save.require([.updaterOpen])
@@ -552,11 +553,12 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 } catch { sheet?.end(); throw error }
                 await document.waitForDeferredPreparationForTesting()
             }
-            trace.require([.total, .replayPlan, .validateRepresentability, .replay, .commit, .verificationOpen,
+            trace.require([.total, .replayPlan, .representabilityDifferential, .replay, .commit, .verificationOpen,
                            .entryComparison, .publish, .reload, .readerAdoption, .capabilityProbe,
                            .editingInstall, .editingPrepare, .treeBuild, .display,
                            fixture.format.editorStage(placement: try ArchiveProbeConfiguration().additionPosition)])
-            trace.require([.saveSheet, .planKeys, .representabilityProbe])
+            trace.require([.saveSheet])
+            trace.requireSaveValidation()
             trace.forbid([.reloadOpen])
             trace.requireRoute(placement: try ArchiveProbeConfiguration().additionPosition)
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy, .updaterPreparation]) }

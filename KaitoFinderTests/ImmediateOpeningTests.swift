@@ -111,29 +111,128 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         let controller = try controller(document)
         try await scenarioWait { controller.renameIndexIsReady }
         let old = try node("a.txt", in: controller), session = try XCTUnwrap(document.session), generation = session.generation
+        let events = Mutex<[(ArchiveReservationDiagnostics.Event, UInt64, Bool)]>([])
+        let builds = Mutex<[UInt64]>([]), droppedRenames = Mutex<[[Int: String]]>([])
+        XCTAssertNotNil(session.nameIndex(generation: generation, format: session.reservationFormat))
         let edit = Task {
-            try await ArchiveReservationDiagnostics.observer.withValue({ event, main in
-                if event == .tree && !main { treeGate.pauseOnce() }
-                if event == .renameIndex { indexGate.pauseOnce() }
-            }) { try await document.rename(old, to: "renamed.txt", progress: Progress()) }
+            // 不完全な差分を位置照合で捨てさせ、改名欄の背景準備による再構築を通す。
+            try await ArchiveSession.nameIndexChangeForTesting.withValue({ change in
+                droppedRenames.withLock { $0.append(change.renamed) }
+                var change = change
+                change.renamed = [:]
+                return change
+            }) {
+                try await ArchiveStageDiagnostics.observer.withValue({ event in
+                    if case .began(_, .nameIndexBuild) = event { builds.withLock { $0.append(session.generation) } }
+                }) {
+                    try await ArchiveReservationDiagnostics.observer.withValue({ event, main in
+                        events.withLock { $0.append((event, session.generation, main)) }
+                        if event == .tree && !main { treeGate.pauseOnce() }
+                        if event == .renameIndex { indexGate.pauseOnce() }
+                    }) { try await document.rename(old, to: "renamed.txt", progress: Progress()) }
+                }
+            }
         }
         try await scenarioWait { treeGate.isEntered }
+        let postEditGeneration = session.generation
+        XCTAssertGreaterThan(postEditGeneration, generation)
+        XCTAssertEqual(droppedRenames.withLock { $0 }, [[try XCTUnwrap(old.entry).index: "renamed.txt"]])
+        XCTAssertNil(session.nameIndex(generation: generation, format: session.reservationFormat))
+        XCTAssertNil(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
+        XCTAssertTrue(builds.withLock { $0.isEmpty })
         XCTAssertTrue(try node("a.txt", in: controller) === old)
         XCTAssertNil(controller.renameOccupancy)
+        XCTAssertFalse(controller.renameIndexIsReady)
         try await scenarioWait { controller.isListLoadingVisible }
         XCTAssertTrue(try node("a.txt", in: controller) === old)
         treeGate.release()
         _ = try await edit.value
         try await scenarioWait { indexGate.isEntered }
-        XCTAssertGreaterThan(session.generation, generation)
+        XCTAssertEqual(session.generation, postEditGeneration)
+        XCTAssertNil(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
         XCTAssertNotNil(try node("renamed.txt", in: controller))
         XCTAssertFalse(controller.isListLoadingVisible)
         XCTAssertFalse(controller.renameIndexIsReady)
+        XCTAssertNil(controller.renameOccupancy)
         indexGate.release()
         try await scenarioWait { controller.renameIndexIsReady }
         let occupancy = try XCTUnwrap(controller.renameOccupancy)
         XCTAssertTrue(occupancy.collides("renamed.txt", directory: false))
         XCTAssertFalse(occupancy.collides("a.txt", directory: false))
+        let rebuilt = try XCTUnwrap(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
+        XCTAssertTrue(rebuilt.overlay.collides("renamed.txt", directory: false))
+        XCTAssertFalse(rebuilt.overlay.collides("a.txt", directory: false))
+        XCTAssertEqual(builds.withLock { $0 }, [postEditGeneration])
+        let observed = events.withLock { $0 }
+        for event in [ArchiveReservationDiagnostics.Event.renameIndex, .renameIndexBuilt] {
+            let matches = observed.filter { $0.0 == event }
+            XCTAssertEqual(matches.map { $0.1 }, [postEditGeneration])
+            XCTAssertFalse(matches.contains { $0.2 })
+        }
+        XCTAssertLessThan(try XCTUnwrap(observed.firstIndex { $0.0 == .treeDisplayed }),
+                          try XCTUnwrap(observed.firstIndex { $0.0 == .renameIndex }))
+    }
+
+    @MainActor func testPostEditReusesAdvancedIndexWithoutExposingOldOccupancy() async throws {
+        preserveArchiveWindowFrame()
+        let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, treeGate = ScenarioGate()
+        defer { treeGate.release(); document.close() }
+        document.makeWindowControllers()
+        let controller = try controller(document)
+        try await scenarioWait { controller.renameIndexIsReady }
+        let old = try node("a.txt", in: controller), session = try XCTUnwrap(document.session), generation = session.generation
+        let previous = try XCTUnwrap(controller.renameOccupancy)
+        XCTAssertTrue(previous.collides("a.txt", directory: false))
+        XCTAssertFalse(previous.collides("renamed.txt", directory: false))
+        let events = Mutex<[(ArchiveReservationDiagnostics.Event, UInt64)]>([])
+        let stages = Mutex<[(ArchiveStageDiagnostics.Stage, UInt64)]>([])
+        let checkReadyOccupancy: @MainActor @Sendable () -> Void = {
+            guard session.generation > generation, controller.renameIndexIsReady else { return }
+            XCTAssertNotNil(controller.renameOccupancy)
+            XCTAssertEqual(controller.renameOccupancy?.collides("renamed.txt", directory: false), true)
+            XCTAssertEqual(controller.renameOccupancy?.collides("a.txt", directory: false), false)
+        }
+        let edit = Task {
+            try await ArchiveStageDiagnostics.observer.withValue({ event in
+                if case .began(_, let stage) = event { stages.withLock { $0.append((stage, session.generation)) } }
+            }) {
+                try await ArchiveReservationDiagnostics.observer.withValue({ event, main in
+                    events.withLock { $0.append((event, session.generation)) }
+                    if event == .tree && !main { treeGate.pauseOnce() }
+                    // 表示・ready 通知のその場でも調べ、待機の poll 間に古い占有表を公開していないか確認する。
+                    if main { MainActor.assumeIsolated { checkReadyOccupancy() } }
+                }) { try await document.rename(old, to: "renamed.txt", progress: Progress()) }
+            }
+        }
+        try await scenarioWait { checkReadyOccupancy(); return treeGate.isEntered }
+        let postEditGeneration = session.generation
+        XCTAssertGreaterThan(postEditGeneration, generation)
+        let advanced = try XCTUnwrap(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
+        XCTAssertTrue(advanced.overlay.collides("renamed.txt", directory: false))
+        XCTAssertFalse(advanced.overlay.collides("a.txt", directory: false))
+        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertNil(controller.renameOccupancy)
+        XCTAssertFalse(controller.renameIndexIsReady)
+        try await scenarioWait { checkReadyOccupancy(); return controller.isListLoadingVisible }
+        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        treeGate.release()
+        _ = try await edit.value
+        checkReadyOccupancy()
+        try await scenarioWait { checkReadyOccupancy(); return controller.renameIndexIsReady }
+        XCTAssertEqual(session.generation, postEditGeneration)
+        XCTAssertNotNil(try node("renamed.txt", in: controller))
+        XCTAssertFalse(controller.isListLoadingVisible)
+        XCTAssertTrue(controller.renameIndexIsReady)
+        checkReadyOccupancy()
+        let observed = events.withLock { $0 }
+        XCTAssertFalse(observed.contains { [.renameIndex, .renameIndexBuilt].contains($0.0) })
+        for event in [ArchiveReservationDiagnostics.Event.treeDisplayed, .renameIndexReady] {
+            XCTAssertEqual(observed.filter { $0.0 == event }.map { $0.1 }, [postEditGeneration])
+        }
+        let recordedStages = stages.withLock { $0 }
+        XCTAssertFalse(recordedStages.contains { $0.0 == .nameIndexBuild })
+        XCTAssertEqual(recordedStages.filter { $0.0 == .nameIndexAdvance }.map { $0.1 }, [postEditGeneration])
+        XCTAssertEqual(recordedStages.filter { $0.0 == .treeBuild }.map { $0.1 }, [postEditGeneration])
     }
 
     @MainActor func testSlowInitialLoadsRevealAfterDelayAndHideOnDisplayInBothModes() async throws {

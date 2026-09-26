@@ -48,6 +48,7 @@ nonisolated final class ArchiveVerifiedFileSource: ByteSourceFileIdentityProvidi
 
 nonisolated final class ArchiveVerifiedOutputSink {
     var output: ArchiveVerifiedOutput?
+    var publishedMode: ArchiveCapabilities.Mode?
 
     func take() -> ArchiveVerifiedOutput? {
         defer { output = nil }

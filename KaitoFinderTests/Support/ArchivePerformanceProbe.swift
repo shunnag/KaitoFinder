@@ -401,6 +401,14 @@ nonisolated final class ArchiveProbeTrace: Sendable {
         forbid([stage == .updaterOpen ? .rewriterOpen : .updaterOpen, .workCopy])
     }
 
+    func requireSaveValidation(file: StaticString = #filePath, line: UInt = #line) {
+        require([.representabilityDifferential, .editingInstall], file: file, line: line)
+        forbid([.planKeys], file: file, line: line)
+        let rewrote = state.withLock { $0.samples[.rewriterOpen] != nil }
+        if rewrote { require([.validateRepresentability, .representabilityProbe], file: file, line: line) }
+        else { forbid([.validateRepresentability, .representabilityProbe], file: file, line: line) }
+    }
+
     func record(_ event: ArchiveStageDiagnostics.Event) {
         switch event {
         case .began(let id, let stage):

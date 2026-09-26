@@ -131,7 +131,7 @@ nonisolated enum ArchiveSplitSavePipeline {
                     index: RecoverableWorkIndex, metadataStore: ArchiveVolumeMetadataStore,
                     hooks: ArchiveSplitSaveHooks, willPublish: (@Sendable () throws -> Void)?,
                     keepsPendingChanges: Bool = true, produce: (VolumeSetPublication) throws -> ArchiveSplitWorkProducer.Result) throws
-        -> (published: PublishedVolumeSet, recompressedZIP: Bool) {
+        -> (published: PublishedVolumeSet, recompressedZIP: Bool, mode: ArchiveCapabilities.Mode) {
         var started: VolumeSetPublication?
         do {
             progress.totalUnitCount = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
@@ -159,7 +159,7 @@ nonisolated enum ArchiveSplitSavePipeline {
             }
             hooks.didPublish(published)
             progress.completedUnitCount = progress.totalUnitCount
-            return (published, produced.recompressedZIP)
+            return (published, produced.recompressedZIP, produced.mode)
         } catch is CancellationError { throw CancellationError() }
         catch {
             var failure = ArchiveSplitSaveFailure.map(error, staging: started?.stagingURL)

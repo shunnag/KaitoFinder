@@ -79,6 +79,22 @@ nonisolated struct ArchivePathOccupancy: Sendable {
         return nodes[node].entries > 0 || (!directory && nodes[node].total > nodes[node].entries)
     }
 
+    #if DEBUG
+    func keys() -> [String: [Bool]] {
+        var result: [String: [Bool]] = [:]
+        func visit(_ node: Int, path: String) {
+            let value = nodes[node]
+            if value.entries > 0 {
+                result[path] = Array(repeating: false, count: value.files)
+                    + Array(repeating: true, count: value.entries - value.files)
+            }
+            for (part, child) in value.children { visit(child, path: node == 0 ? part : path + "/" + part) }
+        }
+        visit(0, path: "")
+        return result
+    }
+    #endif
+
     // 基底の配列を COW で複製せず、触れた枝の差分だけを数える。
     struct Overlay: Sendable {
         let base: ArchivePathOccupancy

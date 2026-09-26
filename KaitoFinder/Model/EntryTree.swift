@@ -63,10 +63,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         for (offset, entry) in entries.enumerated() {
             if checksCancellation, offset % 256 == 0, Task.isCancelled { return nil }
             let directory = entry.kind == .directory
-            guard let normalized = try? ArchiveEditPlan.normalizedPath(entry.name, directory: directory, format: format),
-                  normalized.utf8.elementsEqual(entry.name.utf8) else { return nil }
-            let key = ArchiveEditPlan.key(entry.name)
-            guard entry.pathComponents.joined(separator: "/") == key else { return nil }
+            guard let key = ArchiveNameIndex.cleanKey(entry, format: format) else { return nil }
             occupancy.insert(key, directory: directory)
         }
         return .init(occupancy)

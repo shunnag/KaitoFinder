@@ -11,3 +11,4 @@ scratchpad はセッションの外に残らないので、検証記録が参照
 | `p4-bp4-vs-s21-100k.txt` | S21（P4-A）の受入計測の回 1。B-P4 と S21（ac5cab9）の 100k 全形式と本文 256 MiB（追加は末尾）。上と同じ形式 |
 | `p4-bp4-vs-s21-lha-beginning.txt` | 回 2。LHA だけ、`KAITOFINDER_PROBE_ADDITION_PLACEMENT=beginning` |
 | `p4-bp4-vs-s21-recheck.txt` | 回 3。7z・tar・tar.xz の測り直し |
+| `p1d-bp1d-vs-s33-500k-r{1,2}.txt`、`p1d-bp1d-vs-s33-100k.txt` | S33（P1d-A）の受入計測。B-P1d（KaitoFinder ac5cab9）と S33 を `KAITOFINDER_PROBE_WARM_INDEX=1` で交互に採った比較（zip 500k を 2 回、zip・tar・tar.gz 100k と本文 256 MiB を 1 回） |

@@ -128,7 +128,7 @@ nonisolated final class ArchivePlanDiagnosticsTests: XCTestCase {
                 XCTAssertTrue(value.active.isEmpty)
                 XCTAssertGreaterThan(value.ended[.planBuild, default: 0], 0)
                 XCTAssertEqual(value.ended[.planValidation, default: 0], validations)
-                for stage in [ArchiveStageDiagnostics.Stage.nameIndexBuild, .nameIndexAdvance, .representabilityDifferential] {
+                for stage in [ArchiveStageDiagnostics.Stage.representabilityDifferential] {
                     XCTAssertNil(value.ended[stage])
                 }
             }

@@ -35,6 +35,8 @@ nonisolated struct ArchiveEntryVerification: Sendable {
 /// スレッドセーフではない reader を所有し、値型の一覧だけを外へ渡す。
 actor ArchiveSession {
     #if DEBUG
+    nonisolated static let nameIndexDisabledForTesting = TaskLocal<Bool>(wrappedValue: false)
+    nonisolated static let nameIndexChangeForTesting = TaskLocal<(@Sendable (ArchiveNameIndexChange) -> ArchiveNameIndexChange)?>(wrappedValue: nil)
     nonisolated static let readerAdoptionObserver = TaskLocal<(@Sendable (ArchiveReaderAdoption) -> Void)?>(wrappedValue: nil)
     nonisolated static let willAdoptReaderForTesting = TaskLocal<(@Sendable (ArchiveVerifiedOutput) -> Void)?>(wrappedValue: nil)
     nonisolated static let passwordVerificationBytes = Mutex<UInt64>(0)
@@ -43,6 +45,7 @@ actor ArchiveSession {
     #endif
 
     typealias PasswordPrompt = @MainActor @Sendable (ArchivePasswordChallenge) async throws -> String
+    nonisolated private let nameIndexStorage = Mutex<ArchiveNameIndex?>(nil)
     private var reader: ArchiveReader?
     private(set) var password: String?
     private let allowsSplitSave: Bool
@@ -294,6 +297,103 @@ actor ArchiveSession {
     }
 
     // 確認 UI を待つ間は書かず、回答後に世代と原本を再検証する。公開と再読込は直列。
+    nonisolated func nameIndex(generation: UInt64, format: GyoshukuKit.ArchiveFormat) -> ArchiveNameIndex? {
+        #if DEBUG
+        if Self.nameIndexDisabledForTesting.get() { return nil }
+        #endif
+        return nameIndexStorage.withLock { index in
+            guard let index, index.generation == generation, index.format == format else { return nil }
+            return index
+        }
+    }
+
+    nonisolated func adoptNameIndex(_ index: ArchiveNameIndex) {
+        #if DEBUG
+        if Self.nameIndexDisabledForTesting.get() { return }
+        #endif
+        nameIndexStorage.withLock { stored in
+            if let stored {
+                if stored.generation > index.generation { return }
+                if stored.generation == index.generation, stored.representable || !index.representable { return }
+            }
+            stored = index
+        }
+    }
+
+    nonisolated func adoptNameIndex(validation: ArchiveReservationValidation?, generation: UInt64) {
+        guard let validation, let occupancy = validation.occupancy else { return }
+        adoptNameIndex(.init(generation: generation, format: validation.format, entryCount: validation.base.count,
+                             containsHardLinks: false, occupancy: occupancy, representable: true))
+    }
+
+    func availableNameIndex() -> ArchiveNameIndex? {
+        guard !closed, !invalidated else { return nil }
+        return nameIndex(generation: generation, format: reservationFormat)
+    }
+
+    func currentNameIndex() -> ArchiveNameIndex? {
+        #if DEBUG
+        if Self.nameIndexDisabledForTesting.get() { return nil }
+        #endif
+        if let index = availableNameIndex() { return index }
+        guard !closed, !invalidated, let reader else { return nil }
+        let index = ArchiveStageDiagnostics.measure(.nameIndexBuild) {
+            ArchiveNameIndex.build(entries: reader.entries, generation: generation, format: reservationFormat,
+                                   provingRepresentability: false, checksCancellation: true)
+        }
+        if let index { adoptNameIndex(index) }
+        return index
+    }
+
+    nonisolated func prepareNameIndex(generation: UInt64) async -> ArchiveNameIndex? {
+        #if DEBUG
+        if Self.nameIndexDisabledForTesting.get() { return nil }
+        #endif
+        if let index = nameIndex(generation: generation, format: reservationFormat) { return index }
+        guard let input = await nameIndexInput(generation: generation) else { return nil }
+        let index = await Self.buildNameIndex(entries: input.entries, generation: generation, format: input.format)
+        if let index { adoptNameIndex(index) }
+        return nameIndex(generation: generation, format: input.format)
+    }
+
+    private func nameIndexInput(generation: UInt64) -> (entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat)? {
+        guard !closed, !invalidated, self.generation == generation, let reader else { return nil }
+        return (reader.entries, reservationFormat)
+    }
+
+    @concurrent private static func buildNameIndex(entries: [ArchiveEntry], generation: UInt64,
+                                                   format: GyoshukuKit.ArchiveFormat) async -> ArchiveNameIndex? {
+        ArchiveReservationDiagnostics.record(.renameIndex)
+        defer { ArchiveReservationDiagnostics.record(.renameIndexBuilt) }
+        return ArchiveStageDiagnostics.measure(.nameIndexBuild) {
+            ArchiveNameIndex.build(entries: entries, generation: generation, format: format,
+                                   provingRepresentability: false, checksCancellation: true)
+        }
+    }
+
+    private func validatePendingRepresentability(_ pending: ArchivePendingChanges, plan: ArchiveSaveReplayPlan,
+                                                  base: [ArchiveEntry], generation: UInt64,
+                                                  format: GyoshukuKit.ArchiveFormat) throws {
+        guard format == reservationFormat, let index = nameIndex(generation: generation, format: format),
+              index.entryCount == base.count, index.representable, !index.containsHardLinks else {
+            try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: format)
+            return
+        }
+        try ArchiveStageDiagnostics.measure(.representabilityDifferential) {
+            let removed = pending.removals.map(\.index).sorted()
+            try ArchiveReservationValidation(base: base, format: format, index: index)
+                .validate(pending, projected: plan.projected, position: { index in
+                    if index >= base.count { return index - removed.count }
+                    var lower = 0, upper = removed.count
+                    while lower < upper {
+                        let middle = (lower + upper) / 2
+                        if removed[middle] < index { lower = middle + 1 } else { upper = middle }
+                    }
+                    return lower < removed.count && removed[lower] == index ? nil : index - lower
+                })
+        }
+    }
+
     func append(urls: [URL], to folder: String, progress: Progress,
                 resolveConflict: ArchiveImportConflict.Resolver? = nil,
                 didProcess: (@Sendable (Int) throws -> Void)? = nil,
@@ -304,34 +404,35 @@ actor ArchiveSession {
         }
         try verifyBeforeEditing(progress: progress)
         let expectedGeneration = generation
+        let occupancy = currentNameIndex()?.overlay
         let plan: ArchiveImportPlan
         if let resolveConflict {
             plan = try await ArchiveImportPlan.resolving(urls: urls, folder: folder, existing: reader.entries,
                 archive: sourceURL, generation: expectedGeneration, progress: progress, options: importOptions(),
-                format: reservationFormat, resolver: resolveConflict)
+                format: reservationFormat, occupancy: occupancy, resolver: resolveConflict)
             _ = try requireCurrentReader()
             guard generation == expectedGeneration else { throw ArchiveEditError.staleSelection }
         } else {
             plan = try ArchiveStageDiagnostics.measure(.planBuild) {
                 try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
-                                            progress: progress, options: importOptions(), format: reservationFormat)
+                                            progress: progress, options: importOptions(), format: reservationFormat, occupancy: occupancy)
             }
         }
         let base = capabilities.mode!
         let options = options(for: base)
         let mode = base.resolved(with: options)
-        var (result, verified) = try publishing {
+        var (result, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                      options: options, password: password, progress: progress,
                                                      didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
                                                      sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
                                                          ? try reader.reopen() : nil)
-            return (result, verifiedOutput.take())
+            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
         }
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
-            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
+            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(removed: plan.replacingEntries, appended: plan.items.map { ($0.path, $0.isDirectory) }, mode: publishedMode)) }
             catch { result.reloadFailure = Self.reloadFailureMessage }
         }
         return result
@@ -349,8 +450,9 @@ actor ArchiveSession {
         var planning = ArchiveStageDiagnostics.begin(.planBuild)
         defer { planning?.end() }
         #endif
+        let occupancy = currentNameIndex()?.overlay
         let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder, format: reservationFormat)
-        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress, format: reservationFormat)
+        _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress, format: reservationFormat, occupancy: occupancy)
         var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
         for selection in selections {
             let source = try ArchiveImportPlan.path(selection.path, format: reservationFormat)
@@ -364,7 +466,7 @@ actor ArchiveSession {
             candidates.append(.init(path: destination, info: .archived(selection.entries, path: source,
                                                                          archive: sourceURL, generation: expectedGeneration)))
         }
-        let groups = ArchiveConflictResolution.existingGroups(entries, folder: target)
+        let groups = ArchiveConflictResolution.existingGroups(entries, folder: target, matching: Set(candidates.map(\.path)), occupancy: occupancy)
         #if DEBUG
         planning?.end()
         planning = nil
@@ -406,21 +508,21 @@ actor ArchiveSession {
         try verifyBeforeEditing(progress: progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveStageDiagnostics.measure(.planBuild) {
-            try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
+            try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat, occupancy: currentNameIndex()?.overlay)
         }
         let base = capabilities.mode!
         let options = options(for: base)
         let mode = base.resolved(with: options)
-        var (result, verified) = try publishing {
+        var (result, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
                                                                options: options, password: password, progress: progress,
                                                                willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
                                                                sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
                                                          ? try reader.reopen() : nil)
-            return (result, verifiedOutput.take())
+            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
         }
-        do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
+        do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(appended: [(plan.path, true)], mode: publishedMode)) }
         catch { result.reloadFailure = Self.reloadFailureMessage }
         return result
     }
@@ -443,24 +545,25 @@ actor ArchiveSession {
         }
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing(progress: progress)
+        let occupancy = (renaming.isEmpty && moving.isEmpty ? availableNameIndex() : currentNameIndex())?.overlay
         let plan = try ArchiveStageDiagnostics.measure(.planBuild) {
             try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
-                                      existing: reader.entries, format: reservationFormat)
+                                      existing: reader.entries, format: reservationFormat, occupancy: occupancy)
         }
         let base = capabilities.mode!
         let options = options(for: base)
         let mode = base.resolved(with: options)
-        var (result, verified) = try publishing {
+        var (result, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             let result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                                    options: options, password: password, progress: progress,
                                                    willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
                                                    sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
-                                                         ? try reader.reopen() : nil)
-            return (result, verifiedOutput.take())
+                                                         ? try reader.reopen() : nil, occupancy: occupancy)
+            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
         }
         if result.published {
-            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified) }
+            do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(plan: plan, mode: publishedMode)) }
             catch { result.reloadFailure = Self.reloadFailureMessage }
         }
         return result
@@ -558,7 +661,8 @@ actor ArchiveSession {
         let snapshot = try deferredSnapshot(progress: progress)
         guard snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
-                                            format: reservationFormat, progress: progress)
+                                            format: reservationFormat, progress: progress,
+                                            baseOccupancy: availableNameIndex()?.occupancy)
         guard !plan.isEmpty else { return .init() }
         let base = capabilities.mode!
         var output = options(for: base)
@@ -569,7 +673,7 @@ actor ArchiveSession {
             output = encryption.applying(to: writerOptions(format), format: format)
         }
         let outputFormat = mode.outputFormat
-        try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: outputFormat)
+        try validatePendingRepresentability(pending, plan: plan, base: snapshot.entries, generation: baseGeneration, format: outputFormat)
         let baseUnits = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? =
             outputFormat == .zip && plan.outputEncryption != nil ? .init(output) : nil
@@ -579,7 +683,7 @@ actor ArchiveSession {
             try ArchiveImportPlan.checkCancellation(progress)
         }
         let sourcePassword = password
-        let (identity, verified) = try publishing {
+        let (identity, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             func publish(_ mode: ArchiveCapabilities.Mode) throws -> ArchiveSetIdentity {
                 let meter = ArchiveReencryptionProgress(progress)
@@ -604,14 +708,14 @@ actor ArchiveSession {
                 progress.completedUnitCount = 0
                 identity = try publish(.rewrite(.zip))
             }
-            return (identity, verifiedOutput.take())
+            return (identity, verifiedOutput.take(), verifiedOutput.publishedMode ?? .rewrite(outputFormat))
         }
         if let encryption = plan.outputEncryption {
             password = encryption.password
             passwordRevision &+= 1
             encryptsSevenZipHeaders = encryption.encryptsSevenZipHeaders
         }
-        do { try reloadAfterMutation(willOpen: willReload, verification: .init(identity: identity, indices: nil), adopting: consume verified); return .init() }
+        do { try reloadAfterMutation(willOpen: willReload, verification: .init(identity: identity, indices: nil), adopting: consume verified, advancing: .init(plan: plan, mode: publishedMode)); return .init() }
         catch { return .init(reloadFailure: Self.reloadFailureMessage) }
     }
 
@@ -624,7 +728,8 @@ actor ArchiveSession {
               target.layout == (try volumeLayout?.publicationLayout()), target.expected == sourceIdentity,
               snapshot.generation == baseGeneration else { throw ArchiveEditError.staleSelection }
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
-                                            format: reservationFormat, progress: progress)
+                                            format: reservationFormat, progress: progress,
+                                            baseOccupancy: availableNameIndex()?.occupancy)
         let base = capabilities.mode!
         var output = options(for: base)
         var mode = base.resolved(with: output)
@@ -634,7 +739,7 @@ actor ArchiveSession {
             output = encryption.applying(to: writerOptions(format), format: format)
         }
         let format = mode.outputFormat
-        try ArchiveSaveReplayPlan.validateRepresentability(plan.projected, format: format)
+        try validatePendingRepresentability(pending, plan: plan, base: snapshot.entries, generation: baseGeneration, format: format)
         var target = target
         target.writesVolumeMetadata = true
         target.additionalQuarantine = try quarantine ?? ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
@@ -655,7 +760,7 @@ actor ArchiveSession {
                 encryptsSevenZipHeaders = encryption.encryptsSevenZipHeaders
             }
             let failure: String?
-            do { try reloadAfterMutation(willOpen: willReload, verification: .init(identity: result.published.identity, indices: nil)); failure = nil }
+            do { try reloadAfterMutation(willOpen: willReload, verification: .init(identity: result.published.identity, indices: nil), advancing: .init(plan: plan, mode: result.mode)); failure = nil }
             catch { failure = Self.reloadFailureMessage }
             return ArchiveSplitSaveResult(published: result.published, reloadFailure: failure, recompressedZIP: result.recompressedZIP)
         } catch is CancellationError { throw CancellationError() }
@@ -721,7 +826,7 @@ actor ArchiveSession {
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = format == .zip ? .init(options) : nil
         progress.totalUnitCount = 1 + (format == .zip ? ArchiveReencryptionProgress.units : 0)
         progress.completedUnitCount = 0
-        let (identity, verified) = try publishing {
+        let (identity, verified, publishedMode) = try publishing {
             let verifiedOutput = ArchiveVerifiedOutputSink()
             func publish(_ mode: ArchiveCapabilities.Mode) throws -> ArchiveSetIdentity {
                 let meter = ArchiveReencryptionProgress(progress)
@@ -742,13 +847,13 @@ actor ArchiveSession {
                 progress.completedUnitCount = 0
                 identity = try publish(.rewrite(.zip))
             }
-            return (identity, verifiedOutput.take())
+            return (identity, verifiedOutput.take(), verifiedOutput.publishedMode ?? .rewrite(format))
         }
         // 公開後にだけ新しい鍵を採用する。取消しや競合では旧鍵を維持する。
         password = output.password
         passwordRevision &+= 1
         encryptsSevenZipHeaders = output.encryptsSevenZipHeaders
-        do { try reloadAfterMutation(verification: .init(identity: identity, indices: nil), adopting: consume verified); return ArchivePasswordEditResult() }
+        do { try reloadAfterMutation(verification: .init(identity: identity, indices: nil), adopting: consume verified, advancing: publishedMode == .inPlace ? .init(mode: publishedMode) : nil); return ArchivePasswordEditResult() }
         catch { return ArchivePasswordEditResult(reloadFailure: Self.reloadFailureMessage) }
     }
 
@@ -802,7 +907,11 @@ actor ArchiveSession {
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。
     // 検証した inode が今のパスと一致するときだけ、解析を引き継ぐ。
     func reloadAfterMutation(willOpen: (@Sendable () throws -> Void)? = nil,
-                             verification: ArchiveEntryVerification? = nil, adopting output: consuming ArchiveVerifiedOutput? = nil) throws {
+                             verification: ArchiveEntryVerification? = nil, adopting output: consuming ArchiveVerifiedOutput? = nil,
+                             advancing change: ArchiveNameIndexChange? = nil) throws {
+        let previousEntries = reader?.entries
+        var advanced = false
+        defer { if !advanced { nameIndexStorage.withLock { $0 = nil } } }
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.reload)
         defer { span?.end() }
@@ -855,6 +964,18 @@ actor ArchiveSession {
             rememberVerification()
         }
         deferredUpdaterGeneration = adopted != nil && replacement.format == .zip && layout == nil ? generation : nil
+        if var change, let previousEntries,
+           let index = nameIndex(generation: generation &- 1, format: reservationFormat) {
+            #if DEBUG
+            change = Self.nameIndexChangeForTesting.get()?(change) ?? change
+            #endif
+            if let next = index.advancing(change, previous: previousEntries, entries: replacement.entries,
+                                          generation: generation, format: reservationFormat) {
+                adoptNameIndex(next)
+                advanced = true
+            }
+        }
+        if !advanced { nameIndexStorage.withLock { $0 = nil } }
         invalidated = false
         invalidationStorage.withLock { $0 = false }
     }

@@ -33,7 +33,8 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
                     if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
                 }) {
                     try await ArchiveReservationDiagnostics.observer.withValue({ event, _ in
-                        if event == .baseValidation { gate.pauseOnce() }
+                        // install は索引を共有するだけ。背景での projection 準備を止める。
+                        if event == .projection { gate.pauseOnce() }
                     }) { try await fixture.save(); completed = true }
                 }
             }
@@ -83,7 +84,7 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
             var completed = false
             let save = Task {
                 try await ArchiveReservationDiagnostics.observer.withValue({ event, _ in
-                    if event == .baseValidation { gate.pauseOnce() }
+                    if event == .projection { gate.pauseOnce() }
                 }) {
                     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
                         document.save(to: fixture.gate, ofType: ArchiveDocumentController.splitVolumeType, for: .saveOperation) { error in
@@ -99,8 +100,9 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
             XCTAssertTrue(visible(controller).contains { $0.path == "saved" })
             let snapshot = await session.snapshot(), token = try XCTUnwrap(controller.listLoadingTokenForTesting)
             XCTAssertNotNil(session.volumeLayout)
-            XCTAssertNil(document.pendingEditor?.baseGeneration)
-            XCTAssertEqual(document.pendingEditor?.base, [])
+            XCTAssertEqual(document.pendingEditor?.baseGeneration, snapshot.generation)
+            XCTAssertEqual(document.pendingEditor?.base, snapshot.entries)
+            XCTAssertNil(document.pendingEditor?.prepared)
             var started = false, finished = false
             let edit = Task {
                 started = true
@@ -354,7 +356,7 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
         var completed = false
         let task = Task {
             try await ArchiveReservationDiagnostics.observer.withValue({ event, _ in
-                if event == .baseValidation { gate.pauseOnce() }
+                if event == .projection { gate.pauseOnce() }
             }) { try await fixture.save(); completed = true }
         }
         try await scenarioWait { gate.isEntered && completed }

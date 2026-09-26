@@ -6,7 +6,7 @@ import Synchronization
 nonisolated struct ArchiveReservationValidation: Sendable {
     let base: [ArchiveEntry]
     let format: GyoshukuKit.ArchiveFormat
-    private let occupancy: ArchivePathOccupancy?
+    let occupancy: ArchivePathOccupancy?
 
     init(base: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat) {
         self.base = base
@@ -16,19 +16,21 @@ nonisolated struct ArchiveReservationValidation: Sendable {
         do {
             for entry in base {
                 let directory = entry.kind == .directory
-                guard entry.kind != .hardlink,
-                      try ArchiveEditPlan.normalizedPath(entry.name, directory: directory, format: format)
-                        .utf8.elementsEqual(entry.name.utf8) else {
+                guard entry.kind != .hardlink, let key = ArchiveNameIndex.cleanKey(entry, format: format) else {
                     occupancy = nil
                     return
                 }
-                let key = ArchiveEditPlan.key(entry.name)
-                guard entry.pathComponents.joined(separator: "/") == key else { occupancy = nil; return }
                 index.insert(key, directory: directory)
             }
             try ArchiveSaveReplayPlan.validateRepresentability(base, format: format)
             occupancy = index
         } catch { occupancy = nil }
+    }
+
+    init(base: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat, index: ArchiveNameIndex) {
+        self.base = base
+        self.format = format
+        occupancy = index.occupancy
     }
 
     func context(for pending: ArchivePendingChanges) -> ArchivePathOccupancy.Overlay? {
@@ -57,8 +59,12 @@ nonisolated struct ArchiveReservationValidation: Sendable {
     }
 
     func validate(_ pending: ArchivePendingChanges, projection: ArchivePendingProjection) throws {
+        try validate(pending, projected: projection.entries, position: { projection.positions[$0] })
+    }
+
+    func validate(_ pending: ArchivePendingChanges, projected: [ArchiveEntry], position: (Int) -> Int?) throws {
         guard var current = context(for: pending) else {
-            try Self.validateFull(projection.entries, format: format)
+            try Self.validateFull(projected, format: format)
             return
         }
         var changed = pending.renames.keys.filter { !pending.removals.contains($0) }.map(\.index)
@@ -66,19 +72,19 @@ nonisolated struct ArchiveReservationValidation: Sendable {
         changed.append(contentsOf: base.count..<(base.count + pending.additions.count + pending.createdFolders.count))
         for index in changed {
             try Task.checkCancellation()
-            guard let position = projection.positions[index] else { throw ArchiveEditError.staleSelection }
-            let entry = projection.entries[position], directory = entry.kind == .directory
+            guard let position = position(index) else { throw ArchiveEditError.staleSelection }
+            let entry = projected[position], directory = entry.kind == .directory
             let key = ArchiveEditPlan.key(entry.name)
             current.remove(key, directory: directory)
             let collision = current.collides(key, directory: directory)
             current.insert(key, directory: directory)
             if collision {
-                try Self.validateFull(projection.entries, format: format)
+                try Self.validateFull(projected, format: format)
                 return
             }
         }
         for index in changed {
-            let entry = projection.entries[projection.positions[index]!]
+            let entry = projected[position(index)!]
             try ArchiveRewriter.probe(entries: [entry.pendingCopy(index: 0)], format: format)
         }
     }

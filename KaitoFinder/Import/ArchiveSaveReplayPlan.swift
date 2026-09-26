@@ -11,16 +11,19 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
     let outputEncryption: ArchiveEncryptionSettings?
     let projected: [ArchiveEntry]
     let renamePasses: Int
+    private let baseKeys: [Int: String]
     private let baseOccupancy: ArchivePathOccupancy?
     var isEmpty: Bool { edits.removals.isEmpty && edits.renames.isEmpty && additions.isEmpty && folders.isEmpty && outputEncryption == nil }
 
     @concurrent static func build(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges,
-                                  format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress()) async throws -> Self {
-        try Self(base: base, generation: generation, pending: pending, format: format, progress: progress)
+                                  format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress(),
+                                  baseOccupancy cached: ArchivePathOccupancy? = nil) async throws -> Self {
+        try Self(base: base, generation: generation, pending: pending, format: format, progress: progress, baseOccupancy: cached)
     }
 
     init(base: [ArchiveEntry], generation: UInt64, pending: ArchivePendingChanges,
-         format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress()) throws {
+         format: GyoshukuKit.ArchiveFormat = .zip, progress: Progress = Progress(),
+         baseOccupancy cached: ArchivePathOccupancy? = nil) throws {
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.replayPlan)
         defer { span?.end() }
@@ -29,38 +32,50 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         let projected = try pending.projection(base: base, generation: generation)
         self.projected = projected
         let removed = Set(pending.removals.map(\.index))
-        let names = try ArchiveStageDiagnostics.measure(.planKeys) {
-            var desiredKeys: [Int: String] = [:]
-            // 基底の正規化は全件走査の中だけで行う。同じ key の改名だけなら占有は不要。
-            for reference in pending.renames.keys.sorted(by: { $0.index < $1.index }) where !removed.contains(reference.index) {
-                desiredKeys[reference.index] = ArchiveEditPlan.key(pending.renames[reference]!)
-            }
-            var referenceKeys: [Int: String] = [:]
-            let needsNames = !pending.additions.isEmpty || !pending.createdFolders.isEmpty || desiredKeys.contains {
-                let key = ArchiveEditPlan.key(base[$0.key].name)
-                referenceKeys[$0.key] = key
-                return $0.value != key
-            }
-            guard needsNames else { return ([String](), ArchivePathOccupancy?.none, [Int: String](), [Int: String]()) }
-            let keys = base.map { referenceKeys[$0.index] ?? ArchiveEditPlan.key($0.name) }
-            var occupancy = ArchivePathOccupancy(), desired: [Int: String] = [:]
-            for entry in base { occupancy.insert(keys[entry.index], directory: entry.kind == .directory) }
+        var baseKeys: [Int: String] = [:]
+        func baseKey(_ index: Int) -> String {
+            if let key = baseKeys[index] { return key }
+            let key = ArchiveEditPlan.key(base[index].name)
+            baseKeys[index] = key
+            return key
+        }
+        var desiredKeys: [Int: String] = [:], desired: [Int: String] = [:]
+        for reference in pending.renames.keys.sorted(by: { $0.index < $1.index }) where !removed.contains(reference.index) {
+            desiredKeys[reference.index] = ArchiveEditPlan.key(pending.renames[reference]!)
+        }
+        let needsNames = !pending.additions.isEmpty || !pending.createdFolders.isEmpty
+            || desiredKeys.contains { $0.value != baseKey($0.key) }
+        let baseOccupancy: ArchivePathOccupancy?
+        func prepareNames() throws {
+            guard needsNames else { desiredKeys = [:]; return }
+            for index in removed { _ = baseKey(index) }
             for reference in pending.renames.keys.sorted(by: { $0.index < $1.index }) where !removed.contains(reference.index) {
                 let index = reference.index
-                if desiredKeys[index] == keys[index] { desiredKeys.removeValue(forKey: index); continue }
+                if desiredKeys[index] == baseKey(index) { desiredKeys.removeValue(forKey: index); continue }
                 desired[index] = try ArchiveEditPlan.normalizedPath(pending.renames[reference]!, directory: base[index].kind == .directory, format: format)
             }
-            return (keys, Optional(occupancy), desired, desiredKeys)
         }
-        let (baseKeys, baseOccupancy, desired, desiredKeys) = names
+        if let cached {
+            baseOccupancy = cached
+            try prepareNames()
+            for index in removed { _ = baseKey(index) }
+        } else {
+            baseOccupancy = try ArchiveStageDiagnostics.measure(.planKeys) {
+                guard needsNames else { desiredKeys = [:]; return nil }
+                var occupancy = ArchivePathOccupancy()
+                for entry in base { occupancy.insert(baseKey(entry.index), directory: entry.kind == .directory) }
+                try prepareNames()
+                return occupancy
+            }
+        }
         self.baseOccupancy = baseOccupancy
         var occupied = ArchivePathOccupancy.Overlay(baseOccupancy ?? .init())
         for index in baseOccupancy == nil ? [] : removed.sorted() {
-            occupied.remove(baseKeys[index], directory: base[index].kind == .directory)
+            occupied.remove(baseKey(index), directory: base[index].kind == .directory)
         }
         // 最終形の検査を先に行い、解決不能な衝突を一時名で隠さない。
         var final = occupied
-        for index in desired.keys { final.remove(baseKeys[index], directory: base[index].kind == .directory) }
+        for index in desired.keys { final.remove(baseKey(index), directory: base[index].kind == .directory) }
         for index in desired.keys.sorted() {
             let path = desired[index]!, key = desiredKeys[index]!, directory = base[index].kind == .directory
             guard !final.collides(key, directory: directory) else { throw ArchiveEditError.collision(path) }
@@ -84,9 +99,9 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
                 try ArchiveImportPlan.checkCancellation(progress)
                 let directory = base[index].kind == .directory
                 let path = remaining[index]!, key = desiredKeys[index]!
-                occupied.remove(current[index] ?? baseKeys[index], directory: directory)
+                occupied.remove(current[index] ?? baseKey(index), directory: directory)
                 if occupied.collides(key, directory: directory) {
-                    occupied.insert(current[index] ?? baseKeys[index], directory: directory)
+                    occupied.insert(current[index] ?? baseKey(index), directory: directory)
                     continue
                 }
                 ordered.append(.init(entry: .init(base[index]), path: path))
@@ -99,7 +114,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
                 // 独立した循環を一度にほどき、フォルダ同士の交換でも全件走査を繰り返さない。
                 var occupants: [String: Int] = [:], ambiguous: Set<String> = []
                 for entry in base where !removed.contains(entry.index) {
-                    let key = current[entry.index] ?? baseKeys[entry.index]
+                    let key = current[entry.index] ?? baseKey(entry.index)
                     if occupants.updateValue(entry.index, forKey: key) != nil { ambiguous.insert(key) }
                 }
                 var visited: Set<Int> = [], breaks: [Int] = []
@@ -131,7 +146,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
                     var path: String
                     repeat { path = ".KaitoFinder-rename-" + UUID().uuidString }
                     while occupied.containsSubtree(at: path) || final.containsSubtree(at: path)
-                    occupied.remove(current[index] ?? baseKeys[index], directory: directory)
+                    occupied.remove(current[index] ?? baseKey(index), directory: directory)
                     occupied.insert(path, directory: directory)
                     current[index] = path
                     ordered.append(.init(entry: .init(base[index]), path: directory ? path + "/" : path))
@@ -143,13 +158,15 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         additions = pending.additions
         folders = pending.createdFolders
         outputEncryption = pending.outputEncryption
-        // init の全件走査で作った key は、初回の検査が終わったら保持しない。
+        // 保存する memo は削除・改名で使う分だけ。循環の全件走査はここで手放す。
+        let touched = removed.union(pending.renames.keys.map(\.index))
+        self.baseKeys = baseKeys.filter { touched.contains($0.key) }
         try validate(baseKeys: baseOccupancy == nil ? nil : baseKeys)
     }
 
-    func validate() throws { try validate(baseKeys: nil) }
+    func validate() throws { try validate(baseKeys: baseKeys) }
 
-    private func validate(baseKeys: [String]?) throws {
+    private func validate(baseKeys: [Int: String]?) throws {
         try edits.validate(entries: edits.existing, additions:
             additions.map { ($0.path, $0.sourceStamp.kind == .directory) } + folders.map { ($0.path, true) },
             allowsRepeatedRenames: true, occupancy: baseOccupancy.map { .init($0) }, baseKeys: baseKeys)

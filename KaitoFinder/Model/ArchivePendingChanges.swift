@@ -156,7 +156,7 @@ nonisolated struct ArchivePendingProjection: Sendable {
     init(registry: StagingRegistry = .shared) { self.registry = registry }
 
     func install(base: [ArchiveEntry], generation: UInt64, format: GyoshukuKit.ArchiveFormat = .zip,
-                 sessionID: ObjectIdentifier? = nil, checksCancellation: Bool = true) async throws {
+                 sessionID: ObjectIdentifier? = nil, checksCancellation: Bool = true, index: ArchiveNameIndex? = nil) async throws {
         if let baseGeneration, baseGeneration != generation, !changes.isEmpty { throw ArchiveEditError.staleSelection }
         if baseGeneration == generation, baseSession == sessionID, validation?.format == format { return }
         #if DEBUG
@@ -164,7 +164,11 @@ nonisolated struct ArchivePendingProjection: Sendable {
         defer { span?.end() }
         #endif
         let revision = changes.revision
-        var validation: ArchiveReservationValidation? = await Self.makeValidation(base: base, format: format)
+        var validation: ArchiveReservationValidation?
+        if let index, index.generation == generation, index.format == format, index.entryCount == base.count,
+           index.representable, !index.containsHardLinks {
+            validation = ArchiveReservationValidation(base: base, format: format, index: index)
+        } else { validation = await Self.makeValidation(base: base, format: format) }
         defer { ArchiveBackgroundRelease.release(&validation) }
         if checksCancellation { try Task.checkCancellation() }
         guard changes.revision == revision else { throw ArchiveEditError.staleSelection }

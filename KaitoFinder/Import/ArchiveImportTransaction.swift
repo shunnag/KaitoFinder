@@ -259,14 +259,14 @@ nonisolated struct ArchiveEditPlan: Sendable {
 
     func validate(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
                   allowsRepeatedRenames: Bool = false, occupancy: ArchivePathOccupancy.Overlay? = nil,
-                  baseKeys: [String]? = nil) throws {
+                  baseKeys: [Int: String]? = nil) throws {
         for entry in removals + renames.map(\.entry) { try Self.validate(entry, entries: entries) }
         try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames, occupancy: occupancy, baseKeys: baseKeys)
     }
 
     func validateChanges(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
                          allowsRepeatedRenames: Bool = false, occupancy cached: ArchivePathOccupancy.Overlay? = nil,
-                         baseKeys: [String]? = nil) throws {
+                         baseKeys: [Int: String]? = nil) throws {
         let removed = Set(removals.map(\.index))
         guard !renames.isEmpty || !additions.isEmpty else { return }
         var initial = ArchivePathOccupancy()
@@ -407,7 +407,7 @@ nonisolated enum ArchiveEditTransaction {
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                     willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
                     verifiedOutput: ArchiveVerifiedOutputSink? = nil,
-                    sessionReader: sending ArchiveReader? = nil) throws -> ArchiveEditResult {
+                    sessionReader: sending ArchiveReader? = nil, occupancy: ArchivePathOccupancy.Overlay? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
@@ -420,7 +420,7 @@ nonisolated enum ArchiveEditTransaction {
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
             try ArchiveStageDiagnostics.measure(.planValidation) {
                 try plan.verifyNames(updater.entryNames)
-                try plan.validateChanges(entries: plan.existing)
+                try plan.validateChanges(entries: plan.existing, occupancy: occupancy)
             }
             try ArchiveImportPlan.checkCancellation(progress)
             if !plan.removals.isEmpty {
@@ -823,6 +823,7 @@ nonisolated enum ArchiveImportTransaction {
         #if DEBUG
         didPublishForTesting.get()?(archive)
         #endif
+        verifiedOutput?.publishedMode = publishedMode
         if adoptable {
             verifiedOutput?.output = ArchiveVerifiedOutput(identity: identity, reader: verified, source: source,
                 hint: hint, verificationPassword: options.password, format: outputFormat)

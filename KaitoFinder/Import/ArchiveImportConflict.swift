@@ -151,7 +151,9 @@ nonisolated enum ArchiveConflictResolution {
         let replaced: [ArchiveEntry]
     }
 
-    static func existingGroups(_ entries: [ArchiveEntry], folder: String, matching: Set<String>? = nil) -> [String: [ArchiveEntry]] {
+    static func existingGroups(_ entries: [ArchiveEntry], folder: String, matching: Set<String>? = nil,
+                               occupancy: ArchivePathOccupancy.Overlay? = nil) -> [String: [ArchiveEntry]] {
+        if let occupancy, let matching, matching.allSatisfy({ !occupancy.containsSubtree(at: $0) }) { return [:] }
         let parent = ArchivePath.components(folder)
         let leaves = matching.map { Set($0.compactMap { ArchivePath.components($0).last }) }
         var groups: [String: [ArchiveEntry]] = [:]
@@ -249,7 +251,7 @@ extension ArchiveImportPlan {
             stamps.append(identities)
         }
         guard failures.isEmpty else { return Self(failures: failures) }
-        let groups = ArchiveConflictResolution.existingGroups(existing, folder: target, matching: Set(candidates.map(\.path)))
+        let groups = ArchiveConflictResolution.existingGroups(existing, folder: target, matching: Set(candidates.map(\.path)), occupancy: occupancy)
         #if DEBUG
         planning?.end()
         planning = nil
