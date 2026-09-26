@@ -95,7 +95,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 
 ## 状態（2026-09-26 10:00）
 
-実装は Codex の利用上限（`try again at Sep 29th, 2026 8:40 AM`）で止まっている。コミット済みの段はそれぞれの検証記録にある。再開の順:
+実装は Codex の利用上限（`try again at Sep 29th, 2026 8:40 AM`）で止まっている。コミット済みの段はそれぞれの検証記録にある。残りの段の仕様と指示文は [specs-2026-09-26](specs-2026-09-26/README.md)、計測のデータは [verification/data/2026-09-26](../verification/data/2026-09-26/README.md)。再開の順:
 
 1. GyoshukuKit: branch `feature/2026-09-24-review` の 6e7cd9b で `git stash pop`（stash の名前は「S24 (P5-G) WIP …」。
    `SplicedArchiveOutput` に一時ファイルの範囲の区間 `.scratch` を足す途中の修正と fixture の取り込み）。途中の編集なので、戻した直後は
