@@ -1,0 +1,13 @@
+{
+  "head": "9aa387235959bf10581437358279b70be0beaa5e",
+  "compiler_invocations": 14,
+  "compiler_failures": 0,
+  "xctest_invocations": 14,
+  "cases": {
+    "passed": 17,
+    "failed": 3,
+    "skipped": 0
+  },
+  "native_test_cases_started": 0,
+  "native_exit": -5
+}

@@ -1,0 +1,112 @@
+PROBE-TSV-HEADER	version	format	fixture	mode	operation	stage	calls	duration_ms	read_bytes	written_bytes	output_bytes	entries	payload_mib	status
+PROBE-PROGRESS	zip	entries	add_many	100004	50502	111.224	87.661
+PROBE-TSV	1	zip	entries	immediate	add_many	capability_probe	1	2.795	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	commit	1	130.745	0	12206080	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	display	1	1.295	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	entry_comparison	1	37.125	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	filter_compute	1	0.000	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	mutate	1	2292.905	4096	54525952	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	name_index_advance	1	217.355	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	name_index_build	1	0.013	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	output_probe	1	2.597	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	password_verification	1	0.032	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	plan_build	1	1074.911	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	plan_validation	1	0.004	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	publish	1	1.412	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	reader_adoption	1	0.003	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	reload	1	220.528	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	total	1	4984.940	8192	66744320	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	tree_build	1	29.296	0	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	updater_open	1	0.860	4096	0	66724279	1	0	ok
+PROBE-TSV	1	zip	entries	immediate	add_many	verification_open	1	43.769	0	0	66724279	1	0	ok
+PROBE-PROGRESS	zip	entries	create_many	100002	50501	1.594	989.299
+PROBE-TSV	1	zip	entries	creation	create_many	mutate	1	2417.002	0	54525952	66724162	1	0	ok
+PROBE-TSV	1	zip	entries	creation	create_many	total	1	4445.980	0	66744320	66724162	1	0	ok
+PROBE-PROGRESS	tar	entries	add_many	100004	50501	48.853	240.328
+PROBE-TSV	1	tar	entries	immediate	add_many	capability_probe	1	102.409	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	commit	1	49.750	0	196608	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	display	1	1.094	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	entry_comparison	1	30.198	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	filter_compute	1	0.000	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	mutate	1	2196.787	12288	143654912	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	name_index_advance	1	210.864	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	name_index_build	1	0.011	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	password_verification	1	0.028	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	plan_build	1	1050.956	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	plan_validation	1	0.001	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	publish	1	0.862	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	reader_adoption	1	0.005	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	reload	1	313.664	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	total	1	5063.483	24576	143863808	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	tree_build	1	34.522	0	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	updater_open	1	0.564	12288	0	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	immediate	add_many	verification_open	1	208.909	0	0	143851520	1	0	ok
+PROBE-PROGRESS	tar	entries	create_many	100002	50501	1.410	1032.127
+PROBE-TSV	1	tar	entries	creation	create_many	mutate	1	2255.128	0	142606336	143851520	1	0	ok
+PROBE-TSV	1	tar	entries	creation	create_many	total	1	4290.324	0	143863808	143851520	1	0	ok
+PROBE-PROGRESS	tar.gz	entries	add_many	100044	50541	425.695	417.198
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	capability_probe	1	98.580	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	commit	1	737.528	0	54358016	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	display	1	0.980	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	entry_comparison	1	28.938	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	filter_compute	1	0.000	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	mutate	1	2132.473	0	142606336	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	name_index_advance	1	210.069	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	name_index_build	1	0.009	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	password_verification	1	0.028	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	plan_build	1	1017.765	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	plan_validation	1	0.001	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	publish	1	0.835	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	reader_adoption	1	0.005	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	reload	1	309.018	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	total	1	5805.300	0	339582976	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	tree_build	1	34.087	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	updater_open	1	0.065	0	0	53111400	1	0	ok
+PROBE-TSV	1	tar.gz	entries	immediate	add_many	verification_open	1	385.911	0	142606336	53111400	1	0	ok
+PROBE-PROGRESS	tar.gz	entries	create_many	100003	50502	17.447	1225.426
+PROBE-TSV	1	tar.gz	entries	creation	create_many	mutate	1	1876.523	0	50331648	53110894	1	0	ok
+PROBE-TSV	1	tar.gz	entries	creation	create_many	total	1	4111.540	0	198225920	53110894	1	0	ok
+PROBE-PROGRESS	7z	entries	add_many	100030	50528	131.283	143.314
+PROBE-TSV	1	7z	entries	immediate	add_many	capability_probe	1	119.071	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	commit	1	3123.541	0	8495104	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	display	1	1.058	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	entry_comparison	1	29.654	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	filter_compute	1	0.000	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	mutate	1	2812.495	4096	58720256	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	name_index_advance	1	217.526	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	name_index_build	1	0.010	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	password_verification	1	0.028	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	plan_build	1	1032.296	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	plan_validation	1	0.001	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	publish	1	0.866	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	reader_adoption	1	0.016	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	reload	1	337.130	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	total	1	8704.992	8192	67227648	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	tree_build	1	33.001	0	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	updater_open	1	0.567	4096	0	67179988	1	0	ok
+PROBE-TSV	1	7z	entries	immediate	add_many	verification_open	1	108.371	0	0	67179988	1	0	ok
+PROBE-PROGRESS	7z	entries	create_many	100002	50501	3.372	969.422
+PROBE-TSV	1	7z	entries	creation	create_many	mutate	1	2829.108	0	58720256	67180013	1	0	ok
+PROBE-TSV	1	7z	entries	creation	create_many	total	1	4822.377	0	67219456	67180013	1	0	ok
+PROBE-PROGRESS	lha	entries	add_many	100019	50517	352.199	253.652
+PROBE-TSV	1	lha	entries	immediate	add_many	capability_probe	1	241.022	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	commit	1	1313.497	0	4767744	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	display	1	1.048	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	entry_comparison	1	33.633	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	filter_compute	1	0.000	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	mutate	1	2468.911	4096	58720256	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	name_index_advance	1	357.580	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	name_index_build	1	0.010	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	password_verification	1	0.029	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	plan_build	1	1031.964	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	plan_validation	1	0.002	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	publish	1	0.865	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	reader_adoption	1	0.002	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	reload	1	599.041	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	total	1	6899.693	8192	63500288	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	tree_build	1	40.806	0	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	updater_open	1	0.381	4096	0	63473825	1	0	ok
+PROBE-TSV	1	lha	entries	immediate	add_many	verification_open	1	218.726	0	0	63473825	1	0	ok
+PROBE-PROGRESS	lha	entries	create_many	100002	50501	1.888	1054.441
+PROBE-TSV	1	lha	entries	creation	create_many	mutate	1	2558.652	0	58720256	63473770	1	0	ok
+PROBE-TSV	1	lha	entries	creation	create_many	total	1	4625.928	0	63500288	63473770	1	0	ok
