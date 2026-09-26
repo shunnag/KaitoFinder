@@ -295,3 +295,31 @@ document edit or P7 work was made.
 | correction 1 の後（試験だけの修正。製品は検証した build と byte 一致） | DragIn・ArchiveImportSafety・QuickLookOpen・ArchiveWriteProgress・ByteProgressIntegration は失敗 0。`ArchivePasswordUITests` の 8 件は画面ロック中に失敗したが、S39 の前の build（786ec4c）でも同じ条件で同じ 8 件が失敗した |
 
 性能の受入計測（AC-A9・AC-A10）は `many-baseline.patch` を当てた B-P6（b191380）と交互に採り、この節の後に追記する。
+
+## 受入計測（AC-A9・AC-A10、オーケストレータ、2026-09-27 02:30–03:40）
+
+B-P6 = KaitoFinder b191380 + `many-baseline.patch`、S39 = 0e770d4。どちらも GyoshukuKit b9da4bc・KaitoKit 823ad46 の `git archive`、`-O`・wholemodule の Debug。
+add_many・create_many（`KAITOFINDER_PROBE_ADD_FILES=50000`、zip・tar・tar.gz・7z・lha）を B と S39 を入れ替えながら 1 + 3 回、
+P0b（100k 全形式と本文 256 MiB）を B → S39 → S39 → B の 2 回ずつ。負荷の平均は 4.2〜42.2（S40 の Codex の試験と並走）で、仕様の 4 未満は満たさない。
+生の行は `data/2026-09-27-p6a/acceptance/`。
+
+**AC-A10**（r1–r3 の中央値、`total`、≤ B × 1.05）: 全て合格。
+
+| 形式 | add_many B → S39 | create_many B → S39 |
+|---|---|---|
+| zip | 5,315.5 → 4,988.2 ms（0.938） | 4,619.1 → 4,519.1 ms（0.978） |
+| tar | 5,020.9 → 5,014.7 ms（0.999） | 4,810.5 → 4,337.2 ms（0.902） |
+| tar.gz | 5,935.3 → 5,898.1 ms（0.994） | 4,130.1 → 4,172.3 ms（1.010） |
+| 7z | 8,871.9 → 8,488.2 ms（0.957） | 5,175.4 → 4,772.2 ms（0.922） |
+| lha | 7,536.4 → 6,958.4 ms（0.923） | 5,211.3 → 4,825.1 ms（0.926） |
+
+**AC-A9**（2 回の小さい方、`total`、B ± 5 %）: 予約の行を除く 182 行の幾何平均 0.999。± 5 % を外れた 20 行は遅い側 14・速い側 6 の両方向で、
+7z entries の open（738.6 → 793.9 ms、書込みの経路ではない）を除けば本文の 10–165 ms の行（tar payload direct delete_end 16.9 → 22.7 ms など）。
+S39 の台帳の費用なら同じ向きにそろうはずで、負荷 4〜42 の中の揺れと判断した。静かな機械での採り直しはしていない。
+
+**PROBE-PROGRESS**（S39 の P0b 回 1、payload の `delete_start`。credits / distinct_completed / 最大の間隔 ms / 尾 ms）:
+zip 42 / 40 / 2.7 / 6.1、tar 130 / 128 / 5.7 / 6.9、tar.gz 41 / 39 / 34.2 / 42.9、tar.bz2 35 / 33 / 1.4 / 16.8、tar.xz 35 / 33 / 1.3 / 38.3、
+7z 76 / 74 / 7.1 / 5.0、lha 84 / 82 / 4.3 / 8.4。`distinct_completed` は全形式で 8 以上。
+
+**B-P7A**（S41 の着手前、ORDER-P6-P13 §3.7 の 5）: 上の S39 の値が B-P7A を兼ねる。zip の add_many の `mutate` は 2,298.0 ms（`commit` 135.7 ms）で、
+同じ corpus の `gyoshuku-bench zip --mode items` の壁 2.66 s（Step 0-P7）の 1.5 倍（3.99 s）を超えないので、P7-A AC-A5 の閾値の見直しは要らない。
