@@ -80,8 +80,8 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P3 | 圧縮 tar の区切り単位の編集。KK d35f2da / GK d5c51b3、KF S16 [実装と検証](../verification/2026-09-26-p3-compressed-tar-update.md)。受入計測も合格（tar.bz2 の 10 万件の open の短縮 0.93 倍は見込み 0.7 倍に届かず、記録） | 3 つとも |
 | P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集。KaitoKit d171f27（P4-K）、GyoshukuKit 5faab4b（並列 LH5）・6e7cd9b（LHAUpdater）、KaitoFinder ac5cab9（S21）[実装と検証](../verification/2026-09-26-p4-lha-update.md)。完了。受入計測は payload の `updater_open` が約 5 ms 超過（逸脱として報告）のほかは合格（ce96ec5） | 3 つとも |
 | P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで。KaitoKit ef06e22（P5-K）、GyoshukuKit 52655cb（P5-G。属性の無い書庫への追加は 7zz と同じく属性を付けない）、KaitoFinder 786ec4c（S25）[実装と検証](../verification/2026-09-26-p5-7z-update.md)。完了。KaitoFinder の受入計測も合格（7a77a08。本文 256 MiB のパスワードの変更 11.6 s → 0.49 s） | KaitoKit, GyoshukuKit, KaitoFinder |
-| P6 | 取込み・新規作成・移動の進捗のバイト化（GyoshukuKit の公開 API）。S38（P6-G）実行中 | GyoshukuKit, KaitoFinder |
-| P7 | 小ファイル多数の作成の並列先読み | GyoshukuKit |
+| P6 | 取込み・新規作成・移動の進捗のバイト化。GyoshukuKit b9da4bc（P6-G）・a5cb92c（AC-G7 の記録）、KaitoFinder 0e770d4（P6-A）・6aff545（受入計測）[G の記録](../../../GyoshukuKit/Documentation/verification/2026-09-27-p6g-progress.md)・[A の記録](../verification/2026-09-27-p6a-progress.md)。完了。AC-G7 は `--progress` の tgz small 1.38 倍・headers 1.25 倍（上限 1.25）を報告、S38 だけの lha +4.5 % は S40 で解消 | GyoshukuKit, KaitoFinder |
+| P7 | 小ファイル多数の作成の並列先読み（上限 4 本、Step 0-P7 の門に合格）。GyoshukuKit 244a9c2（P7-G）・8e35eba（修正: ZIP の出力の一括の書込み、空の一括追加は何もしない）・1223a61（AC-G7）、KaitoFinder 9aa3872（P7-A）・a0b0354（受入計測）。完了。5 万件の zip の作成 1.28 s（7zz 1.63 s）、取込み・作成の mutate は zip 0.43 倍・tar.gz 0.46–0.59 倍。7z の mutate 1.05 倍と、txz・7z の batch を recursive と比べる条件（列挙の分を含む）は報告 | GyoshukuKit, KaitoFinder |
 | P8 | 検索の絞り込みを MainActor 外で計算。KaitoFinder b450765（S34）[実装と検証](../verification/2026-09-26-p8-search.md)。完了。AC-M は M6 の 1 行（負荷 22–26 の回の 1.32 倍、上限 1.3）のほかは合格 | KaitoFinder |
 | P9 | 圧縮の並列数の設定。S27 [実装と検証](../verification/2026-09-26-p9-threads.md)。完了（500ce7a） | KaitoFinder |
 | P10 | 現在のフォルダへの移動（戻る・進む）と ⌘J の表示オプション。既定は「フォルダに移動」（利用者の判断）。KaitoFinder 4d4be0b（S35 = P10-a）・41d48f0（S36 = P10-b）[実装と検証](../verification/2026-09-26-p10-navigation.md)。完了。実のキー入力（AC-a5）と host を前面にする GUI の試験は、利用者が Mac の空いた状態で `Tools/verify_ui_integration.py` と `Tools/verify_finder_interactions.py --focused` を流す。AC-a7 は合格（50 万件で移動 2.4 ms・戻る 0.5 ms・⌘↑ 0.7 ms） | KaitoFinder |
@@ -92,6 +92,14 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 
 分割巻の一部の巻だけを書き直す公開は、クラッシュ時の整合性の中核に触れるため、P12 の後に改めて判断する。
 
+
+## 状態（2026-09-27 08:20）
+
+P0–P14 は全て実装・検証・コミット済み（push・main への merge・release はしていない）。最終の組 KaitoFinder a0b0354（製品は 9aa3872）・
+GyoshukuKit 1223a61（製品は 8e35eba）・KaitoKit 823ad46 で、アプリの全件 1,701 件（予期しない失敗は、host を前面にする必要のある GUI の試験と
+ネイティブのドラッグなど 8 件だけ）、GyoshukuKit の全件 583 件（失敗 0）。
+残りは利用者の確認: Mac が空いた状態で `python3 Tools/verify_ui_integration.py` と `python3 Tools/verify_finder_interactions.py --focused`（P10 の AC-a5）、
+P13・P10 の GUI の手順。逸脱の一覧は最終報告（会話）と各検証記録。
 
 ## 状態（2026-09-27 00:05）
 
