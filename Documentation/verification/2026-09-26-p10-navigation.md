@@ -501,3 +501,15 @@ Release note用の文（公開済み文書は変更していない）:
 
 最後の GUI の確認で、利用者に `Tools/verify_ui_integration.py`（ApplicationCommandIntegrationTests・ArchiveColumnsTests・ArchiveViewOptionsTests を含む）と
 `python3 Tools/verify_finder_interactions.py --focused`（AC-a5）を Mac が空いた状態で流してもらう。
+
+## AC-a7（オーケストレータ、2026-09-27 00:41）
+
+KaitoFinder 786ec4c（S35・S36 を含む）の `-O`・wholemodule の Debug、GyoshukuKit 52655cb・KaitoKit 823ad46、
+`TEST_RUNNER_KAITOFINDER_PERFORMANCE_PROBES=1 TEST_RUNNER_KAITOFINDER_PROBE_ENTRIES=500000` で
+`ArchiveFolderNavigationTests/testNavigationScaleWhenEnabled` を 1 回（負荷の平均 15.4–16.4）。
+
+| 操作 | main の時間 | 合格条件 |
+|---|---:|---:|
+| 最上位から 100 件のフォルダへの移動 | 2.39 ms | ≤ 50 ms |
+| 戻る | 0.52 ms | ≤ 50 ms |
+| ⌘↑ | 0.73 ms | ≤ 50 ms |
