@@ -170,6 +170,10 @@ nonisolated enum ArchiveConflictResolution {
                         existingItems: [String: ArchiveConflictItem] = [:],
                         itemProvider: ItemProvider? = nil,
                         resolver: ArchiveImportConflict.Resolver) async throws -> Result {
+        #if DEBUG
+        var planning = ArchiveStageDiagnostics.begin(.planBuild)
+        defer { planning?.end() }
+        #endif
         var occupied = Set(existing.keys), remaining = 0
         for candidate in candidates {
             if !occupied.insert(candidate.path).inserted { remaining += 1 }
@@ -187,7 +191,17 @@ nonisolated enum ArchiveConflictResolution {
                                                      remainingCount: remaining)
                 let decision: ArchiveConflictDecision
                 if conflict.allowsBatchChoice, let batchChoice { decision = .init(choice: batchChoice) }
-                else { decision = try await resolver(conflict) }
+                else {
+                    // 確認 UI の待ち時間は計画の構築に含めない。
+                    #if DEBUG
+                    planning?.end()
+                    planning = nil
+                    #endif
+                    decision = try await resolver(conflict)
+                    #if DEBUG
+                    planning = ArchiveStageDiagnostics.begin(.planBuild)
+                    #endif
+                }
                 try ArchiveImportPlan.checkCancellation(progress)
                 if decision.applyToRemaining, conflict.allowsBatchChoice { batchChoice = decision.choice }
                 remaining -= 1
@@ -208,6 +222,10 @@ extension ArchiveImportPlan {
                           itemProvider: ArchiveConflictResolution.ItemProvider? = nil,
                           occupancy: ArchivePathOccupancy.Overlay? = nil,
                           resolver: ArchiveImportConflict.Resolver) async throws -> Self {
+        #if DEBUG
+        var planning = ArchiveStageDiagnostics.begin(.planBuild)
+        defer { planning?.end() }
+        #endif
         let target = folder.isEmpty ? "" : try path(folder, format: format)
         // 既存と同じ規則で追加先の実在・ファイル祖先を検証する。
         _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options, format: format, occupancy: occupancy)
@@ -231,9 +249,17 @@ extension ArchiveImportPlan {
             stamps.append(identities)
         }
         guard failures.isEmpty else { return Self(failures: failures) }
+        let groups = ArchiveConflictResolution.existingGroups(existing, folder: target, matching: Set(candidates.map(\.path)))
+        #if DEBUG
+        planning?.end()
+        planning = nil
+        #endif
         let result = try await ArchiveConflictResolution.resolve(candidates,
-            existing: ArchiveConflictResolution.existingGroups(existing, folder: target, matching: Set(candidates.map(\.path))), archive: archive,
+            existing: groups, archive: archive,
             generation: generation, progress: progress, existingItems: existingItems, itemProvider: itemProvider, resolver: resolver)
+        #if DEBUG
+        planning = ArchiveStageDiagnostics.begin(.planBuild)
+        #endif
         return Self(items: result.accepted.flatMap { batches[$0] }, replacingEntries: result.replaced.map(\.index),
                     expectedEntries: existing, sourceStamps: result.accepted.flatMap { stamps[$0] })
     }

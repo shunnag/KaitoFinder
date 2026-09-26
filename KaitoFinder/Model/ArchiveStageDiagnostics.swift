@@ -17,6 +17,9 @@ nonisolated enum ArchiveStageDiagnostics {
         case splitStagedProof = "split_staged_proof", splitStagedReader = "split_staged_reader", splitStagedRecheck = "split_staged_recheck"
         case splitPlacedProof = "split_placed_proof", splitPlacedReader = "split_placed_reader", splitPlacedRecheck = "split_placed_recheck"
         case splitDisposeProof = "split_dispose_proof", splitInputCopy = "split_input_copy"
+        case planBuild = "plan_build", planValidation = "plan_validation"
+        case nameIndexBuild = "name_index_build", nameIndexAdvance = "name_index_advance"
+        case representabilityDifferential = "representability_differential"
     }
 
     #if DEBUG

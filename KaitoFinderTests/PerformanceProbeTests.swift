@@ -331,7 +331,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             document.addWindowController(controller)
             let session = try XCTUnwrap(document.session)
             XCTAssertTrue(session.capabilities.canEdit, fixture.format.rawValue)
-            controller.display(root, session: session, generation: session.generation)
+            let warmIndex = ProcessInfo.processInfo.environment["KAITOFINDER_PROBE_WARM_INDEX"] == "1"
+            controller.display(root, session: session, generation: session.generation, indexingRenames: warmIndex)
+            if warmIndex { try await waitForRenameIndex(controller) }
             try await body(document, controller, archive, directory.url)
             await document.prepareForTermination()
         } catch {
@@ -481,7 +483,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                     XCTAssertEqual(result.addedPaths, [operation == .replaceFile ? fixture.firstPath : "added.txt"])
                 }
             }
-            trace.require([.total, .mutate, .commit, .verificationOpen, .entryComparison, .publish,
+            trace.require([.total, .planBuild, .mutate, .planValidation, .commit, .verificationOpen, .entryComparison, .publish,
                            .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display,
                            fixture.format.editorStage(placement: try ArchiveProbeConfiguration().additionPosition)])
             trace.forbid([.reloadOpen])

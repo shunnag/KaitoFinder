@@ -418,8 +418,10 @@ nonisolated enum ArchiveEditTransaction {
             verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             expectedOutput: .init(existing: plan.existing, removing: plan.removals.map(\.index), renaming: plan.renames, mode: mode)) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
-            try plan.verifyNames(updater.entryNames)
-            try plan.validateChanges(entries: plan.existing)
+            try ArchiveStageDiagnostics.measure(.planValidation) {
+                try plan.verifyNames(updater.entryNames)
+                try plan.validateChanges(entries: plan.existing)
+            }
             try ArchiveImportPlan.checkCancellation(progress)
             if !plan.removals.isEmpty {
                 try updater.remove(entriesAt: plan.removals.map(\.index))
@@ -465,7 +467,9 @@ nonisolated enum ArchiveImportTransaction {
             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
             verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             expectedOutput: .init(existing: plan.existing, additions: [.init(adding: plan.path, kind: .directory)], mode: mode)) { updater in
-            try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
+            try ArchiveStageDiagnostics.measure(.planValidation) {
+                try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
+            }
             try ArchiveImportPlan.checkCancellation(progress)
             try updater.addDirectory(plan.path)
             progress.completedUnitCount += 1
@@ -502,7 +506,9 @@ nonisolated enum ArchiveImportTransaction {
             expectedIdentity: expectedIdentity, verifiedOutput: verifiedOutput, sessionReader: sessionReader,
             additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
             expectedOutput: expectedOutput) { updater in
-            try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing)
+            try ArchiveStageDiagnostics.measure(.planValidation) {
+                try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing)
+            }
             if !plan.replacingEntries.isEmpty {
                 try updater.remove(entriesAt: plan.replacingEntries)
                 progress.completedUnitCount += Int64(plan.replacingEntries.count)

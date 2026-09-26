@@ -312,8 +312,10 @@ actor ArchiveSession {
             _ = try requireCurrentReader()
             guard generation == expectedGeneration else { throw ArchiveEditError.staleSelection }
         } else {
-            plan = try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
-                                               progress: progress, options: importOptions(), format: reservationFormat)
+            plan = try ArchiveStageDiagnostics.measure(.planBuild) {
+                try ArchiveImportPlan.build(urls: urls, folder: folder, existing: reader.entries,
+                                            progress: progress, options: importOptions(), format: reservationFormat)
+            }
         }
         let base = capabilities.mode!
         let options = options(for: base)
@@ -343,6 +345,10 @@ actor ArchiveSession {
                             progress: progress, willPublish: willPublish)
         }
         let entries = try requireCurrentReader().entries, expectedGeneration = generation
+        #if DEBUG
+        var planning = ArchiveStageDiagnostics.begin(.planBuild)
+        defer { planning?.end() }
+        #endif
         let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder, format: reservationFormat)
         _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress, format: reservationFormat)
         var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
@@ -358,16 +364,29 @@ actor ArchiveSession {
             candidates.append(.init(path: destination, info: .archived(selection.entries, path: source,
                                                                          archive: sourceURL, generation: expectedGeneration)))
         }
+        let groups = ArchiveConflictResolution.existingGroups(entries, folder: target)
+        #if DEBUG
+        planning?.end()
+        planning = nil
+        #endif
         let resolution = try await ArchiveConflictResolution.resolve(candidates,
-            existing: ArchiveConflictResolution.existingGroups(entries, folder: target), archive: sourceURL,
+            existing: groups, archive: sourceURL,
             generation: expectedGeneration, progress: progress, resolver: resolveConflict)
+        #if DEBUG
+        planning = ArchiveStageDiagnostics.begin(.planBuild)
+        #endif
         _ = try requireCurrentReader()
         guard generation == expectedGeneration else { throw ArchiveEditError.staleSelection }
         // 各 record の削除を指定し、同名の実体と仮想フォルダが混在する書庫も取りこぼさない。
         let removals = resolution.replaced.map {
             ArchiveEditSelection(path: $0.name, isDirectory: false, entries: [$0])
         }
-        return try edit(removing: removals, moving: resolution.accepted.map { .init(selection: moving[$0], folder: target) },
+        let moves = resolution.accepted.map { ArchiveEditMove(selection: moving[$0], folder: target) }
+        #if DEBUG
+        planning?.end()
+        planning = nil
+        #endif
+        return try edit(removing: removals, moving: moves,
                         progress: progress, willPublish: willPublish)
     }
 
@@ -386,7 +405,9 @@ actor ArchiveSession {
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing(progress: progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
-        let plan = try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
+        let plan = try ArchiveStageDiagnostics.measure(.planBuild) {
+            try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat)
+        }
         let base = capabilities.mode!
         let options = options(for: base)
         let mode = base.resolved(with: options)
@@ -422,8 +443,10 @@ actor ArchiveSession {
         }
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing(progress: progress)
-        let plan = try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
-                                             existing: reader.entries, format: reservationFormat)
+        let plan = try ArchiveStageDiagnostics.measure(.planBuild) {
+            try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
+                                      existing: reader.entries, format: reservationFormat)
+        }
         let base = capabilities.mode!
         let options = options(for: base)
         let mode = base.resolved(with: options)
