@@ -52,7 +52,7 @@ import ScreenCaptureKit
             guard application.isActive else { throw failure("TestAppLostFocus") }
             let event: CGEvent?
             if let key = input.key {
-                guard [36, 53, 125, 126].contains(key), ["keyDown", "keyUp"].contains(input.type) else { throw failure("InvalidKey") }
+                guard [30, 33, 36, 53, 125, 126].contains(key), ["keyDown", "keyUp"].contains(input.type) else { throw failure("InvalidKey") }
                 event = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: input.type == "keyDown")
             } else {
                 let types: [String: CGEventType] = ["down": .leftMouseDown, "up": .leftMouseUp, "drag": .leftMouseDragged]

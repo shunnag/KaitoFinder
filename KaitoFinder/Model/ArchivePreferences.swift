@@ -27,6 +27,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum FolderPolicy: String, Sendable { case always, whenMultipleTopLevelItems, never }
     enum SaveBehavior: String, Sendable, CaseIterable { case immediate, onSave }
     enum OpeningBehavior: String, Sendable, CaseIterable { case system, newTab, newWindow }
+    enum FolderOpening: String, Sendable, CaseIterable { case enter, expand }
     enum AdditionPosition: String, Sendable, CaseIterable { case end, beginning }
     enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
 
@@ -53,6 +54,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var renamesOnClick = true
     var saveBehavior: SaveBehavior = .immediate
     var openingBehavior: OpeningBehavior = .system
+    var folderOpening: FolderOpening = .enter
     var excludesDSStore = true
     var excludesHiddenFiles = false
 
@@ -113,6 +115,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let renamesOnClick = "ArchiveRenamesOnClick"
         static let saveBehavior = "ArchiveSaveBehavior"
         static let openingBehavior = "ArchiveOpeningBehavior"
+        static let folderOpening = "ArchiveFolderOpening"
         static let excludesDSStore = "ArchiveExcludesDSStore"
         static let excludesHiddenFiles = "ArchiveExcludesHiddenFiles"
     }
@@ -157,6 +160,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                 .flatMap(ArchivePreferences.SaveBehavior.init(rawValue:)) ?? value.saveBehavior
             value.openingBehavior = defaults.string(forKey: Key.openingBehavior)
                 .flatMap(ArchivePreferences.OpeningBehavior.init(rawValue:)) ?? value.openingBehavior
+            value.folderOpening = defaults.string(forKey: Key.folderOpening)
+                .flatMap(ArchivePreferences.FolderOpening.init(rawValue:)) ?? value.folderOpening
             value.excludesDSStore = boolean(forKey: Key.excludesDSStore, fallback: value.excludesDSStore)
             value.excludesHiddenFiles = boolean(forKey: Key.excludesHiddenFiles, fallback: value.excludesHiddenFiles)
             return value
@@ -183,6 +188,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(newValue.renamesOnClick, forKey: Key.renamesOnClick)
             defaults.set(newValue.saveBehavior.rawValue, forKey: Key.saveBehavior)
             defaults.set(newValue.openingBehavior.rawValue, forKey: Key.openingBehavior)
+            defaults.set(newValue.folderOpening.rawValue, forKey: Key.folderOpening)
             defaults.set(newValue.excludesDSStore, forKey: Key.excludesDSStore)
             defaults.set(newValue.excludesHiddenFiles, forKey: Key.excludesHiddenFiles)
             // 全キーの保存後に同期通知し、次の書き込みが必ず新しい値を読むようにする。

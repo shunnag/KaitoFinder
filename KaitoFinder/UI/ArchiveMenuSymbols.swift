@@ -3,6 +3,9 @@ import AppKit
 /// メニューバーとコンテキストメニューで、同じ操作を同じ SF Symbol で示す。
 enum ArchiveMenuSymbols {
     private static let symbols: [Selector: String] = [
+        #selector(ArchiveWindowController.goBack(_:)): "chevron.left",
+        #selector(ArchiveWindowController.goForward(_:)): "chevron.right",
+        #selector(ArchiveWindowController.goToEnclosingFolder(_:)): "arrow.up",
         #selector(AppDelegate.newArchive(_:)): "doc.badge.plus",
         #selector(AppDelegate.extractArchivesFromMenu(_:)): "tray.and.arrow.down",
         #selector(NSDocumentController.openDocument(_:)): "folder",

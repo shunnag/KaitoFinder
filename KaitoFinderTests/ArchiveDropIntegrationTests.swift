@@ -48,7 +48,7 @@ import XCTest
         draggingDestinationWindow = window
         draggingLocation = location
         super.init()
-        XCTAssertTrue(draggingPasteboard.writeObjects(urls.map { $0 as NSURL }))
+        if !urls.isEmpty { XCTAssertTrue(draggingPasteboard.writeObjects(urls.map { $0 as NSURL })) }
     }
     func slideDraggedImage(to screenPoint: NSPoint) {}
     nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
@@ -59,6 +59,78 @@ import XCTest
 }
 
 nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
+    @MainActor func testBlankLocalMoveRefusesCurrentFolderWithoutPasteboardFiles() async throws {
+        _ = NSApplication.shared
+        preserveArchiveWindowFrame()
+        let fixture = try DeferredSaveFixture(files: [("a/original.txt", "original")])
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        fixture.document.addWindowController(controller)
+        defer { fixture.document.close() }
+        let session = try XCTUnwrap(fixture.document.session)
+        controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
+        let view = controller.outlineView
+        view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        controller.openEntry(nil)
+        XCTAssertEqual(controller.currentFolderPath, "a")
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
+        let node = try XCTUnwrap(view.item(atRow: 0) as? EntryNode)
+        controller.setDraggedNodesForTesting([node])
+        defer { controller.setDraggedNodesForTesting([]) }
+        let info = FileURLDragInfo(urls: [], window: controller.window,
+            location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
+        defer { info.draggingPasteboard.releaseGlobally() }
+        info.draggingSource = view
+        info.draggingSourceOperationMask = .move
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), [])
+        XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
+        XCTAssertNil(controller.extractionTask)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+    }
+
+    @MainActor func testBlankDropUsesCurrentFolderAndRejectsSameLocationMoveInBothSaveModes() async throws {
+        _ = NSApplication.shared
+        preserveArchiveWindowFrame()
+        let probe = NSPasteboard.withUniqueName()
+        defer { probe.releaseGlobally() }
+        guard probe.writeObjects([URL(fileURLWithPath: "/tmp/probe.txt") as NSURL]) else {
+            throw XCTSkip("The pasteboard service is unavailable in this test host")
+        }
+        for behavior in ArchivePreferences.SaveBehavior.allCases {
+            let fixture = try DeferredSaveFixture(behavior: behavior, files: [("a/original.txt", "original")])
+            let controller = ArchiveWindowController(preferencesStore: fixture.store)
+            fixture.document.addWindowController(controller)
+            defer { fixture.document.close() }
+            let session = try XCTUnwrap(fixture.document.session)
+            controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
+            let view = controller.outlineView
+            view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            controller.openEntry(nil)
+            XCTAssertEqual(controller.currentFolderPath, "a")
+            controller.window?.contentView?.layoutSubtreeIfNeeded()
+            let source = try fixture.file("dropped.txt")
+            let info = FileURLDragInfo(urls: [source], window: controller.window,
+                location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
+            defer { info.draggingPasteboard.releaseGlobally() }
+            XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), .copy)
+            XCTAssertTrue(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
+            await controller.extractionTask?.value
+            let entries = try await fixture.document.projectedEntries()
+            XCTAssertTrue(entries.contains { $0.name == "a/dropped.txt" })
+            XCTAssertFalse(entries.contains { $0.name == "dropped.txt" })
+            if behavior == .onSave { XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original) }
+            let node = try XCTUnwrap(view.item(atRow: 0) as? EntryNode)
+            controller.setDraggedNodesForTesting([node])
+            info.draggingSource = view
+            info.draggingSourceOperationMask = .move
+            XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), [])
+            XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
+            controller.setDraggedNodesForTesting([])
+            XCTAssertEqual(ArchiveDropTarget.localOperation(dragged: [.init(node)],
+                target: ArchiveDropTarget.folder(for: nil, blankArea: "a"), mask: .move,
+                capabilities: session.capabilities, busy: false), .none)
+        }
+    }
+
     @MainActor func testThousandFileDropIsOneUndoableBatchAndRejectsAnotherDropWhileBusy() async throws {
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:

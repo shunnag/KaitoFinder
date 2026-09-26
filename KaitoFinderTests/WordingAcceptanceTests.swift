@@ -41,6 +41,42 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testFolderNavigationWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["戻る", "進む", "内包フォルダ", "戻る/進む", "フォルダを開くとき:", "フォルダに移動", "その場で展開"] {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+        XCTAssertEqual(catalog.strings["フォルダを開くとき:"]?.localizations["fr"]?.stringUnit.value, "À l’ouverture des dossiers\u{00a0}:")
+        XCTAssertEqual(catalog.strings["移動"]?.localizations["en"]?.stringUnit.value, "Move")
+    }
+
+    func testGoMenuCatalogAndBuiltTableHaveAllTwentySixTranslations() throws {
+        let url = LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/Resources/GoMenu.xcstrings")
+        let catalog = try JSONDecoder().decode(LocalizationAcceptance.Catalog.self, from: Data(contentsOf: url))
+        XCTAssertEqual(catalog.sourceLanguage, "ja")
+        XCTAssertEqual(Set(catalog.strings.keys), ["移動"])
+        let translations = try XCTUnwrap(catalog.strings["移動"]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        XCTAssertEqual(translations["ja"]?.stringUnit.value, "移動")
+        XCTAssertEqual(translations["en"]?.stringUnit.value, "Go")
+        for language in LocalizationAcceptance.languages {
+            let unit = try XCTUnwrap(translations[language]).stringUnit
+            XCTAssertEqual(unit.state, "translated")
+            XCTAssertFalse(unit.value.isEmpty)
+            let bundle = try LocalizationAcceptance.bundle(language)
+            XCTAssertNotNil(bundle.url(forResource: "GoMenu", withExtension: "strings"))
+            XCTAssertEqual(bundle.localizedString(forKey: "移動", value: nil, table: "GoMenu"), unit.value)
+        }
+    }
+
     func testSearchPendingStatusHasAllTwentySixTranslations() throws {
         let key = "検索しています…", catalog = try LocalizationAcceptance.catalog()
         let translations = try XCTUnwrap(catalog.strings[key]).localizations
@@ -841,8 +877,9 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
                 item(menu, title).map { menu.index(of: $0) } ?? -1
             }
             let submenus = menu.items.compactMap(\.submenu)
+            let goTitle = LocalizationAcceptance.normalizedTitle(String(localized: "移動", table: "GoMenu", bundle: bundle))
             XCTAssertEqual(submenus.map { LocalizationAcceptance.normalizedTitle($0.title) },
-                           ["KaitoFinder", title("ファイル"), title("編集"), title("表示"), title("ウインドウ"), title("ヘルプ")])
+                           ["KaitoFinder", title("ファイル"), title("編集"), title("表示"), goTitle, title("ウインドウ"), title("ヘルプ")])
             let app = try XCTUnwrap(submenus.first)
             XCTAssertEqual(app.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
                            [title("KaitoFinderについて"), "", title("設定…"), title("アップデートを確認…"), "", title("サービス"), "",
@@ -878,6 +915,13 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertEqual(LocalizationAcceptance.normalizedTitle(clear.title), title("メニューを消去"))
             try check(clear, #selector(NSDocumentController.clearRecentDocuments(_:)), "")
             try check(item(file, title("開く")), #selector(ArchiveWindowController.openEntry(_:)), "o")
+            let go = try XCTUnwrap(item(menu, goTitle)?.submenu)
+            XCTAssertEqual(go.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
+                           [title("戻る"), title("進む"), "", title("内包フォルダ")])
+            XCTAssertTrue(go.items[2].isSeparatorItem)
+            try check(item(go, title("戻る")), #selector(ArchiveWindowController.goBack(_:)), "[")
+            try check(item(go, title("進む")), #selector(ArchiveWindowController.goForward(_:)), "]")
+            try check(item(go, title("内包フォルダ")), #selector(ArchiveWindowController.goToEnclosingFolder(_:)), "\u{f700}")
 
             let edit = try XCTUnwrap(item(menu, title("編集"))?.submenu)
             let selectAll = try XCTUnwrap(item(edit, title("すべてを選択")))

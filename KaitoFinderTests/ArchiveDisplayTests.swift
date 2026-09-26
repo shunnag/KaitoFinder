@@ -147,7 +147,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         let (_, controller, _) = try await interface()
         let window = try XCTUnwrap(controller.window), toolbar = try XCTUnwrap(window.toolbar)
         XCTAssertEqual(toolbar.items.filter { $0.itemIdentifier != .space }.map(\.itemIdentifier.rawValue),
-                       ["extract", "addFiles", "newFolder", "delete", "quickLook", NSToolbarItem.Identifier.flexibleSpace.rawValue, "search", "previewSidebar"])
+                       ["navigation", "extract", "addFiles", "newFolder", "delete", "quickLook", NSToolbarItem.Identifier.flexibleSpace.rawValue, "search", "previewSidebar"])
         let item = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "search" } as? NSSearchToolbarItem)
         XCTAssertTrue(controller.searchField === item.searchField)
         XCTAssertEqual(toolbar.displayMode, .iconOnly)

@@ -25,8 +25,8 @@ nonisolated enum ArchiveDropTarget {
         return .move
     }
 
-    static func folder(for row: Row?) -> String {
-        guard let row else { return "" }
+    static func folder(for row: Row?, blankArea: String = "") -> String {
+        guard let row else { return blankArea }
         return row.isDirectory ? row.path : ArchivePath.components(row.path).dropLast().joined(separator: "/")
     }
     @MainActor static func node(for row: EntryNode?, in root: EntryNode) -> EntryNode? {

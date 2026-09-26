@@ -144,7 +144,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     try snapshot(controller.tabController.view, name: "\(language)-settings-compression-level-9")
                 }
                 if index <= 2 {
-                    let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup]
+                    let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup, controller.folderOpeningPopup]
                         : index == 1 ? [controller.compressionThreadsPopup]
                         : [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup]
                     for popup in popups {

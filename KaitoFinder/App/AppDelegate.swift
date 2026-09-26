@@ -535,6 +535,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
                                       action: #selector(toggleFoldersOnTop(_:)), keyEquivalent: "")
         folders.target = self
         folders.state = preferencesStore.preferences.keepsFoldersOnTop ? .on : .off
+        let goMenu = NSMenu(title: String(localized: "移動", table: "GoMenu", bundle: bundle))
+        goMenu.addItem(withTitle: String(localized: "戻る", bundle: bundle),
+                       action: #selector(ArchiveWindowController.goBack(_:)), keyEquivalent: "[")
+        goMenu.addItem(withTitle: String(localized: "進む", bundle: bundle),
+                       action: #selector(ArchiveWindowController.goForward(_:)), keyEquivalent: "]")
+        goMenu.addItem(.separator())
+        goMenu.addItem(withTitle: String(localized: "内包フォルダ", bundle: bundle),
+                       action: #selector(ArchiveWindowController.goToEnclosingFolder(_:)), keyEquivalent: "\u{f700}")
         let windowMenu = NSMenu(title: String(localized: "ウインドウ", bundle: bundle))
         let welcome = windowMenu.addItem(withTitle: String(localized: "ようこそKaitoFinderへ", bundle: bundle),
                                         action: #selector(showWelcome(_:)), keyEquivalent: "1")
@@ -554,7 +562,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         ArchiveMenuSymbols.apply(to: fileMenu)
         ArchiveMenuSymbols.apply(to: editMenu)
         ArchiveMenuSymbols.apply(to: viewMenu)
-        for submenu in [appMenu, fileMenu, editMenu, viewMenu, windowMenu, helpMenu] {
+        ArchiveMenuSymbols.apply(to: goMenu)
+        for submenu in [appMenu, fileMenu, editMenu, viewMenu, goMenu, windowMenu, helpMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu
             menu.addItem(item)

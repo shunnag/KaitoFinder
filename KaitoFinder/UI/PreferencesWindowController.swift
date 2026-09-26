@@ -9,6 +9,7 @@ final class PreferencesViewModel {
     static let additionPositions = ArchivePreferences.AdditionPosition.allCases
     static let tarCarriedOwnerPolicies = ArchivePreferences.CarriedOwnerIDPolicy.allCases
     static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
+    static let folderOpenings = ArchivePreferences.FolderOpening.allCases
     private let store: ArchivePreferencesStore
     let hardware: ArchiveHardware
     private let bundle: Bundle
@@ -52,6 +53,7 @@ final class PreferencesViewModel {
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
     var saveBehaviorIndex: Int { Self.saveBehaviors.firstIndex(of: preferences.saveBehavior)! }
     var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
+    var folderOpeningIndex: Int { Self.folderOpenings.firstIndex(of: preferences.folderOpening)! }
     var additionPositionIndex: Int { Self.additionPositions.firstIndex(of: preferences.additionPosition)! }
     var tarCarriedOwnerIDsIndex: Int { Self.tarCarriedOwnerPolicies.firstIndex(of: preferences.tarCarriedOwnerIDs)! }
     var zipMethodIndex: Int { Self.zipMethods.firstIndex(of: preferences.zipMethod)! }
@@ -75,6 +77,11 @@ final class PreferencesViewModel {
     func selectOpeningBehavior(at index: Int) {
         guard Self.openingBehaviors.indices.contains(index) else { return }
         store.preferences.openingBehavior = Self.openingBehaviors[index]
+    }
+
+    func selectFolderOpening(at index: Int) {
+        guard Self.folderOpenings.indices.contains(index) else { return }
+        store.preferences.folderOpening = Self.folderOpenings[index]
     }
 
     func selectZipMethod(at index: Int) {
@@ -144,6 +151,7 @@ final class PreferencesWindowController: NSWindowController {
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let saveBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let folderOpeningPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let additionPositionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -244,7 +252,8 @@ final class PreferencesWindowController: NSWindowController {
                 checkboxRow(showsHiddenFilesCheckbox),
                 checkboxRow(keepsFoldersOnTopCheckbox),
                 checkboxRow(showsWelcomeWindowAtLaunchCheckbox),
-                checkboxRow(renamesOnClickCheckbox)
+                checkboxRow(renamesOnClickCheckbox),
+                row(String(localized: "フォルダを開くとき:", bundle: bundle), control: folderOpeningPopup)
             ], spanningRows: [0, 1, 2, 3])
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle))
@@ -336,6 +345,8 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func configureControls() {
+        folderOpeningPopup.addItems(withTitles: [String(localized: "フォルダに移動", bundle: bundle),
+                                                 String(localized: "その場で展開", bundle: bundle)])
         compressionThreadsPopup.addItems(withTitles: viewModel.compressionThreadTitles)
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         saveBehaviorPopup.addItems(withTitles: [String(localized: "すぐに書き込む", bundle: bundle),
@@ -363,6 +374,7 @@ final class PreferencesWindowController: NSWindowController {
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
             (saveBehaviorPopup, #selector(changeSaveBehavior(_:))),
             (openingBehaviorPopup, #selector(changeOpeningBehavior(_:))),
+            (folderOpeningPopup, #selector(changeFolderOpening(_:))),
             (additionPositionPopup, #selector(changeAdditionPosition(_:))),
             (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
             (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
@@ -552,6 +564,7 @@ final class PreferencesWindowController: NSWindowController {
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
         saveBehaviorPopup.selectItem(at: viewModel.saveBehaviorIndex)
         openingBehaviorPopup.selectItem(at: viewModel.openingBehaviorIndex)
+        folderOpeningPopup.selectItem(at: viewModel.folderOpeningIndex)
         additionPositionPopup.selectItem(at: viewModel.additionPositionIndex)
         tarCarriedOwnerIDsPopup.selectItem(at: viewModel.tarCarriedOwnerIDsIndex)
         let threadTitles = viewModel.compressionThreadTitles
@@ -583,6 +596,7 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
     @objc private func changeSaveBehavior(_ sender: NSPopUpButton) { viewModel.selectSaveBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeOpeningBehavior(_ sender: NSPopUpButton) { viewModel.selectOpeningBehavior(at: sender.indexOfSelectedItem) }
+    @objc private func changeFolderOpening(_ sender: NSPopUpButton) { viewModel.selectFolderOpening(at: sender.indexOfSelectedItem) }
     @objc private func changeKeepsFoldersOnTop(_ sender: NSButton) { viewModel.changeKeepsFoldersOnTop(to: sender.state == .on) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
     @objc private func changeRenamesOnClick(_ sender: NSButton) { viewModel.changeRenamesOnClick(to: sender.state == .on) }

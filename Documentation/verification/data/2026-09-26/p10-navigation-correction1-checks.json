@@ -1,0 +1,125 @@
+{
+  "head": "b450765f78c15e4a7d69058b0b856e4ab221f34c",
+  "KaitoKit": {
+    "files": 1513,
+    "mismatches": []
+  },
+  "GyoshukuKit": {
+    "files": 295,
+    "mismatches": []
+  },
+  "KaitoFinder": {
+    "files": 137,
+    "mismatches": []
+  },
+  "KaitoFinderTests": {
+    "files": 172,
+    "mismatches": []
+  },
+  "Tools": {
+    "files": 32,
+    "mismatches": []
+  },
+  "compiled_swift": {
+    "KaitoKit": {
+      "files": 207,
+      "mismatches": []
+    },
+    "GyoshukuKit": {
+      "files": 62,
+      "mismatches": []
+    },
+    "app": {
+      "files": 104,
+      "mismatches": []
+    },
+    "test": {
+      "files": 150,
+      "mismatches": []
+    }
+  },
+  "source_changes_since_initial_s35_snapshot": [
+    "KaitoFinder/UI/ArchiveNavigationToolbarItemGroup.swift",
+    "KaitoFinderTests/ApplicationCommandIntegrationTests.swift",
+    "KaitoFinderTests/ArchiveFolderNavigationTests.swift"
+  ],
+  "diff_check": 0,
+  "published_release_notes_diff": [],
+  "environment": {
+    "macos": "27.2",
+    "build": "26B5091g",
+    "swift": "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx27.2.0"
+  },
+  "xctest_invocations": 8,
+  "all_case_counts": {
+    "passed": 40,
+    "skipped": 8,
+    "failed": 2
+  },
+  "selectionMode_warning_count": 0,
+  "latest_by_selector": {
+    "ArchiveFolderNavigationTests": {
+      "exit": 0,
+      "cases": {
+        "passed": 19,
+        "skipped": 3
+      }
+    },
+    "ArchiveDisplayTests/testToolbarItemsExposeLabelsActionsAndCustomization": {
+      "exit": 0,
+      "cases": {
+        "passed": 1
+      }
+    },
+    "ArchiveDisplayTests/testToolbarWithoutSessionKeepsOnlySearchEnabled": {
+      "exit": 0,
+      "cases": {
+        "passed": 1
+      }
+    },
+    "ArchiveDisplayTests/testLockedPlaceholderRestoresListToolbarAndStatusAfterUnlock": {
+      "exit": 0,
+      "cases": {
+        "passed": 1
+      }
+    },
+    "ArchiveEntryControlsTests/testToolbarValidationTracksSelectionReadabilityAndArchiveCapabilities": {
+      "exit": 0,
+      "cases": {
+        "passed": 1
+      }
+    },
+    "ApplicationCommandIntegrationTests/testGoMenuCommandsAndToolbarNavigateTheActiveArchive": {
+      "exit": 0,
+      "cases": {
+        "skipped": 1
+      }
+    }
+  },
+  "latest_case_counts": {
+    "passed": 23,
+    "skipped": 4
+  },
+  "build_runs": [
+    {
+      "name": "KaitoKit",
+      "exit": 0
+    },
+    {
+      "name": "GyoshukuKit",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    }
+  ]
+}

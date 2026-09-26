@@ -13,6 +13,19 @@ nonisolated final class ArchivePreferencesTestDefaults {
 }
 
 nonisolated final class ArchivePreferencesTests: XCTestCase {
+    @MainActor func testFolderOpeningPersistsAndUnknownValuesUseEnter() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        for mode in ArchivePreferences.FolderOpening.allCases {
+            store.preferences.folderOpening = mode
+            XCTAssertEqual(suite.defaults.string(forKey: "ArchiveFolderOpening"), mode.rawValue)
+            XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences.folderOpening, mode)
+        }
+        for value: Any in ["unknown", 17, true, Data([0])] {
+            suite.defaults.set(value, forKey: "ArchiveFolderOpening")
+            XCTAssertEqual(store.preferences.folderOpening, .enter)
+        }
+    }
+
     @MainActor func testEmptyStoreUsesDefaults() throws {
         let suite = try ArchivePreferencesTestDefaults()
         let value = ArchivePreferencesStore(defaults: suite.defaults).preferences
@@ -35,6 +48,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertTrue(value.showsWelcomeWindowAtLaunch)
         XCTAssertTrue(value.renamesOnClick)
         XCTAssertEqual(value.openingBehavior, .system)
+        XCTAssertEqual(value.folderOpening, .enter)
         XCTAssertEqual(value.saveBehavior, .immediate)
         XCTAssertTrue(value.excludesDSStore)
         XCTAssertFalse(value.excludesHiddenFiles)
@@ -92,7 +106,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             "ArchiveFolderPolicy": "sometimes", "ArchiveTrashesArchiveAfterExtraction": Data([0xff]),
             "ArchiveRevealsExtractedItems": "true", "ArchiveShowsHiddenFiles": "broken", "ArchiveShowsWelcomeAtLaunch": "broken",
             "ArchiveExcludesDSStore": "broken", "ArchiveExcludesHiddenFiles": "broken", "ArchiveOpeningBehavior": "replace",
-            "ArchiveRenamesOnClick": "false", "ArchiveSaveBehavior": "sometimes"
+            "ArchiveRenamesOnClick": "false", "ArchiveSaveBehavior": "sometimes", "ArchiveFolderOpening": "unknown"
         ]
         for (key, value) in corrupt { suite.defaults.set(value, forKey: key) }
         XCTAssertEqual(store.preferences, ArchivePreferences())

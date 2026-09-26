@@ -4,6 +4,71 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
+    @MainActor func testGoMenuCommandsAndToolbarNavigateTheActiveArchive() async throws {
+        guard Bundle(for: AppDelegate.self).url(forResource: "RecentDocumentsMenu", withExtension: "nib") != nil else {
+            throw XCTSkip("The application test host with compiled menu resources is required")
+        }
+        preserveApplicationMenus()
+        let fixture = try ScenarioFixture(script: "with zipfile.ZipFile(p, 'w') as z: z.writestr('a/b/c.txt', b'C')")
+        let (_, controller) = try await scenarioDocument(fixture)
+        let window = try XCTUnwrap(controller.window)
+        let delegate = AppDelegate(), menu = delegate.makeMenu()
+        defer { withExtendedLifetime(delegate) {} }
+        NSApp.mainMenu = menu
+        window.tabbingMode = .disallowed
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+        try await scenarioWait { NSApp.isActive && NSApp.keyWindow === window && NSApp.mainWindow === window }
+        XCTAssertTrue(window.makeFirstResponder(controller.outlineView))
+        let open = try menuItem(#selector(ArchiveWindowController.openEntry(_:)), in: menu)
+        let back = try menuItem(#selector(ArchiveWindowController.goBack(_:)), in: menu)
+        let forward = try menuItem(#selector(ArchiveWindowController.goForward(_:)), in: menu)
+        let enclosing = try menuItem(#selector(ArchiveWindowController.goToEnclosingFolder(_:)), in: menu)
+        controller.outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["a"])
+        XCTAssertTrue(controller.validateMenuItem(open))
+        XCTAssertNil(open.target)
+        XCTAssertTrue(NSApp.target(forAction: try XCTUnwrap(open.action), to: open.target, from: open) as? ArchiveWindowController === controller)
+        try performMenuItem(open)
+        XCTAssertEqual(controller.currentFolderPath, "a")
+        XCTAssertTrue(controller.validateMenuItem(back))
+        XCTAssertFalse(controller.validateMenuItem(forward))
+        try performMenuItem(back)
+        XCTAssertEqual(controller.currentFolderPath, "")
+        try performMenuItem(forward)
+        XCTAssertEqual(controller.currentFolderPath, "a")
+        try performMenuItem(enclosing)
+        XCTAssertEqual(controller.selectedNodes.map(\.path), ["a"])
+        let toolbar = try XCTUnwrap(window.toolbar)
+        let group = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "navigation" } as? NSToolbarItemGroup)
+        XCTAssertEqual(group.action, #selector(ArchiveWindowController.navigateFromToolbar(_:)))
+        XCTAssertTrue(group.target === controller)
+        let segments = try XCTUnwrap(group.view as? NSSegmentedControl)
+        XCTAssertTrue(segments.target === controller)
+        XCTAssertEqual(segments.action, #selector(ArchiveWindowController.navigateFromToolbar(_:)))
+        group.validate()
+        XCTAssertTrue(segments.isEnabled(forSegment: 0))
+        segments.selectedSegment = 0
+        segments.performClick(nil)
+        XCTAssertEqual(controller.currentFolderPath, "a")
+        group.validate()
+        XCTAssertTrue(segments.isEnabled(forSegment: 1))
+        segments.selectedSegment = 1
+        segments.performClick(nil)
+        XCTAssertEqual(controller.currentFolderPath, "")
+
+        toolbar.displayMode = .labelOnly
+        for (index, path) in [(0, "a"), (1, "")] {
+            group.validate()
+            let item = group.subitems[index]
+            XCTAssertTrue(item.isEnabled)
+            XCTAssertTrue(item.target === controller)
+            XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(item.action), to: item.target, from: item))
+            XCTAssertEqual(controller.currentFolderPath, path)
+        }
+    }
+
     @MainActor func testInstalledSystemMenusBelongToMainMenuAndServicesResolve() throws {
         let menu = try XCTUnwrap(NSApp.mainMenu)
         let services = try XCTUnwrap(NSApp.servicesMenu)

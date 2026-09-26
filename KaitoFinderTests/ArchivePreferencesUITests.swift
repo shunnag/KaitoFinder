@@ -3,6 +3,25 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchivePreferencesUITests: XCTestCase {
+    @MainActor func testFolderOpeningPopupPersistsAndRefreshes() throws {
+        _ = NSApplication.shared
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let controller = PreferencesWindowController(store: store)
+        defer { controller.close() }
+        let popup = controller.folderOpeningPopup
+        XCTAssertEqual(popup.itemTitles, [String(localized: "フォルダに移動"), String(localized: "その場で展開")])
+        XCTAssertEqual(popup.accessibilityLabel(), String(localized: "フォルダを開くとき:"))
+        XCTAssertEqual(popup.indexOfSelectedItem, 0)
+        popup.selectItem(at: 1)
+        XCTAssertTrue(popup.sendAction(popup.action, to: popup.target))
+        XCTAssertEqual(store.preferences.folderOpening, .expand)
+        store.preferences.folderOpening = .enter
+        XCTAssertEqual(popup.indexOfSelectedItem, 0)
+        controller.viewModel.selectFolderOpening(at: -1)
+        controller.viewModel.selectFolderOpening(at: 2)
+        XCTAssertEqual(store.preferences.folderOpening, .enter)
+    }
+
     @MainActor func testCompressionThreadViewModelChoicesAndMemoryWarning() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30),
