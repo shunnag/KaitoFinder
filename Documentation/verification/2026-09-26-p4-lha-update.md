@@ -295,3 +295,66 @@ LHA の編集では、触らない member の header と圧縮済みデータを
 | 全件 | 1,551 件。失敗は既知の環境依存の GUI 系 8 試験（ArchiveConflictUITests 1、ArchiveDropIntegrationTests 5、ArchivePreviewSidebarTests 1、ArchiveTabTests 1）だけ |
 
 受入計測（AC-A10、P0b を B-P4 と比べる）は、この節の後に追記する。
+
+## 受入計測（AC-A10、2026-09-26 14:30–15:20、オーケストレータ）
+
+B-P4 = KaitoKit d35f2da・GyoshukuKit a03833e・KaitoFinder 7b623b4、S21 = KaitoKit d171f27・GyoshukuKit 6e7cd9b・
+KaitoFinder ac5cab9。どちらも `git archive` の隔離した三つ組を `-O`・wholemodule の Debug で build し、
+`PerformanceProbeTests` の 3 試験（編集・直接の編集・open）を 100k 件と本文 256 MiB で交互に流した。
+3 試験とも全回で成功。負荷の平均は 6.1〜18.3 で、仕様の「4 未満」は満たせていない（Codex の試験と並走）。
+
+| 回 | 内容 | 負荷（開始 → 終了） |
+|---|---|---|
+| 1 | B-P4 全形式 → S21 全形式（追加は末尾） | 18.25 → 6.78、6.78 → 9.64 |
+| 2 | S21 → B-P4、LHA だけ、`KAITOFINDER_PROBE_ADDITION_PLACEMENT=beginning` | 6.11 → 13.27、13.27 → 6.67 |
+| 3 | B-P4 → S21、7z・tar・tar.xz（回 1 で ±10 % を外れた行の測り直し） | 6.67 → 7.10、7.10 → 9.67 |
+
+比較の全行: [回 1](data/2026-09-26/p4-bp4-vs-s21-100k.txt)、[回 2](data/2026-09-26/p4-bp4-vs-s21-lha-beginning.txt)、
+[回 3](data/2026-09-26/p4-bp4-vs-s21-recheck.txt)（`format fixture mode operation stage 基準 新 比`）。
+
+### LHA の行（回 1）
+
+| 行 | 合格条件 | 結果 | 判定 |
+|---|---|---|---|
+| entries の `updater_open` | ≦ B-P4 の `rewriter_open` × 1.25 | 889–952 ms（基準の 1.09–1.16 倍） | 合格 |
+| payload の `updater_open` | ≦ B-P4 の `rewriter_open` + 10 | immediate・deferred 24.0–25.2 ms（基準 9.6–10.3 + 10 = 19.6–20.3）、direct 24.7・25.0 ms（基準 23.5・25.3 + 10） | **immediate・deferred は約 5 ms 超過** |
+| entries immediate の delete_end・rename_same_length・add_file・new_folder の `commit` | ≦ 50 | 3.9・3.9・3.9・4.0 | 合格 |
+| entries immediate の delete_start・rename_different_length・rename_folder・replace_file の `commit` | ≦ 250 | 10.6・15.9・10.3・7.7 | 合格 |
+| entries deferred の `commit` | ≦ 300 | save_five_changes 9.8、save_rename_only 7.1 | 合格 |
+| payload immediate の delete_end・rename_same_length・add_file・new_folder の `commit` | ≦ 60 | 1.3・1.1・0.7・0.7 | 合格 |
+| payload immediate の delete_start・replace_file・rename_different_length の `commit` | ≦ 800 | 86.9・74.7・77.0 | 合格 |
+| payload の rename_folder、deferred save_five_changes の `commit` | ≦ 900 | 79.4・1.0 | 合格 |
+| entries immediate の編集の `total` | ≦ B-P4 × 0.7 | 0.59–0.62 倍（例: delete_end 3,344 → 1,986 ms） | 合格 |
+| payload immediate の delete_end・rename_same_length・add_file・new_folder の `total` | ≦ 200 | 54.8・57.5・56.1・57.2 | 合格 |
+| payload の他の immediate と deferred の `total` | ≦ 1,100 | 118.8–182.4 | 合格 |
+| entries の `verification_open`・`entry_comparison`・`capability_probe` | ≦ B-P4 + 10 % | 0.98–1.03 倍、0.78–0.93 倍、0.98–1.03 倍 | 合格 |
+| `written_bytes` payload immediate delete_start / delete_end | ≦ 出力 + 16 MB / ≦ 4 MB | 168,587,264 B（出力 168,563,277 B）/ 28,672 B（基準は 338 MB / 342 MB） | 合格 |
+| stage の有無 | `updater_open` があり、`rewriter_open`・`work_copy`・`reload_open` が無い | そのとおり（LHA の行に `rewriter_open` 0 件） | 合格 |
+| 従来の設定（先頭へ追加）の LHA の `total`（回 2） | B-P4 ± 10 % | 0.98–1.07 倍。stage は `rewriter_open` だけ | 合格 |
+| entries immediate open の `total` | （± 10 % として扱った） | 1,138 → 1,199 ms（1.05 倍） | 合格 |
+
+payload の `updater_open` の超過について: direct の行では updater（24.7・25.0 ms）と rewriter（23.5・25.3 ms）の費用は同じで、
+immediate・deferred の `rewriter_open` だけが約 10 ms に下がっている。基準の rewriter は文書の session が
+開いた後で同じ書庫を開くので、その差を updater は取れていない（1,064 件の header をもう一度たどる）。
+超過は約 5 ms で、同じ行の `total` は 3,066–3,135 ms から 54.8–182.4 ms（0.02–0.05 倍）になっている。
+閾値は変えず、仕様からの逸脱として最終報告に挙げる。
+
+### 他の形式の `total`（B-P4 ± 10 %）
+
+- 回 1: 予約の行（`five_changes_reserve_*`・`rename_only_reserve_*`。数 ms〜数十 ms の値が上下どちらにも揺れる。
+  P2・P3 の計測と同じくノイズとして除いた）を除く 100k の行のうち、±10 % を外れたのは遅い側が 4 行
+  （7z entries direct delete_end 1.11、7z payload open 1.16、tar payload deferred save_five_changes 1.71、tar.xz payload
+  replace_file 1.13）と、速い側が数行。
+- 回 3 で 7z・tar・tar.xz を測り直すと、その 4 行のうち 3 行は範囲に入った（0.98、1.05、1.07）一方で、回 1 では範囲内だった
+  7z payload の direct / immediate の再圧縮の行（10.8–12.7 s）が 1.13–1.17 倍になった。同じ build の 2 回の間でも
+  7z payload direct delete_start は B-P4 で 12,823 / 10,755 ms、tar.xz payload replace_file は 2,730 / 3,340 ms と揺れ、
+  負荷 6〜18 の中では再圧縮の行の揺れが ±10 % を越える。
+- 各 build で 2 回の小さい方を採ると、7z・tar・tar.xz の 78 行の幾何平均は 1.029、外れるのは 5 行
+  （7z payload direct delete_end / delete_start 1.13、tar payload deferred save_five_changes 1.21、tar.xz payload direct delete_end 1.10、
+  tar.xz payload immediate replace_file 1.13）。zip・tar.gz・tar.bz2 の 78 行は幾何平均 0.964、外れるのは速い側の 4 行だけ。
+- S21 はこれらの形式の経路を変えていない。GyoshukuKit の B-P4 → S21 の差は LHA の追加と、`TarUpdaterError` を
+  `UpdaterRouteError` の型別名にしたことだけ（`TarUpdater.swift` はそれと `mode(for:)` の可視性の 2 か所）。
+  tar payload deferred save_five_changes の増加（54–55 → 66–95 ms）は `save_sheet` の中の名前の付いていない残り
+  （22–23 → 33–42 ms）で、名前の付いた段（`updater_open` 15–16 ms（1 回だけ 33 ms）、`verification_open` 7.5–7.9 ms など）は同じ。
+  tar.gz・zip の同じ保存の行は S21 の方が速いか範囲内なので、保存の経路に共通の後退は無いと判断した。
+- 静かな機械（負荷 < 4）での採り直しはしていない。最終報告に、負荷の条件を満たしていないことと上の 5 行を挙げる。
