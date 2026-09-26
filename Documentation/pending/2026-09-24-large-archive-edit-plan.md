@@ -74,19 +74,33 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P0b | 計測: 各段（updater の open・remove・commit、置換、公開前の検証、再読み込み、保存時モードの計画と保存後の準備）の時間を PerformanceProbeTests に出し、commit を sample する。tar / 7z / LHA の編集も 10 万・50 万件と大きな本文で測る | KaitoFinder |
 | P1 | ZIP の大規模編集: KaitoKit の型付き raw 範囲 API（entry の同一性検査を省くなら SPI）と formatSpecific の共有、CD の一括読み取りと検証結果の再利用、連続範囲の一括移動とバッファ付きの CD 出力、削除だけのときの名前表の省略、置換は「詰めてから追記」にして二重書き込みを解消（KaitoKit による追記分の照合は残す）、作業ファイル 1 つへの直接の書き込み、検証した reader の再利用、保存時モードの全体検査は残して安くする（key の一度だけの計算、formatSpecific を複製しない） | 3 つとも |
 | P1b | 暗号化の設定・変更・解除を再圧縮なしで（ZIP）。AES の鍵の導出（entry ごとの PBKDF2）を並列にする | KaitoKit, GyoshukuKit, KaitoFinder |
-| P1c | 編集前の全件のパスワード確認（`verifyBeforeEditing`）の鍵の導出を並列にする（50 万件の AES で直列 152 s）。[KaitoFinder 実装・検証](../verification/2026-09-25-p1c.md)、通常ビルド・S1 実測待ち | KaitoKit, KaitoFinder |
+| P1c | 編集前の全件のパスワード確認（`verifyBeforeEditing`）の鍵の導出を並列にする（50 万件の AES で直列 152 s）。[KaitoFinder 実装・検証](../verification/2026-09-25-p1c.md)。完了（a113d94） | KaitoKit, KaitoFinder |
+| P1d | 50 万件の ZIP の編集に残る全件の名前表の作り直しを無くす。GyoshukuKit bfb2980（P1d-G、合格）、KaitoFinder 7b623b4（段 A0 の計測だけ）。段 A1–A6（S33）は未着手 | GyoshukuKit, KaitoFinder |
 | P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで）。GyoshukuKit efdb651・da0af7b（FAT32 / exFAT の修正）、KaitoFinder S13 [実装と検証](../verification/2026-09-26-p2-tar-update.md)。受入計測も合格（B-P2 を採り直して比較） | GyoshukuKit, KaitoFinder |
-| P3 | 圧縮 tar の区切り単位の編集。KK d35f2da / GK d5c51b3、KF S16 [実装と検証](../verification/2026-09-26-p3-compressed-tar-update.md)。通常全件1,508件で判明した hard-link の期待値を補正。修正後の hosted・非APFS実機・B-P3 受入計測待ち | 3 つとも |
-| P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集 | KaitoKit, GyoshukuKit |
-| P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで | KaitoKit, GyoshukuKit |
+| P3 | 圧縮 tar の区切り単位の編集。KK d35f2da / GK d5c51b3、KF S16 [実装と検証](../verification/2026-09-26-p3-compressed-tar-update.md)。受入計測も合格（tar.bz2 の 10 万件の open の短縮 0.93 倍は見込み 0.7 倍に届かず、記録） | 3 つとも |
+| P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集。KaitoKit d171f27（P4-K）、GyoshukuKit 5faab4b（並列 LH5）・6e7cd9b（LHAUpdater）は完了。KaitoFinder の P4-A（S21）は未着手（基準 B-P4 は採取済み） | KaitoKit, GyoshukuKit, KaitoFinder |
+| P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで。KaitoKit ef06e22（P5-K）は完了。GyoshukuKit の P5-G（S24）は途中（`git stash` に退避）、KaitoFinder の P5-A（S25）は未着手 | KaitoKit, GyoshukuKit, KaitoFinder |
 | P6 | 取込み・新規作成・移動の進捗のバイト化（GyoshukuKit の公開 API） | GyoshukuKit, KaitoFinder |
 | P7 | 小ファイル多数の作成の並列先読み | GyoshukuKit |
 | P8 | 検索の絞り込みを MainActor 外で計算 | KaitoFinder |
-| P9 | 圧縮の並列数の設定。S27 [実装と検証](../verification/2026-09-26-p9-threads.md)。通常ビルド・全件試験・GUI・7z作成時間の計測はオーケストレータ待ち | KaitoFinder |
+| P9 | 圧縮の並列数の設定。S27 [実装と検証](../verification/2026-09-26-p9-threads.md)。完了（500ce7a） | KaitoFinder |
 | P10 | 現在のフォルダへの移動（戻る・進む）と ⌘J の表示オプション | KaitoFinder |
-| P11 | zstd の復号（計測してから） | KaitoKit |
-| P12 | 分割巻の保存で重複する全体の読み取りを減らす（設計上必要な証明は残す） | KaitoFinder |
-| P13 | tar の `\` を含む名前の展開（tar ではただの文字として扱う）、変換で受け取る名前の規則を出力形式の決定後に適用 | KaitoFinder |
+| P11 | zstd の復号（計測してから）。KaitoKit の worktree `KaitoKit-p11`（branch feature/2026-09-26-p11-zstd）で Stage 1・2 が門 G1・G2 を通過、Stage 3 は途中（未コミット） | KaitoKit |
+| P12 | 分割巻の保存で重複する全体の読み取りを減らす（設計上必要な証明は残す）。完了（71549c2・e48d8ad、反証レビューと受入計測に合格） | KaitoFinder |
+| P13 | tar の `\` を含む名前の展開（tar ではただの文字として扱う）、変換で受け取る名前の規則を出力形式の決定後に適用。完了（54c2b8d） | KaitoFinder |
 | P14 | tar.xz の block の大きさ（P3 の区切りの配置と合わせて実測で決める） | GyoshukuKit |
 
 分割巻の一部の巻だけを書き直す公開は、クラッシュ時の整合性の中核に触れるため、P12 の後に改めて判断する。
+
+
+## 状態（2026-09-26 10:00）
+
+実装は Codex の利用上限（`try again at Sep 29th, 2026 8:40 AM`）で止まっている。コミット済みの段はそれぞれの検証記録にある。再開の順:
+
+1. GyoshukuKit: `git stash pop`（S24 = P5-G の途中。`SplicedArchiveOutput` に一時ファイルの範囲の区間 `.scratch` を足す修正と fixture の取り込み）の後、
+   同じ Codex thread で P5-G を続ける。オーケストレータの判断（ORDER-P4-P5 §1.1 の改訂）: `.scratch(SplicedScratchFile, Range)` を足し、
+   同じ一時ファイル・同じ範囲の区間を「変わらない prefix」として扱う。`generated` は従来どおり変わったとみなす。
+2. KaitoKit-p11（P11 = S37）: Stage 3 の実装と絞った試験までは済んだが、しきい値の掃引の途中で止まった。`ZstdSequenceTable.swift` の
+   `defaultPairTableThreshold` が掃引の途中の値（2048）のままで、第 2 回で選んだ値は 32,768。同じ thread で掃引・V1–V8・最終の門を続ける。
+3. KaitoFinder: S21（P4-A）→ S33（P1d-A。S21 の後に B-P1d を採り直す）→ S34（P8）→ S35・S36（P10、利用者の了承が要る）→ S25（P5-A）→
+   S38–S41（P6・P7）。P14（tar.xz の block の大きさ）の仕様は未作成。
