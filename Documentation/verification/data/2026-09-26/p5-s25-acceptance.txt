@@ -1,0 +1,39 @@
+entries immediate */total <= 2000                                      1729.783                 PASS
+entries deferred save_five_changes total <= 2800                       1981.468                 PASS
+entries deferred save_rename_only total <= 2800                        1812.661                 PASS
+entries updater_open <= B rewriter_open(min 373) + 80                  436.763                  PASS
+entries immediate rename_same_length commit <= 500                     319.273                  PASS
+entries immediate rename_different_length commit <= 500                320.214                  PASS
+entries immediate rename_folder commit <= 500                          323.652                  PASS
+entries immediate new_folder commit <= 500                             320.984                  PASS
+entries immediate delete_end commit <= 500                             333.766                  PASS
+payload immediate delete_end total <= 400                              21.415                   PASS
+payload immediate rename_same_length total <= 400                      22.691                   PASS
+payload immediate rename_different_length total <= 400                 23.227                   PASS
+payload immediate rename_folder total <= 400                           24.266                   PASS
+payload immediate new_folder total <= 400                              22.708                   PASS
+payload immediate add_file total <= 400                                23.263                   PASS
+payload immediate delete_start total <= 1000                           95.094                   PASS
+payload immediate replace_file total <= 1000                           92.765                   PASS
+payload deferred save_five_changes total <= 1200                       31.254                   PASS
+written delete_start <= output + 16MB                                  (135823360, 135790639)   PASS
+entries verification_open <= B*1.10 (worst immediate/delete_end)       1.082                    PASS
+entries entry_comparison <= B*1.10 (worst immediate/replace_file)      0.835                    PASS
+entries capability_probe <= B+60                                       40.0                     PASS
+stages: updater_open yes, rewriter_open no                             (24, 0)                  PASS
+entries immediate open total <= B*1.10                                 1.08                     PASS
+payload immediate open total <= B*1.10                                 1.01                     PASS
+others rows 156 geomean 1.013 outside 13
+    lha/payload/deferred/save_five_changes/total 86.8 105.9 1.22
+    lha/payload/deferred/save_rename_only/total 155.2 133.9 0.86
+    lha/payload/immediate/delete_start/total 159.1 143.1 0.90
+    tar/payload/deferred/save_rename_only/total 56.7 78.5 1.39
+    tar/payload/direct/delete_start/total 136.5 155.9 1.14
+    tar.gz/payload/deferred/save_rename_only/total 127.0 146.0 1.15
+    tar.xz/payload/deferred/save_rename_only/total 4502.6 5158.6 1.15
+    tar.xz/payload/direct/delete_end/total 385.0 454.2 1.18
+    tar.xz/payload/immediate/replace_file/total 2490.8 2870.0 1.15
+    zip/payload/deferred/save_rename_only/total 115.9 141.6 1.22
+    zip/payload/direct/delete_end/total 44.0 18.7 0.42
+    zip/payload/direct/delete_start/total 62.5 72.6 1.16
+    zip/payload/immediate/rename_folder/total 86.8 96.5 1.11
