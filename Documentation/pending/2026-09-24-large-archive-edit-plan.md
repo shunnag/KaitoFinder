@@ -108,4 +108,6 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
    掃引・V1–V8・最終の門を続ける。この worktree は中途の状態のままコミットしない。
 3. KaitoFinder: S21（P4-A）→ S33（P1d-A。S21 の後に B-P1d を採り直す）→ S34（P8）→ S35・S36（P10、利用者の了承が要る）→ S25（P5-A）→
    S38–S41（P6・P7）。P14（tar.xz の block の大きさ）の仕様は未作成。
+（確認: 本線の組み合わせ KaitoFinder 31509ff・GyoshukuKit 6e7cd9b・KaitoKit 0cbd809 で、アプリの全件 1,531 件。失敗は画面ロック中の既知の GUI 系 9 試験だけ）
+
 4. 実 disk の試験（hdiutil の FAT32 / exFAT / HFS+）は Codex の sandbox では動かず、オーケストレータの検証でだけ実行される（efdb651 の exFAT の不具合はそこで見つかった）。各段の検証で必ず回す。
