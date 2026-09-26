@@ -40,13 +40,15 @@ nonisolated struct ArchiveCapabilities: Sendable {
     let splitSave: Bool
     let splitIrreversible: Bool
     let compressedTarAssessment: CompressedTarAssessment?
+    let lhaRewriteReason: String?
 
     init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false,
-         compressedTarAssessment: CompressedTarAssessment? = nil) {
+         compressedTarAssessment: CompressedTarAssessment? = nil, lhaRewriteReason: String? = nil) {
         self.mode = mode
         self.splitSave = splitSave
         self.splitIrreversible = splitIrreversible
         self.compressedTarAssessment = compressedTarAssessment
+        self.lhaRewriteReason = lhaRewriteReason
         refusal = nil
     }
 
@@ -56,6 +58,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         splitSave = false
         splitIrreversible = false
         compressedTarAssessment = nil
+        lhaRewriteReason = nil
     }
 
     var canEdit: Bool { refusal == nil }
@@ -74,6 +77,8 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 return onSave ? String(localized: "最初の保存でアーカイブ全体を再圧縮します")
                     : String(localized: "最初の編集でアーカイブ全体を再圧縮します")
             }
+        case .update(.lha) where lhaRewriteReason != nil:
+            break
         default: return nil
         }
         return onSave ? String(localized: "保存するとアーカイブ全体を再圧縮します")
@@ -213,7 +218,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 default: return Self(refusal: .format(format.displayName))
                 }
             case .sevenZip: mode = .rewrite(.sevenZip)
-            case .lha: mode = .rewrite(.lha)
+            case .lha: mode = .update(.lha)
             default: return Self(refusal: .format(format.displayName))
             }
             guard FileManager.default.isWritableFile(atPath: url.path),
@@ -233,6 +238,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
                 if case .update(let format) = mode, [.tarGzip, .tarBzip2, .tarXZ].contains(format) {
                     return Self(mode: mode, compressedTarAssessment: CompressedTarUpdater.assess(reader: reader))
+                }
+                if mode == .update(.lha) {
+                    return Self(mode: mode, lhaRewriteReason: LHAUpdater.rewriteReason(reader: reader))
                 }
             }
             return Self(mode: mode)

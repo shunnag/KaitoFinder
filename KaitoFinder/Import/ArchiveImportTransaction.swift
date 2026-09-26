@@ -450,6 +450,7 @@ nonisolated enum ArchiveImportTransaction {
     static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
     static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
     static let didCommitTarUpdaterForTesting = TaskLocal<(@Sendable (TarUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didCommitLHAUpdaterForTesting = TaskLocal<(@Sendable (LHAUpdater) throws -> Void)?>(wrappedValue: nil)
     static let didCommitCompressedTarUpdaterForTesting = TaskLocal<(@Sendable (CompressedTarUpdater) throws -> Void)?>(wrappedValue: nil)
     static let didFallBackToRewriteForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
     static let didFallBackToFullVerificationForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
@@ -587,7 +588,11 @@ nonisolated enum ArchiveImportTransaction {
             }
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
             try ArchiveImportPlan.checkCancellation(progress)
-            progress.totalUnitCount += Int64(rewriter.entryNames.count)
+            // LHA の fallback は、削除済みの項目を carry の予算に含めない。
+            let carryCount = format == .lha
+                ? expectedOutput.resolving(.rewrite(.lha)).entries.filter { !$0.isAddition }.count
+                : rewriter.entryNames.count
+            progress.totalUnitCount += Int64(carryCount)
             try ArchiveStageDiagnostics.measure(.commit) {
                 try rewriter.commit { _, _ in
                     progress.completedUnitCount += 1
@@ -693,6 +698,42 @@ nonisolated enum ArchiveImportTransaction {
             } else {
                 publishedMode = .rewrite(.tar)
                 try rewriteBranch(format: .tar)
+            }
+        case .update(.lha):
+            try willOpenUpdater?()
+            var updater: LHAUpdater?
+            do {
+                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                    try LHAUpdater.open(url: archive, output: work, options: options)
+                }
+            } catch UpdaterRouteError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                progress.totalUnitCount += ArchiveReencryptionProgress.units
+                let meter = ArchiveReencryptionProgress(progress)
+                do {
+                    try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        try updater.commit(progress: meter.update)
+                    }
+                } catch let error as UpdaterRouteError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitLHAUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+            } else {
+                publishedMode = .rewrite(.lha)
+                try rewriteBranch(format: .lha)
             }
         case .update: throw ArchiveEditError.staleSelection
         }

@@ -24,7 +24,7 @@ nonisolated enum ProbeArchiveFormat: String, Sendable {
 
     func editorStage(placement: ArchivePreferences.AdditionPosition) -> ArchiveStageDiagnostics.Stage {
         if self == .zip { return .updaterOpen }
-        return placement == .end && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(self) ? .updaterOpen : .rewriterOpen
+        return placement == .end && [.tar, .tarGzip, .tarBzip2, .tarXZ, .lha].contains(self) ? .updaterOpen : .rewriterOpen
     }
 }
 

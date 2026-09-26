@@ -100,16 +100,25 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
         try fixture.directory.run("/opt/homebrew/bin/7zz", ["t", "-bd", archive.path])
     }
 
-    func testCP932LHANameAndContentsSurviveRewriteAppend() async throws {
+    func testCP932LHANameAndContentsSurviveUpdateAppend() async throws { try await assertCP932LHAAppend(.end) }
+    func testCP932LHANameAndContentsSurviveLegacyBeginningAppend() async throws { try await assertCP932LHAAppend(.beginning) }
+
+    private func assertCP932LHAAppend(_ placement: AdditionPlacement) async throws {
         let fixture = try ScenarioFixture(), archive = fixture.root.appendingPathComponent("legacy.lzh")
         let writer = try ArchiveWriter.create(url: archive, format: .lha)
         try writer.add(data: Data("legacy".utf8), as: "日本語.txt")
         try writer.finish()
         let before = try XCTUnwrap(ArchiveReader.open(url: archive).entries.first)
         XCTAssertEqual(before.rawName.bytes, [0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea, 0x2e, 0x74, 0x78, 0x74])
-        let session = try ArchiveSession(url: archive), source = try fixture.file("追加.txt")
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.lha))
+        let options = WriterOptions(additionPlacement: placement)
+        let session = try ArchiveSession(url: archive, writerOptions: { _ in options }), source = try fixture.file("追加.txt")
+        XCTAssertEqual(session.capabilities.mode, .update(.lha))
+        XCTAssertNil(session.capabilities.rewriteNotice)
+        XCTAssertEqual(session.capabilities.mode?.resolved(with: options), placement == .end ? .update(.lha) : .rewrite(.lha))
+        XCTAssertEqual(session.capabilities.editNotice(options: options, onSave: false), placement == .end ? nil
+            : String(localized: "編集するとアーカイブ全体を再圧縮します"))
         _ = try await session.append(urls: [source], to: "", progress: Progress())
+        XCTAssertEqual(try ArchiveReader.open(url: archive).entries.map(\.name), placement == .end ? ["日本語.txt", "追加.txt"] : ["追加.txt", "日本語.txt"])
         XCTAssertEqual(try ScenarioFixture.contents(archive), ["日本語.txt": Data("legacy".utf8), "追加.txt": Data("added".utf8)])
         XCTAssertEqual(try ArchiveReader.open(url: archive).entries.first(where: { $0.name == "日本語.txt" })?.rawName.bytes, before.rawName.bytes)
     }

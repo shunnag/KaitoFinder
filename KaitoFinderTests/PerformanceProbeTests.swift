@@ -591,6 +591,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                     editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
                         try TarUpdater.open(url: input, output: output, options: options)
                     }
+                } else if fixture.format == .lha, preferences.additionPosition == .end {
+                    editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                        try LHAUpdater.open(url: input, output: output, options: options)
+                    }
                 } else if let compressedReader {
                     let span = ArchiveStageDiagnostics.begin(.updaterOpen)
                     defer { span?.end() }

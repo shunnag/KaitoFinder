@@ -54,6 +54,49 @@ nonisolated final class ArchiveCapabilityInspectionTests: XCTestCase {
         }
     }
 
+    func testSingleLHASpellingsUseUpdaterAndSplitLHAStillRewrites() throws {
+        let directory = try ArchiveTestDirectory()
+        for fixture in ["names-ascii", "tl-S3b"] {
+            for name in ["sample.lzh", "sample.lha", "sample.LZH", "sample.LHA", "no-extension"] {
+                let archive = try LHAUpdateFixture.frozen(fixture, at: directory.url, filename: name)
+                let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder())
+                for capability in [ArchiveCapabilities.inspect(reader: reader, url: archive),
+                                   ArchiveCapabilities.inspect(url: archive, format: reader.format)] {
+                    XCTAssertEqual(capability.mode, .update(.lha))
+                    XCTAssertNil(capability.lhaRewriteReason); XCTAssertNil(capability.compressedTarAssessment)
+                    XCTAssertNil(capability.rewriteNotice)
+                    for onSave in [false, true] {
+                        XCTAssertNil(capability.editNotice(options: .init(), onSave: onSave))
+                        let legacy = WriterOptions(additionPlacement: .beginning)
+                        XCTAssertEqual(capability.mode?.resolved(with: legacy), .rewrite(.lha))
+                        XCTAssertEqual(capability.editNotice(options: legacy, onSave: onSave), onSave
+                            ? String(localized: "保存するとアーカイブ全体を再圧縮します")
+                            : String(localized: "編集するとアーカイブ全体を再圧縮します"))
+                    }
+                }
+            }
+        }
+        let modern = try LHAUpdateFixture.make(directory.url)
+        let capability = ArchiveCapabilities.inspect(url: modern, format: .lha)
+        XCTAssertEqual(capability.mode, .update(.lha)); XCTAssertNil(capability.lhaRewriteReason)
+        XCTAssertNil(capability.editNotice(options: .init(), onSave: false))
+        let split = try SplitArchiveFixture(.lha), reader = try ArchiveReader.open(url: split.archive)
+        XCTAssertEqual(ArchiveCapabilities.inspect(reader: reader, url: split.archive, allowsSplitSave: true).mode, .rewrite(.lha))
+    }
+
+    func testLHAUpdaterKeepsExistingNameAndSymlinkRefusals() throws {
+        for name in ["symlink", "unrepresentable", "colon"] {
+            let directory = try ArchiveTestDirectory(), archive = try LHAUpdateFixture.frozen(name, at: directory.url)
+            let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder())
+            let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
+            XCTAssertFalse(capability.canEdit, name)
+            do { try ArchiveRewriter.probe(reader: reader, format: .lha); XCTFail("Expected refusal: \(name)") }
+            catch RewriterError.unrepresentable(let entry, let reason) {
+                XCTAssertEqual(capability.refusal, .unrepresentable(entry + ": " + reason))
+            }
+        }
+    }
+
     private func openCount() -> Int { ReaderOptions.kaitoFinderOpenCount.withLock { $0 } }
 
     func testSessionOpenParsesZIPOnceAndInspectsFromTheReader() async throws {

@@ -241,7 +241,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     private func validateMode() throws {
-        if case .update(let format) = mode, ![.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format) {
+        if case .update(let format) = mode, ![.tar, .tarGzip, .tarBzip2, .tarXZ, .lha].contains(format) {
             throw ArchiveEditError.staleSelection
         }
     }

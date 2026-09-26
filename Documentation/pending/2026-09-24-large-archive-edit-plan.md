@@ -78,7 +78,7 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P1d | 50 万件の ZIP の編集に残る全件の名前表の作り直しを無くす。GyoshukuKit bfb2980（P1d-G、合格）、KaitoFinder 7b623b4（段 A0 の計測だけ）。段 A1–A6（S33）は未着手 | GyoshukuKit, KaitoFinder |
 | P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで）。GyoshukuKit efdb651・da0af7b（FAT32 / exFAT の修正）、KaitoFinder S13 [実装と検証](../verification/2026-09-26-p2-tar-update.md)。受入計測も合格（B-P2 を採り直して比較） | GyoshukuKit, KaitoFinder |
 | P3 | 圧縮 tar の区切り単位の編集。KK d35f2da / GK d5c51b3、KF S16 [実装と検証](../verification/2026-09-26-p3-compressed-tar-update.md)。受入計測も合格（tar.bz2 の 10 万件の open の短縮 0.93 倍は見込み 0.7 倍に届かず、記録） | 3 つとも |
-| P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集。KaitoKit d171f27（P4-K）、GyoshukuKit 5faab4b（並列 LH5）・6e7cd9b（LHAUpdater）は完了。KaitoFinder の P4-A（S21）は未着手（基準 B-P4 は採取済み） | KaitoKit, GyoshukuKit, KaitoFinder |
+| P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集。KaitoKit d171f27（P4-K）、GyoshukuKit 5faab4b（並列 LH5）・6e7cd9b（LHAUpdater）は完了。KaitoFinder の P4-A（S21）は[実装と sandbox 内の検証](../verification/2026-09-26-p4-lha-update.md)済み（未 commit）。通常 host の全件・volume 試験・受入計測待ち（基準 B-P4 は採取済み） | KaitoKit, GyoshukuKit, KaitoFinder |
 | P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで。KaitoKit ef06e22（P5-K）は完了。GyoshukuKit の P5-G（S24）は途中（`git stash` に退避）、KaitoFinder の P5-A（S25）は未着手 | KaitoKit, GyoshukuKit, KaitoFinder |
 | P6 | 取込み・新規作成・移動の進捗のバイト化（GyoshukuKit の公開 API） | GyoshukuKit, KaitoFinder |
 | P7 | 小ファイル多数の作成の並列先読み | GyoshukuKit |
