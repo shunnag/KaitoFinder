@@ -1,0 +1,34 @@
+{
+  "app": {
+    "count": 108,
+    "mismatches": [],
+    "extra_compiled": []
+  },
+  "test": {
+    "count": 162,
+    "mismatches": [],
+    "extra_compiled": []
+  },
+  "KaitoKit": {
+    "count": 216,
+    "mismatches": []
+  },
+  "GyoshukuKit": {
+    "count": 65,
+    "mismatches": []
+  },
+  "protected_paths_diff": "",
+  "sibling_status": {
+    "KaitoKit": "",
+    "GyoshukuKit": ""
+  },
+  "diff_check": 0,
+  "baseline_product": {
+    "count": 108,
+    "mismatches": []
+  },
+  "baseline_dependency_binaries": {
+    "KaitoKit": true,
+    "GyoshukuKit": true
+  }
+}

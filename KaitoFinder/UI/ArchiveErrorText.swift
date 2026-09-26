@@ -8,6 +8,8 @@ nonisolated enum ArchiveErrorText {
         switch error {
         case is CancellationError:
             return String(localized: "キャンセルされました", bundle: bundle)
+        case let error as ArchiveAdditionError:
+            return "\(error.path): " + describe(error.underlying, bundle: bundle)
         case let error as KaitoError:
             switch error {
             case .unsupportedFormat: return String(localized: "対応していないアーカイブ形式です", bundle: bundle)

@@ -224,29 +224,35 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
         if outputEncryption != nil, let updater = editor as? any ArchiveReencrypting {
             try updater.reencryptExistingEntries(currentPassword: sourcePassword)
         }
-        for (index, addition) in additions.enumerated() {
-            try ArchiveImportPlan.checkCancellation(progress)
+        let batch = additions.map { addition in
             if addition.sourceStamp.kind == .directory {
-                try editor.addDirectory(addition.path, modificationDate: addition.savedDate,
-                                        ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
-            } else if let ledger {
-                try editor.add(contentsOf: addition.stagedURL, as: addition.path,
-                               ownerIDs: preservingOwnerIDs ? .init(user: addition.sourceStamp.userID, group: addition.sourceStamp.groupID) : nil,
-                               progress: ledger.addition(additionBase + index))
-            } else if preservingOwnerIDs {
-                try editor.add(contentsOf: addition.stagedURL, as: addition.path,
-                               ownerIDs: .init(user: addition.sourceStamp.userID, group: addition.sourceStamp.groupID))
+                return ArchiveAddition(path: addition.path, source: .directory(modificationDate: addition.savedDate),
+                                       ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
             }
-            else { try editor.add(contentsOf: addition.stagedURL, as: addition.path) }
-            if let ledger { ledger.didFinishAddition(additionBase + index) }
-            else { progress.completedUnitCount += 1 }
+            return ArchiveAddition(path: addition.path, source: .contents(of: addition.stagedURL),
+                                   ownerIDs: preservingOwnerIDs ? .init(user: addition.sourceStamp.userID, group: addition.sourceStamp.groupID) : nil)
+        } + folders.map { folder in
+            ArchiveAddition(path: folder.path, source: .directory(modificationDate: folder.date),
+                            ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
         }
-        for folder in folders {
-            try ArchiveImportPlan.checkCancellation(progress)
-            try editor.addDirectory(folder.path, modificationDate: folder.date,
-                                    ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
-            if let ledger { ledger.didCount() }
-            else { progress.completedUnitCount += 1 }
+        // An empty batch can still prepare an append writer and change the commit strategy.
+        guard !batch.isEmpty else { return }
+        do {
+            try editor.add(batch) { event in
+                switch event {
+                case .willStart:
+                    try ArchiveImportPlan.checkCancellation(progress)
+                case .progress(let index, let value):
+                    if index < additions.count { try ledger?.addition(additionBase + index)(value) }
+                case .didFinish(let index):
+                    if let ledger {
+                        if index < additions.count { ledger.didFinishAddition(additionBase + index) }
+                        else { ledger.didCount() }
+                    } else { progress.completedUnitCount += 1 }
+                }
+            }
+        } catch let error as ArchiveAdditionError {
+            throw error.underlying
         }
     }
 

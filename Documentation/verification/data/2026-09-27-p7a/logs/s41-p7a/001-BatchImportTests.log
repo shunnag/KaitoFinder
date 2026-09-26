@@ -1,0 +1,32 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:03:11.586.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:03:11.586.
+Test Suite 'BatchImportTests' started at 2026-09-27 04:03:11.586.
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessErrorRetainsIdentityAndPreventsPublication]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessErrorRetainsIdentityAndPreventsPublication]' passed (0.019 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testErrorTextFallbackUsesBatchPathAndRequestedLocalization]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testErrorTextFallbackUsesBatchPathAndRequestedLocalization]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationPreventsNextImportAndCreationHook]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationPreventsNextImportAndCreationHook]' passed (0.016 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationStopsAtNextReplayWillStart]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationStopsAtNextReplayWillStart]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testReplacedStagingCopyKeepsReplayErrorUnwrapped]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testReplacedStagingCopyKeepsReplayErrorUnwrapped]' passed (0.007 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts]' passed (0.005 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesItsPathAndPreservesDestination]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesItsPathAndPreservesDestination]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' passed (0.038 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' started.
+/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:217: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertFalse failed - The live session must be visible to the descriptor check
+/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:217: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertFalse failed - The live session must be visible to the descriptor check
+/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:217: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertFalse failed - The live session must be visible to the descriptor check
+/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:217: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertFalse failed - The live session must be visible to the descriptor check
+/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:217: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertFalse failed - The live session must be visible to the descriptor check
+Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' failed (1.331 seconds).
+Test Suite 'BatchImportTests' failed at 2026-09-27 04:03:13.057.
+	 Executed 9 tests, with 5 failures (0 unexpected) in 1.470 (1.471) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:03:13.057.
+	 Executed 9 tests, with 5 failures (0 unexpected) in 1.470 (1.471) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:03:13.057.
+	 Executed 9 tests, with 5 failures (0 unexpected) in 1.470 (1.472) seconds

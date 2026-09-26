@@ -1,0 +1,659 @@
+[
+  {
+    "selection": "BatchImportTests/testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+    "exit": 1,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportTests/testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/001-BatchImportTests-testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+        "failed"
+      ]
+    ],
+    "phase": "before_fix",
+    "log_sha256": "454041fab70a41f86ca171dd67e7b6ff18c9e2d461fa7815f2872d9431bd5d2b",
+    "saved_log": "logs/001-BatchImportTests-testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater.log"
+  },
+  {
+    "selection": "LHAUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+    "exit": 1,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.LHAUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/002-LHAUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.LHAUpdateDeferredSaveTests",
+        "testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+        "failed"
+      ]
+    ],
+    "phase": "before_fix",
+    "log_sha256": "5ae1d1f093156dad43acc905bc7eb40ab5e298549fbaba66e99fc756ffc6f4bc",
+    "saved_log": "logs/002-LHAUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log"
+  },
+  {
+    "selection": "BatchImportTests/testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+    "exit": 1,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportTests/testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/003-BatchImportTests-testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+        "failed"
+      ]
+    ],
+    "phase": "before_fix",
+    "log_sha256": "9941a8a1a7bb705a92dfb7fe977bc0f8dc3cede40c9eaccace0c82340957cc47",
+    "saved_log": "logs/003-BatchImportTests-testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater.log"
+  },
+  {
+    "selection": "BatchImportTests",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportTests",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/004-BatchImportTests.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testCreationWithoutImportedItemsKeepsProgressAndContents",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testDidProcessBatchErrorIsNotAttributedToTheCurrentImport",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testDidProcessErrorRetainsIdentityAndPreventsPublication",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testEmptyImportLeavesArchiveAndProgressUntouched",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testErrorTextFallbackUsesBatchPathAndRequestedLocalization",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testProgressOnlyCancellationPreventsNextImportAndCreationHook",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testProgressOnlyCancellationStopsAtNextReplayWillStart",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testReplacedStagingCopyKeepsReplayErrorUnwrapped",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testThirdUnreadableCreationUsesItsPathAndPreservesDestination",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.BatchImportTests",
+        "testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "2a69b2eb78d1bed3004ede291bb44d58271fbee9b5681974d3dad9aa0e3cb55f",
+    "saved_log": "logs/004-BatchImportTests.log"
+  },
+  {
+    "selection": "LHAUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.LHAUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/005-LHAUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.LHAUpdateDeferredSaveTests",
+        "testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "dead91ca2aaf6e946e8e78ce7d81f779e4a170e8c816cf067440a94052493a5f",
+    "saved_log": "logs/005-LHAUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log"
+  },
+  {
+    "selection": "SevenZipUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.SevenZipUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/006-SevenZipUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.SevenZipUpdateDeferredSaveTests",
+        "testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "144c99d10109e7179a6f7f3a1d389a0422da152b75d0bae3643915286e7bb648",
+    "saved_log": "logs/006-SevenZipUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log"
+  },
+  {
+    "selection": "TarUpdateEditTests/testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.TarUpdateEditTests/testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/007-TarUpdateEditTests-testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.TarUpdateEditTests",
+        "testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "73e2f8e85a60b712f5e8bdb8c50cc29c3ac5926b392abfd7c30a74925d72661f",
+    "saved_log": "logs/007-TarUpdateEditTests-testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder.log"
+  },
+  {
+    "selection": "CompressedTarDeferredSaveTests",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.CompressedTarDeferredSaveTests",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/008-CompressedTarDeferredSaveTests.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.CompressedTarDeferredSaveTests",
+        "testFiveChangesPreserveSourceOwnersAndCommitOnceThenSpliceAgain",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.CompressedTarDeferredSaveTests",
+        "testGlobalOwnerFallbackOpensAndReplaysExactlyOnce",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.CompressedTarDeferredSaveTests",
+        "testRequiresRewriteFromMutationOrCommitDoesNotReplay",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "d87eb681f3ae5b91b66b70558b995b4c9fd2275a041f86b6f309dea6e81a67db",
+    "saved_log": "logs/008-CompressedTarDeferredSaveTests.log"
+  },
+  {
+    "selection": "ArchiveCreationTests",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveCreationTests",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/009-ArchiveCreationTests.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testAcceptedExtensionsMatchEachFormatIgnoringCase",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCancellationAtPublishPreservesDestinationAndRemovesTemporaryFilesForEveryFormat",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testConversionCancellationAtPublishPreservesBothArchives",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testConversionCannotReplaceOriginalThroughItsPathOrFileAliases",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testConversionCollisionsAreAllRefusedBeforeAnyWrite",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testConversionNamesRemoveTheWholeArchiveExtension",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testConversionPropagatesTheOriginalArchiveQuarantine",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testConversionUsesCurrentZIPPreferences",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateLHARoundTripsEveryEntryAndContent",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateSevenZipRoundTripsAndSevenZipLists",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateTarBzip2RoundTripsAndBSDTarLists",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateTarGzipHasGzipMagicRoundTripsAndTarLists",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateTarRoundTripsAndBSDTarLists",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateTarXZRoundTripsAndBSDTarLists",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreateZIPRoundTripsEveryEntryAndContent",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreationCannotReplaceAnySourceThroughItsPathOrHardLink",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreationDeflateLevelNinePreferencesCompress200KiBMoreThanStored",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testCreationStoredZIPPreferencesStoreEveryEntryWithoutCompression",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testDefaultNamesPreserveFolderAndFileNamesForEveryFormat",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testEncryptedZIPConvertsToUnencryptedSevenZipWithPassword",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testFirstQuarantinedSourceValueIsPropagatedExactly",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testInvalidSourcesAreAllReportedWithoutCreatingOutput",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testLHASymlinkFailureUsesLocalizedWriterDescription",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testMissingConversionPasswordThrowsRequiredAndPublishesNothing",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testNestedFileQuarantinePropagatesFromAnUnquarantinedFolder",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testPendingRegistryTracksCreationUntilSuccessOrFailure",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testPreparedPasswordCancellationKeepsOriginalUnchanged",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testPreparedPasswordPromptsVerifiesAllEntriesAndReusesVerifiedPassword",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testPublishHookFailurePreservesDestination",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testPublishSystemFailurePreservesDestinationDirectory",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testRegistryWriteFailureDoesNotPreventCreation",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testSourceQuarantineReadDoesNotFollowSymlinks",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testSuccessfulCreationReplacesDestinationOnlyAfterPrivateWorkIsComplete",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testTarBzip2ConversionAddsTwoFilesAndPreservesSourceSHA256",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testTarGzipCreationRefusesPlainGzipDestinationBeforeImport",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testUnquarantinedSourcesRemoveEvenTheReplacedDestinationsQuarantine",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveCreationTests",
+        "testWrongConversionPasswordThrowsIncorrectAndPublishesNothing",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "9bd4299b34278a25214a5af225ca0406ead4d59d0c9a9a886f88b24c6d8a4890",
+    "saved_log": "logs/009-ArchiveCreationTests.log"
+  },
+  {
+    "selection": "ByteProgressIntegrationTests",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ByteProgressIntegrationTests",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/010-ByteProgressIntegrationTests.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testCancellationAfterRenameStillCompletesLedgerAndOperation",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testCancellationInEveryPhasePreservesOriginalAndUndo",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testConversionReplayOffsetsAdditionsAndOmitsRootFromItemCount",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testCreationAndUnchangedConversionCountOutputItems",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testCreationCancellationRemovesTemporaryOutput",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testDeferredSaveCountsTwoAdditionsRenameAndFolder",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testImportPlanCountsOnlyRegularFileContents",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testLargeDeleteAndFolderMoveHaveByteCommitProgress",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testLargeImmediateAdditionInEveryRequiredUpdater",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ByteProgressIntegrationTests",
+        "testRewriteBothPlacementsMapsCarryAndDeferredReads",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "7bcd0a3a60ab08fc6c9dbdc102842feabbe1d3d9fda30c63ad6197553ef24242",
+    "saved_log": "logs/010-ByteProgressIntegrationTests.log"
+  },
+  {
+    "selection": "ArchiveWriteProgressTests",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveWriteProgressTests",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/011-ArchiveWriteProgressTests.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testCancellationResetAndNonthrowingPublication",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testCarriedItemsAndHookCanReenterLedgerRead",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testEmptyAdditionsHaveNoDrainAndChangingTotalsNeverRegress",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testEveryBudgetRowAndFinalPublicationUnit",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testOverflowingMetadataBudgetsRemainRepresentable",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testSlotTransitionFillsRemainderAndZeroTotalFillsBudget",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.ArchiveWriteProgressTests",
+        "testSmallItemsDoNotIssueDuplicateProgressUpdates",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "fd85e0b2947a0e4155f57f364a86ebc4cbefed56a7736d2e86e0e459a1c7762f",
+    "saved_log": "logs/011-ArchiveWriteProgressTests.log"
+  },
+  {
+    "selection": "DeferredSavePlanEquivalenceTests",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/012-DeferredSavePlanEquivalenceTests.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1",
+      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+        "testCachedAndUncachedValidationHaveIdenticalErrors",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+        "testGeneratedPlansMatchReferenceIncludingInvalidAndConflictingNames",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+        "testHardLinkTargetsAndChainsMatchReference",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+        "testKeyCountsAreBoundedByEntriesAndChanges",
+        "passed"
+      ],
+      [
+        "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+        "testRepresentabilityFastPathPreservesHardLinkIndexSemantics",
+        "passed"
+      ]
+    ],
+    "phase": "after_fix",
+    "log_sha256": "15f0dacb4f46a7f2873fe471403afef859430e168d347f297357ef8a716c0f18",
+    "saved_log": "logs/012-DeferredSavePlanEquivalenceTests.log"
+  }
+]

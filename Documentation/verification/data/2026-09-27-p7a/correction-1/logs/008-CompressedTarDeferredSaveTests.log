@@ -1,0 +1,15 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:23.365.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:23.366.
+Test Suite 'CompressedTarDeferredSaveTests' started at 2026-09-27 05:07:23.366.
+Test Case '-[KaitoFinderTests.CompressedTarDeferredSaveTests testFiveChangesPreserveSourceOwnersAndCommitOnceThenSpliceAgain]' started.
+Test Case '-[KaitoFinderTests.CompressedTarDeferredSaveTests testFiveChangesPreserveSourceOwnersAndCommitOnceThenSpliceAgain]' passed (0.276 seconds).
+Test Case '-[KaitoFinderTests.CompressedTarDeferredSaveTests testGlobalOwnerFallbackOpensAndReplaysExactlyOnce]' started.
+Test Case '-[KaitoFinderTests.CompressedTarDeferredSaveTests testGlobalOwnerFallbackOpensAndReplaysExactlyOnce]' passed (0.095 seconds).
+Test Case '-[KaitoFinderTests.CompressedTarDeferredSaveTests testRequiresRewriteFromMutationOrCommitDoesNotReplay]' started.
+Test Case '-[KaitoFinderTests.CompressedTarDeferredSaveTests testRequiresRewriteFromMutationOrCommitDoesNotReplay]' passed (0.186 seconds).
+Test Suite 'CompressedTarDeferredSaveTests' passed at 2026-09-27 05:07:23.923.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.557 (0.558) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:23.923.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.557 (0.558) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:23.923.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.557 (0.558) seconds

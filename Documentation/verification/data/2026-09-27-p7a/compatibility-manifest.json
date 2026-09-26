@@ -1,0 +1,174 @@
+[
+  {
+    "name": "add.7z",
+    "bytes": 85792,
+    "sha256": "e04ccae9c016bb9858ccb46d7eac6774f4bbc257c9a1c864c1a61d077e5abf43",
+    "entries": 301,
+    "kinds": {
+      "file": 286,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "add.lzh",
+    "bytes": 109920,
+    "sha256": "5836f51ba3b71de1eaa34ba04ceef017fe7b799ffeb2821bd37e1c01cc72126a",
+    "entries": 301,
+    "kinds": {
+      "file": 301
+    }
+  },
+  {
+    "name": "add.tar",
+    "bytes": 819200,
+    "sha256": "2c33e580831dd8aaf6eef53d190394fe219a208926bcd2c55bf84f0962ad9fab",
+    "entries": 301,
+    "kinds": {
+      "file": 286,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "add.tar.gz",
+    "bytes": 9950,
+    "sha256": "f052e1a5fe5ff5f8f0d634bf1b0aafc50bd321dfa8de11d90baf021c84d3837f",
+    "entries": 301,
+    "kinds": {
+      "file": 286,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "add.zip",
+    "bytes": 117023,
+    "sha256": "9b14e7f0661ce1351901d49d811ed783172d7dea38df4e32cdd6b699b8fa9ff3",
+    "entries": 301,
+    "kinds": {
+      "file": 286,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "create.7z",
+    "bytes": 85743,
+    "sha256": "b11d012abe568b6757fee53080b1d82282528f4d2b4b06915427a75c7f2d3d3d",
+    "entries": 300,
+    "kinds": {
+      "file": 285,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "create.lzh",
+    "bytes": 109862,
+    "sha256": "f015a1d0d235d0a04417ea384b723c0f9e93d4d5173cde13b27f0ab57c460329",
+    "entries": 300,
+    "kinds": {
+      "file": 300
+    }
+  },
+  {
+    "name": "create.tar",
+    "bytes": 819200,
+    "sha256": "deabd69769ebbc075cd52fef04cc70eaa0a1bc4f8bc6f789d0546efcbdd04bc0",
+    "entries": 300,
+    "kinds": {
+      "file": 285,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "create.tar.bz2",
+    "bytes": 4497,
+    "sha256": "f71675787b340e717863739ad39e4e54aad66f9a3600a00bfdea5e1e6efffd24",
+    "entries": 300,
+    "kinds": {
+      "file": 285,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "create.tar.gz",
+    "bytes": 9903,
+    "sha256": "1711528f864b361aac68b43d56cb5d20bac524765ddb761eff9a6453c2f593e6",
+    "entries": 300,
+    "kinds": {
+      "file": 285,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "create.tar.xz",
+    "bytes": 5408,
+    "sha256": "af4339b35c536647e3d03c44f077a77e4bb84e6679c37453405bcf3533a12e80",
+    "entries": 300,
+    "kinds": {
+      "file": 285,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "create.zip",
+    "bytes": 116903,
+    "sha256": "69912744b6089526525911a970191c8ebdc2829e0fe2b5811daf3b84c9cc96a9",
+    "entries": 300,
+    "kinds": {
+      "file": 285,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "directories.7z",
+    "bytes": 85957,
+    "sha256": "ef441f0c59e1db25273c71ce2c15378f7fecca6948e9a0a4f4d8188edaec43a9",
+    "entries": 304,
+    "kinds": {
+      "directory": 2,
+      "file": 287,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "directories.lzh",
+    "bytes": 110104,
+    "sha256": "59785d7759b2a0a491ba6f0a354605a85eebf0c0f842035da1cf76e1c4e8d826",
+    "entries": 304,
+    "kinds": {
+      "directory": 2,
+      "file": 302
+    }
+  },
+  {
+    "name": "directories.tar",
+    "bytes": 819200,
+    "sha256": "63abcc9677bfd0ec6fdb33b1f8c3829a1a3d02f3fee04649432e36acc25f33bc",
+    "entries": 304,
+    "kinds": {
+      "directory": 2,
+      "file": 287,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "directories.tar.gz",
+    "bytes": 10052,
+    "sha256": "f084fad57d3086333a81721fb907f1d498b3f6c8820500276d56c32371c9bcc1",
+    "entries": 304,
+    "kinds": {
+      "directory": 2,
+      "file": 287,
+      "symlink": 15
+    }
+  },
+  {
+    "name": "directories.zip",
+    "bytes": 117387,
+    "sha256": "a33c5b53d3c1e8577ca3b17ff46efa9291157c3a7dd00111f7c09f119d9ee2b2",
+    "entries": 304,
+    "kinds": {
+      "directory": 2,
+      "file": 287,
+      "symlink": 15
+    }
+  }
+]

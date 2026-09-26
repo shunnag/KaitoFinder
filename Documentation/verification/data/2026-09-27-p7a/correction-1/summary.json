@@ -1,0 +1,67 @@
+{
+  "before_fix": {
+    "invocations": 3,
+    "cases": {
+      "failed": 3
+    },
+    "exits": [
+      1,
+      1,
+      1
+    ]
+  },
+  "after_fix": {
+    "invocations": 9,
+    "cases": {
+      "passed": 78
+    },
+    "exits": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "build_exits": [
+    {
+      "name": "KaitoKit",
+      "exit": 0
+    },
+    {
+      "name": "GyoshukuKit",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 1
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    }
+  ],
+  "non_debug_typecheck": {
+    "exit": 0
+  }
+}

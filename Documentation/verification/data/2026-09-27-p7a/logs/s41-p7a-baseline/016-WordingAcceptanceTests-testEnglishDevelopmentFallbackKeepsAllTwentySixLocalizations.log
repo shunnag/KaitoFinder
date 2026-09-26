@@ -1,0 +1,12 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:17:19.156.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:19.157.
+Test Suite 'WordingAcceptanceTests' started at 2026-09-27 04:17:19.157.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations]' started.
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/KaitoFinder/KaitoFinderTests/WordingAcceptanceTests.swift:383: error: -[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations] : XCTAssertTrue failed
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations]' failed (0.012 seconds).
+Test Suite 'WordingAcceptanceTests' failed at 2026-09-27 04:17:19.169.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.012 (0.012) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:17:19.169.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.012 (0.012) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:17:19.169.
+	 Executed 1 test, with 1 failure (0 unexpected) in 0.012 (0.013) seconds

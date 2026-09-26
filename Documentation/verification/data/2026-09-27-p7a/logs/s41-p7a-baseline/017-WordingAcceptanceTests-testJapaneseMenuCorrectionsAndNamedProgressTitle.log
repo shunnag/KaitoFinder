@@ -1,0 +1,5 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:17:19.294.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:19.294.
+Test Suite 'WordingAcceptanceTests' started at 2026-09-27 04:17:19.294.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testJapaneseMenuCorrectionsAndNamedProgressTitle]' started.
+KaitoFinderTests/MenuInteraction.swift:84: Fatal error: Unexpectedly found nil while implicitly unwrapping an Optional value

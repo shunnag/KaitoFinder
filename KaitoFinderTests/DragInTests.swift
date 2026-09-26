@@ -229,8 +229,16 @@ nonisolated final class DragInTests: XCTestCase {
         let trace = AdditionProgressTrace()
         do {
             _ = try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.record) {
-                try await session.append(urls: [fixture.file("a"), second], to: "", progress: progress,
-                    didProcess: { _ in try FileManager.default.removeItem(at: second) })
+                // Batch lookahead can read b before didProcess(0). willStart precedes its
+                // first lstat/open, so this still tests failure after exactly one accepted item.
+                try await ArchiveImportTransaction.willAddFileForTesting.withValue({ url in
+                    if url == second {
+                        do { try FileManager.default.removeItem(at: second) }
+                        catch { XCTFail("Could not remove the second input: \(error)") }
+                    }
+                }) {
+                    try await session.append(urls: [fixture.file("a"), second], to: "", progress: progress)
+                }
             }
             XCTFail("消えた入力を追加しました")
         } catch { XCTAssertTrue(String(describing: error).contains("b:")) }

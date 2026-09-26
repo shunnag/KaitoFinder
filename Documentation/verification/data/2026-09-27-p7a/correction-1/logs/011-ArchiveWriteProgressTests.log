@@ -1,0 +1,23 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:48.562.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:48.563.
+Test Suite 'ArchiveWriteProgressTests' started at 2026-09-27 05:07:48.563.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testCancellationResetAndNonthrowingPublication]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testCancellationResetAndNonthrowingPublication]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testCarriedItemsAndHookCanReenterLedgerRead]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testCarriedItemsAndHookCanReenterLedgerRead]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testEmptyAdditionsHaveNoDrainAndChangingTotalsNeverRegress]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testEmptyAdditionsHaveNoDrainAndChangingTotalsNeverRegress]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testEveryBudgetRowAndFinalPublicationUnit]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testEveryBudgetRowAndFinalPublicationUnit]' passed (0.005 seconds).
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testOverflowingMetadataBudgetsRemainRepresentable]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testOverflowingMetadataBudgetsRemainRepresentable]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testSlotTransitionFillsRemainderAndZeroTotalFillsBudget]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testSlotTransitionFillsRemainderAndZeroTotalFillsBudget]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testSmallItemsDoNotIssueDuplicateProgressUpdates]' started.
+Test Case '-[KaitoFinderTests.ArchiveWriteProgressTests testSmallItemsDoNotIssueDuplicateProgressUpdates]' passed (0.004 seconds).
+Test Suite 'ArchiveWriteProgressTests' passed at 2026-09-27 05:07:48.593.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.029 (0.030) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:48.593.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.029 (0.030) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:48.593.
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.029 (0.031) seconds

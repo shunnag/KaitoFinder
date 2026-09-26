@@ -1,0 +1,21 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:05:45.496.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:05:45.496.
+Test Suite 'BatchImportTests' started at 2026-09-27 05:05:45.496.
+Test Case '-[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater]' started.
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - zip, ledger: false
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - zip, ledger: true
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tar, ledger: false
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tar, ledger: true
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tarGzip, ledger: false
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tarGzip, ledger: true
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - sevenZip, ledger: false
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - sevenZip, ledger: true
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - lha, ledger: false
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - lha, ledger: true
+Test Case '-[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater]' failed (0.100 seconds).
+Test Suite 'BatchImportTests' failed at 2026-09-27 05:05:45.596.
+	 Executed 1 test, with 10 failures (0 unexpected) in 0.100 (0.100) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 05:05:45.596.
+	 Executed 1 test, with 10 failures (0 unexpected) in 0.100 (0.100) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 05:05:45.596.
+	 Executed 1 test, with 10 failures (0 unexpected) in 0.100 (0.101) seconds

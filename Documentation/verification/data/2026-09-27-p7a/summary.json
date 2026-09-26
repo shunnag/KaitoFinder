@@ -1,0 +1,283 @@
+{
+  "latest_cases": {
+    "passed": 342,
+    "skipped": 2,
+    "failed": 12,
+    "interrupted": 6
+  },
+  "classes": {
+    "KaitoFinderTests.ArchiveCreationTests": {
+      "passed": 37
+    },
+    "KaitoFinderTests.ArchiveEditTests": {
+      "passed": 54
+    },
+    "KaitoFinderTests.ArchiveErrorTextTests": {
+      "passed": 15
+    },
+    "KaitoFinderTests.ArchiveImportConflictTests": {
+      "passed": 13
+    },
+    "KaitoFinderTests.ArchiveImportCorrectionTests": {
+      "passed": 7
+    },
+    "KaitoFinderTests.ArchiveImportSafetyTests": {
+      "passed": 6,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.ArchiveSplitVolumeTests": {
+      "passed": 16
+    },
+    "KaitoFinderTests.ArchiveWriteProgressTests": {
+      "passed": 7
+    },
+    "KaitoFinderTests.BatchImportCompatibilityTests": {
+      "passed": 1
+    },
+    "KaitoFinderTests.BatchImportTests": {
+      "passed": 10
+    },
+    "KaitoFinderTests.ByteProgressIntegrationTests": {
+      "passed": 10
+    },
+    "KaitoFinderTests.CompressionCapabilityTests": {
+      "passed": 45
+    },
+    "KaitoFinderTests.DeferredSaveAttributeTests": {
+      "passed": 5,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.DeferredSaveDocumentTests": {
+      "passed": 17,
+      "interrupted": 3
+    },
+    "KaitoFinderTests.DeferredSavePlanEquivalenceTests": {
+      "passed": 5
+    },
+    "KaitoFinderTests.DeferredSplitSaveTests": {
+      "passed": 8,
+      "failed": 9,
+      "interrupted": 1,
+      "skipped": 1
+    },
+    "KaitoFinderTests.DragInTests": {
+      "passed": 26,
+      "skipped": 1
+    },
+    "KaitoFinderTests.NameIndexEquivalenceTests": {
+      "passed": 11
+    },
+    "KaitoFinderTests.WordingAcceptanceTests": {
+      "passed": 49,
+      "failed": 3
+    }
+  },
+  "candidate_runs": 72,
+  "baseline_runs": 20,
+  "baseline_cases": {
+    "interrupted": 6,
+    "failed": 12,
+    "passed": 50
+  },
+  "not_a_full_xcode_suite": true,
+  "unresolved_cases": [
+    {
+      "class": "KaitoFinderTests.ArchiveImportSafetyTests",
+      "method": "testNewArchivePanelCancellationStopsSingleFileCompression",
+      "status": "interrupted",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/024-ArchiveImportSafetyTests-testNewArchivePanelCancellationStopsSingleFileCompression.log",
+      "exit": 69,
+      "baseline_status": "interrupted",
+      "baseline_exit": 69,
+      "baseline_log": "build/s41-p7a-baseline/001-ArchiveImportSafetyTests-testNewArchivePanelCancellationStopsSingleFileCompression.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSaveAttributeTests",
+      "method": "testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs",
+      "status": "interrupted",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/015-DeferredSaveAttributeTests.log",
+      "exit": 69,
+      "baseline_status": "interrupted",
+      "baseline_exit": 69,
+      "baseline_log": "build/s41-p7a-baseline/002-DeferredSaveAttributeTests-testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSaveDocumentTests",
+      "method": "testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
+      "status": "interrupted",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/035-DeferredSaveDocumentTests-testDeferredSaveAsCallerCancellationReachesUnstructuredTask.log",
+      "exit": 69,
+      "baseline_status": "interrupted",
+      "baseline_exit": 69,
+      "baseline_log": "build/s41-p7a-baseline/003-DeferredSaveDocumentTests-testDeferredSaveAsCallerCancellationReachesUnstructuredTask.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSaveDocumentTests",
+      "method": "testDeferredSaveAsSheetCancellationReachesWritingTask",
+      "status": "interrupted",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/036-DeferredSaveDocumentTests-testDeferredSaveAsSheetCancellationReachesWritingTask.log",
+      "exit": 69,
+      "baseline_status": "interrupted",
+      "baseline_exit": 69,
+      "baseline_log": "build/s41-p7a-baseline/004-DeferredSaveDocumentTests-testDeferredSaveAsSheetCancellationReachesWritingTask.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSaveDocumentTests",
+      "method": "testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+      "status": "interrupted",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/049-DeferredSaveDocumentTests-testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal.log",
+      "exit": 69,
+      "baseline_status": "interrupted",
+      "baseline_exit": 69,
+      "baseline_log": "build/s41-p7a-baseline/005-DeferredSaveDocumentTests-testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/066-DeferredSplitSaveTests-testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/006-DeferredSplitSaveTests-testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+      "status": "interrupted",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/067-DeferredSplitSaveTests-testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization.log",
+      "exit": -10,
+      "baseline_status": "interrupted",
+      "baseline_exit": -10,
+      "baseline_log": "build/s41-p7a-baseline/007-DeferredSplitSaveTests-testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/057-DeferredSplitSaveTests-testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/008-DeferredSplitSaveTests-testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/058-DeferredSplitSaveTests-testGrowAndShrinkUseWrittenLengthWithoutStaleTails.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/009-DeferredSplitSaveTests-testGrowAndShrinkUseWrittenLengthWithoutStaleTails.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testHazardConsentBeforeOneBeginAndOncePerDocument",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/061-DeferredSplitSaveTests-testHazardConsentBeforeOneBeginAndOncePerDocument.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/010-DeferredSplitSaveTests-testHazardConsentBeforeOneBeginAndOncePerDocument.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testMixedNativeXattrsRefuseEditingButRemainReadable",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/068-DeferredSplitSaveTests-testMixedNativeXattrsRefuseEditingButRemainReadable.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/011-DeferredSplitSaveTests-testMixedNativeXattrsRefuseEditingButRemainReadable.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testOneVolumeReopenRestoresScheduleAndSplitsAgain",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/059-DeferredSplitSaveTests-testOneVolumeReopenRestoresScheduleAndSplitsAgain.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/012-DeferredSplitSaveTests-testOneVolumeReopenRestoresScheduleAndSplitsAgain.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/064-DeferredSplitSaveTests-testProvenRollbackKeepsPendingAndCanRetryWithoutReopening.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/013-DeferredSplitSaveTests-testProvenRollbackKeepsPendingAndCanRetryWithoutReopening.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/060-DeferredSplitSaveTests-testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/014-DeferredSplitSaveTests-testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending.log"
+    },
+    {
+      "class": "KaitoFinderTests.DeferredSplitSaveTests",
+      "method": "testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/070-DeferredSplitSaveTests-testZIPGatekeeperFallsBackToRewriterAndReportsNotice.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/015-DeferredSplitSaveTests-testZIPGatekeeperFallsBackToRewriterAndReportsNotice.log"
+    },
+    {
+      "class": "KaitoFinderTests.WordingAcceptanceTests",
+      "method": "testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/007-WordingAcceptanceTests.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/019-WordingAcceptanceTests.log"
+    },
+    {
+      "class": "KaitoFinderTests.WordingAcceptanceTests",
+      "method": "testJapaneseMenuCorrectionsAndNamedProgressTitle",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/007-WordingAcceptanceTests.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/019-WordingAcceptanceTests.log"
+    },
+    {
+      "class": "KaitoFinderTests.WordingAcceptanceTests",
+      "method": "testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings",
+      "status": "failed",
+      "layout": "s41-p7a",
+      "log": "build/s41-p7a/007-WordingAcceptanceTests.log",
+      "exit": 1,
+      "baseline_status": "failed",
+      "baseline_exit": 1,
+      "baseline_log": "build/s41-p7a-baseline/019-WordingAcceptanceTests.log"
+    }
+  ]
+}

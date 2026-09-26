@@ -1,0 +1,35 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:21.003.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:21.004.
+Test Suite 'BatchImportTests' started at 2026-09-27 05:07:21.004.
+Test Case '-[KaitoFinderTests.BatchImportTests testCreationWithoutImportedItemsKeepsProgressAndContents]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testCreationWithoutImportedItemsKeepsProgressAndContents]' passed (0.074 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessBatchErrorIsNotAttributedToTheCurrentImport]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessBatchErrorIsNotAttributedToTheCurrentImport]' passed (0.012 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessErrorRetainsIdentityAndPreventsPublication]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessErrorRetainsIdentityAndPreventsPublication]' passed (0.011 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testEmptyImportLeavesArchiveAndProgressUntouched]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testEmptyImportLeavesArchiveAndProgressUntouched]' passed (0.012 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testErrorTextFallbackUsesBatchPathAndRequestedLocalization]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testErrorTextFallbackUsesBatchPathAndRequestedLocalization]' passed (0.005 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationPreventsNextImportAndCreationHook]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationPreventsNextImportAndCreationHook]' passed (0.017 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationStopsAtNextReplayWillStart]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationStopsAtNextReplayWillStart]' passed (0.007 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater]' passed (0.088 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testReplacedStagingCopyKeepsReplayErrorUnwrapped]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testReplacedStagingCopyKeepsReplayErrorUnwrapped]' passed (0.008 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesItsPathAndPreservesDestination]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesItsPathAndPreservesDestination]' passed (0.048 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' passed (0.040 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' passed (1.415 seconds).
+Test Suite 'BatchImportTests' passed at 2026-09-27 05:07:22.749.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 1.744 (1.745) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:22.749.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 1.744 (1.746) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:22.749.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 1.744 (1.746) seconds

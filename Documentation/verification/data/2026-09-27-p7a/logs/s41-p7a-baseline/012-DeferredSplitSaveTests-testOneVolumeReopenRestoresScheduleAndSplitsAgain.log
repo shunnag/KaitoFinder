@@ -1,0 +1,12 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:17:17.839.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:17.839.
+Test Suite 'DeferredSplitSaveTests' started at 2026-09-27 04:17:17.839.
+Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testOneVolumeReopenRestoresScheduleAndSplitsAgain]' started.
+<unknown>:0: error: -[KaitoFinderTests.DeferredSplitSaveTests testOneVolumeReopenRestoresScheduleAndSplitsAgain] : failed: caught error: "ArchiveSplitSaveFailure(context: KaitoFinder.ArchiveSplitSaveFailure.Context.deferredReplacement, kind: KaitoFinder.ArchiveSplitSaveFailure.Kind.failed, staging: nil, diagnostic: "ファイル“archive.7z.001”をフォルダ“set-39CCE01B-978C-417B-9AD8-D2AC4C3F3022”に保存できませんでした。", keepsPendingChanges: true, restoredIdentity: nil)"
+Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testOneVolumeReopenRestoresScheduleAndSplitsAgain]' failed (0.196 seconds).
+Test Suite 'DeferredSplitSaveTests' failed at 2026-09-27 04:17:18.036.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.196 (0.196) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:17:18.036.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.196 (0.196) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:17:18.036.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.196 (0.197) seconds

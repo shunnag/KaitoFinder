@@ -1,0 +1,26 @@
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/GyoshukuKit/Sources/GyoshukuKit/ArchiveUpdater.swift:3:8: warning: public import of 'KaitoKit' was not used in public declarations or inlinable code [#UnusedImportAccess]
+  1 | import Foundation
+  2 | private import Darwin
+  3 | public import KaitoKit
+    |        `- warning: public import of 'KaitoKit' was not used in public declarations or inlinable code [#UnusedImportAccess]
+  4 | 
+  5 | /// ZIP / ZIP64 の追加・削除・改名。生き残る entry は再圧縮しない。
+
+[#UnusedImportAccess]: <https://docs.swift.org/compiler/documentation/diagnostics/unused-import-access>
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/GyoshukuKit/Sources/GyoshukuKit/TarWriter.swift:69:23: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+ 67 |             entry.size = 0
+ 68 |         }
+ 69 |         let headers = try entry.headers()
+    |                       `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+ 70 |         let bodyLength = entry.type == 0x30 ? try checkedAdd(size, UInt64(TarRecords.padding(size))) : 0
+ 71 |         let groupStart = position
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/GyoshukuKit/Sources/GyoshukuKit/ZipRebuild.swift:2:8: warning: public import of 'KaitoKit' was not used in public declarations or inlinable code [#UnusedImportAccess]
+  1 | import Foundation
+  2 | public import KaitoKit
+    |        `- warning: public import of 'KaitoKit' was not used in public declarations or inlinable code [#UnusedImportAccess]
+  3 | 
+  4 | // entry の解釈と descriptor の終端は KaitoKit だけが決める。
+
+[#UnusedImportAccess]: <https://docs.swift.org/compiler/documentation/diagnostics/unused-import-access>

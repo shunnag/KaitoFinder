@@ -1,0 +1,75 @@
+--- before/KaitoFinder/Import/ArchiveSaveReplayPlan.swift
++++ after/KaitoFinder/Import/ArchiveSaveReplayPlan.swift
+@@ -235,6 +235,8 @@
+             ArchiveAddition(path: folder.path, source: .directory(modificationDate: folder.date),
+                             ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
+         }
++        // An empty batch can still prepare an append writer and change the commit strategy.
++        guard !batch.isEmpty else { return }
+         do {
+             try editor.add(batch) { event in
+                 switch event {
+--- before/KaitoFinder/Import/ArchiveImportTransaction.swift
++++ after/KaitoFinder/Import/ArchiveImportTransaction.swift
+@@ -524,28 +524,30 @@
+                 ArchiveAddition(path: item.path, source: item.isDirectory
+                     ? .directory(modificationDate: nil) : .contents(of: item.url))
+             }
+-            var callbackFailure: (any Error)?
+-            do {
+-                try updater.add(additions) { event in
+-                    switch event {
+-                    case .willStart(let index):
+-                        try ArchiveImportPlan.checkCancellation(progress)
+-                        #if DEBUG
+-                        let item = plan.items[index]
+-                        if !item.isDirectory { willAddFileForTesting.get()?(item.url) }
+-                        #endif
+-                    case .progress(let index, let value):
+-                        try ledger.addition(index)(value)
+-                    case .didFinish(let index):
+-                        ledger.didFinishAddition(index)
+-                        do { try didProcess?(index) }
+-                        catch { callbackFailure = error; throw error }
++            if !additions.isEmpty {
++                var callbackFailure: (any Error)?
++                do {
++                    try updater.add(additions) { event in
++                        switch event {
++                        case .willStart(let index):
++                            try ArchiveImportPlan.checkCancellation(progress)
++                            #if DEBUG
++                            let item = plan.items[index]
++                            if !item.isDirectory { willAddFileForTesting.get()?(item.url) }
++                            #endif
++                        case .progress(let index, let value):
++                            try ledger.addition(index)(value)
++                        case .didFinish(let index):
++                            ledger.didFinishAddition(index)
++                            do { try didProcess?(index) }
++                            catch { callbackFailure = error; throw error }
++                        }
+                     }
+-                }
+-            } catch let error as ArchiveAdditionError {
+-                // A callback can itself throw a batch error from another operation.
+-                if let callbackFailure { throw callbackFailure }
+-                throw ExtractionFailure.refused("\(plan.items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
++                } catch let error as ArchiveAdditionError {
++                    // A callback can itself throw a batch error from another operation.
++                    if let callbackFailure { throw callbackFailure }
++                    throw ExtractionFailure.refused("\(plan.items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
++                }
+             }
+             for stamp in plan.sourceStamps {
+                 try ArchiveImportPlan.checkCancellation(progress)
+--- before/KaitoFinder/Creation/ArchiveCreationTransaction.swift
++++ after/KaitoFinder/Creation/ArchiveCreationTransaction.swift
+@@ -216,6 +216,7 @@
+             ArchiveAddition(path: item.path, source: item.isDirectory
+                 ? .directory(modificationDate: nil) : .contents(of: item.url))
+         }
++        guard !additions.isEmpty else { return }
+         do {
+             try batch(additions) { event in
+                 switch event {

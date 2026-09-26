@@ -1,0 +1,49 @@
+{
+  "canonical_source_mismatches": [],
+  "dependency_archive_checks": {
+    "KaitoKit": {
+      "source_files": 216,
+      "mismatches": []
+    },
+    "GyoshukuKit": {
+      "source_files": 65,
+      "mismatches": []
+    }
+  },
+  "compiled_source_counts": {
+    "KaitoKit": 207,
+    "GyoshukuKit": 63,
+    "app": 108,
+    "test": 162
+  },
+  "changes_from_final_pre_fix_snapshot": {
+    "KaitoKit": [],
+    "GyoshukuKit": [],
+    "app": [
+      "KaitoFinder/KaitoFinder/Creation/ArchiveCreationTransaction.swift",
+      "KaitoFinder/KaitoFinder/Import/ArchiveImportTransaction.swift",
+      "KaitoFinder/KaitoFinder/Import/ArchiveSaveReplayPlan.swift"
+    ],
+    "test": []
+  },
+  "live_sibling_build_paths": {
+    "KaitoKit": [],
+    "GyoshukuKit": [],
+    "app": [],
+    "test": []
+  },
+  "lha_test_unchanged_from_HEAD": true,
+  "lha_test_sha256": "6656ffb0b48f0f9414c0954f3abf860cbc3d36bcec936332eaa777468499e01e",
+  "protected_file_diffs": [],
+  "git_diff_check": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "corrected_sources": {
+    "KaitoFinder/Import/ArchiveSaveReplayPlan.swift": "5828cadef88a874ca965948de9a076a9203f945bda26d4a3922764259edd0be2",
+    "KaitoFinder/Import/ArchiveImportTransaction.swift": "033f66d53e89105a7d0141bbb4145f8cb89f273f510dc6042ec7b3a3169040ec",
+    "KaitoFinder/Creation/ArchiveCreationTransaction.swift": "98e78a082a42d5cb363dde2f74c55d1c541a073ed118ecf6c70dd05f0ae4b616",
+    "KaitoFinderTests/BatchImportTests.swift": "0373e4299b83357d7a3696d22fd50edfdfa195d01e14ce1ec9f0547eee59a800"
+  }
+}

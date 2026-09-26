@@ -1,0 +1,12 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:17:19.377.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:19.378.
+Test Suite 'WordingAcceptanceTests' started at 2026-09-27 04:17:19.378.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings]' started.
+<unknown>:0: error: -[KaitoFinderTests.WordingAcceptanceTests testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings] : -[NSNib _initWithNibNamed:bundle:options:] could not load the nib 'RecentDocumentsMenu' in bundle NSBundle </Applications/Xcode.app/Contents/Developer/usr/bin> (loaded). (NSInternalInconsistencyException)
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings]' failed (0.031 seconds).
+Test Suite 'WordingAcceptanceTests' failed at 2026-09-27 04:17:19.409.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.031 (0.031) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:17:19.409.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.031 (0.031) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:17:19.409.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.031 (0.032) seconds

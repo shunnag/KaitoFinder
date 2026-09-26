@@ -1,0 +1,41 @@
+{
+  "KaitoFinder": {
+    "commit": "6aff54551c02dddcdffe393be9f4b740b85524c9",
+    "archive_command": [
+      "git",
+      "-C",
+      "/Users/nagash/Github/KaitoFinder",
+      "archive",
+      "--format=tar",
+      "6aff54551c02dddcdffe393be9f4b740b85524c9"
+    ],
+    "source_files": 0,
+    "mismatches": []
+  },
+  "GyoshukuKit": {
+    "commit": "244a9c2",
+    "archive_command": [
+      "git",
+      "-C",
+      "/Users/nagash/Github/GyoshukuKit",
+      "archive",
+      "--format=tar",
+      "244a9c2"
+    ],
+    "source_files": 65,
+    "mismatches": []
+  },
+  "KaitoKit": {
+    "commit": "823ad46",
+    "archive_command": [
+      "git",
+      "-C",
+      "/Users/nagash/Github/KaitoKit",
+      "archive",
+      "--format=tar",
+      "823ad46"
+    ],
+    "source_files": 216,
+    "mismatches": []
+  }
+}

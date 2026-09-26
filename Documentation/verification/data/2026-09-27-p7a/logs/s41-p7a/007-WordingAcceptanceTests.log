@@ -1,0 +1,118 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:03:32.396.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:03:32.397.
+Test Suite 'WordingAcceptanceTests' started at 2026-09-27 04:03:32.397.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testAlertNormalizationUsesEachLanguagesPunctuationExactlyOnce]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testAlertNormalizationUsesEachLanguagesPunctuationExactlyOnce]' passed (0.027 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testAlertPunctuationInEveryLanguage]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testAlertPunctuationInEveryLanguage]' passed (2.133 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testBrazilianPortugueseStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testBrazilianPortugueseStyle]' passed (0.044 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testBuiltAppContainsAllTwentySixLocalizationFoldersAndTranslatedResources]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testBuiltAppContainsAllTwentySixLocalizationFoldersAndTranslatedResources]' passed (0.551 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCatalogHasTwentySixNonemptyTranslationsWithMatchingOrderedFormatSpecifiers]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCatalogHasTwentySixNonemptyTranslationsWithMatchingOrderedFormatSpecifiers]' passed (0.053 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testColumnAndFolderSortingWordingInAllTwentySixLanguages]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testColumnAndFolderSortingWordingInAllTwentySixLanguages]' passed (0.025 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCompressionThreadWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCompressionThreadWordingHasAllTwentySixTranslations]' passed (0.025 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCriticalSplitPublicationQuitMessageHasAllTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCriticalSplitPublicationQuitMessageHasAllTranslations]' passed (0.022 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCzechStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testCzechStyle]' passed (0.062 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testDanishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testDanishStyle]' passed (0.065 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testDeferredSaveWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testDeferredSaveWordingHasAllTwentySixTranslations]' passed (0.023 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testDutchStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testDutchStyle]' passed (0.065 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditedOutputVerificationFailureHasAllTranslationsAndKeepsSplitWording]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditedOutputVerificationFailureHasAllTranslationsAndKeepsSplitWording]' passed (0.026 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations]' passed (0.026 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations]' started.
+/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/WordingAcceptanceTests.swift:383: error: -[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations] : XCTAssertTrue failed
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations]' failed (0.012 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishStyle]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEuropeanPortugueseStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEuropeanPortugueseStyle]' passed (0.084 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEveryLanguageUsesTheSpecifiedItemCountAndCommandEllipsis]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEveryLanguageUsesTheSpecifiedItemCountAndCommandEllipsis]' passed (0.524 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFinnishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFinnishStyle]' passed (0.064 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFirstCompressedTarEditWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFirstCompressedTarEditWordingHasAllTwentySixTranslations]' passed (0.024 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFolderNavigationWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFolderNavigationWordingHasAllTwentySixTranslations]' passed (0.026 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFrenchStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testFrenchStyle]' passed (0.045 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testGermanStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testGermanStyle]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testGoMenuCatalogAndBuiltTableHaveAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testGoMenuCatalogAndBuiltTableHaveAllTwentySixTranslations]' passed (0.007 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testHindiStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testHindiStyle]' passed (0.064 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testImmediateSplitAndSaveAsWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testImmediateSplitAndSaveAsWordingHasAllTwentySixTranslations]' passed (0.022 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testIndonesianStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testIndonesianStyle]' passed (0.063 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testItalianStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testItalianStyle]' passed (0.042 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testJapaneseMenuCorrectionsAndNamedProgressTitle]' started.
+<unknown>:0: error: -[KaitoFinderTests.WordingAcceptanceTests testJapaneseMenuCorrectionsAndNamedProgressTitle] : -[NSNib _initWithNibNamed:bundle:options:] could not load the nib 'RecentDocumentsMenu' in bundle NSBundle </Applications/Xcode.app/Contents/Developer/usr/bin> (loaded). (NSInternalInconsistencyException)
+2026-09-27 04:03:36.621 xctest[17303:13535068] Failure on line 688 in function id scheduleApplicationNotification(LSNotificationCode, NSWorkspaceNotificationCenter *): noErr == _LSModifyNotification(notificationID, 1, &code, 0, NULL, NULL, NULL)
+2026-09-27 04:03:36.622 xctest[17303:13535068] Unable to find feedback application.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testJapaneseMenuCorrectionsAndNamedProgressTitle]' failed (0.011 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testJapaneseStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testJapaneseStyle]' passed (0.046 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testKoreanStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testKoreanStyle]' passed (0.063 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testListLoadingStatusHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testListLoadingStatusHasAllTwentySixTranslations]' passed (0.024 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testMalayStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testMalayStyle]' passed (0.064 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testNorwegianBokmalStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testNorwegianBokmalStyle]' passed (0.065 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testPasswordWordingHasTwentySixTranslationsAndRetiresEveryOldRefusalTranslation]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testPasswordWordingHasTwentySixTranslationsAndRetiresEveryOldRefusalTranslation]' passed (0.253 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testPolishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testPolishStyle]' passed (0.063 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testRussianStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testRussianStyle]' passed (0.063 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSearchPendingStatusHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSearchPendingStatusHasAllTwentySixTranslations]' passed (0.023 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testServicesMenusHaveTwentySixLocalizations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testServicesMenusHaveTwentySixLocalizations]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSevenZipSolidNoticeHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSevenZipSolidNoticeHasAllTwentySixTranslations]' passed (0.024 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSimplifiedChineseStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSimplifiedChineseStyle]' passed (0.042 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSpanishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSpanishStyle]' passed (0.044 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSplitCorrectionWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSplitCorrectionWordingHasAllTwentySixTranslations]' passed (0.023 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSplitSaveWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSplitSaveWordingHasAllTwentySixTranslations]' passed (0.023 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings]' started.
+<unknown>:0: error: -[KaitoFinderTests.WordingAcceptanceTests testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings] : -[NSNib _initWithNibNamed:bundle:options:] could not load the nib 'RecentDocumentsMenu' in bundle NSBundle </Applications/Xcode.app/Contents/Developer/usr/bin> (loaded). (NSInternalInconsistencyException)
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings]' failed (0.006 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSwedishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testSwedishStyle]' passed (0.062 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testThaiStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testThaiStyle]' passed (0.065 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testTraditionalChineseStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testTraditionalChineseStyle]' passed (0.063 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testTurkishStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testTurkishStyle]' passed (0.064 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testUkrainianStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testUkrainianStyle]' passed (0.066 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testVietnameseStyle]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testVietnameseStyle]' passed (0.066 seconds).
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testViewOptionsWordingHasAllTwentySixTranslations]' started.
+Test Case '-[KaitoFinderTests.WordingAcceptanceTests testViewOptionsWordingHasAllTwentySixTranslations]' passed (0.029 seconds).
+Test Suite 'WordingAcceptanceTests' failed at 2026-09-27 04:03:37.869.
+	 Executed 52 tests, with 3 failures (2 unexpected) in 5.468 (5.472) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:03:37.869.
+	 Executed 52 tests, with 3 failures (2 unexpected) in 5.468 (5.472) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:03:37.869.
+	 Executed 52 tests, with 3 failures (2 unexpected) in 5.468 (5.473) seconds

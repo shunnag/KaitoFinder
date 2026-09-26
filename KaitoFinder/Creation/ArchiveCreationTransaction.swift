@@ -104,9 +104,7 @@ nonisolated enum ArchiveCreationTransaction {
                         try existing.pending?.replay(on: rewriter, progress: progress,
                             preservingOwnerIDs: plan.options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(plan.format), ledger: ledger)
                         try add(imported.items, progress: progress, ledger: ledger, additionBase: existing.pending?.additions.count ?? 0,
-                                directory: rewriter.addDirectory) { url, path, callback in
-                            try rewriter.add(contentsOf: url, as: path, ownerIDs: nil, progress: callback)
-                        }
+                                batch: rewriter.add(_:events:))
                         try ArchiveImportPlan.checkCancellation(progress)
                         try rewriter.finishAdditions(progress: ledger.finishAdditions)
                     }
@@ -121,8 +119,7 @@ nonisolated enum ArchiveCreationTransaction {
                 let ledger = ledger!
                 ledger.begin(.writer(plan.format), archiveBytes: 0, options: plan.options)
                 try ArchiveStageDiagnostics.measure(.mutate) {
-                    try add(imported.items, progress: progress, ledger: ledger, directory: writer.addDirectory,
-                            file: writer.add(contentsOf:as:progress:))
+                    try add(imported.items, progress: progress, ledger: ledger, batch: writer.add(_:events:))
                     try ArchiveImportPlan.checkCancellation(progress)
                     try writer.finishAdditions(progress: ledger.finishAdditions)
                 }
@@ -214,18 +211,30 @@ nonisolated enum ArchiveCreationTransaction {
     }
 
     private static func add(_ items: [ArchiveImportPlan.Item], progress: Progress, ledger: ArchiveWriteProgress, additionBase: Int = 0,
-                            directory: (String) throws -> Void,
-                            file: (URL, String, ((ArchiveUpdater.CommitProgress) throws -> Void)?) throws -> Void) throws {
-        for (index, item) in items.enumerated() {
-            try ArchiveImportPlan.checkCancellation(progress)
-            // writer の再帰追加を使わず、ディレクトリも一項目ずつ扱う。
-            do {
-                if item.isDirectory { try directory(item.path) }
-                else { try file(item.url, item.path, ledger.addition(additionBase + index)) }
-            } catch is CancellationError { throw CancellationError() }
-            catch let error as RewriterError { throw error }
-            catch { throw ExtractionFailure.refused("\(item.path): \(ArchiveErrorText.describe(error))") }
-            ledger.didFinishAddition(additionBase + index)
+                            batch: ([ArchiveAddition], ((ArchiveAdditionEvent) throws -> Void)?) throws -> Void) throws {
+        let additions = items.map { item in
+            ArchiveAddition(path: item.path, source: item.isDirectory
+                ? .directory(modificationDate: nil) : .contents(of: item.url))
+        }
+        guard !additions.isEmpty else { return }
+        do {
+            try batch(additions) { event in
+                switch event {
+                case .willStart(let index):
+                    try ArchiveImportPlan.checkCancellation(progress)
+                    #if DEBUG
+                    let item = items[index]
+                    if !item.isDirectory { ArchiveImportTransaction.willAddFileForTesting.get()?(item.url) }
+                    #endif
+                case .progress(let index, let value):
+                    try ledger.addition(additionBase + index)(value)
+                case .didFinish(let index):
+                    ledger.didFinishAddition(additionBase + index)
+                }
+            }
+        } catch let error as ArchiveAdditionError {
+            if let underlying = error.underlying as? RewriterError { throw underlying }
+            throw ExtractionFailure.refused("\(items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
         }
     }
 }

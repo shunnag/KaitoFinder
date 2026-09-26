@@ -520,22 +520,34 @@ nonisolated enum ArchiveImportTransaction {
                 try updater.remove(entriesAt: plan.replacingEntries)
                 ledger.didCount(plan.replacingEntries.count)
             }
-            for (index, item) in plan.items.enumerated() {
-                try ArchiveImportPlan.checkCancellation(progress)
-                // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
+            let additions = plan.items.map { item in
+                ArchiveAddition(path: item.path, source: item.isDirectory
+                    ? .directory(modificationDate: nil) : .contents(of: item.url))
+            }
+            if !additions.isEmpty {
+                var callbackFailure: (any Error)?
                 do {
-                    if item.isDirectory { try updater.addDirectory(item.path) }
-                    else {
-                        #if DEBUG
-                        willAddFileForTesting.get()?(item.url)
-                        #endif
-                        try updater.add(contentsOf: item.url, as: item.path, ownerIDs: nil, progress: ledger.addition(index))
+                    try updater.add(additions) { event in
+                        switch event {
+                        case .willStart(let index):
+                            try ArchiveImportPlan.checkCancellation(progress)
+                            #if DEBUG
+                            let item = plan.items[index]
+                            if !item.isDirectory { willAddFileForTesting.get()?(item.url) }
+                            #endif
+                        case .progress(let index, let value):
+                            try ledger.addition(index)(value)
+                        case .didFinish(let index):
+                            ledger.didFinishAddition(index)
+                            do { try didProcess?(index) }
+                            catch { callbackFailure = error; throw error }
+                        }
                     }
+                } catch let error as ArchiveAdditionError {
+                    // A callback can itself throw a batch error from another operation.
+                    if let callbackFailure { throw callbackFailure }
+                    throw ExtractionFailure.refused("\(plan.items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
                 }
-                catch is CancellationError { throw CancellationError() }
-                catch { throw ExtractionFailure.refused("\(item.path): \(ArchiveErrorText.describe(error))") }
-                ledger.didFinishAddition(index)
-                try didProcess?(index)
             }
             for stamp in plan.sourceStamps {
                 try ArchiveImportPlan.checkCancellation(progress)
