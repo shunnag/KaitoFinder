@@ -97,10 +97,15 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 
 実装は Codex の利用上限（`try again at Sep 29th, 2026 8:40 AM`）で止まっている。コミット済みの段はそれぞれの検証記録にある。再開の順:
 
-1. GyoshukuKit: `git stash pop`（S24 = P5-G の途中。`SplicedArchiveOutput` に一時ファイルの範囲の区間 `.scratch` を足す修正と fixture の取り込み）の後、
-   同じ Codex thread で P5-G を続ける。オーケストレータの判断（ORDER-P4-P5 §1.1 の改訂）: `.scratch(SplicedScratchFile, Range)` を足し、
+1. GyoshukuKit: branch `feature/2026-09-24-review` の 6e7cd9b で `git stash pop`（stash の名前は「S24 (P5-G) WIP …」。
+   `SplicedArchiveOutput` に一時ファイルの範囲の区間 `.scratch` を足す途中の修正と fixture の取り込み）。途中の編集なので、戻した直後は
+   `swift build` が通らない可能性がある。同じ Codex thread に、まず `.scratch` の実装と試験を仕上げてから build するよう指示して P5-G を続ける。オーケストレータの判断（ORDER-P4-P5 §1.1 の改訂）: `.scratch(SplicedScratchFile, Range)` を足し、
    同じ一時ファイル・同じ範囲の区間を「変わらない prefix」として扱う。`generated` は従来どおり変わったとみなす。
-2. KaitoKit-p11（P11 = S37）: Stage 3 の実装と絞った試験までは済んだが、しきい値の掃引の途中で止まった。`ZstdSequenceTable.swift` の
-   `defaultPairTableThreshold` が掃引の途中の値（2048）のままで、第 2 回で選んだ値は 32,768。同じ thread で掃引・V1–V8・最終の門を続ける。
+2. KaitoKit-p11（P11 = S37）: Stage 3 の実装と絞った試験までは済んだが、しきい値の掃引の途中で止まった。**掃引の script
+   （`.build/p11/stage3/build-sweep.sh`）は source の定数を書き換える**ので、`ZstdSequenceTable.swift` の `defaultPairTableThreshold` が
+   掃引の途中の値（2048）のままになっている（第 2 回で選んだ値は 32,768。Stage 2 の source の控えは `.build/p11/stage2-source`）。
+   thread を再開するときは、最初にこの定数を確かめて戻させ（掃引をやり直すなら script が最後に選んだ値を書き戻すこと）、その後で
+   掃引・V1–V8・最終の門を続ける。この worktree は中途の状態のままコミットしない。
 3. KaitoFinder: S21（P4-A）→ S33（P1d-A。S21 の後に B-P1d を採り直す）→ S34（P8）→ S35・S36（P10、利用者の了承が要る）→ S25（P5-A）→
    S38–S41（P6・P7）。P14（tar.xz の block の大きさ）の仕様は未作成。
+4. 実 disk の試験（hdiutil の FAT32 / exFAT / HFS+）は Codex の sandbox では動かず、オーケストレータの検証でだけ実行される（efdb651 の exFAT の不具合はそこで見つかった）。各段の検証で必ず回す。
