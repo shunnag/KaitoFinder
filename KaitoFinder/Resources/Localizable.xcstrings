@@ -1,6 +1,167 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Při smazání položky uvnitř solidního bloku se tento blok znovu zkomprimuje."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hvis du sletter et emne i en solid blok, komprimeres blokken igen."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beim Löschen eines Objekts in einem soliden Block wird dieser Block erneut komprimiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleting an item inside a solid block recompresses that block."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al eliminar un ítem dentro de un bloque sólido, se vuelve a comprimir ese bloque"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kohteen poistaminen yhtenäisestä lohkosta pakkaa kyseisen lohkon uudelleen."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La suppression d’un élément dans un bloc solide recompresse ce bloc"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सॉलिड ब्लॉक के अंदर कोई आइटम हटाने पर वह ब्लॉक फिर से कंप्रेस होगा।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menghapus item di dalam blok solid akan mengompresi ulang blok tersebut."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’eliminazione di un elemento all’interno di un blocco solido ricomprime quel blocco"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "솔리드 블록 내의 항목을 삭제하면 해당 블록이 다시 압축됩니다"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memadamkan item dalam blok padu akan memampatkan semula blok itu."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hvis du sletter et objekt i en solid blokk, komprimeres blokken på nytt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bij het verwijderen van een onderdeel uit een solid blok wordt dat blok opnieuw gecomprimeerd."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usunięcie rzeczy wewnątrz bloku ciągłego spowoduje ponowną kompresję tego bloku."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A exclusão de um item dentro de um bloco sólido recomprime esse bloco"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ao apagar um elemento dentro de um bloco sólido, esse bloco é comprimido novamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "При удалении объекта внутри непрерывного блока этот блок будет сжат заново."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Om du raderar ett objekt i ett solitt block komprimeras det blocket på nytt."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การลบรายการภายในบล็อกโซลิดจะบีบอัดบล็อกนั้นใหม่"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Katı blok içindeki bir öğeyi silmek, o bloğu yeniden sıkıştırır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Під час видалення об’єкта всередині суцільного блоку цей блок буде стиснуто знову."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xóa một mục trong khối đặc sẽ nén lại khối đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除固实块内的项目时将重新压缩该块"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除固實區塊內的項目時將重新壓縮該區塊"
+          }
+        }
+      }
+    },
     "表示オプション" : {
       "extractionState" : "manual",
       "localizations" : {

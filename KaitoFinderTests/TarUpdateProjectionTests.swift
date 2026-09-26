@@ -27,7 +27,7 @@ nonisolated final class TarUpdateProjectionTests: XCTestCase {
             XCTAssertEqual(rewrite.entries.map(\.name), ["directory/", "link"])
             XCTAssertEqual(rewrite.entries.map(\.size), [0, 0])
         }
-        for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip] {
+        for format: GyoshukuKit.ArchiveFormat in [.zip] {
             XCTAssertThrowsError(try ArchiveOutputProjection(existing: entries, mode: .update(format)).validate(entries: entries)) {
                 XCTAssertEqual($0 as? ArchiveEditError, .staleSelection)
             }

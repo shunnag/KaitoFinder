@@ -205,8 +205,8 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
         XCTAssertEqual(try reader.read(link), Data("café".utf8))
     }
 
-    func testSevenZipAntiItemPublishesAsAnEmptyFile() async throws {
-        let fixture = try ScenarioFixture(script: #"""
+    private func sevenZipAntiFixture() throws -> ScenarioFixture {
+        try ScenarioFixture(script: #"""
         import zlib
         h = bytes([1, 5, 2, 0x10, 1, 0x80, 0x0e, 1, 0xc0, 0x0f, 1, 0xc0])
         names = b'\0' + 'anti\0remove\0'.encode('utf-16-le')
@@ -215,15 +215,87 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
         with open(p, 'wb') as f:
             f.write(bytes.fromhex('377abcaf271c0004') + struct.pack('<I', zlib.crc32(start)) + start + h)
         """#, suffix: "7z")
-        XCTAssertEqual(try ArchiveReader.open(url: fixture.archive).entries.first?.formatSpecific["anti"], "true")
-        try await edit(fixture.archive, deferred: true)
-        let reader = try ArchiveReader.open(url: fixture.archive)
-        XCTAssertEqual(reader.entries.count, 1)
-        let entry = try XCTUnwrap(reader.entries.first)
-        XCTAssertEqual(entry.name, "anti")
+    }
+
+    func testSevenZipAntiItemPublishesAsAnEmptyFile() async throws {
+        for deferred in [false, true] {
+            let fixture = try sevenZipAntiFixture(), trace = SevenZipUpdateTrace()
+            XCTAssertEqual(try ArchiveReader.open(url: fixture.archive).entries.first?.formatSpecific["anti"], "true")
+            // 先頭への追加設定は、anti を書けない従来の rewriter を使う。
+            try await trace.observing {
+                try await edit(fixture.archive, deferred: deferred, options: .init(additionPlacement: .beginning))
+            }
+            trace.assertRoute([.rewriterOpen])
+            let reader = try ArchiveReader.open(url: fixture.archive)
+            XCTAssertEqual(reader.entries.count, 1)
+            let entry = try XCTUnwrap(reader.entries.first)
+            XCTAssertEqual(entry.name, "anti")
+            XCTAssertEqual(entry.kind, .file)
+            XCTAssertEqual(entry.uncompressedSize, 0)
+            XCTAssertEqual(entry.formatSpecific["anti"], "false")
+            XCTAssertEqual(try reader.read(entry), Data())
+        }
+    }
+
+    @MainActor func testSevenZipUpdaterPreservesAntiItemAndReadBehavior() async throws {
+        for deferred in [false, true] {
+            let fixture = try sevenZipAntiFixture(), trace = SevenZipUpdateTrace()
+            XCTAssertEqual(try ArchiveReader.open(url: fixture.archive).entries.map(\.name), ["anti", "remove"])
+            try await assertAntiItemReadBehavior(fixture.archive, output: fixture.folder("before"))
+            try await trace.observing { try await edit(fixture.archive, deferred: deferred) }
+            trace.assertRoute([.updaterOpen])
+            XCTAssertEqual(trace.adoptions.withLock { $0 }, [.adopted])
+            XCTAssertEqual(trace.stages.withLock { $0.filter { [.verificationOpen, .entryComparison, .publish].contains($0) } },
+                           [.verificationOpen, .entryComparison, .publish])
+            XCTAssertEqual(try ArchiveReader.open(url: fixture.archive).entries.map(\.name), ["anti"])
+            try await assertAntiItemReadBehavior(fixture.archive, output: fixture.folder("after"))
+        }
+    }
+
+    @MainActor private func assertAntiItemReadBehavior(_ archive: URL, output: URL) async throws {
+        let reader = try ArchiveReader.open(url: archive)
+        let entry = try XCTUnwrap(reader.entries.first { $0.name == "anti" })
         XCTAssertEqual(entry.kind, .file)
         XCTAssertEqual(entry.uncompressedSize, 0)
-        XCTAssertEqual(entry.formatSpecific["anti"], "false")
+        XCTAssertEqual(entry.formatSpecific["anti"], "true")
+        XCTAssertEqual(entry.formatSpecific["emptyStream"], "true")
         XCTAssertEqual(try reader.read(entry), Data())
+
+        let session = try ArchiveSession(url: archive), snapshot = await session.snapshot()
+        let node = try XCTUnwrap(EntryNode.tree(from: snapshot.entries).children.first { $0.path == "anti" })
+        XCTAssertFalse(node.isDirectory)
+        XCTAssertEqual(node.entry?.formatSpecific["anti"], "true")
+        let payload = ArchiveEntryPayload(node: node, session: session, generation: snapshot.generation)
+        let capability = EntryReadCapability(entry: node.entry, isDirectory: node.isDirectory, format: session.format)
+        XCTAssertTrue(capability.canPreview)
+        XCTAssertTrue(capability.canOpen)
+
+        let extracted = output.appendingPathComponent("extracted")
+        try FileManager.default.createDirectory(at: extracted, withIntermediateDirectories: false)
+        let result = try await ExtractionService.extract([payload], from: session, to: extracted, progress: Progress())
+        try ArchiveCopyOut.check(result)
+        XCTAssertEqual(result.written.map { $0.url.lastPathComponent }, ["anti"])
+        let extractedURL = try XCTUnwrap(result.written.first?.url)
+        XCTAssertEqual(try extractedURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile, true)
+        XCTAssertEqual(try Data(contentsOf: extractedURL), Data())
+
+        let preview = ArchivePreviewItem(payload: payload, capability: capability, requiresProgress: false)
+        let controller = ArchiveMaterializationController(session: session,
+            temporaryDirectory: .init(root: output.appendingPathComponent("preview")))
+        controller.failed = { XCTFail($0) }
+        controller.updatePreviewSelection([preview])
+        controller.display(index: 0) { XCTAssertTrue($0 === preview) }
+        await controller.task?.value
+        let previewURL = try XCTUnwrap(preview.previewItemURL)
+        XCTAssertEqual(preview.previewItemTitle, "anti")
+        XCTAssertEqual(try Data(contentsOf: previewURL), Data())
+        await controller.close().value
+
+        let copied = try await ArchiveCopyOut.prepare([payload], from: session, progress: Progress(),
+            temporaryDirectory: .init(root: output.appendingPathComponent("copy")))
+        XCTAssertEqual(copied.paths, ["anti"])
+        XCTAssertEqual(copied.urls.map(\.lastPathComponent), ["anti"])
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(copied.urls.first)), Data())
+        await session.close()
     }
 }

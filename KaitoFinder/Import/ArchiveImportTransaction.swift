@@ -451,6 +451,7 @@ nonisolated enum ArchiveImportTransaction {
     static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
     static let didCommitTarUpdaterForTesting = TaskLocal<(@Sendable (TarUpdater) throws -> Void)?>(wrappedValue: nil)
     static let didCommitLHAUpdaterForTesting = TaskLocal<(@Sendable (LHAUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didCommitSevenZipUpdaterForTesting = TaskLocal<(@Sendable (SevenZipUpdater) throws -> Void)?>(wrappedValue: nil)
     static let didCommitCompressedTarUpdaterForTesting = TaskLocal<(@Sendable (CompressedTarUpdater) throws -> Void)?>(wrappedValue: nil)
     static let didFallBackToRewriteForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
     static let didFallBackToFullVerificationForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
@@ -588,9 +589,9 @@ nonisolated enum ArchiveImportTransaction {
             }
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
             try ArchiveImportPlan.checkCancellation(progress)
-            // LHA の fallback は、削除済みの項目を carry の予算に含めない。
-            let carryCount = format == .lha
-                ? expectedOutput.resolving(.rewrite(.lha)).entries.filter { !$0.isAddition }.count
+            // LHA・7z の fallback は、削除済みの項目と root を carry の予算に含めない。
+            let carryCount = [.lha, .sevenZip].contains(format)
+                ? expectedOutput.resolving(.rewrite(format)).entries.filter { !$0.isAddition }.count
                 : rewriter.entryNames.count
             progress.totalUnitCount += Int64(carryCount)
             try ArchiveStageDiagnostics.measure(.commit) {
@@ -735,6 +736,42 @@ nonisolated enum ArchiveImportTransaction {
                 publishedMode = .rewrite(.lha)
                 try rewriteBranch(format: .lha)
             }
+        case .update(.sevenZip):
+            try willOpenUpdater?()
+            var updater: SevenZipUpdater?
+            do {
+                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                    try SevenZipUpdater.open(url: archive, password: password, output: work, options: options)
+                }
+            } catch UpdaterRouteError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                progress.totalUnitCount += ArchiveReencryptionProgress.units
+                let meter = ArchiveReencryptionProgress(progress)
+                do {
+                    try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        try updater.commit(progress: meter.update)
+                    }
+                } catch let error as UpdaterRouteError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitSevenZipUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true, copyingExtendedAttributes: false)
+            } else {
+                publishedMode = .rewrite(.sevenZip)
+                try rewriteBranch(format: .sevenZip)
+            }
         case .update: throw ArchiveEditError.staleSelection
         }
         if let additionalQuarantine {
@@ -859,7 +896,8 @@ nonisolated enum ArchiveImportTransaction {
         }
     }
 
-    private static func preserveAttributes(from archive: URL, to work: URL, includingCreationDate: Bool = false) throws {
+    private static func preserveAttributes(from archive: URL, to work: URL, includingCreationDate: Bool = false,
+                                           copyingExtendedAttributes: Bool = true) throws {
         var info = stat()
         guard lstat(archive.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
         guard chmod(work.path, info.st_mode & 0o7777) == 0 else { throw ExtractionFailure.system(errno) }
@@ -873,6 +911,8 @@ nonisolated enum ArchiveImportTransaction {
                 throw ExtractionFailure.system(errno)
             }
         }
+        // 7z の sequential 出力は原本の xattr を運ばない。clone は既に属性を持つ。
+        guard copyingExtendedAttributes else { return }
         // 単一作業ファイルと rewrite の両方で、Finder タグや quarantine を含む全 xattr を運ぶ。
         let size = listxattr(archive.path, nil, 0, XATTR_NOFOLLOW)
         guard size >= 0 else { throw ExtractionFailure.system(errno) }

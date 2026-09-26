@@ -1,0 +1,215 @@
+{
+  "runs": 91,
+  "latest_counts": {
+    "passed": 196,
+    "skipped": 9,
+    "interrupted": 5,
+    "failed": 1
+  },
+  "classes": {
+    "SevenZipUpdateRoutingTests": {
+      "passed": 6
+    },
+    "SevenZipUpdateEditTests": {
+      "passed": 4
+    },
+    "SevenZipUpdateDeferredSaveTests": {
+      "passed": 4
+    },
+    "SevenZipUpdatePasswordTests": {
+      "passed": 5
+    },
+    "SevenZipUpdateVerificationFailureTests": {
+      "passed": 4
+    },
+    "SevenZipUpdateNonAPFSTests": {
+      "skipped": 3,
+      "passed": 1
+    },
+    "ArchivePasswordEditingTests": {
+      "passed": 20,
+      "interrupted": 1
+    },
+    "ArchiveRewriteTests": {
+      "passed": 35
+    },
+    "ArchiveSaveAsTests": {
+      "interrupted": 2,
+      "passed": 2
+    },
+    "ArchiveCapabilityInspectionTests": {
+      "passed": 12,
+      "skipped": 1
+    },
+    "ArchiveReaderAdoptionTests": {
+      "passed": 12,
+      "skipped": 2
+    },
+    "DeferredSaveAttributeTests": {
+      "passed": 5,
+      "interrupted": 1
+    },
+    "DeferredSavePlanEquivalenceTests": {
+      "passed": 5
+    },
+    "NameIndexEquivalenceTests": {
+      "passed": 11
+    },
+    "DeferredSplitSaveTests": {
+      "failed": 1,
+      "passed": 1,
+      "interrupted": 1
+    },
+    "TarUpdateEditTests": {
+      "passed": 9,
+      "skipped": 3
+    },
+    "CompressedTarRoutingTests": {
+      "passed": 3
+    },
+    "LHAUpdateEditTests": {
+      "passed": 3
+    },
+    "EditPlacementPreferencesTests": {
+      "passed": 5
+    },
+    "CompressionThreadPreferenceTests": {
+      "passed": 6
+    },
+    "TarUpdateProjectionTests": {
+      "passed": 3
+    },
+    "AutosaveIsolationTests": {
+      "passed": 2
+    },
+    "ScenarioShapeTests": {
+      "passed": 2
+    },
+    "CompressionCapabilityTests": {
+      "passed": 1
+    },
+    "WordingAcceptanceTests": {
+      "passed": 29
+    },
+    "PerformanceProbeTests": {
+      "passed": 6
+    }
+  },
+  "source_hash_mismatches": [],
+  "probe_smoke": [
+    {
+      "case": "testArchiveEditorsDirectlyWhenEnabled",
+      "placement": "end",
+      "run": 84,
+      "sevenzip_rows": 4
+    },
+    {
+      "case": "testArchiveEditsWhenEnabled",
+      "placement": "end",
+      "run": 85,
+      "sevenzip_rows": 20
+    },
+    {
+      "case": "testArchivePasswordEditsWhenEnabled",
+      "placement": "end",
+      "run": 90,
+      "sevenzip_rows": 8
+    },
+    {
+      "case": "testArchiveEditorsDirectlyWhenEnabled",
+      "placement": "beginning",
+      "run": 87,
+      "sevenzip_rows": 0
+    },
+    {
+      "case": "testArchiveEditsWhenEnabled",
+      "placement": "beginning",
+      "run": 88,
+      "sevenzip_rows": 0
+    },
+    {
+      "case": "testArchivePasswordEditsWhenEnabled",
+      "placement": "beginning",
+      "run": 91,
+      "sevenzip_rows": 0
+    }
+  ],
+  "builds": [
+    {
+      "name": "KaitoKit",
+      "exit": 0
+    },
+    {
+      "name": "GyoshukuKit",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 1
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 1
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    }
+  ],
+  "release_typecheck": {
+    "exit": 0
+  },
+  "baseline": {
+    "commit": "41d48f0",
+    "builds": [
+      {
+        "name": "app",
+        "exit": 0
+      },
+      {
+        "name": "test",
+        "exit": 0
+      }
+    ],
+    "tests": [
+      {
+        "selection": "DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+        "exit": 1,
+        "cases": [
+          [
+            "KaitoFinderTests.DeferredSplitSaveTests",
+            "testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+            "failed"
+          ]
+        ],
+        "log": "build/s25-p5a/baseline/001-DeferredSplitSaveTests-testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending.log"
+      },
+      {
+        "selection": "DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+        "exit": -10,
+        "cases": [],
+        "log": "build/s25-p5a/baseline/002-DeferredSplitSaveTests-testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization.log"
+      }
+    ]
+  }
+}

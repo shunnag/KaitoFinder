@@ -189,7 +189,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 let session = try XCTUnwrap(document.session)
                 session.setPasswordPrompt { _ in "KaitoFixture" }
                 _ = try await session.preparedPassword()
-                XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+                XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
                 let additions = ["added-a.txt", "added-b.txt"].map { directory.url.appendingPathComponent($0) }
                 for url in additions { try Data(url.lastPathComponent.utf8).write(to: url) }
                 let result = try await document.append(urls: additions, to: "", progress: Progress())

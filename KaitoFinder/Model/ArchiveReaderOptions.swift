@@ -1,4 +1,4 @@
-@_spi(TarEditLayout) import KaitoKit
+@_spi(TarEditLayout) @_spi(SevenZipEditLayout) import KaitoKit
 import Synchronization
 
 nonisolated extension ReaderOptions {
@@ -28,6 +28,7 @@ nonisolated extension ReaderOptions {
         var options = ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max),
                                     password: password, appleDoublePolicy: .expose)
         options.recordsTarEditLayout = true
+        options.recordsSevenZipEditLayout = true
         return options
     }
 }

@@ -58,8 +58,8 @@ nonisolated final class CompressedTarRoutingTests: XCTestCase {
         }
     }
 
-    func testOnlyNamedCompressedFormatsUseTheAssessmentNotice() {
-        for format: GyoshukuKit.ArchiveFormat in [.tar, .lha, .sevenZip, .zip] {
+    func testCompressedFormatsUseTheirOwnAssessmentNotice() {
+        for format: GyoshukuKit.ArchiveFormat in [.tar, .lha, .zip] {
             XCTAssertNil(ArchiveCapabilities(mode: .update(format)).editNotice(options: .init(), onSave: false))
         }
         for format in CompressedTarFixture.formats {

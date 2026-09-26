@@ -79,7 +79,10 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
         try fixture.directory.run("/usr/bin/bsdtar", ["-tf", fixture.archive.path])
     }
 
-    func testSolidSevenZipRewriteAppendKeepsEveryEntryAndByte() async throws {
+    func testSolidSevenZipUpdateAppendKeepsEveryEntryAndByte() async throws { try await assertSolidSevenZipAppend(.end) }
+    func testSolidSevenZipLegacyBeginningAppendKeepsEveryEntryAndByte() async throws { try await assertSolidSevenZipAppend(.beginning) }
+
+    private func assertSolidSevenZipAppend(_ placement: AdditionPlacement) async throws {
         let fixture = try ScenarioFixture(), archive = fixture.root.appendingPathComponent("solid.7z")
         var expected: [String: Data] = [:]
         for n in 0..<12 {
@@ -88,15 +91,18 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
             _ = try fixture.file(name, bytes: bytes)
         }
         try fixture.directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-ms=on", archive.path] + expected.keys.sorted())
-        let session = try ArchiveSession(url: archive), before = await session.entries()
+        let session = try ArchiveSession(url: archive, writerOptions: { _ in .init(additionPlacement: placement) })
+        let before = await session.entries()
         XCTAssertEqual(Set(before.map(\.solidGroup)).count, 1)
         XCTAssertGreaterThanOrEqual(try XCTUnwrap(before.first).solidGroup, 0)
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+        XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
         let source = try fixture.file("new.txt")
         _ = try await session.append(urls: [source], to: "", progress: Progress())
         expected["new.txt"] = Data("added".utf8)
         XCTAssertEqual(try ScenarioFixture.contents(archive), expected)
-        XCTAssertEqual(try ArchiveReader.open(url: archive).entries.count, 13)
+        let result = try ArchiveReader.open(url: archive).entries
+        XCTAssertEqual(result.count, 13)
+        XCTAssertEqual(placement == .end ? result.last?.name : result.first?.name, "new.txt")
         try fixture.directory.run("/opt/homebrew/bin/7zz", ["t", "-bd", archive.path])
     }
 

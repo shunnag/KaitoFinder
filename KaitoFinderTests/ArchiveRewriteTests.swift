@@ -117,11 +117,11 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let before = try digest(fixture.archive)
         let files = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted()
         let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: reader.format)
-        XCTAssertEqual(capability.mode, [.tar, .lha].contains(format.input) ? .update(format.output) : .rewrite(format.output), file: file, line: line)
+        XCTAssertEqual(capability.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output), file: file, line: line)
         XCTAssertTrue(capability.canEdit, file: file, line: line)
         XCTAssertNil(capability.refusal, file: file, line: line)
         XCTAssertNil(capability.readOnlyReason, file: file, line: line)
-        XCTAssertEqual(capability.rewriteNotice, [.tar, .lha].contains(format.input) ? nil : String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
+        XCTAssertEqual(capability.rewriteNotice, [.tar, .lha, .sevenZip].contains(format.input) ? nil : String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
         XCTAssertEqual(try digest(fixture.archive), before, file: file, line: line)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted(), files,
                        file: file, line: line)
@@ -129,7 +129,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
     func testTarCapabilityUsesUpdateMode() throws { try assertCapability(.tar) }
     func testTGZCapabilityUsesTarGzipDespiteKaitoKitReportingTar() throws { try assertCapability(.tgz) }
-    func testSevenZipCapabilityUsesRewriteMode() throws { try assertCapability(.sevenZip) }
+    func testSevenZipCapabilityUsesUpdateMode() throws { try assertCapability(.sevenZip) }
     func testLHACapabilityUsesUpdateMode() throws { try assertCapability(.lha) }
 
     func testLHABeginningPlacementResolvesToRewriteAndShowsNotice() throws {
@@ -235,7 +235,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let directory = try ArchiveTestDirectory(), archive = try encryptedSevenZip(in: directory, headers: headers)
             let session = try ArchiveSession(url: archive, password: "rewrite-test-password")
             session.setPasswordPrompt { _ in XCTFail("The known password must be reused"); throw CancellationError() }
-            XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+            XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
             _ = try await session.createFolder(in: "", progress: Progress())
             let added = directory.url.appendingPathComponent("added.txt")
             try Data("added encrypted contents".utf8).write(to: added)
@@ -266,7 +266,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertTrue(replacement.entries.contains(where: \.isEncrypted))
         XCTAssertEqual(Darwin.rename(encrypted.path, fixture.archive.path), 0)
         let before = try Data(contentsOf: fixture.archive)
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+        XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
         do {
             // 全 entry を削除しても、暗号化された原本を平文の空書庫へ置換しない。
             _ = try await document.remove(nodes, progress: Progress())
@@ -437,7 +437,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertTrue(appended.failures.isEmpty)
         XCTAssertNil(appended.reloadFailure)
         XCTAssertEqual(Set(appended.addedPaths), ["first.txt", "second.bin", "incoming", "incoming/child.txt", "incoming/empty"])
-        let commitUnits = [.tar, .lha].contains(format.input) ? ArchiveReencryptionProgress.units : Int64(Fixture.original.count)
+        let commitUnits = [.tar, .lha, .sevenZip].contains(format.input) ? ArchiveReencryptionProgress.units : Int64(Fixture.original.count)
         XCTAssertEqual(progress.totalUnitCount, Int64(appended.addedPaths.count + 1) + commitUnits)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         expected.merge(["first.txt": .file(first), "second.bin": .file(second), "incoming": .directory,
@@ -471,7 +471,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         try assertContents(expected, in: fixture.archive, format: format.input)
         XCTAssertEqual(session.generation, 4)
         XCTAssertEqual(document.generation, 4)
-        XCTAssertEqual(session.capabilities.mode, [.tar, .lha].contains(format.input) ? .update(format.output) : .rewrite(format.output))
+        XCTAssertEqual(session.capabilities.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output))
         XCTAssertEqual(document.archiveUndoStack.slots.count, 4)
         try assertIndependentListing(fixture, names: Set(expected.keys))
 
@@ -483,7 +483,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             XCTAssertNil(document.undoFailure)
             XCTAssertEqual(try digest(fixture.archive), state)
             XCTAssertEqual(document.generation, UInt64(5 + offset))
-            XCTAssertEqual(session.capabilities.mode, [.tar, .lha].contains(format.input) ? .update(format.output) : .rewrite(format.output))
+            XCTAssertEqual(session.capabilities.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output))
         }
         XCTAssertFalse(manager.canUndo)
         try assertContents(Fixture.original, in: fixture.archive, format: format.input)

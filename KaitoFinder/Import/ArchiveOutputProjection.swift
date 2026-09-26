@@ -44,6 +44,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
 
     let entries: [Entry]
     let zipEncryption: ExpectedZipEncryption?
+    let sevenZipEncryption: Bool?
     private let mode: ArchiveCapabilities.Mode
     private let existing: [ArchiveEntry]
     private let removing: [Int]
@@ -53,26 +54,30 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     func resolving(_ mode: ArchiveCapabilities.Mode) -> Self {
         guard mode != self.mode else { return self }
         return Self(existing: existing, removing: removing, renaming: renaming, additions: additions,
-                    mode: mode, zipEncryption: zipEncryption)
+                    mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)
     }
 
-    init(projected: [ArchiveEntry], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
-        self.init(existing: projected, mode: mode, zipEncryption: zipEncryption)
+    init(projected: [ArchiveEntry], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil,
+         sevenZipEncryption: Bool? = nil) {
+        self.init(existing: projected, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)
     }
 
-    init(plan: ArchiveSaveReplayPlan, mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
+    init(plan: ArchiveSaveReplayPlan, mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil,
+         sevenZipEncryption: Bool? = nil) {
         let identities = Dictionary(uniqueKeysWithValues: plan.additions.compactMap { addition in
             addition.stagedStamp.hardLinkIdentity.map { (addition.id, $0) }
         })
         self.init(existing: plan.edits.existing, removing: plan.edits.removals.map(\.index), renaming: plan.edits.renames,
                   additions: plan.projected.filter { $0.pendingID != nil }.map {
                       Entry($0, hardLinkIdentity: $0.pendingID.flatMap { identities[$0] })
-                  }, mode: mode, zipEncryption: zipEncryption)
+                  }, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)
     }
 
     init(existing: [ArchiveEntry], removing: [Int] = [], renaming: [ArchiveEditPlan.Rename] = [],
-         additions: [Entry] = [], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil) {
+         additions: [Entry] = [], mode: ArchiveCapabilities.Mode, zipEncryption: ExpectedZipEncryption? = nil,
+         sevenZipEncryption: Bool? = nil) {
         self.zipEncryption = zipEncryption
+        self.sevenZipEncryption = sevenZipEncryption
         self.mode = mode
         self.existing = existing
         self.removing = removing
@@ -195,6 +200,15 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     func validationFailure(entries actual: [ArchiveEntry]) -> ArchiveVerificationFailure? {
+        if let sevenZipEncryption {
+            for entry in actual {
+                let encrypted = entry.formatSpecific["emptyStream"] == "false" && sevenZipEncryption
+                guard entry.isEncrypted == encrypted else {
+                    return .encryption(index: entry.index, expected: encrypted ? "7z AES" : "none",
+                                       actual: entry.formatSpecific["encryption"], isEncrypted: entry.isEncrypted)
+                }
+            }
+        }
         if case .update = mode { return orderedValidationFailure(actual) }
         var carried: [Sized: Int] = [:], added: [Shape: Int] = [:]
         for entry in entries {
@@ -241,7 +255,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
     }
 
     private func validateMode() throws {
-        if case .update(let format) = mode, ![.tar, .tarGzip, .tarBzip2, .tarXZ, .lha].contains(format) {
+        if case .update(let format) = mode, ![.tar, .tarGzip, .tarBzip2, .tarXZ, .lha, .sevenZip].contains(format) {
             throw ArchiveEditError.staleSelection
         }
     }

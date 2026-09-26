@@ -158,30 +158,34 @@ nonisolated final class NameIndexEquivalenceTests: XCTestCase {
 
     @MainActor func testDeferredSaveReusesProofAndInstallForEveryUpdaterFormat() async throws {
         for format: GyoshukuKit.ArchiveFormat in [.zip, .tar, .tarGzip, .lha, .sevenZip] {
-            let fixture = try DeferredSaveFixture(format: format)
-            defer { fixture.document.close() }
-            _ = try await fixture.document.rename(fixture.node("a.txt"), to: "renamed", progress: Progress())
-            _ = try await fixture.document.append(urls: [fixture.file("added")], to: "", progress: Progress())
-            _ = try await fixture.document.createFolder(in: "", baseName: "new", progress: Progress())
-            _ = try await fixture.document.remove([fixture.node("b.txt")], progress: Progress())
-            let trace = Trace(), slow = ArchiveTestCounter()
-            try await trace.observe {
-                try await ArchiveTestCounters.slowRepresentability.withValue(slow) {
-                    try await fixture.save()
-                    await fixture.document.waitForDeferredPreparationForTesting()
+            for placement: ArchivePreferences.AdditionPosition in format == .sevenZip ? [.end, .beginning] : [.end] {
+                let fixture = try DeferredSaveFixture(format: format)
+                fixture.store.preferences.additionPosition = placement
+                defer { fixture.document.close() }
+                _ = try await fixture.document.rename(fixture.node("a.txt"), to: "renamed", progress: Progress())
+                _ = try await fixture.document.append(urls: [fixture.file("added")], to: "", progress: Progress())
+                _ = try await fixture.document.createFolder(in: "", baseName: "new", progress: Progress())
+                _ = try await fixture.document.remove([fixture.node("b.txt")], progress: Progress())
+                let trace = Trace(), slow = ArchiveTestCounter()
+                try await trace.observe {
+                    try await ArchiveTestCounters.slowRepresentability.withValue(slow) {
+                        try await fixture.save()
+                        await fixture.document.waitForDeferredPreparationForTesting()
+                    }
                 }
+                XCTAssertEqual(trace.count(.representabilityDifferential), 1, "\(format)")
+                XCTAssertEqual(trace.count(.planKeys), 0)
+                XCTAssertEqual(trace.events.withLock { $0.filter { $0 == .fullValidation }.count }, 0)
+                XCTAssertEqual(slow.value, 0)
+                if placement == .end {
+                    XCTAssertEqual(trace.events.withLock { $0.filter { $0 == .baseValidation }.count }, 0)
+                    XCTAssertEqual(trace.count(.validateRepresentability), 0)
+                } else { XCTAssertEqual(trace.events.withLock { $0.filter { $0 == .baseValidation }.count }, 1) }
+                try await checkIndex(try XCTUnwrap(fixture.document.session))
             }
-            XCTAssertEqual(trace.count(.representabilityDifferential), 1, "\(format)")
-            XCTAssertEqual(trace.count(.planKeys), 0)
-            XCTAssertEqual(trace.events.withLock { $0.filter { $0 == .fullValidation }.count }, 0)
-            XCTAssertEqual(slow.value, 0)
-            if format != .sevenZip {
-                XCTAssertEqual(trace.events.withLock { $0.filter { $0 == .baseValidation }.count }, 0)
-                XCTAssertEqual(trace.count(.validateRepresentability), 0)
-            } else { XCTAssertEqual(trace.events.withLock { $0.filter { $0 == .baseValidation }.count }, 1) }
-            try await checkIndex(try XCTUnwrap(fixture.document.session))
         }
     }
+
 
     @MainActor func testDeferredCyclesAndFallbackCorpusMatchDisabledIndex() async throws {
         for names in [["a", "b", "delete"], ["café", "cafe\u{301}", "delete"], ["K", "\u{212A}", "delete"],

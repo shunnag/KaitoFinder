@@ -24,19 +24,29 @@ nonisolated enum ProbeArchiveFormat: String, Sendable {
 
     func editorStage(placement: ArchivePreferences.AdditionPosition) -> ArchiveStageDiagnostics.Stage {
         if self == .zip { return .updaterOpen }
-        return placement == .end && [.tar, .tarGzip, .tarBzip2, .tarXZ, .lha].contains(self) ? .updaterOpen : .rewriterOpen
+        return placement == .end && [.tar, .tarGzip, .tarBzip2, .tarXZ, .lha, .sevenZip].contains(self) ? .updaterOpen : .rewriterOpen
     }
 }
 
 nonisolated enum ProbeArchiveEncryption: String, Sendable {
-    case aes, zipcrypto
+    case aes, zipcrypto, sevenZip = "7z"
 
-    var method: ZipEncryption { self == .aes ? .aes256 : .zipCrypto }
-    var entryMethod: String { self == .aes ? "AES-256" : "ZipCrypto" }
+    var format: ProbeArchiveFormat { self == .sevenZip ? .sevenZip : .zip }
+    var zipMethod: ZipEncryption? {
+        switch self { case .aes: .aes256; case .zipcrypto: .zipCrypto; case .sevenZip: nil }
+    }
+    var zipEntryMethod: String? {
+        switch self { case .aes: "AES-256"; case .zipcrypto: "ZipCrypto"; case .sevenZip: nil }
+    }
+
+    func settings(password: String, headers: Bool) -> ArchiveEncryptionSettings {
+        .init(password: password, zipEncryption: zipMethod ?? .aes256,
+              encryptsSevenZipHeaders: self == .sevenZip && headers)
+    }
 
     static func configured() throws -> [Self] {
         guard let value = ProcessInfo.processInfo.environment["KAITOFINDER_PROBE_ENCRYPTION"] else {
-            throw XCTSkip("Set KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto to run password probes")
+            throw XCTSkip("Set KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto,7z to run password probes")
         }
         let names = value.lowercased().split(whereSeparator: { $0 == "," || $0.isWhitespace })
         guard !names.isEmpty else { throw ConfigurationError.invalid(value) }
@@ -117,7 +127,7 @@ nonisolated struct ArchiveProbeFixture: Sendable {
 
 nonisolated enum ArchiveProbeFixtures {
     // 本文・暗号化の生成規則を変えたら更新する。
-    private static let version = 3
+    private static let version = 4
     private static let cache = Mutex<[String: ArchiveProbeFixture]>([:])
     private static let splitVersion = 1
     private static let splitCache = Mutex<[String: ArchiveProbeSplitFixture]>([:])
@@ -165,7 +175,7 @@ nonisolated enum ArchiveProbeFixtures {
     @concurrent static func fixture(_ kind: ArchiveProbeFixture.Kind, format: ProbeArchiveFormat,
                                     configuration: ArchiveProbeConfiguration,
                                     encryption: ProbeArchiveEncryption? = nil) async throws -> ArchiveProbeFixture {
-        precondition(encryption == nil || format == .zip)
+        precondition(encryption == nil || encryption?.format == format)
         return try cache.withLock { cache in
             let key = "\(format.rawValue)-\(kind.rawValue)-\(configuration.entries)-\(configuration.payloadMiB)-\(encryption?.rawValue ?? "plain")-v\(version)"
             if let fixture = cache[key] { return fixture }
@@ -178,7 +188,7 @@ nonisolated enum ArchiveProbeFixtures {
             let start = ContinuousClock.now
             try ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
                 try ArchiveStageDiagnostics.measure(.fixtureBuild) {
-                    let settings = ArchiveEncryptionSettings(password: fixture.password, zipEncryption: encryption?.method ?? .aes256)
+                    let settings = encryption?.settings(password: fixture.password!, headers: kind == .payload) ?? .init()
                     let writer = try ArchiveWriter.create(url: fixture.url, format: format.writerFormat,
                         options: settings.applying(to: ArchivePreferences().writerOptions(for: format.writerFormat), format: format.writerFormat))
                     if kind == .payload {
@@ -393,6 +403,22 @@ nonisolated final class ArchiveProbeTrace: Sendable {
             ms(statistics.planningSeconds), ms(statistics.encodingSeconds), ms(statistics.copyingSeconds), ms(statistics.selfCheckSeconds),
             String(statistics.reencodedOldImageBytes), String(statistics.carriedCompressedBytes), String(statistics.scratchBytes),
             String(statistics.reencodedImageBytes), String(statistics.carriedChunks), String(statistics.reencodedChunks)].joined(separator: "\t"))
+    }
+
+    func recordSevenZip(_ statistics: SevenZipCommitStatistics) {
+        func ms(_ seconds: Double) -> String { String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), seconds * 1_000) }
+        Self.line(["PROBE-7Z", "1", fixture.format.rawValue, fixture.kind.rawValue, mode, operation,
+            "strategy=\(statistics.strategy)",
+            "carried_pack_bytes=\(statistics.writtenCarriedPackBytes)", "appended_pack_bytes=\(statistics.appendedPackBytes)",
+            "converted_pack_bytes=\(statistics.convertedPackBytes)", "reencoded_folders=\(statistics.reencodedFolderCount)",
+            "reencoded_input_bytes=\(statistics.reencodedInputBytes)", "reencoded_pack_bytes=\(statistics.reencodedPackBytes)",
+            "scratch_written_bytes=\(statistics.reencodeScratchWrittenBytes)", "plain_header_bytes=\(statistics.plainHeaderBytes)",
+            "stored_header_bytes=\(statistics.storedHeaderBytes)", "verification_read_bytes=\(statistics.verificationReadBytes)",
+            "plan_ms=" + ms(statistics.planSeconds), "reencode_scratch_ms=" + ms(statistics.reencodeScratchSeconds),
+            "scratch_copy_ms=" + ms(statistics.scratchCopySeconds), "password_verification_ms=" + ms(statistics.passwordVerificationSeconds),
+            "packs_ms=" + ms(statistics.packsSeconds), "header_ms=" + ms(statistics.headerSeconds),
+            "self_check_ms=" + ms(statistics.selfCheckSeconds), "v1_ms=" + ms(statistics.v1Seconds),
+            "v2_ms=" + ms(statistics.v2Seconds), "v3_ms=" + ms(statistics.v3Seconds), "v3a_ms=" + ms(statistics.v3aSeconds)].joined(separator: "\t"))
     }
 
     func requireRoute(placement: ArchivePreferences.AdditionPosition) {

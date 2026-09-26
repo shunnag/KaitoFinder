@@ -217,12 +217,12 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         ArchiveProbeTrace.header()
         preserveArchiveWindowFrame()
         for kind in ArchiveProbeFixture.Kind.allCases {
-            let plain = try await ArchiveProbeFixtures.fixture(kind, format: .zip, configuration: configuration)
             for method in methods {
+                let plain = try await ArchiveProbeFixtures.fixture(kind, format: method.format, configuration: configuration)
                 try await probeImmediatePassword(.set, fixture: plain, output: method)
-                let encrypted = try await ArchiveProbeFixtures.fixture(kind, format: .zip,
+                let encrypted = try await ArchiveProbeFixtures.fixture(kind, format: method.format,
                     configuration: configuration, encryption: method)
-                for output in methods {
+                for output in methods where output.format == method.format {
                     try await probeImmediatePassword(.change, fixture: encrypted, output: output)
                     try await probeDeferredPassword(encrypted, output: output)
                 }
@@ -416,8 +416,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 let recordsRecents = documents?.recordsRecentDocuments
                 documents?.recordsRecentDocuments = false
                 defer { if let recordsRecents { documents?.recordsRecentDocuments = recordsRecents } }
-                // 既知の鍵で開き直し、全件の認証は計測する編集入口に残す。
-                try await document.switchBackingFile(to: archive, password: password)
+                // 既知の鍵で header を解除するか開き直し、本文の全件認証は計測する編集入口に残す。
+                if document.isPasswordLocked { try await document.unlock(password: password) }
+                else { try await document.switchBackingFile(to: archive, password: password) }
             }
             let entries = try await document.projectedEntries()
             let root = await EntryNode.build(from: entries, format: fixture.format.writerFormat, indexingEdits: mode == .immediate)
@@ -451,15 +452,14 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             let trace = ArchiveProbeTrace(fixture: fixture, mode: "immediate", operation: operation,
                                           reportsPasswordVerification: true)
             try await Self.traced(trace, output: archive) {
-                let result = try await document.updatePassword(action, settings: Self.passwordSettings(output), progress: Progress())
+                let result = try await document.updatePassword(action, settings: Self.passwordSettings(output, headers: fixture.kind == .payload), progress: Progress())
                 XCTAssertNil(result.reloadFailure)
             }
             trace.require([.total, .passwordVerification, .commit, .verificationOpen, .entryComparison,
                            .publish, .reload, .readerAdoption, .capabilityProbe, .treeBuild, .display])
             trace.forbid([.reloadOpen])
             if fixture.format == .zip { trace.require([.outputProbe]); trace.forbid([.workCopy]) }
-            trace.require([.updaterOpen])
-            trace.forbid([.rewriterOpen])
+            trace.requireRoute(placement: try ArchiveProbeConfiguration().additionPosition)
             XCTAssertEqual(session.hasEncryptedEntries, output != nil)
             XCTAssertTrue(document.undoManager?.canUndo == true)
             try await waitForRenameIndex(controller)
@@ -476,7 +476,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             let password = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
                 operation: "reserve_password_change_" + transition, reportsPasswordVerification: true)
             try await Self.traced(password, output: archive) {
-                let result = try await document.updatePassword(.change, settings: Self.passwordSettings(output), progress: Progress())
+                let result = try await document.updatePassword(.change, settings: Self.passwordSettings(output, headers: fixture.kind == .payload), progress: Progress())
                 XCTAssertNil(result.reloadFailure)
             }
             password.require([.total, .passwordVerification])
@@ -488,7 +488,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             }
             rename.require([.total, .passwordVerification])
             XCTAssertEqual(document.pendingChanges.renames.count, 1)
-            XCTAssertEqual(document.pendingChanges.outputEncryption, Self.passwordSettings(output))
+            XCTAssertEqual(document.pendingChanges.outputEncryption, Self.passwordSettings(output, headers: fixture.kind == .payload))
             let expected = try await document.projectedEntries().map(\.name).sorted()
             let save = ArchiveProbeTrace(fixture: fixture, mode: "deferred",
                 operation: "save_password_change_" + transition + "_rename", reportsPasswordVerification: true)
@@ -511,8 +511,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             save.requireSaveValidation()
             save.forbid([.reloadOpen])
             if fixture.format == .zip { save.require([.outputProbe]); save.forbid([.workCopy, .updaterPreparation]) }
-            save.require([.updaterOpen])
-            save.forbid([.rewriterOpen])
+            save.requireRoute(placement: try ArchiveProbeConfiguration().additionPosition)
             XCTAssertNil(document.deferredReloadFailure)
             XCTAssertTrue(document.pendingChanges.isEmpty)
             let actual = try await document.projectedEntries().map(\.name).sorted()
@@ -521,16 +520,25 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         }
     }
 
-    private static func passwordSettings(_ encryption: ProbeArchiveEncryption?) -> ArchiveEncryptionSettings {
-        .init(password: encryption == nil ? nil : "probe-updated-key", zipEncryption: encryption?.method ?? .aes256)
+    private static func passwordSettings(_ encryption: ProbeArchiveEncryption?, headers: Bool) -> ArchiveEncryptionSettings {
+        encryption?.settings(password: "probe-updated-key", headers: headers) ?? .init()
     }
 
     @concurrent private static func checkPasswordOutput(_ archive: URL, fixture: ArchiveProbeFixture,
                                                         encryption: ProbeArchiveEncryption?, renamed: Bool = false) async throws {
-        let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder(password: passwordSettings(encryption).password))
+        let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder(password: passwordSettings(encryption, headers: fixture.kind == .payload).password))
         XCTAssertEqual(reader.entries.count, fixture.entryCount)
         XCTAssertTrue(reader.entries.allSatisfy { $0.isEncrypted == (encryption != nil) })
-        XCTAssertTrue(reader.entries.allSatisfy { $0.formatSpecific["encryption"] == (encryption?.entryMethod ?? "none") })
+        if fixture.format == .zip {
+            XCTAssertTrue(reader.entries.allSatisfy { $0.formatSpecific["encryption"] == (encryption?.zipEntryMethod ?? "none") })
+        } else {
+            XCTAssertTrue(reader.entries.allSatisfy { $0.formatSpecific["emptyStream"] == "false" })
+            if encryption != nil, fixture.kind == .payload {
+                XCTAssertThrowsError(try ArchiveReader.open(url: archive, options: .kaitoFinder()))
+            } else {
+                XCTAssertNoThrow(try ArchiveReader.open(url: archive, options: .kaitoFinder()))
+            }
+        }
         let first = renamed ? ArchivePath.components(fixture.firstPath).dropLast().joined(separator: "/") + "/renamed.txt" : fixture.firstPath
         if renamed { XCTAssertFalse(reader.entries.contains { $0.name == fixture.firstPath }) }
         // 全件の属性と先頭・末尾の本文を計測外で照合する。
@@ -691,6 +699,10 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                     editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
                         try LHAUpdater.open(url: input, output: output, options: options)
                     }
+                } else if fixture.format == .sevenZip, preferences.additionPosition == .end {
+                    editor = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                        try SevenZipUpdater.open(url: input, password: fixture.password, output: output, options: options)
+                    }
                 } else if let compressedReader {
                     let span = ArchiveStageDiagnostics.begin(.updaterOpen)
                     defer { span?.end() }
@@ -705,6 +717,9 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 try ArchiveStageDiagnostics.measure(.commit) { try editor.commit() }
                 if let updater = editor as? CompressedTarUpdater {
                     trace.recordSplice(try XCTUnwrap(updater.lastCommitStatistics))
+                }
+                if let updater = editor as? SevenZipUpdater {
+                    trace.recordSevenZip(try XCTUnwrap(updater.lastCommitStatistics))
                 }
             }
             trace.finish(output: output)
@@ -725,7 +740,11 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 defer { span?.end() }
                 return try await ArchiveImportTransaction.didCommitCompressedTarUpdaterForTesting.withValue({ updater in
                     trace.recordSplice(try XCTUnwrap(updater.lastCommitStatistics))
-                }) { try await action() }
+                }) {
+                    try await ArchiveImportTransaction.didCommitSevenZipUpdaterForTesting.withValue({ updater in
+                        trace.recordSevenZip(try XCTUnwrap(updater.lastCommitStatistics))
+                    }) { try await action() }
+                }
             }
             trace.finish(output: output)
             return value

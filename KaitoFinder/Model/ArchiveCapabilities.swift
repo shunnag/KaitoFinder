@@ -41,14 +41,17 @@ nonisolated struct ArchiveCapabilities: Sendable {
     let splitIrreversible: Bool
     let compressedTarAssessment: CompressedTarAssessment?
     let lhaRewriteReason: String?
+    let sevenZipAssessment: SevenZipAssessment?
 
     init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false,
-         compressedTarAssessment: CompressedTarAssessment? = nil, lhaRewriteReason: String? = nil) {
+         compressedTarAssessment: CompressedTarAssessment? = nil, lhaRewriteReason: String? = nil,
+         sevenZipAssessment: SevenZipAssessment? = nil) {
         self.mode = mode
         self.splitSave = splitSave
         self.splitIrreversible = splitIrreversible
         self.compressedTarAssessment = compressedTarAssessment
         self.lhaRewriteReason = lhaRewriteReason
+        self.sevenZipAssessment = sevenZipAssessment
         refusal = nil
     }
 
@@ -59,6 +62,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         splitIrreversible = false
         compressedTarAssessment = nil
         lhaRewriteReason = nil
+        sevenZipAssessment = nil
     }
 
     var canEdit: Bool { refusal == nil }
@@ -79,6 +83,11 @@ nonisolated struct ArchiveCapabilities: Sendable {
             }
         case .update(.lha) where lhaRewriteReason != nil:
             break
+        case .update(.sevenZip):
+            if let assessment = sevenZipAssessment, assessment.updatable {
+                return assessment.hasSolidFolders
+                    ? String(localized: "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します") : nil
+            }
         default: return nil
         }
         return onSave ? String(localized: "保存するとアーカイブ全体を再圧縮します")
@@ -217,7 +226,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 case .brotli: return Self(refusal: .format("tar.br"))
                 default: return Self(refusal: .format(format.displayName))
                 }
-            case .sevenZip: mode = .rewrite(.sevenZip)
+            case .sevenZip: mode = .update(.sevenZip)
             case .lha: mode = .update(.lha)
             default: return Self(refusal: .format(format.displayName))
             }
@@ -241,6 +250,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 }
                 if mode == .update(.lha) {
                     return Self(mode: mode, lhaRewriteReason: LHAUpdater.rewriteReason(reader: reader))
+                }
+                if mode == .update(.sevenZip) {
+                    return Self(mode: mode, sevenZipAssessment: SevenZipUpdater.assess(reader: reader))
                 }
             }
             return Self(mode: mode)

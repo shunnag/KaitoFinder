@@ -1,0 +1,388 @@
+{
+  "base": "41d48f07894f6192128877088ff4a55d860acc80",
+  "GyoshukuKit": "52655cbd76f73f97f4715d06baed1478d6b30a47",
+  "KaitoKit": "823ad460faab055b6b7051da10583480785e8f68",
+  "builds": [
+    {
+      "name": "test",
+      "exit": 0
+    }
+  ],
+  "xctest_invocations": 14,
+  "cases": {
+    "passed": 21
+  },
+  "runs": [
+    {
+      "selection": "ArchivePublicationTransformationTests",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ArchivePublicationTransformationTests",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/092-ArchivePublicationTransformationTests.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testCompressedTarHardLinksUseRewriterRuleWithAdditionsFirst",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testHardLinkDirectTargetsAndChainsPublishImmediatelyAndDeferred",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testLinkSizesFollowOutputContainerDuringPublication",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testSevenZipAndLHADirectoriesAndEmptyFilesPublish",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testSevenZipAntiItemPublishesAsAnEmptyFile",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testSevenZipUpdaterPreservesAntiItemAndReadBehavior",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testTarSymlinksAndSparseLogicalSizesPublish",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.ArchivePublicationTransformationTests",
+          "testZIPUpdaterKeepsDirectoryPayloadIncludingPasswordEdits",
+          "passed"
+        ]
+      ],
+      "log_sha256": "9b70efb1a94afa1d539fd731f581347d21ecf1d311550018e6d6374f6a5db374"
+    },
+    {
+      "selection": "SevenZipUpdateEditTests/testAttributeLessSourcesKeepDirectoryKindsAndOmitAddedAttributes",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.SevenZipUpdateEditTests/testAttributeLessSourcesKeepDirectoryKindsAndOmitAddedAttributes",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/093-SevenZipUpdateEditTests-testAttributeLessSourcesKeepDirectoryKindsAndOmitAddedAttributes.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.SevenZipUpdateEditTests",
+          "testAttributeLessSourcesKeepDirectoryKindsAndOmitAddedAttributes",
+          "passed"
+        ]
+      ],
+      "log_sha256": "8f6a6adb51371078de9e68a742d652c0de9f74b1833de2bc007f4727be681007"
+    },
+    {
+      "selection": "SevenZipUpdateEditTests/testAttributesAndAllDeletedThenAddedRemainEditable",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.SevenZipUpdateEditTests/testAttributesAndAllDeletedThenAddedRemainEditable",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/094-SevenZipUpdateEditTests-testAttributesAndAllDeletedThenAddedRemainEditable.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.SevenZipUpdateEditTests",
+          "testAttributesAndAllDeletedThenAddedRemainEditable",
+          "passed"
+        ]
+      ],
+      "log_sha256": "1ed4ddbac16d4fd2461b0956fb5fb72f72f87f1504e1916cddfcafcee192af31"
+    },
+    {
+      "selection": "SevenZipUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.SevenZipUpdateDeferredSaveTests/testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/095-SevenZipUpdateDeferredSaveTests-testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.SevenZipUpdateDeferredSaveTests",
+          "testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate",
+          "passed"
+        ]
+      ],
+      "log_sha256": "4df3a52dc2792693f8a92bfbb7e84ffc3136f87d10416618525b92dcb879111f"
+    },
+    {
+      "selection": "SevenZipUpdateVerificationFailureTests/testProjectionKeepsRootSizesAndChecksEncryptionInBothRoutes",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.SevenZipUpdateVerificationFailureTests/testProjectionKeepsRootSizesAndChecksEncryptionInBothRoutes",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/096-SevenZipUpdateVerificationFailureTests-testProjectionKeepsRootSizesAndChecksEncryptionInBothRoutes.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.SevenZipUpdateVerificationFailureTests",
+          "testProjectionKeepsRootSizesAndChecksEncryptionInBothRoutes",
+          "passed"
+        ]
+      ],
+      "log_sha256": "4fe07648da86609d82df7a42fbaaaf0b27e0f4cfc9855d04840c0b1fa16b4615"
+    },
+    {
+      "selection": "DeferredSaveAttributeTests/testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.DeferredSaveAttributeTests/testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/097-DeferredSaveAttributeTests-testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.DeferredSaveAttributeTests",
+          "testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset",
+          "passed"
+        ]
+      ],
+      "log_sha256": "6806d2dcc0270602c8774982baf63f84bb36f530b7f3b864757f4eb466201707"
+    },
+    {
+      "selection": "DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/098-DeferredSaveAttributeTests-testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.DeferredSaveAttributeTests",
+          "testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+          "passed"
+        ]
+      ],
+      "log_sha256": "6c8155061c818cdf02c6cc716c857e5c6d1effbeb7b27438f7859036532be1db"
+    },
+    {
+      "selection": "ArchiveRewriteTests/testRemovingEveryMemberKeepsEmptyArchiveReadableEditableAndUndoable",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ArchiveRewriteTests/testRemovingEveryMemberKeepsEmptyArchiveReadableEditableAndUndoable",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/099-ArchiveRewriteTests-testRemovingEveryMemberKeepsEmptyArchiveReadableEditableAndUndoable.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ArchiveRewriteTests",
+          "testRemovingEveryMemberKeepsEmptyArchiveReadableEditableAndUndoable",
+          "passed"
+        ]
+      ],
+      "log_sha256": "a1bfb6baa7dc143d60ce6f63b037865c804d81a07f186544a5a59a7fd5e5523a"
+    },
+    {
+      "selection": "ArchiveRewriteTests/testSevenZipDocumentEditsAndUndoRestoreOriginalSHA256",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ArchiveRewriteTests/testSevenZipDocumentEditsAndUndoRestoreOriginalSHA256",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/100-ArchiveRewriteTests-testSevenZipDocumentEditsAndUndoRestoreOriginalSHA256.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ArchiveRewriteTests",
+          "testSevenZipDocumentEditsAndUndoRestoreOriginalSHA256",
+          "passed"
+        ]
+      ],
+      "log_sha256": "f040298a14dbfc62e592b14b797f667a9d79bcd2e997a9c9daed1bf6bfc01688"
+    },
+    {
+      "selection": "ScenarioShapeTests/testSolidSevenZipUpdateAppendKeepsEveryEntryAndByte",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ScenarioShapeTests/testSolidSevenZipUpdateAppendKeepsEveryEntryAndByte",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/101-ScenarioShapeTests-testSolidSevenZipUpdateAppendKeepsEveryEntryAndByte.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ScenarioShapeTests",
+          "testSolidSevenZipUpdateAppendKeepsEveryEntryAndByte",
+          "passed"
+        ]
+      ],
+      "log_sha256": "de86c26b4319fe2a6fdf1e046c75f11b7abad145bf78587bf54b8ef7ca7615a0"
+    },
+    {
+      "selection": "ScenarioShapeTests/testSolidSevenZipLegacyBeginningAppendKeepsEveryEntryAndByte",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ScenarioShapeTests/testSolidSevenZipLegacyBeginningAppendKeepsEveryEntryAndByte",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/102-ScenarioShapeTests-testSolidSevenZipLegacyBeginningAppendKeepsEveryEntryAndByte.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ScenarioShapeTests",
+          "testSolidSevenZipLegacyBeginningAppendKeepsEveryEntryAndByte",
+          "passed"
+        ]
+      ],
+      "log_sha256": "7c02b73eccc08e1dcbdaf4a07c406699f7e12ef547fbeb4bef89e60d1891b443"
+    },
+    {
+      "selection": "CompressionCapabilityTests/testSwapFilteredSevenZipBatchAppendAndUndoPreserveContentsAndEncryption",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.CompressionCapabilityTests/testSwapFilteredSevenZipBatchAppendAndUndoPreserveContentsAndEncryption",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/103-CompressionCapabilityTests-testSwapFilteredSevenZipBatchAppendAndUndoPreserveContentsAndEncryption.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.CompressionCapabilityTests",
+          "testSwapFilteredSevenZipBatchAppendAndUndoPreserveContentsAndEncryption",
+          "passed"
+        ]
+      ],
+      "log_sha256": "deab5ec9d4a1b9df226bae729ae056fae4cf189acd8a404ef8078d4fce73bdeb"
+    },
+    {
+      "selection": "ArchiveImportCorrectionTests/testImportUsesSessionSnapshotWithoutAnExtraOpen",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ArchiveImportCorrectionTests/testImportUsesSessionSnapshotWithoutAnExtraOpen",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/104-ArchiveImportCorrectionTests-testImportUsesSessionSnapshotWithoutAnExtraOpen.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ArchiveImportCorrectionTests",
+          "testImportUsesSessionSnapshotWithoutAnExtraOpen",
+          "passed"
+        ]
+      ],
+      "log_sha256": "d8e2fc276a9dc0117d6ccb5dd650d94c12dc0a6cf473d2852d608e5d6f98101f"
+    },
+    {
+      "selection": "ArchivePasswordEditingTests/testSevenZipBeginningPasswordEditsStillUseRewriter",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ArchivePasswordEditingTests/testSevenZipBeginningPasswordEditsStillUseRewriter",
+        "/Users/nagash/Github/KaitoFinder/build/s25-p5a/P1dAS33Tests.xctest"
+      ],
+      "log": "build/s25-p5a/105-ArchivePasswordEditingTests-testSevenZipBeginningPasswordEditsStillUseRewriter.log",
+      "environment": {
+        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a",
+        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s25-p5a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ArchivePasswordEditingTests",
+          "testSevenZipBeginningPasswordEditsStillUseRewriter",
+          "passed"
+        ]
+      ],
+      "log_sha256": "516f180b7a878376d6d6b21405a5acf3e0087f4c569b1486c257af8f23ba22be"
+    }
+  ]
+}

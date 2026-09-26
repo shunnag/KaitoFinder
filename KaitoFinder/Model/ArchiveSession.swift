@@ -669,14 +669,18 @@ actor ArchiveSession {
         var mode = base.resolved(with: output)
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
-            mode = format == .zip ? .inPlace : .rewrite(format)
             output = encryption.applying(to: writerOptions(format), format: format)
+            mode = base.resolved(with: output)
+            if format == .sevenZip, case .update = mode, capabilities.sevenZipAssessment?.canReencrypt != true {
+                mode = .rewrite(.sevenZip)
+            }
         }
         let outputFormat = mode.outputFormat
         try validatePendingRepresentability(pending, plan: plan, base: snapshot.entries, generation: baseGeneration, format: outputFormat)
         let baseUnits = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? =
             outputFormat == .zip && plan.outputEncryption != nil ? .init(output) : nil
+        let sevenZipEncryption: Bool? = outputFormat == .sevenZip && plan.outputEncryption != nil ? output.password != nil : nil
         progress.totalUnitCount = baseUnits + (zipEncryption == nil ? 0 : ArchiveReencryptionProgress.units)
         progress.completedUnitCount = 0
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.additions.map(\.stagedURL)) {
@@ -696,7 +700,7 @@ actor ArchiveSession {
                         ? try requireCurrentReader().reopen() : nil,
                     additionalQuarantine: quarantine,
                     publication: publication, deferredPlan: plan,
-                    expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption)) { editor in
+                    expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)) { editor in
                         try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress,
                                         preservingOwnerIDs: output.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(outputFormat))
                     }
@@ -823,6 +827,11 @@ actor ArchiveSession {
         let output = action == .remove ? ArchiveEncryptionSettings() : settings
         let options = output.applying(to: writerOptions(format), format: format)
         let sourcePassword = password
+        var mode = capabilities.mode!.resolved(with: options)
+        if format == .sevenZip, case .update = mode, capabilities.sevenZipAssessment?.canReencrypt != true {
+            mode = .rewrite(.sevenZip)
+        }
+        let sevenZipEncryption: Bool? = format == .sevenZip ? options.password != nil : nil
         let zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = format == .zip ? .init(options) : nil
         progress.totalUnitCount = 1 + (format == .zip ? ArchiveReencryptionProgress.units : 0)
         progress.completedUnitCount = 0
@@ -833,15 +842,17 @@ actor ArchiveSession {
                 return try ArchiveImportTransaction.publish(archive: sourceURL, mode: mode, options: options, password: password,
                     progress: progress, commitProgress: format == .zip ? meter.update : nil,
                     willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                    expectedOutput: .init(projected: reader.entries, mode: mode, zipEncryption: zipEncryption)) { editor in
+                    expectedOutput: .init(projected: reader.entries, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)) { editor in
                         if mode == .inPlace {
                             guard let updater = editor as? ArchiveUpdater else { throw ArchiveEditError.staleSelection }
                             try updater.reencryptExistingEntries(currentPassword: sourcePassword)
+                        } else if format == .sevenZip {
+                            try (editor as? any ArchiveReencrypting)?.reencryptExistingEntries(currentPassword: sourcePassword)
                         }
                     }
             }
             let identity: ArchiveSetIdentity
-            do { identity = try publish(format == .zip ? .inPlace : .rewrite(format)) }
+            do { identity = try publish(mode) }
             catch UpdaterError.nonRelocatableEntry where format == .zip {
                 progress.totalUnitCount = 1
                 progress.completedUnitCount = 0

@@ -218,6 +218,10 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             try editor.rename(entryAt: rename.entry.index, to: rename.path)
             progress.completedUnitCount += 1
         }
+        // 7z の追加位置は、暗号化を変える既存 pack の長さを先に含めて決める。
+        if outputEncryption != nil, let updater = editor as? any ArchiveReencrypting {
+            try updater.reencryptExistingEntries(currentPassword: sourcePassword)
+        }
         for addition in additions {
             try ArchiveImportPlan.checkCancellation(progress)
             if addition.sourceStamp.kind == .directory {
@@ -235,9 +239,6 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             try editor.addDirectory(folder.path, modificationDate: folder.date,
                                     ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
             progress.completedUnitCount += 1
-        }
-        if outputEncryption != nil, let updater = editor as? ArchiveUpdater {
-            try updater.reencryptExistingEntries(currentPassword: sourcePassword)
         }
     }
 

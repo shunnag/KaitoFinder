@@ -15,7 +15,7 @@ nonisolated final class EditPlacementPreferencesTests: XCTestCase {
             let configuration = try ArchiveProbeConfiguration(environment: environment)
             var preferences = ArchivePreferences()
             preferences.additionPosition = configuration.additionPosition
-            for format: ProbeArchiveFormat in [.tar, .tarGzip, .tarBzip2, .tarXZ, .lha] {
+            for format: ProbeArchiveFormat in [.tar, .tarGzip, .tarBzip2, .tarXZ, .lha, .sevenZip] {
                 let mode = ArchiveCapabilities.Mode.update(format.writerFormat).resolved(with: preferences.writerOptions(for: format.writerFormat))
                 XCTAssertEqual(mode, placement == "beginning" ? .rewrite(format.writerFormat) : .update(format.writerFormat))
                 XCTAssertEqual(format.editorStage(placement: configuration.additionPosition), placement == "beginning" ? .rewriterOpen : .updaterOpen)

@@ -229,8 +229,8 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         XCTAssertEqual(try ExtractionQuarantine.read(from: url), quarantine)
         XCTAssertTrue(session.hasEncryptedEntries)
         XCTAssertTrue(session.hasKnownPassword)
-        XCTAssertEqual(session.capabilities.mode, format == .zip ? .inPlace : .rewrite(.sevenZip))
-        XCTAssertTrue(controller.capabilityNotice.isHidden || format == .sevenZip)
+        XCTAssertEqual(session.capabilities.mode, format == .zip ? .inPlace : .update(.sevenZip))
+        XCTAssertTrue(controller.capabilityNotice.isHidden)
         XCTAssertEqual(undo.undoMenuItemTitle, String(localized: "パスワードの設定を取り消す"))
         let protectedBytes = try Data(contentsOf: url)
         document.undo(nil)
@@ -393,9 +393,9 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         await session.close()
     }
 
-    func testSevenZipPasswordEditsStillUseRewriter() async throws {
+    func testSevenZipBeginningPasswordEditsStillUseRewriter() async throws {
         let directory = try ArchiveTestDirectory(), url = try archive(in: directory, format: .sevenZip)
-        let session = try ArchiveSession(url: url)
+        let session = try ArchiveSession(url: url, writerOptions: { _ in WriterOptions(additionPlacement: .beginning) })
         for action: ArchivePasswordAction in [.set, .change, .remove] {
             let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([]), progress = Progress()
             try await ArchiveStageDiagnostics.observer.withValue({ event in
@@ -482,7 +482,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         _ = try ArchiveCreationTransaction.run(plan: plan, progress: Progress())
         try await document.switchBackingFile(to: output, password: plan.options.password)
         XCTAssertEqual(document.fileURL, output)
-        XCTAssertEqual(document.session?.capabilities.mode, .rewrite(.sevenZip))
+        XCTAssertEqual(document.session?.capabilities.mode, .update(.sevenZip))
         XCTAssertTrue(try XCTUnwrap(document.session).hasKnownPassword)
         try assertProtected(output, password: "output-key", rejectedPassword: "source-key", headers: true)
         XCTAssertEqual(try Data(contentsOf: source), original)
