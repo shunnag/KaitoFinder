@@ -1,0 +1,26 @@
+{
+  "KaitoFinder": {
+    "commit": "96a2bc53a2dd59a95fe9296c4eda0cf0c8fbe657",
+    "archive_sha256": "d1a5511457528a35e18abf1f6326f73f3fc3e0db1340f5105b5c35167f30902a"
+  },
+  "GyoshukuKit": {
+    "commit": "52655cbd76f73f97f4715d06baed1478d6b30a47",
+    "archive_sha256": "2a992f24303d74ec82c3e1489515a93083ddf27ad64d1b7b9f7d9a62fc966392",
+    "files": 295,
+    "mismatches": []
+  },
+  "KaitoKit": {
+    "commit": "823ad460faab055b6b7051da10583480785e8f68",
+    "archive_sha256": "ff3623293c7ff4026176a7446f24a6c5c7beb163ceb81507066b0a0b9abf578b",
+    "files": 1513,
+    "mismatches": []
+  },
+  "KaitoFinder_working_copy": {
+    "files": 135,
+    "mismatches": []
+  },
+  "KaitoFinderTests_working_copy": {
+    "files": 171,
+    "mismatches": []
+  }
+}

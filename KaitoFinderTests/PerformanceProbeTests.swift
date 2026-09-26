@@ -13,6 +13,100 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         super.tearDown()
     }
 
+    @MainActor func testSearchFilterWhenEnabled() async throws {
+        #if DEBUG
+        let configuration = try ArchiveProbeConfiguration()
+        preserveArchiveWindowFrame()
+        ArchiveProbeTrace.line("PROBE-SEARCH-HEADER\tentries\tnames\ttransition\tstage\tms")
+        for japanese in [false, true] {
+            let entries = (0..<configuration.entries).map { index in
+                archiveColumnEntry(japanese ? "資料\(index / 100)/文書\(index).txt" : "d\(index / 100)/file\(index).txt",
+                                   index: index, size: 1)
+            }
+            let defaults = try ArchivePreferencesTestDefaults()
+            let controller = ArchiveWindowController(preferencesStore: ArchivePreferencesStore(defaults: defaults.defaults))
+            defer { controller.close() }
+            let root = EntryNode.tree(from: entries)
+            controller.showWindow(nil)
+            controller.display(root)
+            let broad = japanese ? "文書" : "file", narrow = broad + String(configuration.entries - 1)
+            let names = japanese ? "ja" : "ascii"
+            let queries = [broad, narrow, "", narrow, "zzz", "", broad, ""] + (japanese ? [] : ["資料9", ""])
+            await ArchiveWindowController.filterExecution.withValue(.automatic) {
+                for (index, query) in queries.enumerated() {
+                    let previous = controller.filterQuery
+                    let transition = "\(index + 1):\(previous.isEmpty ? "empty" : previous)->\(query.isEmpty ? "empty" : query)"
+                    let rows = controller.outlineView.numberOfRows
+                    let stages = Mutex<[ArchiveStageDiagnostics.Stage: Duration]>([:])
+                    var requestTime = Duration.zero
+                    let start = ContinuousClock.now
+                    await ArchiveStageDiagnostics.observer.withValue({ event in
+                        if case .ended(_, let stage, let duration) = event {
+                            stages.withLock { $0[stage, default: .zero] += duration }
+                        }
+                    }) {
+                        let requestStart = ContinuousClock.now
+                        controller.setFilterQuery(query)
+                        requestTime = requestStart.duration(to: .now)
+                        await controller.filterTaskForTesting?.value
+                    }
+                    let elapsed = start.duration(to: .now), measured = stages.withLock { $0 }
+                    let compute = measured[.filterCompute, default: .zero]
+                    let swap = measured[.filterSwap] ?? (requestTime - compute)
+                    let synchronousStart = ContinuousClock.now
+                    var synchronous: EntryTreeFilter? = EntryTreeFilter(root: root, query: query)
+                    let synchronousTime = synchronousStart.duration(to: .now)
+                    ArchiveBackgroundRelease.release(&synchronous)
+                    for (stage, duration) in [("filter_request", requestTime), ("filter_compute", compute), ("filter_swap", swap),
+                                              ("elapsed", elapsed), ("synchronous_compute", synchronousTime)] {
+                        Self.searchProbeLine(configuration.entries, names: names, transition: transition, stage: stage, duration: duration)
+                    }
+                    ArchiveProbeTrace.line("PROBE-SEARCH-ROWS\t\(configuration.entries)\t\(names)\t\(transition)\t\(rows)\t\(controller.outlineView.numberOfRows)")
+                    XCTAssertEqual(controller.filterQuery, query)
+                }
+                for query in [narrow, broad] {
+                    controller.setFilterQuery(query)
+                    await controller.filterTaskForTesting?.value
+                    let tree = EntryNode.tree(from: entries), transition = "display:\(query)"
+                    let stages = Mutex<[Duration]>([]), mainFilters = ArchiveTestCounter()
+                    var prepared: EntryTreeFilter?
+                    await ArchiveStageDiagnostics.observer.withValue({ event in
+                        if case .ended(_, .filterCompute, let duration) = event { stages.withLock { $0.append(duration) } }
+                    }) {
+                        prepared = await EntryTreeFilter.build(root: tree, configuration: controller.filterConfiguration)
+                    }
+                    Self.searchProbeLine(configuration.entries, names: names, transition: transition, stage: "filter_compute",
+                                         duration: stages.withLock { $0.reduce(.zero, +) })
+                    let rows = controller.outlineView.numberOfRows
+                    let start = ContinuousClock.now
+                    ArchiveTestCounters.mainThreadFilters.withValue(mainFilters) { controller.display(tree, preparedFilter: prepared) }
+                    Self.searchProbeLine(configuration.entries, names: names, transition: transition, stage: "display", duration: start.duration(to: .now))
+                    ArchiveProbeTrace.line("PROBE-SEARCH\t\(configuration.entries)\t\(names)\t\(transition)\tmain_thread_filters\t\(mainFilters.value)")
+                    ArchiveProbeTrace.line("PROBE-SEARCH-ROWS\t\(configuration.entries)\t\(names)\t\(transition)\t\(rows)\t\(controller.outlineView.numberOfRows)")
+                    let synchronousStart = ContinuousClock.now
+                    var synchronous: EntryTreeFilter? = EntryTreeFilter(root: tree, query: query)
+                    Self.searchProbeLine(configuration.entries, names: names, transition: transition, stage: "synchronous_compute", duration: synchronousStart.duration(to: .now))
+                    ArchiveBackgroundRelease.release(&synchronous)
+                    ArchiveBackgroundRelease.release(&prepared)
+                    XCTAssertEqual(mainFilters.value, 0)
+                    XCTAssertEqual(controller.preparedFilterMissesForTesting, 0)
+                }
+            }
+            withExtendedLifetime(root) {}
+        }
+        #else
+        throw XCTSkip("Stage probes require DEBUG")
+        #endif
+    }
+
+    #if DEBUG
+    private static func searchProbeLine(_ entries: Int, names: String, transition: String, stage: String, duration: Duration) {
+        let milliseconds = Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1e15
+        let value = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), milliseconds)
+        ArchiveProbeTrace.line("PROBE-SEARCH\t\(entries)\t\(names)\t\(transition)\t\(stage)\t\(value)")
+    }
+    #endif
+
     @MainActor func testArchiveOpeningWhenEnabled() async throws {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()

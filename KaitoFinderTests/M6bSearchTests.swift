@@ -31,12 +31,15 @@ nonisolated final class M6bSearchTests: XCTestCase {
         }
         let start = ContinuousClock.now
         controller.filterEntries(controller.searchField)
+        await controller.filterTaskForTesting?.value
         print("M6b SEARCH \(mode) entries=100000 final-filter ms=\(milliseconds(start.duration(to: .now)))")
         XCTAssertEqual(controller.filterQuery, "file")
         XCTAssertEqual(controller.outlineView.numberOfRows, 101_000)
         controller.setFilterQuery("file99999")
+        await controller.filterTaskForTesting?.value
         XCTAssertEqual(controller.outlineView.numberOfRows, 2)
         controller.setFilterQuery("")
+        await controller.filterTaskForTesting?.value
         XCTAssertEqual(controller.outlineView.numberOfRows, 1_000)
     }
 

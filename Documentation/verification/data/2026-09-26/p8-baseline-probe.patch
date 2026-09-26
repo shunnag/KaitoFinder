@@ -1,0 +1,158 @@
+--- a/KaitoFinder/UI/ArchiveWindowController.swift
++++ b/KaitoFinder/UI/ArchiveWindowController.swift
+@@ -681,7 +681,13 @@
+         outlineView.cancelRenaming()
+         closePreview()
+         // 古い行を閉じ終わるまで、root・フィルタ・子一覧を差し替えない。
++        #if DEBUG
++        let collapseStart = ContinuousClock.now
++        #endif
+         outlineView.collapseItem(nil, collapseChildren: true)
++        #if DEBUG
++        Self.filterProbe.get()?("display_collapse", collapseStart.duration(to: .now))
++        #endif
+         let nextMaterialization = session.map { session in
+             materializationController ?? (document as? ArchiveDocument)?.materializationController()
+                 ?? ArchiveMaterializationController(session: session)
+@@ -898,7 +904,13 @@
+         guard query != filterQuery else { return }
+         // 未確定の不正な名前を reload で捨てない。ソートと同じ確定規則を使う。
+         guard outlineView.commitRenaming() else { searchField.stringValue = filterQuery; return }
++        #if DEBUG
++        let captureStart = ContinuousClock.now
++        #endif
+         let state = captureViewState()
++        #if DEBUG
++        Self.filterProbe.get()?("capture", captureStart.duration(to: .now))
++        #endif
+         if filterQuery.isEmpty { unfilteredViewState = state }
+         filterQuery = query
+         searchField.stringValue = query
+@@ -910,16 +922,49 @@
+         reloadFilteredEntries(restoring: restored)
+     }
+ 
++    #if DEBUG
++    nonisolated static let filterProbe = TaskLocal<(@Sendable (String, Duration) -> Void)?>(wrappedValue: nil)
++    #endif
++
+     private func reloadFilteredEntries(restoring state: ArchiveViewState, expandsMatches: Bool = true,
+                                        prepared: EntryTreeFilter? = nil, collapsesExistingItems: Bool = true) {
++        #if DEBUG
++        var stamp = ContinuousClock.now
++        func lap(_ label: String) {
++            let now = ContinuousClock.now
++            Self.filterProbe.get()?(label, stamp.duration(to: now))
++            stamp = now
++        }
++        #endif
+         // 古い子一覧で先に閉じ、展開済みの全行を reload しない。
+         if collapsesExistingItems { outlineView.collapseItem(nil, collapseChildren: true) }
++        #if DEBUG
++        lap("collapse")
++        #endif
+         entryFilter = prepared ?? EntryTreeFilter(root: root, query: filterQuery, showsHiddenFiles: showsHiddenFiles)
++        #if DEBUG
++        lap("filter")
++        #endif
+         sortedChildren.removeAll()
++        #if DEBUG
++        lap("cache_clear")
++        #endif
+         outlineView.reloadData()
++        #if DEBUG
++        lap("reload_data")
++        #endif
+         if expandsMatches, !filterQuery.isEmpty { outlineView.expandItem(nil, expandChildren: true) }
++        #if DEBUG
++        lap("expand")
++        #endif
+         restoreViewState(state)
++        #if DEBUG
++        lap("restore")
++        #endif
+         updatePreviewSidebar()
++        #if DEBUG
++        lap("sidebar")
++        #endif
+     }
+ 
+     private func selectionRoots(_ nodes: [EntryNode]) -> [EntryNode] {
+--- /dev/null
++++ b/KaitoFinderTests/ZZFilterShareProbeTests.swift
+@@ -0,0 +1,75 @@
++import AppKit
++import KaitoKit
++import XCTest
++import Synchronization
++@testable import KaitoFinder
++
++#if DEBUG
++nonisolated final class ZZFilterShareProbeTests: XCTestCase {
++    @MainActor func testFilterShare() async throws {
++        guard ProcessInfo.processInfo.environment["KAITOFINDER_FILTER_PROBE"] == "1" else { throw XCTSkip("probe") }
++        preserveArchiveWindowFrame()
++        for (count, perFolder, japanese) in [(100_000, 100, false), (100_000, 100, true), (500_000, 100, false)] {
++            let defaults = try ArchivePreferencesTestDefaults()
++            let controller = ArchiveWindowController(preferencesStore: ArchivePreferencesStore(defaults: defaults.defaults))
++            let entries = (0..<count).map { index in
++                archiveColumnEntry(japanese ? "資料\(index / perFolder)/文書\(index).txt" : "d\(index / perFolder)/file\(index).txt", index: index, size: 1)
++            }
++            let root = EntryNode.tree(from: entries)
++            let laps = Mutex<[(String, Duration)]>([])
++            try await ArchiveWindowController.filterProbe.withValue({ label, duration in
++                laps.withLock { $0.append((label, duration)) }
++            }) {
++                controller.showWindow(nil)
++                controller.display(root)
++                let narrow = japanese ? "文書\(count - 1)" : "file\(count - 1)"
++                let broad = japanese ? "文書" : "file"
++                for query in [broad, narrow, "", narrow, "zzz", "", broad, ""] + (japanese ? [] : ["資料9", ""]) {
++                    laps.withLock { $0.removeAll() }
++                    let previousRows = controller.outlineView.numberOfRows
++                    let start = ContinuousClock.now
++                    controller.setFilterQuery(query)
++                    let total = start.duration(to: .now)
++                    let parts = laps.withLock { $0 }.map { "\($0.0)=\(ms($0.1))" }.joined(separator: " ")
++                    print("FILTER-PROBE n=\(count) perFolder=\(perFolder) ja=\(japanese) query='\(query)' prevRows=\(previousRows) rows=\(controller.outlineView.numberOfRows) total=\(ms(total)) \(parts)")
++                }
++                for query in [broad, narrow, "zzz", "資料9"] {
++                    let start = ContinuousClock.now
++                    let filter = await Task.detached { EntryTreeFilter(root: root, query: query, showsHiddenFiles: false) }.value
++                    print("FILTER-PROBE-OFFMAIN n=\(count) perFolder=\(perFolder) ja=\(japanese) query='\(query)' ms=\(ms(start.duration(to: .now))) matching=\(filter.matchingCount)")
++                }
++                // display() with a query active (immediate reload path: no prepared filter)
++                controller.setFilterQuery(narrow)
++                laps.withLock { $0.removeAll() }
++                let rebuilt = EntryNode.tree(from: entries)
++                let start = ContinuousClock.now
++                controller.display(rebuilt)
++                print("FILTER-PROBE-DISPLAY n=\(count) perFolder=\(perFolder) ja=\(japanese) query='\(narrow)' total=\(ms(start.duration(to: .now))) \(laps.withLock { $0 }.map { "\($0.0)=\(ms($0.1))" }.joined(separator: " "))")
++                controller.setFilterQuery(broad)
++                try await Task.sleep(for: .milliseconds(300))
++                laps.withLock { $0.removeAll() }
++                let rebuiltA = EntryNode.tree(from: entries)
++                let startA = ContinuousClock.now
++                controller.display(rebuiltA)
++                print("FILTER-PROBE-NOTE old tree released in background during the display above")
++                print("FILTER-PROBE-DISPLAY-AFTER-DRAIN n=\(count) perFolder=\(perFolder) ja=\(japanese) query='\(broad)' total=\(ms(startA.duration(to: .now))) \(laps.withLock { $0 }.map { "\($0.0)=\(ms($0.1))" }.joined(separator: " "))")
++                try await Task.sleep(for: .milliseconds(300))
++                laps.withLock { $0.removeAll() }
++                let rebuilt2 = EntryNode.tree(from: entries)
++                let start2 = ContinuousClock.now
++                controller.display(rebuilt2)
++                let heldTotal = start2.duration(to: .now)
++                print("FILTER-PROBE-HELD-OLD-TREE total=\(ms(heldTotal))")
++                withExtendedLifetime(rebuiltA) {}
++                print("FILTER-PROBE-DISPLAY n=\(count) perFolder=\(perFolder) ja=\(japanese) query='\(broad)' total=\(ms(start2.duration(to: .now))) \(laps.withLock { $0 }.map { "\($0.0)=\(ms($0.1))" }.joined(separator: " "))")
++            }
++            controller.close()
++        }
++    }
++
++    private func ms(_ duration: Duration) -> String {
++        String(format: "%.1f", Double(duration.components.seconds) * 1_000 + Double(duration.components.attoseconds) / 1e15)
++    }
++}
++
++#endif

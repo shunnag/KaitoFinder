@@ -47,6 +47,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let bundle: Bundle
     private let preferencesStore: ArchivePreferencesStore
     private var showsHiddenFiles: Bool
+    private var requestedShowsHiddenFiles: Bool
     private var keepsFoldersOnTop: Bool
     let kindResolver: ArchiveKindResolver
     // 非表示になったフォルダの展開状態も、再表示まで保持する。
@@ -72,7 +73,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     #endif
     private var listLoadingRevealTask: Task<Void, Never>?
     let listLoadingIndicator = NSProgressIndicator()
-    var isListLoadingVisible: Bool { !listLoadingIndicator.isHidden }
+    private(set) var isListLoadingVisible = false
     private let promiseOwner = UUID()
     private(set) var draggedNodes: [EntryNode] = []
     private(set) var extractionTask: Task<Void, Never>?
@@ -104,8 +105,34 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     let pathControl = NSPathControl()
     private(set) var thumbnailProvider: ArchiveThumbnailProvider?
     private(set) var filterQuery = ""
+    private(set) var requestedFilterQuery = ""
     private var entryFilter: EntryTreeFilter?
-    var filterConfiguration: EntryTreeFilter.Configuration { .init(query: filterQuery, showsHiddenFiles: showsHiddenFiles) }
+    var filterConfiguration: EntryTreeFilter.Configuration { .init(query: requestedFilterQuery, showsHiddenFiles: requestedShowsHiddenFiles) }
+    nonisolated static let asyncFilterThreshold = 20_000
+    private enum FilterReason { case query, hiddenFiles }
+    private enum FilterDecision { case discard, hold, apply }
+    private struct FilterRequest {
+        let token: UUID
+        let root: EntryNode
+        let generation: UInt64
+        let configuration: EntryTreeFilter.Configuration
+        let reason: FilterReason
+        var task: Task<Void, Never>?
+        var revealTask: Task<Void, Never>?
+    }
+    private var filterRequest: FilterRequest?
+    private(set) var isFilterPendingVisible = false
+    private var trackingListMenus: Set<ObjectIdentifier> = []
+    private var isTrackingListMenu: Bool { !trackingListMenus.isEmpty }
+    #if DEBUG
+    nonisolated enum FilterExecution: Sendable { case automatic, synchronous, asynchronous }
+    nonisolated static let filterExecution = TaskLocal<FilterExecution>(wrappedValue: .automatic)
+    private(set) var filterTaskForTesting: Task<Void, Never>?
+    private(set) var filterSwapCountForTesting = 0
+    private(set) var filterApplyCountForTesting = 0
+    private(set) var preparedFilterMissesForTesting = 0
+    func setDraggedNodesForTesting(_ nodes: [EntryNode]) { draggedNodes = nodes }
+    #endif
     private var unfilteredViewState: ArchiveViewState?
     private var materialization: ArchiveMaterializationController?
     let previewSidebar: ArchivePreviewSidebar
@@ -149,6 +176,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         previewSidebar = ArchivePreviewSidebar(bundle: bundle, kindResolver: kindResolver)
         previewSplitItem = NSSplitViewItem(viewController: previewSidebar)
         showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
+        requestedShowsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         keepsFoldersOnTop = preferencesStore.preferences.keepsFoldersOnTop
         unlockButton = NSButton(title: String(localized: "ロックを解除…", bundle: bundle), target: nil, action: nil)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
@@ -159,6 +187,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.permitsInteraction = { [weak self] in self?.operationInFlight != true }
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: preferencesStore)
+        for name in [NSMenu.didBeginTrackingNotification, NSMenu.didEndTrackingNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(listMenuTrackingChanged(_:)), name: name, object: nil)
+        }
         window.minSize = NSSize(width: 600, height: 300)
         window.center()
         window.setFrameAutosaveName(Self.frameAutosaveName)
@@ -521,6 +552,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func displayLocked() {
+        cancelFilterWork()
         display(EntryNode.tree(from: []))
         pathControl.pathItems = []
         isLocked = true
@@ -605,8 +637,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             do { try await Task.sleep(until: revealAt, clock: .continuous) }
             catch { return }
             guard let self, self.isCurrentListLoading(token) else { return }
-            self.listLoadingIndicator.isHidden = false
-            self.listLoadingIndicator.startAnimation(nil)
+            self.isListLoadingVisible = true
+            self.updateListLoadingIndicator()
             self.updateStatusBar()
         }
         return token
@@ -623,9 +655,19 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         listLoadingToken = nil
         listLoadingRevealTask?.cancel()
         listLoadingRevealTask = nil
-        listLoadingIndicator.stopAnimation(nil)
-        listLoadingIndicator.isHidden = true
+        isListLoadingVisible = false
+        updateListLoadingIndicator()
         updateStatusBar()
+    }
+
+    private func updateListLoadingIndicator() {
+        let visible = isListLoadingVisible || isFilterPendingVisible
+        listLoadingIndicator.isHidden = !visible
+        listLoadingIndicator.setAccessibilityLabel(isListLoadingVisible
+            ? String(localized: "項目を読み込んでいます…", bundle: bundle)
+            : String(localized: "検索しています…", bundle: bundle))
+        if visible { listLoadingIndicator.startAnimation(nil) }
+        else { listLoadingIndicator.stopAnimation(nil) }
     }
 
     private func cancelRenameIndex() {
@@ -639,6 +681,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func cancelListWork() {
+        cancelFilterWork()
         cancelListLoading()
         cancelRenameIndex()
     }
@@ -669,13 +712,19 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func display(_ root: EntryNode, session: ArchiveSession? = nil, generation: UInt64 = 0,
                  materializationController: ArchiveMaterializationController? = nil, preparedFilter: EntryTreeFilter? = nil,
                  indexingRenames: Bool = false, loadingToken: UUID? = nil) {
+        cancelFilterWork()
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.display)
         defer { span?.end() }
         #endif
         if let loadingToken, isCurrentListLoading(loadingToken) { cancelRenameIndex() }
         else { cancelListWork() }
-        let state = captureViewState()
+        var state = captureViewState()
+        if requestedFilterQuery != filterQuery {
+            if filterQuery.isEmpty { unfilteredViewState = state }
+            if !requestedFilterQuery.isEmpty { state.collapsedPaths.removeAll() }
+        }
+        showsHiddenFiles = requestedShowsHiddenFiles
         thumbnailProvider?.cancelAll()
         thumbnailProvider = nil
         outlineView.cancelRenaming()
@@ -761,7 +810,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 thumbnailProvider = provider
             }
         } else { materialization = nil }
-        reloadFilteredEntries(restoring: state, prepared: preparedFilter, collapsesExistingItems: false)
+        let prepared = preparedFilter.flatMap { $0.isBuilt(for: root, configuration: filterConfiguration) ? $0 : nil }
+        #if DEBUG
+        if prepared == nil, preparedFilter != nil || !requestedFilterQuery.isEmpty { preparedFilterMissesForTesting += 1 }
+        #endif
+        reloadFilteredEntries(restoring: state, prepared: prepared, collapsesExistingItems: false, applying: requestedFilterQuery)
         updatePathControl()
         updatePreviewSidebar()
         window?.toolbar?.validateVisibleItems()
@@ -836,6 +889,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             statusBar.stringValue = String(localized: "項目を読み込んでいます…", bundle: bundle)
             return
         }
+        if isFilterPendingVisible {
+            statusBar.stringValue = String(localized: "検索しています…", bundle: bundle)
+            return
+        }
         let selected = selectedNodes
         // 親と子を同時に選択しても、展開後のサイズは二重に加算しない。
         let selectedRoots = selectionRoots(selected)
@@ -870,7 +927,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     @objc func filterEntries(_ sender: NSSearchField) {
-        guard !operationInFlight else { sender.stringValue = filterQuery; return }
+        guard !operationInFlight else { sender.stringValue = requestedFilterQuery; return }
         setFilterQuery(sender.stringValue)
     }
 
@@ -878,16 +935,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let preferences = preferencesStore.preferences
         refreshCapabilityNotice(session: (document as? ArchiveDocument)?.session)
         outlineView.renamesOnClick = preferences.renamesOnClick
-        let visibilityChanged = showsHiddenFiles != preferences.showsHiddenFiles
+        let visibilityChanged = requestedShowsHiddenFiles != preferences.showsHiddenFiles
         guard visibilityChanged || keepsFoldersOnTop != preferences.keepsFoldersOnTop else { return }
-        let state = captureViewState()
-        showsHiddenFiles = preferences.showsHiddenFiles
         keepsFoldersOnTop = preferences.keepsFoldersOnTop
         outlineView.cancelRenaming()
         if visibilityChanged {
             closePreview()
-            reloadFilteredEntries(restoring: state, expandsMatches: false)
+            requestedShowsHiddenFiles = preferences.showsHiddenFiles
+            cancelFilterWork()
+            requestFilter(reason: requestedFilterQuery == filterQuery ? .hiddenFiles : .query)
         } else {
+            let state = captureViewState()
             sortedChildren.removeAll()
             outlineView.reloadData()
             restoreViewState(state)
@@ -895,26 +953,141 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     func setFilterQuery(_ query: String) {
-        guard query != filterQuery else { return }
+        guard query != requestedFilterQuery else { return }
         // 未確定の不正な名前を reload で捨てない。ソートと同じ確定規則を使う。
-        guard outlineView.commitRenaming() else { searchField.stringValue = filterQuery; return }
-        let state = captureViewState()
-        if filterQuery.isEmpty { unfilteredViewState = state }
-        filterQuery = query
+        guard outlineView.commitRenaming() else { searchField.stringValue = requestedFilterQuery; return }
+        requestedFilterQuery = query
         searchField.stringValue = query
-        var restored = query.isEmpty ? (unfilteredViewState ?? state) : state
-        // 検索語を変えたときは、新しい一致をすべて展開する。
-        restored.collapsedPaths.removeAll()
-        if query.isEmpty { unfilteredViewState = nil }
+        cancelFilterWork()
+        guard query != filterQuery || requestedShowsHiddenFiles != showsHiddenFiles else { return }
+        requestFilter(reason: .query)
+    }
+
+    func cancelFilterWork() {
+        filterRequest?.task?.cancel()
+        finishFilterWork()
+    }
+
+    private func finishFilterWork(token: UUID? = nil) {
+        if let token, filterRequest?.token != token { return }
+        filterRequest?.revealTask?.cancel()
+        filterRequest = nil
+        isFilterPendingVisible = false
+        updateListLoadingIndicator()
+        updateStatusBar()
+    }
+
+    private func requestFilter(reason: FilterReason) {
+        let root = self.root, configuration = filterConfiguration
+        var asynchronous = !configuration.query.isEmpty && root.nodeCount >= Self.asyncFilterThreshold
+        #if DEBUG
+        switch Self.filterExecution.get() {
+        case .automatic: break
+        case .synchronous: asynchronous = false
+        case .asynchronous: asynchronous = !configuration.query.isEmpty
+        }
+        #endif
+        guard asynchronous else {
+            applyFilter(EntryTreeFilter(root: root, query: configuration.query, showsHiddenFiles: configuration.showsHiddenFiles),
+                        configuration: configuration, reason: reason)
+            return
+        }
+        ArchiveStageDiagnostics.measure(.filterRequest) {
+            let token = UUID()
+            filterRequest = FilterRequest(token: token, root: root, generation: generation, configuration: configuration, reason: reason)
+            closePreview()
+            let revealAt = ContinuousClock.now + ExtractionProgressSheet.revealDelay
+            filterRequest?.revealTask = Task { [weak self] in
+                do { try await Task.sleep(until: revealAt, clock: .continuous) }
+                catch { return }
+                guard let self, self.filterRequest?.token == token else { return }
+                self.isFilterPendingVisible = true
+                self.updateListLoadingIndicator()
+                self.updateStatusBar()
+            }
+            let task = Task(priority: .userInitiated) { [weak self, root, configuration, token] in
+                var result = await EntryTreeFilter.build(root: root, configuration: configuration)
+                defer {
+                    self?.finishFilterWork(token: token)
+                    ArchiveBackgroundRelease.release(&result)
+                }
+                while !Task.isCancelled, result != nil {
+                    switch self?.filterDecision(for: result!, token: token) ?? .discard {
+                    case .discard: return
+                    case .apply: self?.applyRequestedFilter(&result, token: token); return
+                    case .hold: try? await Task.sleep(for: .milliseconds(100))
+                    }
+                }
+            }
+            filterRequest?.task = task
+            #if DEBUG
+            filterTaskForTesting = task
+            #endif
+        }
+    }
+
+    private func filterDecision(for result: EntryTreeFilter, token: UUID) -> FilterDecision {
+        guard let request = filterRequest, request.token == token, request.root === root,
+              result.isBuilt(for: root, configuration: request.configuration), request.configuration == filterConfiguration,
+              request.generation == generation, !isLocked else { return .discard }
+        if outlineView.isRenaming || operationInFlight || !draggedNodes.isEmpty || previewActive
+            || window?.attachedSheet != nil || isTrackingListMenu { return .hold }
+        return .apply
+    }
+
+    private func applyRequestedFilter(_ result: inout EntryTreeFilter?, token: UUID) {
+        guard let request = filterRequest, request.token == token, let filter = result else { return }
+        finishFilterWork(token: token)
+        ArchiveStageDiagnostics.measure(.filterSwap) {
+            applyFilter(filter, configuration: request.configuration, reason: request.reason)
+        }
+        result = nil
+        #if DEBUG
+        filterSwapCountForTesting += 1
+        #endif
+    }
+
+    @objc private func listMenuTrackingChanged(_ notification: Notification) {
+        guard let menu = notification.object as? NSMenu else { return }
+        if notification.name == NSMenu.didEndTrackingNotification {
+            trackingListMenus.remove(ObjectIdentifier(menu))
+            return
+        }
+        var ancestor: NSMenu? = menu
+        while let candidate = ancestor {
+            if candidate === outlineView.menu || candidate === outlineView.blankAreaMenu || candidate === outlineView.headerView?.menu {
+                trackingListMenus.insert(ObjectIdentifier(menu))
+                return
+            }
+            ancestor = candidate.supermenu
+        }
+    }
+
+    private func applyFilter(_ filter: EntryTreeFilter, configuration: EntryTreeFilter.Configuration, reason: FilterReason) {
+        let state = captureViewState()
+        var restored = state
+        if reason == .query {
+            if filterQuery.isEmpty { unfilteredViewState = state }
+            restored = configuration.query.isEmpty ? (unfilteredViewState ?? state) : state
+            restored.collapsedPaths.removeAll()
+            if configuration.query.isEmpty { unfilteredViewState = nil }
+        }
+        showsHiddenFiles = configuration.showsHiddenFiles
         closePreview()
-        reloadFilteredEntries(restoring: restored)
+        reloadFilteredEntries(restoring: restored, expandsMatches: reason == .query, prepared: filter, applying: configuration.query)
     }
 
     private func reloadFilteredEntries(restoring state: ArchiveViewState, expandsMatches: Bool = true,
-                                       prepared: EntryTreeFilter? = nil, collapsesExistingItems: Bool = true) {
+                                       prepared: EntryTreeFilter? = nil, collapsesExistingItems: Bool = true, applying query: String? = nil) {
         // 古い子一覧で先に閉じ、展開済みの全行を reload しない。
         if collapsesExistingItems { outlineView.collapseItem(nil, collapseChildren: true) }
+        if let query { filterQuery = query }
+        var retired = entryFilter
         entryFilter = prepared ?? EntryTreeFilter(root: root, query: filterQuery, showsHiddenFiles: showsHiddenFiles)
+        ArchiveBackgroundRelease.release(&retired)
+        #if DEBUG
+        filterApplyCountForTesting += 1
+        #endif
         sortedChildren.removeAll()
         outlineView.reloadData()
         if expandsMatches, !filterQuery.isEmpty { outlineView.expandItem(nil, expandChildren: true) }
@@ -1138,7 +1311,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let target = ArchiveViewState(selectedPaths: [path], expandedPaths: [], topPath: nil).resolve(in: root).selected.first
         guard let target else { return }
         // 新しい名前が検索に一致しなくても、作成した場所で直ちに改名できるようにする。
-        if !filterQuery.isEmpty, entryFilter?.contains(target) == false { setFilterQuery("") }
+        if (!filterQuery.isEmpty && entryFilter?.contains(target) == false) || requestedFilterQuery != filterQuery { setFilterQuery("") }
         var state = captureViewState()
         state.selectedPaths = [path]
         let parents = ArchivePath.components(path).dropLast()
@@ -1314,8 +1487,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                         self.unfilteredViewState = self.viewStateAfterMoving(unfiltered, nodes: moved, to: folder)
                     }
                     // 親の名前だけが検索に一致していた場合も、移動した項目を選択できるようにする。
-                    if !self.filterQuery.isEmpty,
-                       state.resolve(in: self.root).selected.contains(where: { self.entryFilter?.contains($0) == false }) {
+                    if (!self.filterQuery.isEmpty &&
+                        state.resolve(in: self.root).selected.contains(where: { self.entryFilter?.contains($0) == false }))
+                        || self.requestedFilterQuery != self.filterQuery {
                         self.setFilterQuery("")
                     }
                     self.restoreViewState(state)

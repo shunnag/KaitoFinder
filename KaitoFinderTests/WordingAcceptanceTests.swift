@@ -41,6 +41,21 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testSearchPendingStatusHasAllTwentySixTranslations() throws {
+        let key = "検索しています…", catalog = try LocalizationAcceptance.catalog()
+        let translations = try XCTUnwrap(catalog.strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let unit = try XCTUnwrap(translations[language]).stringUnit
+            XCTAssertEqual(unit.state, "translated")
+            XCTAssertFalse(unit.value.isEmpty)
+            XCTAssertFalse(unit.value.contains("..."))
+            XCTAssertTrue(unit.value.hasSuffix(language == "zh-Hant" ? "⋯" : language == "de" ? "\u{00a0}…" : "…"))
+            XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+            if language == "ja" { XCTAssertEqual(unit.value, key) }
+        }
+    }
+
     func testFirstCompressedTarEditWordingHasAllTwentySixTranslations() throws {
         let catalog = try LocalizationAcceptance.catalog()
         for key in ["最初の編集でアーカイブ全体を再圧縮します", "最初の保存でアーカイブ全体を再圧縮します"] {

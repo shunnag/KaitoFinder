@@ -20,6 +20,7 @@ nonisolated enum ArchiveStageDiagnostics {
         case planBuild = "plan_build", planValidation = "plan_validation"
         case nameIndexBuild = "name_index_build", nameIndexAdvance = "name_index_advance"
         case representabilityDifferential = "representability_differential"
+        case filterRequest = "filter_request", filterCompute = "filter_compute", filterSwap = "filter_swap"
     }
 
     #if DEBUG

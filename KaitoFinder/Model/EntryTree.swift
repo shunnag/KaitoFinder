@@ -36,6 +36,8 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
     }
 
     private init(name: String, isDirectory: Bool, entry: ArchiveEntry? = nil) {
+        var name = name
+        name.makeContiguousUTF8()
         self.name = name
         self.isDirectory = isDirectory
         self.entry = entry
@@ -186,6 +188,8 @@ nonisolated struct EntryTreeFilter: Sendable {
         let query: String
         let showsHiddenFiles: Bool
     }
+    let root: EntryNode
+    let configuration: Configuration
     private var visible: Set<ObjectIdentifier> = []
     private let unfiltered: Bool
     private let showsHiddenFiles: Bool
@@ -194,9 +198,33 @@ nonisolated struct EntryTreeFilter: Sendable {
     private(set) var matchingCount = 0
 
     init(root: EntryNode, query: String, showsHiddenFiles: Bool = false) {
+        self = Self(root: root, query: query, showsHiddenFiles: showsHiddenFiles, checksCancellation: false)!
+    }
+
+    #if DEBUG
+    nonisolated static let computeWillStartForTesting = TaskLocal<(@Sendable () -> Void)?>(wrappedValue: nil)
+    #endif
+
+    @concurrent static func build(root: EntryNode, configuration: Configuration) async -> EntryTreeFilter? {
         #if DEBUG
-        if Thread.isMainThread { ArchiveTestCounters.mainThreadFilters.get()?.increment() }
+        computeWillStartForTesting.get()?()
         #endif
+        return Self(root: root, query: configuration.query, showsHiddenFiles: configuration.showsHiddenFiles,
+                    checksCancellation: true)
+    }
+
+    func isBuilt(for root: EntryNode, configuration: Configuration) -> Bool {
+        self.root === root && self.configuration == configuration
+    }
+
+    private init?(root: EntryNode, query: String, showsHiddenFiles: Bool, checksCancellation: Bool) {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.filterCompute)
+        defer { span?.end() }
+        #endif
+        self.root = root
+        configuration = .init(query: query, showsHiddenFiles: showsHiddenFiles)
+        if checksCancellation, Task.isCancelled { return nil }
         unfiltered = query.isEmpty
         self.showsHiddenFiles = showsHiddenFiles
         totalSize = showsHiddenFiles ? root.size : root.visibleSize
@@ -205,20 +233,26 @@ nonisolated struct EntryTreeFilter: Sendable {
             matchingCount = totalCount
             return
         }
+        #if DEBUG
+        if Thread.isMainThread { ArchiveTestCounters.mainThreadFilters.get()?.increment() }
+        #endif
+        let matcher = EntryNameMatcher(query: query)
         var pending = [(root, false)]
         var visited: [EntryNode] = []
+        var scanned = 0
         while let (node, matchedAncestor) = pending.popLast() {
+            if checksCancellation, scanned % 1_024 == 0, Task.isCancelled { return nil }
+            scanned += 1
             guard showsHiddenFiles || !node.isHidden else { continue }
-            // 日本語の書庫では半角カナや全角数字が混在するため、文字幅も明示的に同一視する。
-            let matches = query.isEmpty || matchedAncestor || node.name.range(of: query,
-                options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) != nil
+            let matches = matchedAncestor || matcher.matches(node.name)
             if matches { visible.insert(ObjectIdentifier(node)) }
             visited.append(node)
             pending.append(contentsOf: node.children.map { ($0, matches && node.isDirectory) })
         }
         // 子から祖先へ辿り、名前に一致しない親も開けるように残す。
-        for node in visited.reversed() where node.children.contains(where: contains) {
-            visible.insert(ObjectIdentifier(node))
+        for (offset, node) in visited.reversed().enumerated() {
+            if checksCancellation, offset % 1_024 == 0, Task.isCancelled { return nil }
+            if node.children.contains(where: contains) { visible.insert(ObjectIdentifier(node)) }
         }
         // 選択変更のたびに全項目を数え直さない。root 自身は表示上の件数に含めない。
         totalCount = visited.count - 1

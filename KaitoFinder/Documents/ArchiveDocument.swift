@@ -461,7 +461,12 @@ import Synchronization
                     var baseTree: EntryNode?
                     let revision = self.pendingChanges.revision
                     if self.pendingChanges.isEmpty {
+                        let configuration = controller?.filterConfiguration
                         let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+                        var filters: [EntryTreeFilter.Configuration: EntryTreeFilter] = [:]
+                        if let configuration, !configuration.query.isEmpty {
+                            filters = await Self.prepareFilters(tree, configurations: [configuration])
+                        }
                         guard !Task.isCancelled, !self.closed, self.session === session,
                               session.generation == snapshot.generation,
                               controller?.isCurrentListLoading(loadingToken) == true else { return }
@@ -470,7 +475,8 @@ import Synchronization
                             session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
                                 changes: self.pendingChanges, staging: nil, nameSyntax: .init(session.reservationFormat)))
                             controller?.display(tree, session: session, generation: snapshot.generation,
-                                                materializationController: self.materializationController())
+                                                materializationController: self.materializationController(),
+                                                preparedFilter: controller.flatMap { filters[$0.filterConfiguration] })
                             baseTree = tree
                         }
                     }
@@ -492,12 +498,18 @@ import Synchronization
                     if !self.closed, !(error is CancellationError) { self.presentError(error) }
                 }
             } else {
+                let configuration = controller?.filterConfiguration
                 let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+                var filters: [EntryTreeFilter.Configuration: EntryTreeFilter] = [:]
+                if let configuration, !configuration.query.isEmpty {
+                    filters = await Self.prepareFilters(tree, configurations: [configuration])
+                }
                 guard !Task.isCancelled, !self.closed, self.session === session,
                       session.generation == snapshot.generation,
                       controller?.isCurrentListLoading(loadingToken) == true else { return }
                 controller?.display(tree, session: session, generation: snapshot.generation,
-                                    materializationController: self.materializationController(), indexingRenames: true)
+                                    materializationController: self.materializationController(),
+                                    preparedFilter: controller.flatMap { filters[$0.filterConfiguration] }, indexingRenames: true)
             }
         }
     }
@@ -949,11 +961,14 @@ import Synchronization
             }
             return false
         }
+        let configurations = Set(loading.map { $0.controller.filterConfiguration }.filter { !$0.query.isEmpty })
         let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+        let filters = await Self.prepareFilters(tree, configurations: configurations)
         guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
         for (controller, token) in loading where controller.isCurrentListLoading(token) {
             controller.display(tree, session: session, generation: snapshot.generation,
-                               materializationController: materializationController(), indexingRenames: true)
+                               materializationController: materializationController(),
+                               preparedFilter: filters[controller.filterConfiguration], indexingRenames: true)
         }
         return false
     }

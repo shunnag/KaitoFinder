@@ -1,0 +1,63 @@
+source	log	selection	exit	passed	failed	skipped	unfinished	environment
+S34	001-EntryNameMatcherTests.log	EntryNameMatcherTests	0	9	0	0		{"TZ":"Asia/Tokyo"}
+S34	002-AsyncSearchFilterTests.log	AsyncSearchFilterTests	-5	9	0	0	testRenamingDragPreviewSheetsAndListMenusHoldCompletedResult	{"TZ":"Asia/Tokyo"}
+S34	003-EntryTreeTests.log	EntryTreeTests	0	16	0	0		{"TZ":"Asia/Tokyo"}
+S34	004-AsyncSearchFilterTests.log	AsyncSearchFilterTests	-5	12	1	0	testPasswordPromptHoldsCompletedFilter	{"TZ":"Asia/Tokyo"}
+S34	005-EntryNameMatcherTests-testSeededRandomASCIIAndUppercaseSubstringsMatchFoundation.log	EntryNameMatcherTests/testSeededRandomASCIIAndUppercaseSubstringsMatchFoundation	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	006-M6bSearchTests.log	M6bSearchTests	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	007-ArchiveDisplayTests.log	ArchiveDisplayTests	1	17	1	0		{"TZ":"Asia/Tokyo"}
+S34	008-ArchiveEntryControlsTests.log	ArchiveEntryControlsTests	-5	4	0	0	testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged	{"TZ":"Asia/Tokyo"}
+S34	009-ArchiveHiddenFilesTests.log	ArchiveHiddenFilesTests	1	7	1	0		{"TZ":"Asia/Tokyo"}
+S34	010-ImmediateOpeningTests.log	ImmediateOpeningTests	0	12	0	0		{"TZ":"Asia/Tokyo"}
+S34	011-DeferredOpeningTests.log	DeferredOpeningTests	0	3	0	0		{"TZ":"Asia/Tokyo"}
+S34	012-AsyncSearchFilterTests.log	AsyncSearchFilterTests	0	18	0	3		{"TZ":"Asia/Tokyo"}
+S34	013-M6bSearchTests.log	M6bSearchTests	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	014-ArchivePreviewSidebarTests-testSelectionChangeMultipleSelectionAndSearchClearStalePreview.log	ArchivePreviewSidebarTests/testSelectionChangeMultipleSelectionAndSearchClearStalePreview	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	015-DeferredPostSaveTests-testSaveCompletesAndDisplaysBeforePreparationWhileReservationsWait.log	DeferredPostSaveTests/testSaveCompletesAndDisplaysBeforePreparationWhileReservationsWait	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	016-ScenarioExternalChangeTests-testDeletedSourceRefusesExtractionAndEditAndWindowCanReload.log	ScenarioExternalChangeTests/testDeletedSourceRefusesExtractionAndEditAndWindowCanReload	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	017-ArchiveFinderInteractionTests-testPendingClickDoesNotRenameAfterSelectionSortFilterFocusOrPreferenceChange.log	ArchiveFinderInteractionTests/testPendingClickDoesNotRenameAfterSelectionSortFilterFocusOrPreferenceChange	0	0	0	1		{"TZ":"Asia/Tokyo"}
+S34	018-WordingAcceptanceTests-testCatalogHasTwentySixNonemptyTranslationsWithMatchingOrderedFormatSpecifiers.log	WordingAcceptanceTests/testCatalogHasTwentySixNonemptyTranslationsWithMatchingOrderedFormatSpecifiers	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	019-WordingAcceptanceTests-testJapaneseStyle.log	WordingAcceptanceTests/testJapaneseStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	020-WordingAcceptanceTests-testEnglishStyle.log	WordingAcceptanceTests/testEnglishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	021-WordingAcceptanceTests-testGermanStyle.log	WordingAcceptanceTests/testGermanStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	022-WordingAcceptanceTests-testFrenchStyle.log	WordingAcceptanceTests/testFrenchStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	023-WordingAcceptanceTests-testSpanishStyle.log	WordingAcceptanceTests/testSpanishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	024-WordingAcceptanceTests-testItalianStyle.log	WordingAcceptanceTests/testItalianStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	025-WordingAcceptanceTests-testBrazilianPortugueseStyle.log	WordingAcceptanceTests/testBrazilianPortugueseStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	026-WordingAcceptanceTests-testSimplifiedChineseStyle.log	WordingAcceptanceTests/testSimplifiedChineseStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	027-WordingAcceptanceTests-testTraditionalChineseStyle.log	WordingAcceptanceTests/testTraditionalChineseStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	028-WordingAcceptanceTests-testKoreanStyle.log	WordingAcceptanceTests/testKoreanStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	029-WordingAcceptanceTests-testThaiStyle.log	WordingAcceptanceTests/testThaiStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	030-WordingAcceptanceTests-testVietnameseStyle.log	WordingAcceptanceTests/testVietnameseStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	031-WordingAcceptanceTests-testIndonesianStyle.log	WordingAcceptanceTests/testIndonesianStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	032-WordingAcceptanceTests-testMalayStyle.log	WordingAcceptanceTests/testMalayStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	033-WordingAcceptanceTests-testHindiStyle.log	WordingAcceptanceTests/testHindiStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	034-WordingAcceptanceTests-testRussianStyle.log	WordingAcceptanceTests/testRussianStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	035-WordingAcceptanceTests-testDutchStyle.log	WordingAcceptanceTests/testDutchStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	036-WordingAcceptanceTests-testPolishStyle.log	WordingAcceptanceTests/testPolishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	037-WordingAcceptanceTests-testTurkishStyle.log	WordingAcceptanceTests/testTurkishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	038-WordingAcceptanceTests-testSwedishStyle.log	WordingAcceptanceTests/testSwedishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	039-WordingAcceptanceTests-testDanishStyle.log	WordingAcceptanceTests/testDanishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	040-WordingAcceptanceTests-testNorwegianBokmalStyle.log	WordingAcceptanceTests/testNorwegianBokmalStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	041-WordingAcceptanceTests-testFinnishStyle.log	WordingAcceptanceTests/testFinnishStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	042-WordingAcceptanceTests-testUkrainianStyle.log	WordingAcceptanceTests/testUkrainianStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	043-WordingAcceptanceTests-testCzechStyle.log	WordingAcceptanceTests/testCzechStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	044-WordingAcceptanceTests-testEuropeanPortugueseStyle.log	WordingAcceptanceTests/testEuropeanPortugueseStyle	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	045-WordingAcceptanceTests-testEveryLanguageUsesTheSpecifiedItemCountAndCommandEllipsis.log	WordingAcceptanceTests/testEveryLanguageUsesTheSpecifiedItemCountAndCommandEllipsis	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	046-PerformanceProbeTests-testSearchFilterWhenEnabled.log	PerformanceProbeTests/testSearchFilterWhenEnabled	0	1	0	0		{"KAITOFINDER_PERFORMANCE_PROBES":"1","KAITOFINDER_PROBE_ENTRIES":"25000","TZ":"Asia/Tokyo"}
+S34	047-ArchiveEntryControlsTests-testNewFolderUsesHiddenCollisionsAndRevealsResultForRename.log	ArchiveEntryControlsTests/testNewFolderUsesHiddenCollisionsAndRevealsResultForRename	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	048-ArchiveEntryControlsTests-testFilterClearRestoresExpansionAndMultipleSelectionAfterQueryChangesAndReload.log	ArchiveEntryControlsTests/testFilterClearRestoresExpansionAndMultipleSelectionAfterQueryChangesAndReload	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	049-ArchiveEntryControlsTests-testFilteredDeleteRemovesEntireRealAndVirtualSubtreesWithUndoRedo.log	ArchiveEntryControlsTests/testFilteredDeleteRemovesEntireRealAndVirtualSubtreesWithUndoRedo	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	050-ArchiveEntryControlsTests-testFilteredInlineRenameRewritesHiddenDescendantsOfRealAndVirtualFolders.log	ArchiveEntryControlsTests/testFilteredInlineRenameRewritesHiddenDescendantsOfRealAndVirtualFolders	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	051-ArchiveEntryControlsTests-testClearingFilterAfterRenameRestoresRenamedFolderSelectionAndExpansion.log	ArchiveEntryControlsTests/testClearingFilterAfterRenameRestoresRenamedFolderSelectionAndExpansion	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	052-ArchiveEntryControlsTests-testClearingFilterAfterMoveRestoresMovedDescendantAndExpandsItsNewAncestors.log	ArchiveEntryControlsTests/testClearingFilterAfterMoveRestoresMovedDescendantAndExpandsItsNewAncestors	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	053-ArchiveEntryControlsTests-testFilterChangePreservesInvalidInlineRenameUntilCorrected.log	ArchiveEntryControlsTests/testFilterChangePreservesInvalidInlineRenameUntilCorrected	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	054-ArchiveEntryControlsTests-testFilteredFolderCopyPreparationAndDragPromiseIncludeHiddenEntries.log	ArchiveEntryControlsTests/testFilteredFolderCopyPreparationAndDragPromiseIncludeHiddenEntries	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	055-ArchiveEntryControlsTests-testFilteredDragSourceBuildsPromiseWithFullSubtreePayload.log	ArchiveEntryControlsTests/testFilteredDragSourceBuildsPromiseWithFullSubtreePayload	0	0	0	1		{"TZ":"Asia/Tokyo"}
+S34	056-ArchiveEntryControlsTests-testAcceptLocalMoveRevealsSelectionWhenOldParentWasTheOnlyFilterMatch.log	ArchiveEntryControlsTests/testAcceptLocalMoveRevealsSelectionWhenOldParentWasTheOnlyFilterMatch	0	1	0	0		{"TZ":"Asia/Tokyo"}
+S34	057-PerformanceProbeTests.log	PerformanceProbeTests	0	0	0	7		{"TZ":"Asia/Tokyo"}
+S33+probe	001-ArchiveDisplayTests-testStatusBarTextInJapaneseAndEnglish.log	ArchiveDisplayTests/testStatusBarTextInJapaneseAndEnglish	1	0	1	0		{"TZ":"Asia/Tokyo"}
+S33+probe	002-ArchiveHiddenFilesTests-testMenuAndSettingsShareHiddenPreferenceAndShortcut.log	ArchiveHiddenFilesTests/testMenuAndSettingsShareHiddenPreferenceAndShortcut	-5	0	0	0	testMenuAndSettingsShareHiddenPreferenceAndShortcut	{"TZ":"Asia/Tokyo"}
+S33+probe	003-ArchiveEntryControlsTests-testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged.log	ArchiveEntryControlsTests/testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged	-5	0	0	0	testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged	{"TZ":"Asia/Tokyo"}
+S33+probe	004-ArchiveHiddenFilesTests.log	ArchiveHiddenFilesTests	1	7	1	0		{"TZ":"Asia/Tokyo"}
+S33+probe	005-ArchiveEntryControlsTests.log	ArchiveEntryControlsTests	-5	4	0	0	testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged	{"TZ":"Asia/Tokyo"}
