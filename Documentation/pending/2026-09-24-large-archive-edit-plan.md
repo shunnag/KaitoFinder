@@ -98,8 +98,9 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 P0–P14 は全て実装・検証・コミット済み（push・main への merge・release はしていない）。最終の組 KaitoFinder a0b0354（製品は 9aa3872）・
 GyoshukuKit 1223a61（製品は 8e35eba）・KaitoKit 823ad46 で、アプリの全件 1,701 件（予期しない失敗は、host を前面にする必要のある GUI の試験と
 ネイティブのドラッグなど 8 件だけ）、GyoshukuKit の全件 583 件（失敗 0）。
-残りは利用者の確認: Mac が空いた状態で `python3 Tools/verify_ui_integration.py` と `python3 Tools/verify_finder_interactions.py --focused`（P10 の AC-a5）、
-P13・P10 の GUI の手順。逸脱の一覧は最終報告（会話）と各検証記録。
+利用者の確認（2026-09-27）: `python3 Tools/verify_ui_integration.py` は全ての組が成功（commands 75 件・native-save 5 件・履歴の 4 件）、
+`python3 Tools/verify_finder_interactions.py --focused` は 15 件すべて成功。前面に頼っていた GUI の試験 3 件と、ANSI の位置のキーコードを固定していた
+キー入力の試験を直した（86d92e4・1e58a79）。逸脱の一覧は最終報告（会話）と各検証記録。
 
 ## 状態（2026-09-27 00:05）
 

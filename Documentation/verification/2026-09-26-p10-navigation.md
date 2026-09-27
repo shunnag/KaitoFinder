@@ -824,3 +824,15 @@ JIS のキーボードでも「[」のキーで ⌘[ が働く。直した後、
 
 利用者が JIS のキーボード（入力ソース ABC）の Mac で `python3 Tools/verify_finder_interactions.py --focused` を流し、15 件すべて成功
 （`testNavigationKeysRespectSearchRenameAndToolbarFocus`・`testNavigationKeysDoNothingDuringDeletionConfirmation` を含む）。AC-a5 は合格。
+
+### GUI 統合の確認（利用者の実行、2026-09-27）
+
+利用者が `python3 Tools/verify_ui_integration.py` を流し、全ての組が成功（ログは手元の `build/UIIntegrationVerification/eaebfeb4-22ce-4eff-a93a-5b694e0f392f/`）。
+
+| 組 | 結果 |
+|---|---|
+| commands | 75 件、失敗 0（「移動」メニュー、⌘J、Quick Look、ネイティブのドラッグ、衝突の確認、タブ、スプリングローディング、ArchiveColumns・ArchiveViewOptions を含む） |
+| native-save | 5 件、失敗 0（途中で Save ボタンの AX の押下が一度 -25204 で届かず、XCTest が保存の結果を直接確かめた） |
+| record・reopen・clear・verify-cleared | 各 1 件、失敗 0 |
+
+同日の `python3 Tools/verify_finder_interactions.py --focused` も 15 件すべて成功（上の AC-a5）。
