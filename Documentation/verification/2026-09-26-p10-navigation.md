@@ -819,3 +819,8 @@ python3 build/P10KeyboardLayoutVerification/layout/KaitoFinder/Tools/verify_find
 JIS のキーボードでも「[」のキーで ⌘[ が働く。直した後、隔離の配置で `swiftc -parse-as-library Tools/drive_finder_interactions.swift`（成功）、
 `python3 -m unittest Tools/tests/test_drive_finder_interactions.py`（1 件成功）、アプリの build-for-testing（成功）を確かめた。
 実のキー入力の試験は、利用者が Mac を触らない状態でドライバを流して確かめる。
+
+### AC-a5（利用者の実行、2026-09-27）
+
+利用者が JIS のキーボード（入力ソース ABC）の Mac で `python3 Tools/verify_finder_interactions.py --focused` を流し、15 件すべて成功
+（`testNavigationKeysRespectSearchRenameAndToolbarFocus`・`testNavigationKeysDoNothingDuringDeletionConfirmation` を含む）。AC-a5 は合格。
