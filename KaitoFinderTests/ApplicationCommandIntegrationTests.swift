@@ -12,33 +12,37 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         let fixture = try ScenarioFixture()
         let (_, first) = try await scenarioDocument(fixture)
         let (_, second) = try await scenarioDocument(fixture)
-        let delegate = AppDelegate(), menu = delegate.makeMenu()
+        let window = try XCTUnwrap(first.window)
+        var mainWindow: NSWindow? = window
+        let delegate = AppDelegate()
+        delegate.mainWindowForTesting = { mainWindow }
+        let menu = delegate.makeMenu()
         defer { delegate.viewOptionsController?.close(); withExtendedLifetime(delegate) {} }
         NSApp.mainMenu = menu
-        let window = try XCTUnwrap(first.window)
         window.tabbingMode = .disallowed
         second.window?.tabbingMode = .disallowed
-        NSApp.activate()
-        window.makeKeyAndOrderFront(nil)
-        window.makeMain()
-        try await scenarioWait { NSApp.isActive && NSApp.keyWindow === window && NSApp.mainWindow === window }
         let item = try menuItem(#selector(AppDelegate.toggleViewOptions(_:)), in: menu)
         XCTAssertTrue(delegate.validateMenuItem(item))
         XCTAssertEqual(item.title, String(localized: "表示オプションを表示"))
         XCTAssertEqual(item.keyEquivalent, "j")
         XCTAssertEqual(item.keyEquivalentModifierMask, [.command])
-        func commandJ() throws {
+        XCTAssertTrue(item.target === delegate)
+        func commandJ(in eventWindow: NSWindow) throws {
             item.menu?.update()
             let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command,
-                timestamp: 0, windowNumber: NSApp.keyWindow?.windowNumber ?? window.windowNumber, context: nil,
+                timestamp: 0, windowNumber: eventWindow.windowNumber, context: nil,
                 characters: "j", charactersIgnoringModifiers: "j", isARepeat: false, keyCode: 38))
             XCTAssertTrue(menu.performKeyEquivalent(with: event))
         }
-        try commandJ()
+        try commandJ(in: window)
         let panel = try XCTUnwrap(delegate.viewOptionsController)
         let panelWindow = try XCTUnwrap(panel.window)
-        try await scenarioWait { NSApp.keyWindow === panelWindow }
-        XCTAssertTrue(NSApp.mainWindow === window)
+        XCTAssertTrue(panelWindow.isVisible)
+        XCTAssertTrue(panelWindow.canBecomeKey)
+        XCTAssertFalse(panelWindow.canBecomeMain)
+        // パネルに入力フォーカスがあっても、注入した main archive を操作する。
+        XCTAssertTrue(panelWindow.makeFirstResponder(panel.sortPopup))
+        XCTAssertTrue(mainWindow === window)
         XCTAssertTrue(panel.target === first)
         XCTAssertTrue(delegate.validateMenuItem(item))
         XCTAssertEqual(item.title, String(localized: "表示オプションを隠す"))
@@ -49,18 +53,27 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         XCTAssertEqual(first.outlineView.sortDescriptors.first?.key, "compressedSize")
         XCTAssertEqual(first.outlineView.sortDescriptors.first?.ascending, false)
         XCTAssertEqual(second.outlineView.sortDescriptors.first?.key, "name")
-        XCTAssertTrue(NSApp.mainWindow === window)
+        XCTAssertTrue(mainWindow === window)
+        XCTAssertTrue(panel.target === first)
+        XCTAssertTrue(panelWindow.initialFirstResponder === panel.sortPopup)
         XCTAssertTrue(panelWindow.makeFirstResponder(panel.sortPopup))
-        panelWindow.selectNextKeyView(nil)
-        XCTAssertTrue(panelWindow.firstResponder === panel.orderPopup)
-        second.window?.makeKeyAndOrderFront(nil)
-        second.window?.makeMain()
-        try await scenarioWait { panel.target === second }
+        // popup 間の Tab 移動は macOS の「キーボードナビゲーション」が有効な場合だけ。
+        if NSApp.isFullKeyboardAccessEnabled {
+            panelWindow.selectNextKeyView(nil)
+            XCTAssertTrue(panelWindow.firstResponder === panel.orderPopup)
+        } else {
+            print("Skipping only popup Tab navigation: macOS Keyboard navigation is disabled.")
+        }
+        mainWindow = try XCTUnwrap(second.window)
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: mainWindow)
+        XCTAssertTrue(panel.target === second)
         XCTAssertEqual(panel.sortPopup.indexOfSelectedItem, 0)
         XCTAssertEqual(panel.orderPopup.indexOfSelectedItem, 0)
-        try commandJ()
+        try commandJ(in: panelWindow)
         XCTAssertFalse(panelWindow.isVisible)
-        try commandJ()
+        XCTAssertTrue(delegate.validateMenuItem(item))
+        XCTAssertEqual(item.title, String(localized: "表示オプションを表示"))
+        try commandJ(in: try XCTUnwrap(second.window))
         XCTAssertTrue(delegate.viewOptionsController === panel)
         XCTAssertTrue(panelWindow.isVisible)
         second.displayLocked()
@@ -81,29 +94,44 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         defer { withExtendedLifetime(delegate) {} }
         NSApp.mainMenu = menu
         window.tabbingMode = .disallowed
-        NSApp.activate()
-        window.makeKeyAndOrderFront(nil)
-        window.makeMain()
-        try await scenarioWait { NSApp.isActive && NSApp.keyWindow === window && NSApp.mainWindow === window }
         XCTAssertTrue(window.makeFirstResponder(controller.outlineView))
         let open = try menuItem(#selector(ArchiveWindowController.openEntry(_:)), in: menu)
         let back = try menuItem(#selector(ArchiveWindowController.goBack(_:)), in: menu)
         let forward = try menuItem(#selector(ArchiveWindowController.goForward(_:)), in: menu)
         let enclosing = try menuItem(#selector(ArchiveWindowController.goToEnclosingFolder(_:)), in: menu)
+        let goMenu = try XCTUnwrap(back.menu)
+        XCTAssertEqual(goMenu.title, String(localized: "移動", table: "GoMenu"))
+        for (item, title, key) in [(back, String(localized: "戻る"), "["),
+                                   (forward, String(localized: "進む"), "]"),
+                                   (enclosing, String(localized: "内包フォルダ"), "\u{f700}")] {
+            XCTAssertTrue(item.menu === goMenu)
+            XCTAssertEqual(item.title, title)
+            XCTAssertEqual(item.keyEquivalent, key)
+            XCTAssertEqual(item.keyEquivalentModifierMask, [.command])
+        }
+        // 非アクティブな host でも、実ウインドウの responder chain を通す。
+        func perform(_ item: NSMenuItem) throws {
+            XCTAssertNil(item.target)
+            XCTAssertTrue(controller.validateMenuItem(item), item.title)
+            let responder = try XCTUnwrap(window.firstResponder)
+            XCTAssertTrue(responder.tryToPerform(try XCTUnwrap(item.action), with: item), item.title)
+        }
         controller.outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         XCTAssertEqual(controller.selectedNodes.map(\.path), ["a"])
         XCTAssertTrue(controller.validateMenuItem(open))
         XCTAssertNil(open.target)
-        XCTAssertTrue(NSApp.target(forAction: try XCTUnwrap(open.action), to: open.target, from: open) as? ArchiveWindowController === controller)
-        try performMenuItem(open)
+        try perform(open)
         XCTAssertEqual(controller.currentFolderPath, "a")
         XCTAssertTrue(controller.validateMenuItem(back))
         XCTAssertFalse(controller.validateMenuItem(forward))
-        try performMenuItem(back)
+        try perform(back)
         XCTAssertEqual(controller.currentFolderPath, "")
-        try performMenuItem(forward)
+        XCTAssertFalse(controller.validateMenuItem(back))
+        XCTAssertTrue(controller.validateMenuItem(forward))
+        try perform(forward)
         XCTAssertEqual(controller.currentFolderPath, "a")
-        try performMenuItem(enclosing)
+        try perform(enclosing)
+        XCTAssertEqual(controller.currentFolderPath, "")
         XCTAssertEqual(controller.selectedNodes.map(\.path), ["a"])
         let toolbar = try XCTUnwrap(window.toolbar)
         let group = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "navigation" } as? NSToolbarItemGroup)

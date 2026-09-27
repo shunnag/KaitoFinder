@@ -95,28 +95,28 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         XCTAssertEqual(next.outlineView.sortDescriptors.first?.ascending, false)
     }
 
-    @MainActor func testViewSubmenuTracksMainWindowWhilePanelIsKeyAndSharesHeaderActions() async throws {
+    @MainActor func testViewSubmenuTracksMainWindowWhilePanelIsKeyAndSharesHeaderActions() throws {
         preserveApplicationMenus()
         let first = try controller(), second = try controller()
-        let app = AppDelegate(), menu = app.makeMenu()
+        let window = try XCTUnwrap(first.window)
+        var mainWindow: NSWindow? = window
+        let app = AppDelegate()
+        app.mainWindowForTesting = { mainWindow }
+        let menu = app.makeMenu()
         NSApp.mainMenu = menu
         let viewMenu = try XCTUnwrap(menu.items.first { $0.title == String(localized: "表示") }?.submenu)
         XCTAssertEqual(Array(viewMenu.items.prefix(3).map(\.title)),
                        [String(localized: "プレビューを表示"), "", String(localized: "隠しファイルを表示")])
         let columns = try XCTUnwrap(viewMenu.items.first { $0.title == String(localized: "列") }?.submenu)
-        let window = try XCTUnwrap(first.window)
         window.tabbingMode = .disallowed
-        window.makeKeyAndOrderFront(nil)
-        window.makeMain()
-        NSApp.activate()
-        try await Task.sleep(for: .milliseconds(100))
-        guard NSApp.mainWindow === window else {
-            throw XCTSkip("Main-window menu routing requires an active, unlocked GUI session")
-        }
-        let panel = ArchiveViewOptionsController()
+        let panel = ArchiveViewOptionsController(mainWindow: { mainWindow })
         defer { panel.close() }
         panel.showWindow(nil)
-        try await scenarioWait { NSApp.keyWindow === panel.window && NSApp.mainWindow === window }
+        let panelWindow = try XCTUnwrap(panel.window)
+        XCTAssertTrue(panelWindow.canBecomeKey)
+        XCTAssertFalse(panelWindow.canBecomeMain)
+        XCTAssertTrue(panelWindow.makeFirstResponder(panel.sortPopup))
+        XCTAssertTrue(panel.target === first)
         app.menuNeedsUpdate(columns)
         let item = try XCTUnwrap(columns.items.first { $0.representedObject as? String == "ratio" })
         XCTAssertTrue(app.validateMenuItem(item))
@@ -128,8 +128,9 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         XCTAssertEqual(header.items.map(\.title), columns.items.map(\.title))
         XCTAssertEqual(header.items.first { $0.representedObject as? String == "ratio" }?.state, .on)
         second.window?.tabbingMode = .disallowed
-        second.window?.makeKeyAndOrderFront(nil)
-        second.window?.makeMain()
+        mainWindow = try XCTUnwrap(second.window)
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: mainWindow)
+        XCTAssertTrue(panel.target === second)
         XCTAssertTrue(app.validateMenuItem(item))
         XCTAssertEqual(item.state, .off)
         app.toggleArchiveColumn(item)
@@ -137,8 +138,9 @@ nonisolated final class ArchiveColumnsTests: XCTestCase {
         let other = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 200), styleMask: .titled, backing: .buffered, defer: false)
         other.isReleasedWhenClosed = false
         defer { other.close() }
-        other.makeKeyAndOrderFront(nil)
-        other.makeMain()
+        mainWindow = other
+        NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: other)
+        XCTAssertNil(panel.target)
         XCTAssertFalse(app.validateMenuItem(item))
         app.toggleArchiveColumn(item)
         XCTAssertFalse(try column("ratio", in: first).isHidden)

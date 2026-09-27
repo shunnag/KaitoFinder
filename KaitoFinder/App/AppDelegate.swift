@@ -11,6 +11,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private let softwareUpdater: any SoftwareUpdating
     private(set) var preferencesWindowController: PreferencesWindowController?
     private(set) var viewOptionsController: ArchiveViewOptionsController?
+    #if DEBUG
+    // 非アクティブな test host でも、メニューとパネルに同じ main window を渡す。
+    var mainWindowForTesting: (() -> NSWindow?)?
+    #endif
+    private var archiveMenuMainWindow: NSWindow? {
+        #if DEBUG
+        if let mainWindowForTesting { return mainWindowForTesting() }
+        #endif
+        return NSApp.mainWindow
+    }
     private(set) var welcomeWindowController: WelcomeWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
@@ -91,22 +101,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     @objc func toggleFoldersOnTop(_ sender: Any?) { preferencesStore.preferences.keepsFoldersOnTop.toggle() }
 
     @objc func toggleViewOptions(_ sender: Any?) {
-        guard (NSApp.mainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false else { return }
+        guard (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false else { return }
         if let controller = viewOptionsController, controller.window?.isVisible == true {
             controller.window?.orderOut(sender)
         } else {
-            if viewOptionsController == nil { viewOptionsController = ArchiveViewOptionsController(store: preferencesStore) }
+            if viewOptionsController == nil {
+                #if DEBUG
+                if let mainWindowForTesting {
+                    viewOptionsController = ArchiveViewOptionsController(store: preferencesStore, mainWindow: mainWindowForTesting)
+                } else {
+                    viewOptionsController = ArchiveViewOptionsController(store: preferencesStore)
+                }
+                #else
+                viewOptionsController = ArchiveViewOptionsController(store: preferencesStore)
+                #endif
+            }
             viewOptionsController?.showWindow(sender)
         }
     }
 
     @objc func toggleArchiveColumn(_ sender: NSMenuItem) {
-        (NSApp.mainWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
+        (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu === columnsMenu else { return }
-        let controller = NSApp.mainWindow?.windowController as? ArchiveWindowController
+        let controller = archiveMenuMainWindow?.windowController as? ArchiveWindowController
         ArchiveColumn.populate(menu, bundle: columnsMenuBundle, table: controller?.outlineView,
                                target: self, action: #selector(toggleArchiveColumn(_:)))
     }
@@ -119,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.title = viewOptionsController?.window?.isVisible == true
                 ? String(localized: "表示オプションを隠す", bundle: columnsMenuBundle)
                 : String(localized: "表示オプションを表示", bundle: columnsMenuBundle)
-            return (NSApp.mainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false
+            return (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false
         case #selector(checkForUpdates(_:)):
             return softwareUpdater.canCheckForUpdates
         case #selector(newArchive(_:)):
@@ -129,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(forgetArchivePasswords(_:)):
             return forgetPasswordsTask == nil
         case #selector(toggleArchiveColumn(_:)):
-            guard let controller = NSApp.mainWindow?.windowController as? ArchiveWindowController else {
+            guard let controller = archiveMenuMainWindow?.windowController as? ArchiveWindowController else {
                 menuItem.state = .off
                 return false
             }

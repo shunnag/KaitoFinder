@@ -513,3 +513,201 @@ KaitoFinder 786ec4c（S35・S36 を含む）の `-O`・wholemodule の Debug、G
 | 最上位から 100 件のフォルダへの移動 | 2.39 ms | ≤ 50 ms |
 | 戻る | 0.52 ms | ≤ 50 ms |
 | ⌘↑ | 0.73 ms | ≤ 50 ms |
+
+## GUI の試験の修正（前面に頼らない形へ）
+
+2026-09-27。KaitoFinder `eef4bf9` を基底とする。Terminal からの
+`Tools/verify_ui_integration.py` の [commands ログ](../../build/UIIntegrationVerification/40b7efe2-e610-4ca2-ba02-38fc570e9b9a/commands.log)
+では75件中、下記の移動と⌘Jの2件だけが製品のassertionに達する前に前面化待ちで失敗し、
+列メニューの1件が同じ理由でskipしていた。この節は、上の記録の「移動・⌘J・列メニューには前面化が必要」という試験条件を置き換える。
+**未コミット。通常hostでのオーケストレータの結果と、その後のキーボードナビゲーション設定への対応は、この節の末尾に追記した。**
+
+### 変更した検査と注入点
+
+- `ApplicationCommandIntegrationTests.testGoMenuCommandsAndToolbarNavigateTheActiveArchive`:
+  activation・key/main window待ちとアプリ全体のnil-target解決を除き、実windowの
+  `firstResponder.tryToPerform(_:with:)` を使う。各dispatch前にcontrollerの `validateMenuItem` を確認する。
+  `AppDelegate.makeMenu()` 内の移動メニュー、戻る・進む・内包フォルダのtitleと⌘[・⌘]・⌘↑、
+  選択フォルダをOpenして `currentFolderPath == "a"`、戻る・進むのvalidationと移動、
+  内包フォルダへ移動後の `"a"` の選択を検査する。toolbar group/controlのtarget・action、
+  `selectedSegment` を設定してからの **`performClick`**、label-only subitemのdispatchと結果も維持した。
+- `ApplicationCommandIntegrationTests.testViewOptionsCommandJTracksMainArchiveWhilePanelIsKey`:
+  main-window取得関数を注入する。⌘Jのtitle・key equivalent・delegateによるvalidation、
+  実メニューの `performKeyEquivalent`、表示・非表示とcontroller再利用を維持した。
+  eventのwindowNumberは対象windowから取得する。panelはkeyになれてmainになれないことと、
+  panelのinitial first responderを検査し、キーボードナビゲーションが有効な場合はTab移動も検査する。
+  実際にOSのkeyになることは待たない。
+  panel操作が最初のarchiveだけを更新することを元と同じ位置で検査する。
+  注入先を2番目のwindowへ変え、`didBecomeMainNotification` を送って、observer経由のtargetと
+  popup更新を確認する。ロック後の⌘J無効化と2つのpopup無効化も維持した。
+- `ArchiveColumnsTests.testViewSubmenuTracksMainWindowWhilePanelIsKeyAndSharesHeaderActions`:
+  同じ注入方式を使い、前面化待ちとactive sessionを理由にしたskipを削除した。
+  panelにfirst responderを置いた状態で、列メニューとheaderのtitle・状態・actionの共有、
+  2番目のarchiveへの対象変更、非archive windowでの無効化と無変更を検査する。
+
+AppDelegateの既存の生成・validation・列actionは `NSApp.mainWindow` を直接参照し、
+`viewOptionsController` のsetterもprivateだったため、テストだけから既存providerを渡す経路がなかった。
+依頼で許可された最小のtesting injectionとして、**`#if DEBUG` の `mainWindowForTesting`** を追加した。
+注入時はメニュー側と遅延生成する `ArchiveViewOptionsController(mainWindow:)` が同じ関数を使う。
+未注入時の参照先は従来どおり `NSApp.mainWindow`、生成も既存のinitializerである。
+非DEBUGには注入用propertyと生成分岐は含まれない。製品の操作・validationの判定は変更していない。
+他の製品ファイル、公開済みrelease notes、`Documentation/pending/2026-09-24-large-archive-edit-plan.md` は変更していない。
+クラス名・selector名と `Tools/verify_ui_integration.py` のcommands登録は維持した。
+
+### 前面化依存の調査範囲
+
+`KaitoFinderTests` 全体を `NSApp.isActive`・`keyWindow`・`mainWindow`・`isKeyWindow`・
+`isMainWindow`・`activate`・`makeKeyAndOrderFront`・`makeMain` で検索した。
+加えてS33〜S41の範囲 `96a2bc5^..eef4bf9` で変更された全49 Swiftファイルと、同範囲の追加行を確認した。
+全ファイル名と該当行は [調査一覧](../../build/P10InactiveHostVerification/activation-audit.json) に保存した。
+
+| 対象 | 判断 |
+|---|---|
+| ApplicationCommandIntegrationTests | 上記2件を修正。既存のtoolbar/edit試験はfirst responder経由で、前面化待ちはない |
+| ArchiveColumnsTests | 上記1件を修正 |
+| ArchiveViewOptionsTests | 既にmain-window providerを注入しており、前面化待ちはない |
+| ArchiveFolderNavigationTests | 前面化待ちはない。failure sheet用のwindow表示とtoolbarの実control clickは維持 |
+| AsyncSearchFilterTests | rename・Quick Look・password・sheet用のwindow表示はあるが、前面化成立の待ちはない |
+| ArchiveFinderInteractionTests | `verify_finder_interactions.py` 専用の実入力試験。入力helperの後にkey/activeを待つこと自体が検証条件なので変更しない |
+| ArchiveDropIntegrationTests | 既存のnative dragに前面化処理がある。S33〜S41の変更に同種の待ちは追加されておらず、実dragの検証は変更しない |
+
+同範囲の残り42ファイル（下記）に同種の前面化待ちはなかった。
+
+```text
+ArchiveCreationTests, ArchiveDisplayTests, ArchiveDragImageTests, ArchiveEditTests,
+ArchiveImportSafetyTests, ArchivePasswordEditingTests, ArchivePlanDiagnosticsTests,
+ArchivePreferencesTests, ArchivePreferencesUITests, ArchivePublicationTransformationTests,
+ArchiveRewriteTests, ArchiveSaveAsTests, ArchiveWriteProgressTests, AutosaveIsolationTests,
+BatchImportCompatibilityTests, BatchImportTests, ByteProgressIntegrationTests,
+CompressedTarRoutingTests, CompressionCapabilityTests, DeferredPostSaveTests,
+DeferredSaveDocumentTests, DragInTests, EditPlacementPreferencesTests, EntryNameMatcherTests,
+ImmediateOpeningTests, LayoutOverflowTests, M6bSearchTests, NameIndexEquivalenceTests,
+PerformanceProbeTests, ScenarioShapeTests, SevenZipUpdateDeferredSaveTests,
+SevenZipUpdateEditTests, SevenZipUpdateNonAPFSTests, SevenZipUpdatePasswordTests,
+SevenZipUpdateRoutingTests, SevenZipUpdateVerificationFailureTests, TarUpdateProjectionTests,
+WordingAcceptanceTests, Support/ArchivePerformanceProbe, Support/EntryTreeFilterReference,
+Support/SevenZipUpdateTestSupport, Support/TestProcessSetup
+```
+
+全体検索で見つけたS33以前の `ArchiveDocumentOpeningTests`・`ArchiveEntryControlsTests` の
+activation待ち、`ArchiveTabTests` のkey待ち、`ArchivePreviewSidebarTests` のメニュー経路も確認した。
+今回はS33〜S41の同種の待ちに限定し、それらのGUI試験は変更していない。
+
+### 初回修正時の隔離ビルドと実行した検証
+
+隔離先は `build/P10InactiveHostVerification/layout/{KaitoFinder,GyoshukuKit,KaitoKit}`。
+3つとも `git archive` で展開し、KFだけ作業ツリーの製品・試験・Tools・Xcode projectを同期した。
+GK `1223a61f8e3bb4ccf0ebbeaa7e1e001c37eee744`、
+KK `823ad460faab055b6b7051da10583480785e8f68` を固定した。
+GK全451 / KK全1,513 archiveファイルの一致を展開時と検証後に確認した。
+liveの `../GyoshukuKit`・`../KaitoKit` はビルドしていない。
+Sparkle frameworkは既存の取得済みバイナリを隔離先の `Frameworks` にコピーした。
+macOS 27.2 (26B5091g)、Swift 6.4、直接コンパイルのtargetは `arm64-apple-macos26.0`。
+
+実行した直接ビルドとXCTest起動は次のとおり（再試行を含む）。
+
+```sh
+python3 build/P10InactiveHostVerification/build.py --prepare --sync KaitoKit GyoshukuKit
+python3 build/P10InactiveHostVerification/build.py KaitoKit GyoshukuKit app test
+python3 build/P10InactiveHostVerification/run-tests.py ArchiveViewOptionsTests ArchiveFolderNavigationTests
+```
+
+| 実行 | 結果 |
+|---|---|
+| 1回目の直接ビルド | KKのmodule生成でexit 1。コンパイラmacroのnested sandbox作成が `sandbox_apply: Operation not permitted`。GK以降は未実行 |
+| 2回目の直接ビルド | 既存検証scriptと同じSwiftの `-disable-sandbox` を戻し、外側の実行sandbox内で実施。KK207 / GK63 / KF108 / tests162 Swiftファイルを全てコンパイル・リンク成功 |
+| 非DEBUG `swiftc -typecheck`（1回） | 成功。上のapp引数から `-DDEBUG` と出力指定を外した型検査 |
+| 直接xctest: ArchiveViewOptionsTests（1起動） | 7成功・失敗0・skip0 |
+| 直接xctest: ArchiveFolderNavigationTests（1起動） | 19成功・失敗0・3skip |
+| `xcodebuild build-for-testing`（1回） | exit 74。SwiftPM manifestの診断・module cacheへの書込みがsandboxで拒否され、package解決段階で停止。hosted XCTestは起動していない |
+| 固定archive・コンパイル入力の照合、driver登録、保護対象の差分、`git diff --check` | 成功 |
+
+直接XCTestは合計 **29件、26成功・3skip・失敗0**。
+skipは `testNavigationScaleWhenEnabled`（opt-in性能計測）、
+`testPasteUsesDisplayedLocationInBothSaveModes`（pasteboard serviceなし）、
+`testStaleAddPanelRefusesDeletedDestinationBeforeStartingImport`（通常hostのfailure sheetが必要）の3件。
+製品のcompiler診断はなく、試験のwarningは今回変更していない
+ArchiveDocumentControllerTests・ArchiveEditTests・ArchiveImportSafetyTests・BatchImportCompatibilityTestsにあった。
+
+以下に全引数・結果・logを保存した。
+
+- [archiveの出自](../../build/P10InactiveHostVerification/archive-checks.json)、
+  [直接build全5 compiler起動](../../build/P10InactiveHostVerification/build-runs.json)、
+  [最初のKK失敗log](../../build/P10InactiveHostVerification/KaitoKit-initial-build.log)
+- [非DEBUG型検査の全引数と結果](../../build/P10InactiveHostVerification/release-typecheck-result.json)
+- [直接XCTest全2起動のselector・環境・case・log](../../build/P10InactiveHostVerification/test-results.json)
+- [xcodebuildの全引数と結果](../../build/P10InactiveHostVerification/xcodebuild-result.json)、
+  [sandbox失敗log](../../build/P10InactiveHostVerification/xcodebuild.log)
+- [最終照合](../../build/P10InactiveHostVerification/final-checks.json)
+
+この初回修正時にはApplicationCommandIntegrationTestsの2件とArchiveColumnsTestsの1件はコンパイルまでで、
+compiled nibを持つ通常hostでは未実行。直接XCTestの26成功にこれらを含めていない。
+`Tools/verify_ui_integration.py`、hosted全件、native drag・Quick Look・driverの後続group、実キー・マウス入力も今回は未実行。
+オーケストレータはこの隔離layout内のprojectを使い、Terminal等を前面にしたまま上記3件とcommands groupを実行する。
+driver全体の再実行もlive siblingを参照しない次のパスから行う（以下は引継ぎ用、未実行）。
+
+```sh
+python3 build/P10InactiveHostVerification/layout/KaitoFinder/Tools/verify_ui_integration.py \
+  --derived-data build/P10InactiveHostVerification/HostedDerivedData
+```
+
+### 追補: キーボードナビゲーション設定に依存しない検査
+
+オーケストレータからの報告では、通常Xcode host・画面ロック解除・Terminalを前面にした状態で、
+同じ隔離依存（GK `1223a61` / KK `823ad46`）によるbuildが成功した。
+ApplicationCommandIntegrationTests・ArchiveColumnsTests・ArchiveViewOptionsTests・
+ArchiveFolderNavigationTests・AutosaveIsolationTests・LayoutOverflowTests・WordingAcceptanceTestsの
+**115件を2回実行し、両回とも⌘J試験のTab移動のassertionだけが失敗**した。他は成功したとの報告である。
+これはオーケストレータの実行結果であり、今回こちらで実行した検証には数えない。
+
+失敗箇所は `makeFirstResponder(panel.sortPopup)` → `selectNextKeyView(nil)` の後に
+`firstResponder === panel.orderPopup` を無条件で要求していた箇所だった。
+報告されたMacは「キーボードナビゲーション」が無効（`AppleKeyboardUIMode` は未設定）で、
+popup間のTab移動を要求する条件に当てはまらなかった。
+
+今回の変更は `ApplicationCommandIntegrationTests.swift` とこの文書だけである。
+設定にかかわらず `panelWindow.initialFirstResponder === panel.sortPopup` を確認し、
+`makeFirstResponder(panel.sortPopup)` の検査も維持する。
+`NSApp.isFullKeyboardAccessEnabled` がtrueなら、従来と同じTab移動とorder popupへの到達を検査する。
+falseなら `Skipping only popup Tab navigation: macOS Keyboard navigation is disabled.` と出力し、
+**Tabのステップだけ**を省略する。`XCTSkip` や早期returnは使わず、その後の対象window変更、
+popup更新、表示・非表示、ロック時の無効化を全て続行する。ユーザーの設定は変更していない。
+
+前回変更したGoメニュー試験と列メニュー試験を含む
+ApplicationCommandIntegrationTests・ArchiveColumnsTests、およびArchiveViewOptionsTests・
+ArchiveFolderNavigationTestsを、Tab移動・key-view関連API・first responderの検査で再検索した。
+無条件のpopup間Tab移動は今回の1箇所だけだった。他の検査は直接の `makeFirstResponder` を使い、
+同じ設定依存の前提はなかった。[検索結果](../../build/P10InactiveHostVerification/keyboard-navigation/keyboard-navigation-audit.txt)。
+
+今回実行したbuildは次の**1回**で、既存の隔離layoutへ変更したテスト1ファイルだけを同期し、
+テスト全162 Swiftファイルを直接コンパイル・リンクした。結果は成功した。
+
+```sh
+python3 build/P10InactiveHostVerification/keyboard-navigation/build-tests.py
+```
+
+GK全451 / KK全1,513ファイルが前回の固定 `git archive` と一致すること、
+再利用する製品moduleのソースが前回のコンパイル入力と一致することを確認した。
+製品・依存libraryは再ビルドせず、live siblingは使っていない。
+今回の開始時点とのhash比較で製品コード（前回のDEBUG注入点を含む）を変更していないこと、
+変更がテスト1ファイルとこの文書だけであること、`git diff --check` の成功も確認した。
+[コンパイル全引数と結果](../../build/P10InactiveHostVerification/keyboard-navigation/test-build-result.json)、
+[build log](../../build/P10InactiveHostVerification/keyboard-navigation/test-build.log)、
+[入力の照合](../../build/P10InactiveHostVerification/keyboard-navigation/source-checks.json)、
+[変更範囲の照合](../../build/P10InactiveHostVerification/keyboard-navigation/final-checks.json)。
+
+この追補ではXCTest、`xcodebuild`、UI driverは実行していない。
+前回確認したsandboxによるXcode cache書込み拒否があるため、通常hostでの再実行はオーケストレータへ引き継ぐ。
+設定が有効・無効の場合の実行成功を、今回のコンパイル成功から確認済みとは扱わない。
+公開済みrelease notes・保留計画書は今回も変更せず、commitしていない。
+
+### オーケストレータの確認（前面に頼らない形へ、2026-09-27）
+
+利用者が Terminal から `python3 Tools/verify_ui_integration.py` を流すと、「commands」の組 75 件のうち
+`testGoMenuCommandsAndToolbarNavigateTheActiveArchive` と `testViewOptionsCommandJTracksMainArchiveWhilePanelIsKey` だけが、
+`NSApp.isActive` の待ちで時間切れになった（macOS は操作なしに前面を奪うことを許さない）。書き直した後、隔離の三つ組（GyoshukuKit 1223a61・
+KaitoKit 823ad46）で Terminal を前面にしたまま、ApplicationCommandIntegration・ArchiveColumns・ArchiveViewOptions・ArchiveFolderNavigation・
+AutosaveIsolation・LayoutOverflow・WordingAcceptance の 115 件を 2 回流し、2 回とも失敗 0（skip 1）。途中で見つかった
+「⌘J のパネルで Tab が並べ順から順序の popup へ移る」の確認は、macOS のキーボードナビゲーションが有効なときだけ行う形にした
+（この Mac では既定の無効で、popup は key view の輪に入らない）。`AppDelegate` の変更は DEBUG の build だけの main window の注入口で、
+Release の build では従来どおり `NSApp.mainWindow` を読む。
