@@ -133,14 +133,15 @@ nonisolated final class ScenarioGate: Sendable {
 }
 
 extension XCTestCase {
-    @MainActor func scenarioDocument(_ fixture: ScenarioFixture, url: URL? = nil) async throws
+    @MainActor func scenarioDocument(_ fixture: ScenarioFixture, url: URL? = nil,
+                                      preferencesStore: ArchivePreferencesStore = .shared) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()
         let document = ArchiveDocument(), source = url ?? fixture.archive
         try document.read(from: source, ofType: "public.zip-archive")
         document.fileURL = source
         let session = try XCTUnwrap(document.session)
-        let controller = ArchiveWindowController()
+        let controller = ArchiveWindowController(preferencesStore: preferencesStore)
         document.addWindowController(controller)
         controller.display(EntryNode.tree(from: await session.entries()), session: session,
                            materializationController: document.materializationController())

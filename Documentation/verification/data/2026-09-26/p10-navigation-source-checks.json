@@ -1,0 +1,77 @@
+{
+  "KaitoKit": {
+    "files": 1513,
+    "mismatches": []
+  },
+  "GyoshukuKit": {
+    "files": 295,
+    "mismatches": []
+  },
+  "controller": {
+    "named_functions_present": [
+      "children",
+      "display",
+      "displayLocked",
+      "preferencesDidChange",
+      "updatePathControl",
+      "selectPathItem",
+      "captureViewState",
+      "restoreViewState",
+      "newFolder",
+      "addFiles",
+      "paste",
+      "dropFolder",
+      "dropDecision",
+      "startImport",
+      "startEdit",
+      "startMove",
+      "doubleClickEntry",
+      "openEntry",
+      "selectEnclosingFolder",
+      "validateMenuItem",
+      "validateToolbarItem",
+      "reloadFilteredEntries",
+      "cancelFilterWork",
+      "pathNodes",
+      "viewStateAfterRemoving",
+      "viewStateAfterMoving",
+      "viewStateAfterRenaming"
+    ],
+    "displayedRoot_assignments": [
+      192,
+      978,
+      1319
+    ]
+  },
+  "localizations": {
+    "new_localizable_keys": [
+      "その場で展開",
+      "フォルダに移動",
+      "フォルダを開くとき:",
+      "内包フォルダ",
+      "戻る",
+      "戻る/進む",
+      "進む"
+    ],
+    "existing_entries_unchanged": true,
+    "go_menu_translations": 26
+  },
+  "scope": {
+    "published_notes_changed": false,
+    "project_changed": false,
+    "new_unsafe_sendability": false,
+    "s36_started": false
+  },
+  "KaitoFinder": {
+    "canonical_files": 137,
+    "mismatches": []
+  },
+  "KaitoFinderTests": {
+    "canonical_files": 172,
+    "mismatches": []
+  },
+  "Tools": {
+    "canonical_files": 21,
+    "mismatches": []
+  }
+}

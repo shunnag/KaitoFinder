@@ -11,6 +11,7 @@ nonisolated final class ArchiveUndoStack: Sendable {
         let byteCount: UInt64
         let isRedo: Bool
         let encryption: ArchiveEncryptionSettings
+        let verification: ArchiveEntryVerification?
     }
 
     enum Failure: Error {
@@ -98,7 +99,7 @@ nonisolated final class ArchiveUndoStack: Sendable {
 
     // 原本の公開直前に呼び、公開の成否が決まるまでは履歴へ登録しない。
     func capture(_ archive: URL, id: UUID = UUID(), isRedo: Bool = false,
-                 encryption: ArchiveEncryptionSettings = .init()) throws -> Slot? {
+                 encryption: ArchiveEncryptionSettings = .init(), verification: ArchiveEntryVerification? = nil) throws -> Slot? {
         guard storage.withLock({ !$0.closed }) else { throw Failure.closed }
         let info = try Self.attributes(archive)
         let manager = FileManager.default
@@ -117,8 +118,15 @@ nonisolated final class ArchiveUndoStack: Sendable {
         // 作業用の mode が原本へ戻らないよう、swap 側で置換直前の mode を復元する。
         try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         storage.withLock { $0.cloneSupport = .supported }
+        let retained: ArchiveEntryVerification?
+        if let verification, verification.indices != nil,
+           verification.matches(try ArchiveSetIdentity.capture(url: archive)),
+           Self.unchanged(info, try Self.attributes(archive)) {
+            retained = .init(identity: try ArchiveSetIdentity.capture(url: url), indices: verification.indices)
+        } else { retained = nil }
         kept = true
-        return Slot(id: id, directory: directory, url: url, byteCount: UInt64(info.st_size), isRedo: isRedo, encryption: encryption)
+        return Slot(id: id, directory: directory, url: url, byteCount: UInt64(info.st_size), isRedo: isRedo,
+                    encryption: encryption, verification: retained)
     }
 
     func discard(_ slot: Slot?) {
@@ -148,13 +156,14 @@ nonisolated final class ArchiveUndoStack: Sendable {
     }
 
     /// 置換後の属性エラーは別に返し、呼び出し側が必ず reader と世代を更新できるようにする。
-    func swap(_ id: UUID, archive: URL, encryption: ArchiveEncryptionSettings = .init()) throws -> (any Error)? {
+    func swap(_ id: UUID, archive: URL, encryption: ArchiveEncryptionSettings = .init(),
+              verification: ArchiveEntryVerification? = nil) throws -> (any Error)? {
         guard let slot = storage.withLock({ $0.slots.first { $0.id == id } }) else {
             throw Failure.missingSlot
         }
         let before = try Self.attributes(archive)
         let quarantine = try ExtractionQuarantine.read(from: archive)
-        guard let inverse = try capture(archive, id: id, isRedo: !slot.isRedo, encryption: encryption) else {
+        guard let inverse = try capture(archive, id: id, isRedo: !slot.isRedo, encryption: encryption, verification: verification) else {
             throw Failure.cloningUnsupported
         }
         do {

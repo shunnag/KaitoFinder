@@ -51,6 +51,23 @@ nonisolated final class DragCopyOutTests: XCTestCase {
             // 置換で新しい inode を作り、旧 reader の reopen との差を検査する。
             try run("import os\nwith zipfile.ZipFile(p + '.new', 'w') as z:\n for n, v in [\(pairs)]: z.writestr(n, v)\nos.replace(p + '.new', p)")
         }
+        func writeSolidSevenZip(groupSizes: [Int]) throws {
+            try run("""
+            import binascii, struct
+            groups = \(groupSizes)
+            payloads = [bytes([65 + i]) for i in range(sum(groups))]
+            packed = b''.join(payloads)
+            names = b'\\x00' + ''.join(chr(97 + i) + '\\x00' for i in range(len(payloads))).encode('utf-16le')
+            header = bytes([1, 4, 6, 0, len(groups), 9] + groups + [0, 7, 11, len(groups), 0])
+            header += bytes([1, 1, 0] * len(groups) + [12] + groups + [0, 8, 13] + groups + [9])
+            header += bytes([1] * (len(payloads) - len(groups)) + [10, 1])
+            header += b''.join(struct.pack('<I', binascii.crc32(b)) for b in payloads)
+            header += bytes([0, 0, 5, len(payloads), 17, len(names)]) + names + bytes([0, 0])
+            start = struct.pack('<QQI', len(packed), len(header), binascii.crc32(header))
+            archive = b'7z\\xbc\\xaf\\x27\\x1c\\x00\\x04' + struct.pack('<I', binascii.crc32(start))
+            open(p, 'wb').write(archive + start + packed + header)
+            """)
+        }
         deinit {
             try? ExtractionTemporaryDirectory(root: parent).sweepOnLaunch()
             try? FileManager.default.removeItem(at: parent)
@@ -145,6 +162,186 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         let error = try await write(ArchiveFilePromise(payload: payload, session: session), to: url)
         XCTAssertNil(error)
         XCTAssertEqual(try String(contentsOf: url.appendingPathComponent("deep/b.txt"), encoding: .utf8), "world")
+        let extracted = fixture.parent.appendingPathComponent("extracted")
+        try FileManager.default.createDirectory(at: extracted, withIntermediateDirectories: false)
+        let result = try await ExtractionService.extract([payload], from: session, to: extracted, progress: Progress())
+        XCTAssertTrue(result.failures.isEmpty)
+        let temporary = ExtractionTemporaryDirectory(root: fixture.parent.appendingPathComponent("copies"))
+        let copied = try await ArchiveCopyOut.prepare([payload], from: session, progress: Progress(), temporaryDirectory: temporary)
+        for output in [url, extracted.appendingPathComponent("folder"), try XCTUnwrap(copied.urls.first)] {
+            var info = stat()
+            XCTAssertEqual(lstat(output.path, &info), 0)
+            XCTAssertEqual(info.st_mode & 0o777, 0o755 & ~ExtractionPermissions.processMask)
+        }
+    }
+
+    private final class CountingSolidSource: ByteSource {
+        let source: FileByteSource
+        let packedOffsets: Set<UInt64>
+        let packedReadStarts = Mutex(0)
+        var length: UInt64 { source.length }
+        init(_ url: URL, packedOffsets: Set<UInt64> = [32]) throws {
+            source = try FileByteSource(url: url)
+            self.packedOffsets = packedOffsets
+        }
+        func read(into buffer: UnsafeMutableRawBufferPointer, at offset: UInt64) throws -> Int {
+            if packedOffsets.contains(offset) { packedReadStarts.withLock { $0 += 1 } }
+            return try source.read(into: buffer, at: offset)
+        }
+    }
+
+    @MainActor func testTwentySolidPromisesShareOneSerialReaderAndBoundedDecodePasses() async throws {
+        let fixture = try Fixture()
+        try fixture.writeSolidSevenZip(groupSizes: [20])
+        let session = try ArchiveSession(url: fixture.archive), source = try CountingSolidSource(fixture.archive)
+        await session.setPromiseSourceForTesting(source)
+        let entries = await session.entries()
+        XCTAssertEqual(entries.count, 20)
+        XCTAssertEqual(Set(entries.map(\.solidGroup)), [0])
+        let registry = FilePromiseRegistry()
+        let promises = try entries.map { entry in
+            try registry.register(payload: fixture.payload(entry.name, session: session, index: entry.index), session: session)
+        }
+        registry.began(sessionID: 42, promises: promises.map(\.id))
+        let queue = try XCTUnwrap(promises.first?.provider.delegate as? ArchiveFilePromise).debugExtractionQueue
+        let completed = expectation(description: "Twenty promises")
+        completed.expectedFulfillmentCount = 20
+        for (promise, entry) in zip(promises, entries).reversed() {
+            let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+            XCTAssertTrue(delegate.debugExtractionQueue === queue)
+            delegate.filePromiseProvider(promise.provider, writePromiseTo: fixture.output.appendingPathComponent(entry.name)) { @Sendable error in
+                XCTAssertNil(error)
+                completed.fulfill()
+            }
+        }
+        await fulfillment(of: [completed], timeout: 15)
+        XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, 1)
+        XCTAssertEqual(queue.readerReopenCount.withLock { $0 }, 1)
+        XCTAssertEqual(queue.processedIndices.withLock { $0 }, Array(0..<20))
+        XCTAssertGreaterThan(source.packedReadStarts.withLock { $0 }, 0)
+        XCTAssertLessThanOrEqual(source.packedReadStarts.withLock { $0 }, 2)
+        for entry in entries {
+            XCTAssertEqual(try Data(contentsOf: fixture.output.appendingPathComponent(entry.name)), Data([UInt8(65 + entry.index)]))
+        }
+        await session.close()
+    }
+
+    @MainActor func testNonSolidPromisesRunFourIndependentRowsAtATime() async throws {
+        let fixture = try Fixture(), count = 20
+        try fixture.writeZIP((0..<count).map { ("file-\($0).txt", "contents-\($0)") })
+        let session = try ArchiveSession(url: fixture.archive), entries = await session.entries()
+        XCTAssertTrue(entries.allSatisfy { $0.solidGroup < 0 })
+        let registry = FilePromiseRegistry(), gates = (0..<count).map { _ in ScenarioGate() }
+        defer { for gate in gates { gate.release() } }
+        let promises = try entries.map { entry in
+            try registry.register(payload: fixture.payload(entry.name, session: session, index: entry.index),
+                session: session, didWrite: { _ in gates[entry.index].pauseOnce() })
+        }
+        registry.began(sessionID: 43, promises: promises.map(\.id))
+        let queue = try XCTUnwrap(promises.first?.provider.delegate as? ArchiveFilePromise).debugExtractionQueue
+        let completed = expectation(description: "Independent promises")
+        completed.expectedFulfillmentCount = count
+        for (promise, entry) in zip(promises, entries).reversed() {
+            let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+            delegate.filePromiseProvider(promise.provider, writePromiseTo: fixture.output.appendingPathComponent(entry.name)) { @Sendable error in
+                XCTAssertNil(error)
+                completed.fulfill()
+            }
+        }
+        try await scenarioWait { gates.prefix(4).allSatisfy(\.isEntered) }
+        XCTAssertEqual(queue.activeCount.withLock { $0 }, 4)
+        XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, 4)
+        XCTAssertFalse(gates.dropFirst(4).contains { $0.isEntered })
+        for gate in gates { gate.release() }
+        await fulfillment(of: [completed], timeout: 15)
+        XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, 4)
+        XCTAssertEqual(queue.activeCount.withLock { $0 }, 0)
+        XCTAssertLessThanOrEqual(queue.readerReopenCount.withLock { $0 }, 4)
+        for entry in entries {
+            XCTAssertEqual(try String(contentsOf: fixture.output.appendingPathComponent(entry.name), encoding: .utf8),
+                           "contents-\(entry.index)")
+        }
+        await session.close()
+    }
+
+    @MainActor func testDifferentSolidGroupsRunConcurrentlyAndEachReusesItsOrderedReader() async throws {
+        let fixture = try Fixture()
+        try fixture.writeSolidSevenZip(groupSizes: [10, 10])
+        let session = try ArchiveSession(url: fixture.archive)
+        let source = try CountingSolidSource(fixture.archive, packedOffsets: [32, 42])
+        await session.setPromiseSourceForTesting(source)
+        let entries = await session.entries(), registry = FilePromiseRegistry()
+        XCTAssertEqual(entries.map(\.solidGroup), Array(repeating: 0, count: 10) + Array(repeating: 1, count: 10))
+        let gates = [ScenarioGate(), ScenarioGate()]
+        defer { for gate in gates { gate.release() } }
+        let promises = try entries.map { entry in
+            try registry.register(payload: fixture.payload(entry.name, session: session, index: entry.index),
+                session: session, didWrite: { _ in
+                    if entry.index == 1 || entry.index == 10 { gates[entry.solidGroup].pauseOnce() }
+                })
+        }
+        registry.began(sessionID: 44, promises: promises.map(\.id))
+        let queue = try XCTUnwrap(promises.first?.provider.delegate as? ArchiveFilePromise).debugExtractionQueue
+        let first = try XCTUnwrap(promises[0].provider.delegate as? ArchiveFilePromise)
+        let firstError = try await write(first, to: fixture.output.appendingPathComponent(entries[0].name))
+        XCTAssertNil(firstError)
+        XCTAssertEqual(queue.readerReopenCount.withLock { $0 }, 1)
+        let completed = expectation(description: "Two solid groups")
+        completed.expectedFulfillmentCount = 19
+        let secondGroup = try XCTUnwrap(promises[10].provider.delegate as? ArchiveFilePromise)
+        secondGroup.filePromiseProvider(promises[10].provider,
+            writePromiseTo: fixture.output.appendingPathComponent(entries[10].name)) { @Sendable error in
+                XCTAssertNil(error)
+                completed.fulfill()
+            }
+        try await scenarioWait { gates[1].isEntered }
+        let initialReadStarts = source.packedReadStarts.withLock { $0 }
+        for (promise, entry) in zip(promises, entries).reversed() where entry.index != 0 && entry.index != 10 {
+            let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+            delegate.filePromiseProvider(promise.provider, writePromiseTo: fixture.output.appendingPathComponent(entry.name)) { @Sendable error in
+                XCTAssertNil(error)
+                completed.fulfill()
+            }
+        }
+        try await scenarioWait { gates.allSatisfy(\.isEntered) }
+        XCTAssertEqual(queue.activeCount.withLock { $0 }, 2)
+        for gate in gates { gate.release() }
+        await fulfillment(of: [completed], timeout: 15)
+        XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, 2)
+        XCTAssertEqual(queue.readerReopenCount.withLock { $0 }, 2)
+        let processed = queue.processedIndices.withLock { $0 }
+        for group in 0..<2 {
+            XCTAssertEqual(processed.filter { entries[$0].solidGroup == group }, Array((group * 10)..<(group * 10 + 10)))
+        }
+        XCTAssertGreaterThanOrEqual(source.packedReadStarts.withLock { $0 }, 2)
+        XCTAssertLessThanOrEqual(source.packedReadStarts.withLock { $0 }, 4)
+        XCTAssertEqual(source.packedReadStarts.withLock { $0 }, initialReadStarts,
+                       "遅れて届いた行でも solid folder を先頭から読み直さない")
+        for entry in entries {
+            XCTAssertEqual(try Data(contentsOf: fixture.output.appendingPathComponent(entry.name)), Data([UInt8(65 + entry.index)]))
+        }
+        await session.close()
+    }
+
+    @MainActor func testSharedPromiseReaderRefreshesAfterPasswordAcceptance() async throws {
+        let fixture = try Fixture()
+        try fixture.run("""
+        import subprocess, os
+        secret = os.path.join(os.path.dirname(p), 'secret')
+        open(secret, 'wb').write(b'protected')
+        subprocess.run(['/usr/bin/zip', '-q', '-j', '-P', 'key', p, secret], check=True)
+        """)
+        let session = try ArchiveSession(url: fixture.archive), queue = ArchivePromiseExtractionQueue()
+        session.setPasswordPrompt { _ in "key" }
+        for (index, name) in [(2, "other.txt"), (3, "secret")] {
+            let delegate = ArchiveFilePromise(payload: fixture.payload(name, session: session, index: index), session: session)
+            delegate.useExtractionQueue(queue)
+            let error = try await write(delegate, to: fixture.output.appendingPathComponent(name))
+            XCTAssertNil(error)
+        }
+        XCTAssertEqual(queue.readerReopenCount.withLock { $0 }, 2)
+        XCTAssertEqual(try String(contentsOf: fixture.output.appendingPathComponent("secret"), encoding: .utf8), "protected")
+        await session.close()
     }
 
     @MainActor func testPromiseCompletesExactlyOnceOnFailureAndDoesNotOverwrite() async throws {
@@ -365,7 +562,7 @@ nonisolated final class DragCopyOutTests: XCTestCase {
                 didProcess: { _ in progress.cancel() })
             XCTFail("取消しが成功扱いになりました")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(progress.completedUnitCount, 1)
+        XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1)
         XCTAssertEqual(pasteboard.changeCount, changeCount)
         XCTAssertEqual(pasteboard.string(forType: .string), "original")
         XCTAssertNil(pasteboard.string(forType: .fileURL))
@@ -396,7 +593,8 @@ nonisolated final class DragCopyOutTests: XCTestCase {
                 didProcess: { _ in progress.cancel() })
             XCTFail("部分的な URL が成功として返されました")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(progress.completedUnitCount, 1)
+        XCTAssertEqual(progress.completedUnitCount, 5)
+        XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1)
         let staged = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil).first)
         XCTAssertTrue(FileManager.default.fileExists(atPath: staged.appendingPathComponent("folder/a.txt").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: staged.appendingPathComponent("folder/deep/b.txt").path))
@@ -446,10 +644,14 @@ nonisolated final class DragCopyOutTests: XCTestCase {
 
     @MainActor func testRegistryRetainsOverlappingWritesUntilEveryCompletion() async throws {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
-        let registry = FilePromiseRegistry(), gate = ScenarioGate()
-        defer { gate.release() }
+        let registry = FilePromiseRegistry(), gate = ScenarioGate(), secondGate = ScenarioGate()
+        defer { gate.release(); secondGate.release() }
+        let writes = Mutex(0)
         let promise = try registry.register(payload: fixture.payload("folder/a.txt", session: session, index: 0),
-            session: session, didWrite: { _ in gate.pauseOnce() })
+            session: session, didWrite: { _ in
+                if writes.withLock({ $0 += 1; return $0 }) == 1 { gate.pauseOnce() }
+                else { secondGate.pauseOnce() }
+            })
         let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
         let completions = Mutex(0), errors = Mutex<[String]>([])
         for name in ["first", "second"] {
@@ -458,7 +660,11 @@ nonisolated final class DragCopyOutTests: XCTestCase {
                 completions.withLock { $0 += 1 }
             }
         }
-        try await scenarioWait { gate.isEntered && completions.withLock { $0 } == 1 }
+        try await scenarioWait { gate.isEntered }
+        XCTAssertEqual(completions.withLock { $0 }, 0)
+        XCTAssertFalse(secondGate.isEntered)
+        gate.release()
+        try await scenarioWait { secondGate.isEntered && completions.withLock { $0 } == 1 }
         // completion は registry の main actor callback より先。callback が進む機会も与える。
         try await Task.sleep(for: .milliseconds(50))
         XCTAssertTrue(delegate.isWriting)
@@ -466,7 +672,7 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         XCTAssertEqual(registry.count, 1)
         registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1))
         XCTAssertEqual(registry.count, 1)
-        gate.release()
+        secondGate.release()
         try await scenarioWait { completions.withLock { $0 } == 2 && registry.count == 0 }
         XCTAssertFalse(delegate.isWriting)
         XCTAssertTrue(errors.withLock { $0.isEmpty })

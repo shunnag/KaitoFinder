@@ -1,0 +1,13 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:17:18.143.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:18.144.
+Test Suite 'DeferredSplitSaveTests' started at 2026-09-27 04:17:18.144.
+Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testProvenRollbackKeepsPendingAndCanRetryWithoutReopening]' started.
+~/Github/KaitoFinder/build/s41-p7a-baseline/KaitoFinder/KaitoFinderTests/DeferredSplitSaveTests.swift:460: error: -[KaitoFinderTests.DeferredSplitSaveTests testProvenRollbackKeepsPendingAndCanRetryWithoutReopening] : XCTAssertEqual failed: ("Optional(KaitoFinder.ArchiveSplitSaveFailure.Kind.failed)") is not equal to ("Optional(KaitoFinder.ArchiveSplitSaveFailure.Kind.rolledBack)")
+<unknown>:0: error: -[KaitoFinderTests.DeferredSplitSaveTests testProvenRollbackKeepsPendingAndCanRetryWithoutReopening] : failed: caught error: "ArchiveSplitSaveFailure(context: KaitoFinder.ArchiveSplitSaveFailure.Context.deferredReplacement, kind: KaitoFinder.ArchiveSplitSaveFailure.Kind.failed, staging: nil, diagnostic: "ファイル“archive.7z.001”をフォルダ“set-9F4B89F8-68F1-4D66-90A1-28B355E74383”に保存できませんでした。", keepsPendingChanges: true, restoredIdentity: nil)"
+Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testProvenRollbackKeepsPendingAndCanRetryWithoutReopening]' failed (0.267 seconds).
+Test Suite 'DeferredSplitSaveTests' failed at 2026-09-27 04:17:18.411.
+	 Executed 1 test, with 2 failures (1 unexpected) in 0.267 (0.268) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:17:18.411.
+	 Executed 1 test, with 2 failures (1 unexpected) in 0.267 (0.268) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:17:18.411.
+	 Executed 1 test, with 2 failures (1 unexpected) in 0.267 (0.268) seconds

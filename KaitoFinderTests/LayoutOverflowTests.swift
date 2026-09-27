@@ -4,6 +4,28 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class LayoutOverflowTests: XCTestCase {
+    @MainActor func testViewOptionsPanelInEveryLanguageAndPopupSelection() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        preserveArchiveWindowFrame()
+        let archive = ArchiveWindowController(preferencesStore: store)
+        defer { archive.close() }
+        try forEachLanguage { language, bundle in
+            let panel = ArchiveViewOptionsController(store: store, bundle: bundle, mainWindow: { archive.window })
+            defer { panel.close() }
+            let window = try XCTUnwrap(panel.window)
+            window.setFrameAutosaveName("")
+            try snapshot(window, name: "\(language)-view-options")
+            let content = try XCTUnwrap(window.contentView)
+            for popup in [panel.sortPopup, panel.orderPopup, panel.iconSizePopup, panel.textSizePopup] {
+                XCTAssertNotNil(popup.accessibilityLabel())
+                for index in 0..<popup.numberOfItems {
+                    popup.selectItem(at: index)
+                    checkOverflow(content, name: "\(language)-\(popup.titleOfSelectedItem ?? "")", file: #filePath, line: #line)
+                }
+            }
+        }
+    }
+
     private var longArchiveName: String {
         String(String(repeating: "旅行の写真 Archive ", count: 6).prefix(66)) + ".zip"
     }
@@ -143,14 +165,16 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                     try snapshot(controller.tabController.view, name: "\(language)-settings-compression-level-9")
                 }
-                if index == 0 || index == 2 {
-                    let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup]
+                if index <= 2 {
+                    let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup, controller.folderOpeningPopup]
+                        : index == 1 ? [controller.compressionThreadsPopup]
                         : [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup]
                     for popup in popups {
                         for item in 0..<popup.numberOfItems {
                             popup.selectItem(at: item)
                             XCTAssertTrue(popup.sendAction(popup.action, to: popup.target))
                             window.layoutIfNeeded()
+                            XCTAssertEqual(content.bounds.height, pane.preferredContentSize.height, accuracy: 0.5, language)
                             checkOverflow(controller.tabController.view, name: "\(language)-settings-\(tab)-\(item)", file: #filePath, line: #line)
                         }
                     }
@@ -278,7 +302,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             XCTAssertEqual(archiveName.count, 120)
             XCTAssertEqual(detail.count, 120)
             let title = ArchiveProgressOperation.expandingArchive(archiveName).title(bundle: bundle)
-            let sheet = ExtractionProgressSheet(progress: progress, title: title, detail: detail, bundle: bundle)
+            let sheet = ExtractionProgressSheet(progress: progress, title: title, detail: detail, bundle: bundle, revealDelay: .zero)
             defer { sheet.finish() }
             sheet.beginStandalone()
             let window = try XCTUnwrap(sheet.window)

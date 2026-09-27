@@ -48,11 +48,11 @@ actor EntryMaterializer {
             entries = try snapshot.resolve(payload)
         } else {
             let snapshot = await session.snapshot()
-            entries = try payload.resolve(in: snapshot.entries, generation: snapshot.generation)
+            entries = try payload.resolve(in: snapshot.entries, generation: snapshot.generation, syntax: .init(session.format))
         }
         let capability = EntryReadCapability(entry: entries.first, isDirectory: payload.isDirectory, format: session.format)
         if let refusal = capability.refusal { throw refusal }
-        let leaf = try ExtractionPath.components(payload.path).last!
+        let leaf = try ExtractionPath.components(payload.path, syntax: .init(session.format)).last!
         // 同名 entry と取消し直後の再要求は別の領域に置き、古い worker の掃除と競合させない。
         let directory = try ExtractionTemporaryDirectory(root: documentDirectory).create()
         let url = directory.appendingPathComponent(leaf)

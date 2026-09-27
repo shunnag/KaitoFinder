@@ -1,0 +1,85 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:24.028.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:24.029.
+Test Suite 'ArchiveCreationTests' started at 2026-09-27 05:07:24.029.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testAcceptedExtensionsMatchEachFormatIgnoringCase]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testAcceptedExtensionsMatchEachFormatIgnoringCase]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCancellationAtPublishPreservesDestinationAndRemovesTemporaryFilesForEveryFormat]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCancellationAtPublishPreservesDestinationAndRemovesTemporaryFilesForEveryFormat]' passed (0.105 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionCancellationAtPublishPreservesBothArchives]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionCancellationAtPublishPreservesBothArchives]' passed (0.019 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionCannotReplaceOriginalThroughItsPathOrFileAliases]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionCannotReplaceOriginalThroughItsPathOrFileAliases]' passed (0.012 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionCollisionsAreAllRefusedBeforeAnyWrite]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionCollisionsAreAllRefusedBeforeAnyWrite]' passed (0.012 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionNamesRemoveTheWholeArchiveExtension]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionNamesRemoveTheWholeArchiveExtension]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionPropagatesTheOriginalArchiveQuarantine]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionPropagatesTheOriginalArchiveQuarantine]' passed (0.018 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionUsesCurrentZIPPreferences]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testConversionUsesCurrentZIPPreferences]' passed (0.027 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateLHARoundTripsEveryEntryAndContent]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateLHARoundTripsEveryEntryAndContent]' passed (0.014 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateSevenZipRoundTripsAndSevenZipLists]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateSevenZipRoundTripsAndSevenZipLists]' passed (0.081 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarBzip2RoundTripsAndBSDTarLists]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarBzip2RoundTripsAndBSDTarLists]' passed (0.084 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarGzipHasGzipMagicRoundTripsAndTarLists]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarGzipHasGzipMagicRoundTripsAndTarLists]' passed (0.091 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarRoundTripsAndBSDTarLists]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarRoundTripsAndBSDTarLists]' passed (0.083 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarXZRoundTripsAndBSDTarLists]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateTarXZRoundTripsAndBSDTarLists]' passed (0.085 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateZIPRoundTripsEveryEntryAndContent]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreateZIPRoundTripsEveryEntryAndContent]' passed (0.014 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreationCannotReplaceAnySourceThroughItsPathOrHardLink]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreationCannotReplaceAnySourceThroughItsPathOrHardLink]' passed (0.008 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreationDeflateLevelNinePreferencesCompress200KiBMoreThanStored]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreationDeflateLevelNinePreferencesCompress200KiBMoreThanStored]' passed (0.060 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreationStoredZIPPreferencesStoreEveryEntryWithoutCompression]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testCreationStoredZIPPreferencesStoreEveryEntryWithoutCompression]' passed (0.027 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testDefaultNamesPreserveFolderAndFileNamesForEveryFormat]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testDefaultNamesPreserveFolderAndFileNamesForEveryFormat]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testEncryptedZIPConvertsToUnencryptedSevenZipWithPassword]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testEncryptedZIPConvertsToUnencryptedSevenZipWithPassword]' passed (0.085 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testFirstQuarantinedSourceValueIsPropagatedExactly]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testFirstQuarantinedSourceValueIsPropagatedExactly]' passed (0.010 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testInvalidSourcesAreAllReportedWithoutCreatingOutput]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testInvalidSourcesAreAllReportedWithoutCreatingOutput]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testLHASymlinkFailureUsesLocalizedWriterDescription]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testLHASymlinkFailureUsesLocalizedWriterDescription]' passed (0.009 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testMissingConversionPasswordThrowsRequiredAndPublishesNothing]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testMissingConversionPasswordThrowsRequiredAndPublishesNothing]' passed (0.085 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testNestedFileQuarantinePropagatesFromAnUnquarantinedFolder]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testNestedFileQuarantinePropagatesFromAnUnquarantinedFolder]' passed (0.016 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPendingRegistryTracksCreationUntilSuccessOrFailure]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPendingRegistryTracksCreationUntilSuccessOrFailure]' passed (0.025 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPreparedPasswordCancellationKeepsOriginalUnchanged]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPreparedPasswordCancellationKeepsOriginalUnchanged]' passed (0.008 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPreparedPasswordPromptsVerifiesAllEntriesAndReusesVerifiedPassword]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPreparedPasswordPromptsVerifiesAllEntriesAndReusesVerifiedPassword]' passed (0.009 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPublishHookFailurePreservesDestination]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPublishHookFailurePreservesDestination]' passed (0.011 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPublishSystemFailurePreservesDestinationDirectory]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testPublishSystemFailurePreservesDestinationDirectory]' passed (0.011 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testRegistryWriteFailureDoesNotPreventCreation]' started.
+2026-09-27 05:07:25.152 xctest[42533:13663885] 台帳への記録に失敗しました: Error Domain=NSCocoaErrorDomain Code=516 "同じ名前のファイルがすでに存在するため、ファイル“registry-parent”をフォルダ“KaitoFinder-Test-26F8DDF4-A2D9-4D3A-9379-77B64B133A65”に保存できませんでした。" UserInfo={NSFilePath=/var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-Test-26F8DDF4-A2D9-4D3A-9379-77B64B133A65/registry-parent, NSURL=file:///var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-Test-26F8DDF4-A2D9-4D3A-9379-77B64B133A65/registry-parent, NSUnderlyingError=0x7a60877090 {Error Domain=NSPOSIXErrorDomain Code=17 "File exists"}}
+2026-09-27 05:07:25.153 xctest[42533:13663885] 同一性の記録に失敗しました: Error Domain=NSCocoaErrorDomain Code=516 "同じ名前のファイルがすでに存在するため、ファイル“registry-parent”をフォルダ“KaitoFinder-Test-26F8DDF4-A2D9-4D3A-9379-77B64B133A65”に保存できませんでした。" UserInfo={NSFilePath=/var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-Test-26F8DDF4-A2D9-4D3A-9379-77B64B133A65/registry-parent, NSURL=file:///var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-Test-26F8DDF4-A2D9-4D3A-9379-77B64B133A65/registry-parent, NSUnderlyingError=0x7a604340c0 {Error Domain=NSPOSIXErrorDomain Code=17 "File exists"}}
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testRegistryWriteFailureDoesNotPreventCreation]' passed (0.097 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testSourceQuarantineReadDoesNotFollowSymlinks]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testSourceQuarantineReadDoesNotFollowSymlinks]' passed (0.012 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testSuccessfulCreationReplacesDestinationOnlyAfterPrivateWorkIsComplete]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testSuccessfulCreationReplacesDestinationOnlyAfterPrivateWorkIsComplete]' passed (0.015 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testTarBzip2ConversionAddsTwoFilesAndPreservesSourceSHA256]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testTarBzip2ConversionAddsTwoFilesAndPreservesSourceSHA256]' passed (0.084 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testTarGzipCreationRefusesPlainGzipDestinationBeforeImport]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testTarGzipCreationRefusesPlainGzipDestinationBeforeImport]' passed (0.007 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testUnquarantinedSourcesRemoveEvenTheReplacedDestinationsQuarantine]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testUnquarantinedSourcesRemoveEvenTheReplacedDestinationsQuarantine]' passed (0.011 seconds).
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testWrongConversionPasswordThrowsIncorrectAndPublishesNothing]' started.
+Test Case '-[KaitoFinderTests.ArchiveCreationTests testWrongConversionPasswordThrowsIncorrectAndPublishesNothing]' passed (0.083 seconds).
+Test Suite 'ArchiveCreationTests' passed at 2026-09-27 05:07:25.369.
+	 Executed 37 tests, with 0 failures (0 unexpected) in 1.338 (1.341) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:25.370.
+	 Executed 37 tests, with 0 failures (0 unexpected) in 1.338 (1.341) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:25.370.
+	 Executed 37 tests, with 0 failures (0 unexpected) in 1.338 (1.341) seconds

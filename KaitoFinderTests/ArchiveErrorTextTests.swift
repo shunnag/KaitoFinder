@@ -41,10 +41,71 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
             (WriterError.sourceChanged("note.txt"), "追加中にファイルが変更されました: note.txt"),
             (WriterError.invalidDate, "日付が不正です"),
             (WriterError.invalidState, "内部状態が不正です"),
-            (WriterError.io(operation: "open", code: ENOENT), "open: \(String(cString: strerror(ENOENT)))"),
+            (WriterError.io(operation: "open", code: ENOENT), String(cString: strerror(ENOENT))),
             (WriterError.compression(-3), "圧縮に失敗しました(コード -3)"),
             (WriterError.sizeOverflow, "サイズが上限を超えています")
         ])
+    }
+
+    // P1-G の clone・snapshot・output と、従来の spool / crypto の処理名も表示しない。
+    private static let writerIOOperations = [
+        "AES CBC finish", "AES CBC update", "AES ECB", "chmod clone",
+        "clear output flags", "clear snapshot flags", "clone output", "clone source",
+        "close ZipCrypto spool", "configure LHA spool", "create", "create AES CBC",
+        "create LHA spool", "create ZipCrypto spool", "create entry buffer", "derive ZIP key",
+        "fstat after read", "fstat output", "fstat source", "lstat",
+        "lstat output", "open archive", "open clone", "open output",
+        "open source", "pread appended", "pread archive", "pwrite archive",
+        "random", "read", "read LHA spool", "read ZipCrypto spool",
+        "read quarantine", "read quarantine size", "readlink", "restore quarantine",
+        "seek ZipCrypto spool", "source flags", "unlink LHA spool", "unlink ZipCrypto spool",
+        "write ZipCrypto spool",
+        "future internal operation /private/source.zip"
+    ]
+
+    func testEveryWriterIOOperationUsesTheSameOutOfSpaceMessage() {
+        let expected = ArchiveErrorText.describe(CocoaError(.fileWriteOutOfSpace))
+        for operation in Self.writerIOOperations {
+            for code in [ENOSPC, EDQUOT] {
+                XCTAssertEqual(ArchiveErrorText.describe(WriterError.io(operation: operation, code: code)), expected, operation)
+            }
+        }
+    }
+
+    func testWriterPermissionFailuresUsePermissionMessageWithoutInternalOperations() {
+        let expected = ArchiveErrorText.describe(CocoaError(.fileWriteNoPermission))
+        for operation in Self.writerIOOperations {
+            for code in [EPERM, EACCES, EROFS] {
+                XCTAssertEqual(ArchiveErrorText.describe(WriterError.io(operation: operation, code: code)), expected, operation)
+            }
+        }
+    }
+
+    func testOtherWriterIOFailuresKeepTheirCauseWithoutInternalOperations() {
+        for operation in Self.writerIOOperations {
+            for code in [EIO, ENOENT, EMFILE, Int32(-50)] {
+                let text = ArchiveErrorText.describe(WriterError.io(operation: operation, code: code))
+                XCTAssertEqual(text, String(cString: strerror(code)), operation)
+                XCTAssertFalse(text.contains(operation))
+            }
+        }
+    }
+
+    func testImmutableArchiveRefusalUsesPermissionMessageAndKeepsTypedCause() throws {
+        let directory = try ArchiveTestDirectory()
+        defer { withExtendedLifetime(directory) {} }
+        let archive = directory.url.appendingPathComponent("locked.zip")
+        let original = ReleaseReviewFixtures.zip([("keep", Data([1]))])
+        try original.write(to: archive)
+        guard chflags(archive.path, UInt32(UF_IMMUTABLE)) == 0 else { throw ExtractionFailure.system(errno) }
+        defer { XCTAssertEqual(chflags(archive.path, 0), 0) }
+        let before = try FileManager.default.contentsOfDirectory(atPath: directory.url.path).sorted()
+        XCTAssertThrowsError(try ArchiveUpdater.open(url: archive, output: directory.url.appendingPathComponent("output.zip"))) {
+            XCTAssertEqual($0 as? WriterError, .io(operation: "source flags", code: EPERM))
+            XCTAssertEqual(ArchiveErrorText.describe($0), ArchiveErrorText.describe(CocoaError(.fileWriteNoPermission)))
+        }
+        XCTAssertEqual(try Data(contentsOf: archive), original)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: directory.url.path).sorted(), before)
     }
 
     func testEveryRewriterErrorInJapanese() throws {
@@ -57,12 +118,28 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         ])
     }
 
+    func testImportWriterFailuresUseReadableTextInEveryLanguage() throws {
+        let errors: [WriterError] = [.duplicatePath("x"), .sourceChanged("x"), .io(operation: "open", code: EACCES), .compression(-3)]
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            for error in errors {
+                let text = ArchiveErrorText.describe(error, bundle: bundle)
+                XCTAssertFalse(text.isEmpty, language)
+                XCTAssertNotEqual(text, String(describing: error), language)
+                for raw in ["WriterError", "duplicatePath(", "sourceChanged(", "io(operation:", "compression("] {
+                    XCTAssertFalse(text.contains(raw), "\(language): \(text)")
+                }
+            }
+        }
+    }
+
     func testEveryUpdaterErrorInJapanese() throws {
         try checkJapanese([
             (UpdaterError.editingRefused(gatekeeper: .sfxPrefix, reason: "変更できません"), "変更できません"),
             (UpdaterError.invalidArchive("EOCD がありません"), "アーカイブが不正です: EOCD がありません"),
             (UpdaterError.invalidEntryIndex(4), "項目の番号が不正です: 4"),
             (UpdaterError.nonRelocatableEntry(index: 2, name: "link", reason: "offset"), "移動できない項目があります: link(offset)"),
+            (UpdaterError.reencryptionFailed(index: 2, name: "file", reason: "CRC"), "暗号化を変更できない項目があります: file(CRC)"),
             (UpdaterError.sourceChanged, "アーカイブが変更されています。開き直してください"),
             (UpdaterError.invalidState, "内部状態が不正です")
         ])
@@ -120,6 +197,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
             (KaitoError.checksumMismatch(entry: 3), "The checksum for item 3 doesn’t match"),
             (WriterError.compression(-3), "Compression failed (code -3)"),
             (RewriterError.invalidArchive("missing EOCD"), "The archive is invalid: missing EOCD"),
+            (UpdaterError.reencryptionFailed(index: 0, name: "file", reason: "CRC"), "An item’s encryption cannot be changed: file (CRC)"),
             (UpdaterError.sourceChanged, "The archive has changed. Please reopen it")
         ]
         for (error, expected) in cases {
@@ -153,7 +231,8 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         let sources = [
             "UI/ArchiveCreationController.swift", "UI/ArchiveWindowController.swift", "Model/ArchiveCapabilities.swift",
             "Model/ArchiveMaterializationController.swift", "Import/ArchiveIncomingFiles.swift", "Extraction/ExtractionService.swift",
-            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift", "Creation/ArchiveCreationTransaction.swift"
+            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift", "Import/ArchiveImportTransaction.swift",
+            "Creation/ArchiveCreationTransaction.swift"
         ]
         for path in sources {
             let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/" + path), encoding: .utf8)

@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import GyoshukuKit
 import KaitoKit
 
 nonisolated struct ArchiveConflictDecision: Sendable {
@@ -98,6 +99,7 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
     let permissions: UInt16
     let userID: UInt32
     let groupID: UInt32
+    let hardLinkIdentity: [Int64]?
 
     init(_ url: URL) throws {
         self.url = url
@@ -115,6 +117,7 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
         permissions = UInt16(info.st_mode & 0o7777)
         userID = info.st_uid
         groupID = info.st_gid
+        hardLinkIdentity = kind == .file && info.st_nlink > 1 ? Array(identity.prefix(2)) : nil
     }
 
     func verify() throws {
@@ -138,6 +141,7 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
 
 /// 衝突の判断だけを行う。すべての回答が揃うまで updater を開かない。
 nonisolated enum ArchiveConflictResolution {
+    typealias ItemProvider = @Sendable ([ArchiveEntry], String) throws -> ArchiveConflictItem
     struct Candidate: Sendable {
         let path: String
         let info: ArchiveConflictItem
@@ -147,22 +151,31 @@ nonisolated enum ArchiveConflictResolution {
         let replaced: [ArchiveEntry]
     }
 
-    static func existingGroups(_ entries: [ArchiveEntry], folder: String) -> [String: [ArchiveEntry]] {
+    static func existingGroups(_ entries: [ArchiveEntry], folder: String, matching: Set<String>? = nil,
+                               occupancy: ArchivePathOccupancy.Overlay? = nil) -> [String: [ArchiveEntry]] {
+        if let occupancy, let matching, matching.allSatisfy({ !occupancy.containsSubtree(at: $0) }) { return [:] }
         let parent = ArchivePath.components(folder)
+        let leaves = matching.map { Set($0.compactMap { ArchivePath.components($0).last }) }
         var groups: [String: [ArchiveEntry]] = [:]
         for entry in entries {
             let parts = Array(entry.pathComponents.drop(while: { $0 == "." }))
             guard parts.count > parent.count, parts.prefix(parent.count).elementsEqual(parent) else { continue }
+            if let leaves, !leaves.contains(parts[parent.count]) { continue }
             let path = parts.prefix(parent.count + 1).joined(separator: "/").precomposedStringWithCanonicalMapping
             groups[path, default: []].append(entry)
         }
         return groups
     }
 
-    static func resolve(_ candidates: [Candidate], existing: [String: [ArchiveEntry]], archive: URL,
+    @concurrent static func resolve(_ candidates: [Candidate], existing: [String: [ArchiveEntry]], archive: URL,
                         generation: UInt64, progress: Progress,
                         existingItems: [String: ArchiveConflictItem] = [:],
+                        itemProvider: ItemProvider? = nil,
                         resolver: ArchiveImportConflict.Resolver) async throws -> Result {
+        #if DEBUG
+        var planning = ArchiveStageDiagnostics.begin(.planBuild)
+        defer { planning?.end() }
+        #endif
         var occupied = Set(existing.keys), remaining = 0
         for candidate in candidates {
             if !occupied.insert(candidate.path).inserted { remaining += 1 }
@@ -171,16 +184,26 @@ nonisolated enum ArchiveConflictResolution {
         var batchChoice: ArchiveConflictDecision.Choice?
         for (index, candidate) in candidates.enumerated() {
             try ArchiveImportPlan.checkCancellation(progress)
-            let previous = accepted[candidate.path].map { candidates[$0].info }
+            let previous = try accepted[candidate.path].map { candidates[$0].info }
                 ?? existingItems[candidate.path] ?? existing[candidate.path].map {
-                    ArchiveConflictItem.archived($0, path: candidate.path, archive: archive, generation: generation)
+                    try itemProvider?($0, candidate.path) ?? ArchiveConflictItem.archived($0, path: candidate.path, archive: archive, generation: generation)
                 }
             if let previous {
                 let conflict = ArchiveImportConflict(path: candidate.path, existing: previous, incoming: candidate.info,
                                                      remainingCount: remaining)
                 let decision: ArchiveConflictDecision
                 if conflict.allowsBatchChoice, let batchChoice { decision = .init(choice: batchChoice) }
-                else { decision = try await resolver(conflict) }
+                else {
+                    // 確認 UI の待ち時間は計画の構築に含めない。
+                    #if DEBUG
+                    planning?.end()
+                    planning = nil
+                    #endif
+                    decision = try await resolver(conflict)
+                    #if DEBUG
+                    planning = ArchiveStageDiagnostics.begin(.planBuild)
+                    #endif
+                }
                 try ArchiveImportPlan.checkCancellation(progress)
                 if decision.applyToRemaining, conflict.allowsBatchChoice { batchChoice = decision.choice }
                 remaining -= 1
@@ -195,17 +218,23 @@ nonisolated enum ArchiveConflictResolution {
 }
 
 extension ArchiveImportPlan {
-    static func resolving(urls: [URL], folder: String, existing: [ArchiveEntry], archive: URL, generation: UInt64,
-                          progress: Progress, options: Options,
+    @concurrent static func resolving(urls: [URL], folder: String, existing: [ArchiveEntry], archive: URL, generation: UInt64,
+                          progress: Progress, options: Options, format: GyoshukuKit.ArchiveFormat = .zip,
                           existingItems: [String: ArchiveConflictItem] = [:],
+                          itemProvider: ArchiveConflictResolution.ItemProvider? = nil,
+                          occupancy: ArchivePathOccupancy.Overlay? = nil,
                           resolver: ArchiveImportConflict.Resolver) async throws -> Self {
-        let target = folder.isEmpty ? "" : try path(folder)
+        #if DEBUG
+        var planning = ArchiveStageDiagnostics.begin(.planBuild)
+        defer { planning?.end() }
+        #endif
+        let target = folder.isEmpty ? "" : try path(folder, format: format)
         // 既存と同じ規則で追加先の実在・ファイル祖先を検証する。
-        _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options)
+        _ = try build(urls: [], folder: target, existing: existing, progress: progress, options: options, format: format, occupancy: occupancy)
         var batches: [[Item]] = [], stamps: [[ArchiveImportSourceStamp]] = []
         var candidates: [ArchiveConflictResolution.Candidate] = [], failures: [Failure] = []
         for url in urls {
-            let scanned = try build(urls: [url], folder: "", existing: [], progress: progress, options: options)
+            let scanned = try build(urls: [url], folder: "", existing: [], progress: progress, options: options, format: format)
             failures.append(contentsOf: scanned.failures)
             guard let root = scanned.items.first else { continue }
             let items = scanned.items.map {
@@ -222,9 +251,17 @@ extension ArchiveImportPlan {
             stamps.append(identities)
         }
         guard failures.isEmpty else { return Self(failures: failures) }
+        let groups = ArchiveConflictResolution.existingGroups(existing, folder: target, matching: Set(candidates.map(\.path)), occupancy: occupancy)
+        #if DEBUG
+        planning?.end()
+        planning = nil
+        #endif
         let result = try await ArchiveConflictResolution.resolve(candidates,
-            existing: ArchiveConflictResolution.existingGroups(existing, folder: target), archive: archive,
-            generation: generation, progress: progress, existingItems: existingItems, resolver: resolver)
+            existing: groups, archive: archive,
+            generation: generation, progress: progress, existingItems: existingItems, itemProvider: itemProvider, resolver: resolver)
+        #if DEBUG
+        planning = ArchiveStageDiagnostics.begin(.planBuild)
+        #endif
         return Self(items: result.accepted.flatMap { batches[$0] }, replacingEntries: result.replaced.map(\.index),
                     expectedEntries: existing, sourceStamps: result.accepted.flatMap { stamps[$0] })
     }

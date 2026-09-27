@@ -7,6 +7,20 @@ nonisolated struct ArchiveCapabilities: Sendable {
     enum Mode: Sendable, Equatable {
         case inPlace
         case rewrite(GyoshukuKit.ArchiveFormat)
+        case update(GyoshukuKit.ArchiveFormat)
+
+        var outputFormat: GyoshukuKit.ArchiveFormat {
+            switch self {
+            case .inPlace: .zip
+            case .rewrite(let format), .update(let format): format
+            }
+        }
+
+        func resolved(with options: WriterOptions) -> Mode {
+            guard case .update(let format) = self else { return self }
+            let resetsTar = [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format) && options.carriedTarOwnerIDs == .reset
+            return options.additionPlacement == .beginning || resetsTar ? .rewrite(format) : self
+        }
     }
 
     enum Refusal: Sendable, Equatable {
@@ -25,11 +39,19 @@ nonisolated struct ArchiveCapabilities: Sendable {
     let refusal: Refusal?
     let splitSave: Bool
     let splitIrreversible: Bool
+    let compressedTarAssessment: CompressedTarAssessment?
+    let lhaRewriteReason: String?
+    let sevenZipAssessment: SevenZipAssessment?
 
-    init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false) {
+    init(mode: Mode, splitSave: Bool = false, splitIrreversible: Bool = false,
+         compressedTarAssessment: CompressedTarAssessment? = nil, lhaRewriteReason: String? = nil,
+         sevenZipAssessment: SevenZipAssessment? = nil) {
         self.mode = mode
         self.splitSave = splitSave
         self.splitIrreversible = splitIrreversible
+        self.compressedTarAssessment = compressedTarAssessment
+        self.lhaRewriteReason = lhaRewriteReason
+        self.sevenZipAssessment = sevenZipAssessment
         refusal = nil
     }
 
@@ -38,12 +60,38 @@ nonisolated struct ArchiveCapabilities: Sendable {
         self.refusal = refusal
         splitSave = false
         splitIrreversible = false
+        compressedTarAssessment = nil
+        lhaRewriteReason = nil
+        sevenZipAssessment = nil
     }
 
     var canEdit: Bool { refusal == nil }
     var rewriteNotice: String? {
         guard case .rewrite = mode else { return nil }
         return String(localized: "編集するとアーカイブ全体を再圧縮します")
+    }
+
+    func editNotice(options: WriterOptions, onSave: Bool) -> String? {
+        switch mode?.resolved(with: options) {
+        case .rewrite where mode != .update(.tar):
+            break
+        case .update(let format) where [.tarGzip, .tarBzip2, .tarXZ].contains(format):
+            if let assessment = compressedTarAssessment {
+                guard assessment.nextEditReencodesEverything else { return nil }
+                return onSave ? String(localized: "最初の保存でアーカイブ全体を再圧縮します")
+                    : String(localized: "最初の編集でアーカイブ全体を再圧縮します")
+            }
+        case .update(.lha) where lhaRewriteReason != nil:
+            break
+        case .update(.sevenZip):
+            if let assessment = sevenZipAssessment, assessment.updatable {
+                return assessment.hasSolidFolders
+                    ? String(localized: "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します") : nil
+            }
+        default: return nil
+        }
+        return onSave ? String(localized: "保存するとアーカイブ全体を再圧縮します")
+            : String(localized: "編集するとアーカイブ全体を再圧縮します")
     }
     var readOnlyReason: String? { readOnlyReason(bundle: .main) }
 
@@ -76,9 +124,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
         }
     }
 
-    /// 既に開いた reader から編集可否を導く。書庫を開き直さず、一覧（entries）と形式だけを読む。
+    /// 既に開いた reader から編集可否を導き、書庫を開き直さない。
     /// ZIP は GyoshukuKit の `ArchiveUpdater.probe`（終端の門番、reader を作らない）で entry 数を照合する。
-    /// tar / 7z / LHA は `ArchiveRewriter.probe(entries:format:)` で表現可能性を検査する。
+    /// tar / 7z / LHA は reader 版 probe で、MacBinary envelope も検査する。
     /// G4 の中央ディレクトリの照合は公開時（`ArchiveUpdater.open`）に行うため、終端の門番を通っても
     /// その照合に失敗する ZIP は、最初の編集で拒否される。reader はスレッドセーフではないので、
     /// 呼出側（ArchiveSession の actor 内）が所有したまま呼ぶ。
@@ -136,9 +184,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
             } catch {
                 return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
-            let format: GyoshukuKit.ArchiveFormat
-            switch mode { case .inPlace: format = .zip; case .rewrite(let output): format = output }
-            try ArchiveRewriter.probe(entries: reader.entries, format: format)
+            try ArchiveRewriter.probe(reader: reader, format: mode.outputFormat)
             return Self(mode: mode, splitSave: true)
         } catch { return Self(refusal: refusal(for: error)) }
     }
@@ -166,10 +212,12 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 // ArchiveReader は圧縮 tar の内側を報告する。外側の判定もエンジンに任せ、
                 // skippable frame や tar のファイル名を短い圧縮署名と取り違えない。
                 switch try FormatDetector.detect(url: url) {
-                case .tar: mode = .rewrite(.tar)
-                case .gzip: mode = .rewrite(.tarGzip)
-                case .bzip2: mode = .rewrite(.tarBzip2)
-                case .xz: mode = .rewrite(.tarXZ)
+                case .tar:
+                    // TarUpdater の R7 と同じく、一巻だけでも分割名は書き直す。
+                    mode = ArchiveVolumeSet.parse(fileName: url.lastPathComponent) == nil ? .update(.tar) : .rewrite(.tar)
+                case .gzip: mode = .update(.tarGzip)
+                case .bzip2: mode = .update(.tarBzip2)
+                case .xz: mode = .update(.tarXZ)
                 case .compress: return Self(refusal: .format("tar.Z"))
                 case .zstd: return Self(refusal: .format("tar.zst"))
                 case .lz4: return Self(refusal: .format("tar.lz4"))
@@ -178,15 +226,15 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 case .brotli: return Self(refusal: .format("tar.br"))
                 default: return Self(refusal: .format(format.displayName))
                 }
-            case .sevenZip: mode = .rewrite(.sevenZip)
-            case .lha: mode = .rewrite(.lha)
+            case .sevenZip: mode = .update(.sevenZip)
+            case .lha: mode = .update(.lha)
             default: return Self(refusal: .format(format.displayName))
             }
             guard FileManager.default.isWritableFile(atPath: url.path),
                   FileManager.default.isWritableFile(atPath: url.deletingLastPathComponent().path) else {
                 return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
-            if case .rewrite(let outputFormat) = mode {
+            if mode != .inPlace {
                 // 従来の rewriter open と同じく、原本が通常ファイル（symlink でない）であることを確かめてから
                 // 全 entry の表現可能性を検査する。ファイルもディレクトリも作らず、書庫も開き直さない。
                 var info = stat()
@@ -195,8 +243,17 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 }
                 let reader = try open()
                 if let set = reader.volumeSet { return Self(refusal: splitRefusal(for: url, scheme: set.scheme)) }
-                try ArchiveRewriter.probe(entries: reader.entries, format: outputFormat)
+                try ArchiveRewriter.probe(reader: reader, format: mode.outputFormat)
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
+                if case .update(let format) = mode, [.tarGzip, .tarBzip2, .tarXZ].contains(format) {
+                    return Self(mode: mode, compressedTarAssessment: CompressedTarUpdater.assess(reader: reader))
+                }
+                if mode == .update(.lha) {
+                    return Self(mode: mode, lhaRewriteReason: LHAUpdater.rewriteReason(reader: reader))
+                }
+                if mode == .update(.sevenZip) {
+                    return Self(mode: mode, sevenZipAssessment: SevenZipUpdater.assess(reader: reader))
+                }
             }
             return Self(mode: mode)
         } catch { return Self(refusal: refusal(for: error)) }

@@ -1,0 +1,10 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:08:34.899.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:08:34.900.
+Test Suite 'DeferredSaveAttributeTests' started at 2026-09-27 04:08:34.900.
+Test Case '-[KaitoFinderTests.DeferredSaveAttributeTests testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset]' started.
+Test Case '-[KaitoFinderTests.DeferredSaveAttributeTests testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset]' passed (0.106 seconds).
+Test Case '-[KaitoFinderTests.DeferredSaveAttributeTests testDeferredTarAdditionUsesOriginalSourceOwnersInsteadOfStagingOwners]' started.
+Test Case '-[KaitoFinderTests.DeferredSaveAttributeTests testDeferredTarAdditionUsesOriginalSourceOwnersInsteadOfStagingOwners]' passed (0.023 seconds).
+Test Case '-[KaitoFinderTests.DeferredSaveAttributeTests testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs]' started.
+2026-09-27 04:08:35.234 xctest[20264:13545686] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'ClientCallsAuxiliary': Connection invalid
+2026-09-27 04:08:35.234 xctest[20264:13545686] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'HostCallsAuxiliary': Connection invalid

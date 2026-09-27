@@ -1,0 +1,2123 @@
+[
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveWriteProgressTests",
+    "exit": 0,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/001-ArchiveWriteProgressTests.log",
+    "sha256": "7e429bfa8120a0bee69d13da772f7f96411ee3865b84fe0fe505cdbfa7b5d67a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveWriteProgressTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ByteProgressIntegrationTests",
+    "exit": 0,
+    "passed": 9,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/002-ByteProgressIntegrationTests.log",
+    "sha256": "9fa4262a8f70836ac024c464e9436905473a5543b4b411158e52886d5f0b23d7",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ByteProgressIntegrationTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveImportSafetyTests",
+    "exit": 69,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a/003-ArchiveImportSafetyTests.log",
+    "sha256": "880f8a669b3b45b98b599f8da20c439e17e2a955de3f10980c0e71bf051b2a33",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveImportConflictTests",
+    "exit": 0,
+    "passed": 13,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/004-ArchiveImportConflictTests.log",
+    "sha256": "d8af4eef64b5a442fc28d4069db50a11e966d3e060e1b65a54398dfb0fefe3cc",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportConflictTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveEditTests",
+    "exit": 0,
+    "passed": 54,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/005-ArchiveEditTests.log",
+    "sha256": "de585f3c52d0da30eb32a50e3a1931878b6425e97bc4837407836f4a77099b51",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveEditTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveImportCorrectionTests",
+    "exit": 0,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/006-ArchiveImportCorrectionTests.log",
+    "sha256": "b401cf18d789735fd275d2e6a4e04cd611e20488f0512550826998ea330f95a5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportCorrectionTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveImportTransactionVerificationTests",
+    "exit": 0,
+    "passed": 12,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/007-ArchiveImportTransactionVerificationTests.log",
+    "sha256": "4b658a58dfbf09a50909298d213e9c5af1493083a2c26b7c6f4c1b3d4010a35c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportTransactionVerificationTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "DeferredSaveDocumentTests",
+    "exit": 69,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a/008-DeferredSaveDocumentTests.log",
+    "sha256": "f5abf471d3a1a609cf9277e729c0faf9e788b1796d5d2eee6a751c8d0bc54512",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "DeferredSavePlanEquivalenceTests",
+    "exit": 0,
+    "passed": 5,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/009-DeferredSavePlanEquivalenceTests.log",
+    "sha256": "27121b30ab83a7f6ab9a5c11a90ad211915e9bd335eee6a8025368206b3a5fe7",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "DeferredSaveAttributeTests",
+    "exit": 69,
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a/010-DeferredSaveAttributeTests.log",
+    "sha256": "471b85bf59239385a99a66a2a34f7ce2651819972fd3a7ed66540240f4da49c9",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "DeferredSaveCorrectionTests",
+    "exit": 69,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a/011-DeferredSaveCorrectionTests.log",
+    "sha256": "8f9b7b7469e2ceba2b20c435bca1ced0fa29d94db336d4704aebf361faee65c9",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveRewriteTests",
+    "exit": 0,
+    "passed": 35,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/012-ArchiveRewriteTests.log",
+    "sha256": "e49a94ebd2797c0ded2a7d6ce2651c7443496f42c3f90f9a54d37c23c094a631",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveRewriteTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "TarUpdateEditTests",
+    "exit": 0,
+    "passed": 9,
+    "skipped": 3,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/013-TarUpdateEditTests.log",
+    "sha256": "1db9d19c45ae2c30502695d0281a5514ad139e528e2a9bb4684b7f3185bf60f8",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.TarUpdateEditTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "CompressionCapabilityTests",
+    "exit": 0,
+    "passed": 45,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/014-CompressionCapabilityTests.log",
+    "sha256": "14b07bf0bbf7dee1de9d9141cc879a64aa620e698f1885b39a66c79a8577517f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.CompressionCapabilityTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveCreationTests",
+    "exit": 0,
+    "passed": 37,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/015-ArchiveCreationTests.log",
+    "sha256": "335a7b8d18d297f42c8ce694034a946738b1e84a3bbc6a18b5319d69b0b18351",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveCreationTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchivePasswordEditingTests",
+    "exit": -6,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a/016-ArchivePasswordEditingTests.log",
+    "sha256": "c9ff226340bd31938a3dc5e455ce68e23d4c44106f4640c3d34bc9edad8081ba",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveSplitVolumeTests",
+    "exit": 0,
+    "passed": 16,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/017-ArchiveSplitVolumeTests.log",
+    "sha256": "cb1d193b0e37877cbb80c3af2525a693f79728b5ce9d7b970b5c9b019cde9e0e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveSplitVolumeTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "DeferredSplitSaveTests",
+    "exit": -10,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 1,
+    "log": "build/s39-p6a/018-DeferredSplitSaveTests.log",
+    "sha256": "a275cf4c52ad4a9b83da43ccc6d5913af7dc6181bf8c503e85203cf2552a092e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "ArchiveUndoStackTests",
+    "exit": -5,
+    "passed": 12,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 1,
+    "log": "build/s39-p6a/019-ArchiveUndoStackTests.log",
+    "sha256": "3e3c32329047286b4b0047c9cc9cf6146f4a28a994e93b48d88ec711bf3c6f21",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "NameIndexEquivalenceTests",
+    "exit": 0,
+    "passed": 11,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/020-NameIndexEquivalenceTests.log",
+    "sha256": "98fc3ee0e11f0d3239b1d2db6b72035f8068fd5889d22e6797d5f8187a4b3e9f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.NameIndexEquivalenceTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "SplitSavePassTests",
+    "exit": 0,
+    "passed": 14,
+    "skipped": 3,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/021-SplitSavePassTests.log",
+    "sha256": "cf2f1e6c0741338e235bc640d39154e6624a43cbd82316312fdfb2375026b242",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.SplitSavePassTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "WordingAcceptanceTests",
+    "exit": 1,
+    "passed": 49,
+    "skipped": 0,
+    "failed": 3,
+    "interrupted": 0,
+    "log": "build/s39-p6a/022-WordingAcceptanceTests.log",
+    "sha256": "4844b702b7bbd08fba1434bac5c08d51dd0efcf2766e7f4ca3a846c8b3335169",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.WordingAcceptanceTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "SevenZipUpdatePasswordTests",
+    "exit": 0,
+    "passed": 5,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/023-SevenZipUpdatePasswordTests.log",
+    "sha256": "8cceb5321db50dc5e27cdfac23844430040e82a328fbe3e948934e3429a36bed",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.SevenZipUpdatePasswordTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "SevenZipUpdateRoutingTests",
+    "exit": 0,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/024-SevenZipUpdateRoutingTests.log",
+    "sha256": "5972d85ad717b55379a95597756dce8af9b44d33c42168e2ee7ab23aeeb857df",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.SevenZipUpdateRoutingTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "LHAUpdateFallbackTests",
+    "exit": 0,
+    "passed": 4,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/025-LHAUpdateFallbackTests.log",
+    "sha256": "c12be6fd791aa2b46a6274c2037cfe473dfd20437cce1e227c038d838967a738",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.LHAUpdateFallbackTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "CompressedTarDeferredSaveTests",
+    "exit": 0,
+    "passed": 3,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/026-CompressedTarDeferredSaveTests.log",
+    "sha256": "aadaf6bc7ed5015522a8446feec187cdcba1f67eddbb29805286ba65d1fd55c6",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.CompressedTarDeferredSaveTests",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "PerformanceProbeTests/testManyFileAdditionsAndCreationWhenEnabled",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/027-PerformanceProbeTests-testManyFileAdditionsAndCreationWhenEnabled.log",
+    "sha256": "b0a40df0a49b55c7470ac5404512dfda30286072bc9aa32158b1da8f28eeb9cd",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.PerformanceProbeTests/testManyFileAdditionsAndCreationWhenEnabled",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "KAITOFINDER_PERFORMANCE_PROBES": "1",
+      "KAITOFINDER_PROBE_ENTRIES": "1",
+      "KAITOFINDER_PROBE_ADD_FILES": "120",
+      "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,7z,lha",
+      "KAITOFINDER_PROBE_PAYLOAD_MIB": "1",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a",
+    "selection": "PerformanceProbeTests/testArchiveEditsWhenEnabled",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a/028-PerformanceProbeTests-testArchiveEditsWhenEnabled.log",
+    "sha256": "d14ae383ad63f02647e2f959edc945811c38b029bae5f212e1a38cc8131f7c0f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled",
+      "~/Github/KaitoFinder/build/s39-p6a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "KAITOFINDER_PERFORMANCE_PROBES": "1",
+      "KAITOFINDER_PROBE_ENTRIES": "20",
+      "KAITOFINDER_PROBE_PAYLOAD_MIB": "1",
+      "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveWriteProgressTests",
+    "exit": 0,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/001-ArchiveWriteProgressTests.log",
+    "sha256": "a66966a8e9a44d70cd84e70dd2dd9cbdb3f9cc926e2f1a1d453cf02901cfb22c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveWriteProgressTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ByteProgressIntegrationTests",
+    "exit": 0,
+    "passed": 10,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/002-ByteProgressIntegrationTests.log",
+    "sha256": "f8978404feed86cdc17a7bec510b36a2aecc88be9ebe346f3620a180acbaa53a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ByteProgressIntegrationTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveCreationTests",
+    "exit": 0,
+    "passed": 37,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/003-ArchiveCreationTests.log",
+    "sha256": "a73a1e20592e7dffa5750b9066ec17f069ecf025df0837559c55028ceb75d682",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveCreationTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveRewriteTests",
+    "exit": 0,
+    "passed": 35,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/004-ArchiveRewriteTests.log",
+    "sha256": "7ef4d20163ef66b191c13112446fe1a7be522eb9476e2fcd8f92a331c687232c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveRewriteTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "TarUpdateEditTests",
+    "exit": 0,
+    "passed": 9,
+    "skipped": 3,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/005-TarUpdateEditTests.log",
+    "sha256": "6ce3b01627bd037a67b8134e30b69e354213b2c98f18d8fca394b21ef1ea90e1",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.TarUpdateEditTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "SevenZipUpdateRoutingTests",
+    "exit": 0,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/006-SevenZipUpdateRoutingTests.log",
+    "sha256": "cd139c57a2950f4b92e803440431708acfb19bb2c9ab3310ffd2f94ad9998935",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.SevenZipUpdateRoutingTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "LHAUpdateFallbackTests",
+    "exit": 0,
+    "passed": 4,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/007-LHAUpdateFallbackTests.log",
+    "sha256": "07db351e281b181be27b5e7cf71c4cf53c45cbf4e7f24eee4ef623a211400e34",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.LHAUpdateFallbackTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "CompressedTarDeferredSaveTests",
+    "exit": 0,
+    "passed": 3,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/008-CompressedTarDeferredSaveTests.log",
+    "sha256": "3a7e284a50837e8704d518d8c08c066cb05ec9c5ea07de5fbf99e48c66b07318",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.CompressedTarDeferredSaveTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "NameIndexEquivalenceTests",
+    "exit": 0,
+    "passed": 11,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/009-NameIndexEquivalenceTests.log",
+    "sha256": "3f85028d64a4c539adf4833d24fe4083dccb473ea00b38d7aa60a5951edfde60",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.NameIndexEquivalenceTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSavePlanEquivalenceTests",
+    "exit": 0,
+    "passed": 5,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/010-DeferredSavePlanEquivalenceTests.log",
+    "sha256": "feb7caa0f952407af99b9788f8190d4fe6018a8463b1509db48a687cda5a6519",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testPendingPublishRetainsVerificationUnlessReplacedBeforeReload",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/011-ArchivePasswordEditingTests-testPendingPublishRetainsVerificationUnlessReplacedBeforeReload.log",
+    "sha256": "c30bc49379cd67b5feb6418891eef2a6e2931c848c72c18db15a521aecac400e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testPendingPublishRetainsVerificationUnlessReplacedBeforeReload",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testUndoDoesNotPromoteUnverifiedEncryptedEntries",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/012-ArchivePasswordEditingTests-testUndoDoesNotPromoteUnverifiedEncryptedEntries.log",
+    "sha256": "7d1765ecbc0ab24a2f90d864fd1a1179e9216e88dca4f6b2fe9270debdd46581",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testUndoDoesNotPromoteUnverifiedEncryptedEntries",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testUndoRedoCarryOnlyVerifiedCapturedEncryptedEntries",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/013-ArchivePasswordEditingTests-testUndoRedoCarryOnlyVerifiedCapturedEncryptedEntries.log",
+    "sha256": "2c4d8489c905a54af0b6e9253a8a124dfcfd4daa8a96cc65a1f3cfbf109702ee",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testUndoRedoCarryOnlyVerifiedCapturedEncryptedEntries",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testZIPSetChangeRemoveAndUndoRedo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/014-ArchivePasswordEditingTests-testZIPSetChangeRemoveAndUndoRedo.log",
+    "sha256": "425314d97f3a6b6f78db628e919fb4f8bc35d9d45a5475127877bff0ba192efb",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testZIPSetChangeRemoveAndUndoRedo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testSevenZipSetChangeRemoveAndUndoRedo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/015-ArchivePasswordEditingTests-testSevenZipSetChangeRemoveAndUndoRedo.log",
+    "sha256": "c4dab3560b55cea1722c94081b78b550fb250d7ea25b69109a3166a125de5717",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testSevenZipSetChangeRemoveAndUndoRedo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testSevenZipHeaderProtectionSetChangeRemoveAndUndoRedo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/016-ArchivePasswordEditingTests-testSevenZipHeaderProtectionSetChangeRemoveAndUndoRedo.log",
+    "sha256": "abfaf6c8cb28dde9e7c4a9ce85faea8a835d529da7bb027839f40159b0407076",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testSevenZipHeaderProtectionSetChangeRemoveAndUndoRedo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testPasswordOnlyPublishCommitsRewriterWithNoEdits",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/017-ArchivePasswordEditingTests-testPasswordOnlyPublishCommitsRewriterWithNoEdits.log",
+    "sha256": "208d006b0750fdb4a5c9adbb87ced281c0fb150295702c3772515a5f766bc6ff",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testPasswordOnlyPublishCommitsRewriterWithNoEdits",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testPasswordOnlyPublishCommitsUpdaterWithByteProgressAndCancellation",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/018-ArchivePasswordEditingTests-testPasswordOnlyPublishCommitsUpdaterWithByteProgressAndCancellation.log",
+    "sha256": "eb6fe8ecd3159fa61dbdfc72e28138a24434a7d8a37a405e4df557b425c12b6c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testPasswordOnlyPublishCommitsUpdaterWithByteProgressAndCancellation",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testZIPPasswordMatrixPreservesStoredPayloadAndMetadataAndAdoptsReader",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/019-ArchivePasswordEditingTests-testZIPPasswordMatrixPreservesStoredPayloadAndMetadataAndAdoptsReader.log",
+    "sha256": "141ca7f5feb3bda4c3b7466f91b4ec54e49c25c6a00570d6a40e7ae48134aaa8",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testZIPPasswordMatrixPreservesStoredPayloadAndMetadataAndAdoptsReader",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testNonRelocatablePasswordEditFallsBackOnceAndResetsProgress",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/020-ArchivePasswordEditingTests-testNonRelocatablePasswordEditFallsBackOnceAndResetsProgress.log",
+    "sha256": "477ffdab7a894313ded5696fb7ac6f751ac375adf21d2b8e7b02fa994df593ad",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testNonRelocatablePasswordEditFallsBackOnceAndResetsProgress",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testSevenZipBeginningPasswordEditsStillUseRewriter",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/021-ArchivePasswordEditingTests-testSevenZipBeginningPasswordEditsStillUseRewriter.log",
+    "sha256": "e5096b8aeb4ee7b1011ef985b477201b6fce3581d1fb2a86f7e62147c85ac6e1",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testSevenZipBeginningPasswordEditsStillUseRewriter",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testNewArchiveCreationCarriesEncryptionAndValidatesProtectedHeaders",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/022-ArchivePasswordEditingTests-testNewArchiveCreationCarriesEncryptionAndValidatesProtectedHeaders.log",
+    "sha256": "65f7434a4d506c58bac453d47aefd4ff39a318682494d2d8b3c17ad4bd5c4fd5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testNewArchiveCreationCarriesEncryptionAndValidatesProtectedHeaders",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testUnknownAndIncorrectPasswordsCannotPublishAnEdit",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/023-ArchivePasswordEditingTests-testUnknownAndIncorrectPasswordsCannotPublishAnEdit.log",
+    "sha256": "10b10992bf80592ad51863827ea66e8a5eaa29e6b1ede250c2c5b2e42331cec7",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testUnknownAndIncorrectPasswordsCannotPublishAnEdit",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchivePasswordEditingTests/testPasswordRewriteCancellationAndIdentityFailureKeepBytesPasswordAndUndo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/024-ArchivePasswordEditingTests-testPasswordRewriteCancellationAndIdentityFailureKeepBytesPasswordAndUndo.log",
+    "sha256": "f94b689894335d7e8800ac1c4fe3f6c4127fa372bc50390cfd38a0beaa897d7e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchivePasswordEditingTests/testPasswordRewriteCancellationAndIdentityFailureKeepBytesPasswordAndUndo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/025-DeferredSaveDocumentTests-testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption.log",
+    "sha256": "731f21313760abf54ec624ac473492abbd4a6a199a2ccde8ca4929327ea9c606",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a-final/026-DeferredSaveDocumentTests-testDeferredSaveAsSheetCancellationReachesWritingTask.log",
+    "sha256": "72a10d07275333f53c6b5d63bdd2e79445ca05e220e8c2ca3ee485ee48cd596a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testPreferenceIsImmediateByDefaultAndCapturedOnce",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/027-DeferredSaveDocumentTests-testPreferenceIsImmediateByDefaultAndCapturedOnce.log",
+    "sha256": "f1e5bf621bdc1ee7b268148ad88a6eaefa5fd25c460bc53295f260f0061f12e0",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testPreferenceIsImmediateByDefaultAndCapturedOnce",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testTwoSavesSynchronizeModificationDateAndToken",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/028-DeferredSaveDocumentTests-testTwoSavesSynchronizeModificationDateAndToken.log",
+    "sha256": "15de9d8bc0618a47a2da1958b7cc7f9a2785e839d5e7fa7c8ede788dc4427b5f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testTwoSavesSynchronizeModificationDateAndToken",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testSwapReservationsAreFoldedFromBaseIndices",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/029-DeferredSaveDocumentTests-testSwapReservationsAreFoldedFromBaseIndices.log",
+    "sha256": "c294672b1992c521606d8b2eb1b080a6842a3f95dd48adcb3565216cc3cc867b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSwapReservationsAreFoldedFromBaseIndices",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/030-DeferredSaveDocumentTests-testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader.log",
+    "sha256": "cec50366bb84d17900da87a5b69211ca25b085e4c6411c25a3883ceb47b74b1b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testExternalChangeSaveFailsAndRevertReloads",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/031-DeferredSaveDocumentTests-testExternalChangeSaveFailsAndRevertReloads.log",
+    "sha256": "50ade12f469ea2265a875b3d97a85e96630de175a40470cd889a7fc3047ba70e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testExternalChangeSaveFailsAndRevertReloads",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/032-DeferredSaveDocumentTests-testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition.log",
+    "sha256": "d4244d9fb4c0e56f78bf80442f70c1224cfa54374b8873c8b53a016a39f120d4",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testPasswordAdoptsNewKeyOnlyAfterSave",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/033-DeferredSaveDocumentTests-testPasswordAdoptsNewKeyOnlyAfterSave.log",
+    "sha256": "3efae9511c9bb64cdbe4b1376f268896c7e2a58f518f1dcf66dc0369bad93361",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testPasswordAdoptsNewKeyOnlyAfterSave",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testLateEditWaitsForSaveAndRemainsPendingAndDirty",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/034-DeferredSaveDocumentTests-testLateEditWaitsForSaveAndRemainsPendingAndDirty.log",
+    "sha256": "f77894c140f2130ecb89963b45b47f669a8be390402742f68dea4338a2188a05",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testLateEditWaitsForSaveAndRemainsPendingAndDirty",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a-final/035-DeferredSaveDocumentTests-testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal.log",
+    "sha256": "447224edd2edb5bb4e7e1162a1ceaf8b57f47150e8f4ad583f11571757d9f2f4",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/036-DeferredSaveDocumentTests-testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears.log",
+    "sha256": "2c8a36a17c928b90130e251d79c1163ec8889091d6fa99d87d7406e777369b72",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testSplitReservationsLeaveEveryVolumeUnchangedUntilSave",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/037-DeferredSaveDocumentTests-testSplitReservationsLeaveEveryVolumeUnchangedUntilSave.log",
+    "sha256": "10624d6a8128e1659284f824189d00ee3c166a9dc1ef13f36675684ca19a5c39",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSplitReservationsLeaveEveryVolumeUnchangedUntilSave",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveAttributeTests/testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/038-DeferredSaveAttributeTests-testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories.log",
+    "sha256": "f08516ac165e6b61d6b8ca8d69a59e40619feda320958af08930f6505da68d99",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/039-DeferredSaveAttributeTests-testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat.log",
+    "sha256": "1d1efc8c07f303028131a6b475c2fdae91f5776e521a9adc54e1cdfc36f7e0a8",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveAttributeTests/testTarOwnerCarrierPreservesLargeIDsAndPAXPaths",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/040-DeferredSaveAttributeTests-testTarOwnerCarrierPreservesLargeIDsAndPAXPaths.log",
+    "sha256": "efaf48e41a31b8ffbbfc3095fe02067a8336c03023088b6c547585d31e31840c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testTarOwnerCarrierPreservesLargeIDsAndPAXPaths",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testMoveBackToOriginalPathUnderRenamedFolderInEveryFormat",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/041-DeferredSaveCorrectionTests-testMoveBackToOriginalPathUnderRenamedFolderInEveryFormat.log",
+    "sha256": "64ff1e418d378e90acfaaa1187bab58dbfaae67ba8c4e9466f58e48f0fdf688d",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testMoveBackToOriginalPathUnderRenamedFolderInEveryFormat",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testPermissionOnlyChangeAllowsSaveAndSaveAs",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a-final/042-DeferredSaveCorrectionTests-testPermissionOnlyChangeAllowsSaveAndSaveAs.log",
+    "sha256": "b3fea265a512c79c37dd9158e79827213a0393dd3a0a53fea2ef5bbd9e91b996",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testPermissionOnlyChangeAllowsSaveAndSaveAs",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testQuitCancelsDeferredSaveAsWhilePanelIsWaiting",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a-final/043-DeferredSaveCorrectionTests-testQuitCancelsDeferredSaveAsWhilePanelIsWaiting.log",
+    "sha256": "3aa29e49571054cec9f08a4ce3f9f6594ae70978edc0a7ae2058ef4caa7857dd",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testQuitCancelsDeferredSaveAsWhilePanelIsWaiting",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testQuitWaitsWithoutCancellingAfterDeferredPublishBoundary",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/044-DeferredSaveCorrectionTests-testQuitWaitsWithoutCancellingAfterDeferredPublishBoundary.log",
+    "sha256": "673ef04a442595177b6d4be627ed193df98e19f9b81befb3e04a0490bcc4e189",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testQuitWaitsWithoutCancellingAfterDeferredPublishBoundary",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testQuitCancelsDeferredSaveAsWritingBeforePublish",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a-final/045-DeferredSaveCorrectionTests-testQuitCancelsDeferredSaveAsWritingBeforePublish.log",
+    "sha256": "9eaf83ff36d6aec881817144f56d1d4e49869958b9b23c584f79b3be249d8529",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testQuitCancelsDeferredSaveAsWritingBeforePublish",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testLHARefusesUnrepresentableAdditionsAndRenamesBeforeReservation",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/046-DeferredSaveCorrectionTests-testLHARefusesUnrepresentableAdditionsAndRenamesBeforeReservation.log",
+    "sha256": "52b472904b55eb6856f5195dc10b69a469d1eff732eee932267366aa4740c2db",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testLHARefusesUnrepresentableAdditionsAndRenamesBeforeReservation",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testFirstZIPReservationRunsCentralDirectoryGateAndRemembersRefusal",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/047-DeferredSaveCorrectionTests-testFirstZIPReservationRunsCentralDirectoryGateAndRemembersRefusal.log",
+    "sha256": "3b38b874c167c10cda91123ce0b2f51214c72bd02f712e3c5f43cfcb044b5490",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testFirstZIPReservationRunsCentralDirectoryGateAndRemembersRefusal",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveCorrectionTests/testPublishedReloadFailureInvalidatesWithoutReportingExternalChange",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/048-DeferredSaveCorrectionTests-testPublishedReloadFailureInvalidatesWithoutReportingExternalChange.log",
+    "sha256": "bebfd4c81534025a6ea736843b6536ae2a8c3f4c2e8e3bd86730c95ac4339e1c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveCorrectionTests/testPublishedReloadFailureInvalidatesWithoutReportingExternalChange",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testRedoRestoresFullPostAppendSHA256",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/049-ArchiveUndoStackTests-testRedoRestoresFullPostAppendSHA256.log",
+    "sha256": "d6cb9c14f044029a93d95acaf3179b5010994c23d8bbec32550310a5c3b4b5e0",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testRedoRestoresFullPostAppendSHA256",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testUndoRedoReopensReaderAndAdvancesGeneration",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/050-ArchiveUndoStackTests-testUndoRedoReopensReaderAndAdvancesGeneration.log",
+    "sha256": "0f9a5f7641c3942ae4811bfb3f3b10f22feb88868689018dc08ecd0feffd14ba",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testUndoRedoReopensReaderAndAdvancesGeneration",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testMode0644SurvivesRestrictedUndoSlot",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/051-ArchiveUndoStackTests-testMode0644SurvivesRestrictedUndoSlot.log",
+    "sha256": "9492f1551c9eff27568e3a7959060148be506ae2b7fa61ed9caba3d96ad6fa6a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testMode0644SurvivesRestrictedUndoSlot",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testMode0600SurvivesUndoAndRedo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/052-ArchiveUndoStackTests-testMode0600SurvivesUndoAndRedo.log",
+    "sha256": "f42aeba5382d784404ab6e8c621839d545f1beb3de1f5722dfbb2131a54b8c6b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testMode0600SurvivesUndoAndRedo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testSwapPreservesModeReadImmediatelyBeforeReplacement",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/053-ArchiveUndoStackTests-testSwapPreservesModeReadImmediatelyBeforeReplacement.log",
+    "sha256": "b6d7575163adb65c993e12584e3ae19979abafd50836a2c4a9009c4a569802ab",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testSwapPreservesModeReadImmediatelyBeforeReplacement",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testQuarantineBytesSurviveUndoAndRedo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/054-ArchiveUndoStackTests-testQuarantineBytesSurviveUndoAndRedo.log",
+    "sha256": "05e5a3a1df53f35d22ba7517a9e02405ea8b195275027feadf116af4d1678830",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testQuarantineBytesSurviveUndoAndRedo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/055-ArchiveUndoStackTests-testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles.log",
+    "sha256": "58b1ec929432e521b5a61fe2229b8ee895bb1fd90a252f44ac2dc67bd8aefa0b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testUnsupportedCloneAllowsAppendAndClearsStaleHistory",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/056-ArchiveUndoStackTests-testUnsupportedCloneAllowsAppendAndClearsStaleHistory.log",
+    "sha256": "c87f9c10024a64e92c7901758965210f41b15264c1af59df78e1fc9e583d593c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testUnsupportedCloneAllowsAppendAndClearsStaleHistory",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testUnexpectedCloneFailureAbortsAppendWithoutUndo",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/057-ArchiveUndoStackTests-testUnexpectedCloneFailureAbortsAppendWithoutUndo.log",
+    "sha256": "4c4b28444b5d2f0045ca9c959e0cafae0f8d6a12254f6f14a364f047311fa603",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testUnexpectedCloneFailureAbortsAppendWithoutUndo",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testUndoRegistrationUndoAndRedoNeverDirtyDocument",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/058-ArchiveUndoStackTests-testUndoRegistrationUndoAndRedoNeverDirtyDocument.log",
+    "sha256": "01a815fd5009c415afc558436e4abc71b91bd6f4ad32c7c1cd0ac3316ece6fac",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testUndoRegistrationUndoAndRedoNeverDirtyDocument",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testSlotsStayOutsideArchiveParentDirectory",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/059-ArchiveUndoStackTests-testSlotsStayOutsideArchiveParentDirectory.log",
+    "sha256": "fa0ab2d945b4fcea6e00a8f6d186f2424ae90f5ff42ea98e00c82ada4071a157",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testSlotsStayOutsideArchiveParentDirectory",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testUndoAndRedoDisposeMaterializationCachesAndFiles",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/060-ArchiveUndoStackTests-testUndoAndRedoDisposeMaterializationCachesAndFiles.log",
+    "sha256": "139d3206b058269a07e50b4d3c11b0fc2413936fab88aa1457a30b2faacdccea",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testUndoAndRedoDisposeMaterializationCachesAndFiles",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testPendingUndoRejectsRepeatedUndoRedoAndAppend",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/061-ArchiveUndoStackTests-testPendingUndoRejectsRepeatedUndoRedoAndAppend.log",
+    "sha256": "f671d64af641c789462efc41d30b2e841935bd2f188a4a17f803e45073f16abd",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testPendingUndoRejectsRepeatedUndoRedoAndAppend",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testSlotLargerThanByteLimitIsDeletedWithoutUndoRegistration",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/062-ArchiveUndoStackTests-testSlotLargerThanByteLimitIsDeletedWithoutUndoRegistration.log",
+    "sha256": "c4cdf99be0c1a636f8b3d916e9d68a552a64c5e5c31c1e8962f9aad9abcc609c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testSlotLargerThanByteLimitIsDeletedWithoutUndoRegistration",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "ArchiveUndoStackTests/testReplacementAndPasswordRemovalWarningsFollowUndoGate",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/063-ArchiveUndoStackTests-testReplacementAndPasswordRemovalWarningsFollowUndoGate.log",
+    "sha256": "3fbdc66633ee7430ef719d2001d98ca122fe017fd7f7371188bc354414c50e37",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testReplacementAndPasswordRemovalWarningsFollowUndoGate",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-final",
+    "selection": "DeferredSaveDocumentTests/testDeferredEncryptionFallbackResetsReplayAndCommitProgress",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s39-p6a-final/064-DeferredSaveDocumentTests-testDeferredEncryptionFallbackResetsReplayAndCommitProgress.log",
+    "sha256": "0eb224846d3e4ef1d1cac9c9ae57c4ef2c84fae07832a80b39ac790eb93fe45c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredEncryptionFallbackResetsReplayAndCommitProgress",
+      "~/Github/KaitoFinder/build/s39-p6a-final/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-baseline",
+    "selection": "ArchiveUndoStackTests/testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s39-p6a-baseline/001-ArchiveUndoStackTests-testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles.log",
+    "sha256": "c9ab99639547b37b0dfe689a72944c1f07ba88cc6f8a65be86cc27e3c4678866",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles",
+      "~/Github/KaitoFinder/build/s39-p6a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-baseline",
+    "selection": "ArchiveUndoStackTests/testSlotsStayOutsideArchiveParentDirectory",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s39-p6a-baseline/002-ArchiveUndoStackTests-testSlotsStayOutsideArchiveParentDirectory.log",
+    "sha256": "9decd8c73a33b8a5e2c5e7aaf342981598da086f91ae49d74990598184f65635",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveUndoStackTests/testSlotsStayOutsideArchiveParentDirectory",
+      "~/Github/KaitoFinder/build/s39-p6a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-baseline",
+    "selection": "DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s39-p6a-baseline/003-DeferredSplitSaveTests-testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending.log",
+    "sha256": "ecf921d8dcdd5c139584caebbc439eb4b7415a6a15cbfc2a5eebbf730563b6ed",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+      "~/Github/KaitoFinder/build/s39-p6a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s39-p6a-baseline",
+    "selection": "DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+    "exit": -10,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s39-p6a-baseline/004-DeferredSplitSaveTests-testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization.log",
+    "sha256": "6022f344d3c98a1d55360c5900a54ad8f5d371389d90d72ef2458a3c39bfe1aa",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+      "~/Github/KaitoFinder/build/s39-p6a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  }
+]

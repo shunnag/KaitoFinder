@@ -2,8 +2,8 @@ import Foundation
 
 /// 比較用のパスを数える。元レコードの同名・正準等価も、片方の削除で空きにしない。
 /// 成分ごとの木にし、深いパスでもすべての接頭辞文字列を複製しない。
-nonisolated struct ArchivePathOccupancy {
-    private struct Node {
+nonisolated struct ArchivePathOccupancy: Sendable {
+    private struct Node: Sendable {
         var children: [String: Int] = [:]
         var entries = 0
         var files = 0
@@ -13,6 +13,10 @@ nonisolated struct ArchivePathOccupancy {
     private var unused: [Int] = []
 
     mutating func insert(_ path: String, directory: Bool) {
+        adjust(path, directory: directory, by: 1)
+    }
+
+    private mutating func adjust(_ path: String, directory: Bool, by amount: Int) {
         var branch = [0]
         for part in ArchivePath.components(path, omittingEmptySubsequences: false) {
             let parent = branch.last!, component = String(part)
@@ -25,9 +29,9 @@ nonisolated struct ArchivePathOccupancy {
             }
             branch.append(child)
         }
-        for node in branch { nodes[node].total += 1 }
-        nodes[branch.last!].entries += 1
-        if !directory { nodes[branch.last!].files += 1 }
+        for node in branch { nodes[node].total += amount }
+        nodes[branch.last!].entries += amount
+        if !directory { nodes[branch.last!].files += amount }
     }
 
     mutating func remove(_ path: String, directory: Bool) {
@@ -73,5 +77,63 @@ nonisolated struct ArchivePathOccupancy {
             node = child
         }
         return nodes[node].entries > 0 || (!directory && nodes[node].total > nodes[node].entries)
+    }
+
+    #if DEBUG
+    func keys() -> [String: [Bool]] {
+        var result: [String: [Bool]] = [:]
+        func visit(_ node: Int, path: String) {
+            let value = nodes[node]
+            if value.entries > 0 {
+                result[path] = Array(repeating: false, count: value.files)
+                    + Array(repeating: true, count: value.entries - value.files)
+            }
+            for (part, child) in value.children { visit(child, path: node == 0 ? part : path + "/" + part) }
+        }
+        visit(0, path: "")
+        return result
+    }
+    #endif
+
+    // 基底の配列を COW で複製せず、触れた枝の差分だけを数える。
+    struct Overlay: Sendable {
+        let base: ArchivePathOccupancy
+        private var delta = ArchivePathOccupancy()
+
+        init(_ base: ArchivePathOccupancy) { self.base = base }
+        mutating func insert(_ path: String, directory: Bool) { delta.adjust(path, directory: directory, by: 1) }
+        mutating func remove(_ path: String, directory: Bool) { delta.adjust(path, directory: directory, by: -1) }
+
+        private func counts(_ path: String) -> (entries: Int, files: Int, total: Int, ancestorFile: Bool) {
+            var original: Int? = 0, changed: Int? = 0, ancestorFile = false
+            for part in ArchivePath.components(path, omittingEmptySubsequences: false) {
+                if (original.map { base.nodes[$0].files } ?? 0) + (changed.map { delta.nodes[$0].files } ?? 0) > 0 {
+                    ancestorFile = true
+                }
+                original = original.flatMap { base.nodes[$0].children[part] }
+                changed = changed.flatMap { delta.nodes[$0].children[part] }
+            }
+            let a = original.map { base.nodes[$0] } ?? Node(), b = changed.map { delta.nodes[$0] } ?? Node()
+            return (a.entries + b.entries, a.files + b.files, a.total + b.total, ancestorFile)
+        }
+
+        func containsSubtree(at path: String) -> Bool { counts(path).total > 0 }
+        func selectionCount(at path: String) -> Int { let count = counts(path); return count.total - count.files }
+        func isFolder(_ path: String) -> Bool {
+            let count = counts(path)
+            return count.total > 0 && count.files == 0 && !count.ancestorFile
+        }
+        func firstFileAncestor(_ path: String) -> String? {
+            let parts = ArchivePath.components(path)
+            for depth in 1...max(1, parts.count) {
+                let ancestor = parts.prefix(depth).joined(separator: "/")
+                if counts(ancestor).files > 0 { return ancestor }
+            }
+            return nil
+        }
+        func collides(_ path: String, directory: Bool) -> Bool {
+            let count = counts(path)
+            return count.ancestorFile || count.entries > 0 || (!directory && count.total > count.entries)
+        }
     }
 }

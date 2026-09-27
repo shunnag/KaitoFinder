@@ -128,10 +128,13 @@ def main():
 
     if not arguments.native_save_only:
         test("commands", ["ApplicationCommandIntegrationTests", "RecentDocumentsMenuTests",
-             "SoftwareUpdateTests", "ArchivePreferencesUITests",
+             "SoftwareUpdateTests", "ArchivePreferencesUITests", "ArchiveColumnsTests", "ArchiveViewOptionsTests",
              "ArchiveTabTests", "ArchiveTabSpringLoadingTests", "ArchiveDropIntegrationTests", "ArchiveConflictUITests",
              "ArchiveDocumentOpeningTests/testQuickLookForSelectedZIPRowSurvivesForegroundAsyncLoading",
              "ArchiveDocumentOpeningTests/testQuickLookForXZAndLegacyZstandardZIPRows",
+             "ArchiveEntryControlsTests/testDelayedEditKeepsKeyWindowAndBlocksApplicationEventsExceptEscape",
+             "ArchiveEntryControlsTests/testDelayedEditKeepsKeyWindowAndBlocksWindowEventsExceptEscape",
+             "ArchiveEntryControlsTests/testSuspendedUndoAllowsWindowSelectionExceptWhileProgressSheetIsPending",
              "ArchivePasswordUITests/testPresentedSavePanelAnimatesEncryptionAndCancelsWithoutSaving",
              "ArchivePasswordUITests/testSavePanelSheetReversesAnimationAndCancelsDuringExpansion",
              "ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents",

@@ -1,21 +1,37 @@
 import Darwin
 import Foundation
+import GyoshukuKit
+import KaitoKit
 
 nonisolated enum ExtractionPath {
-    static func components(_ name: String) throws -> [String] {
+    enum NameSyntax: Sendable, Equatable {
+        case portable, posix
+
+        init(_ format: KaitoKit.ArchiveFormat) { self = format == .tar ? .posix : .portable }
+        init(_ format: GyoshukuKit.ArchiveFormat) { self = format.allowsColonsAndBackslashes ? .posix : .portable }
+    }
+
+    static func components(_ name: String, syntax: NameSyntax) throws -> [String] {
         guard !name.utf8.contains(0) else { throw ExtractionFailure.refused(String(localized: "パスにNULがあります。")) }
         // UTF-8 の区切り byte で分割する。結合文字を / と一書記素にしない。
         var bytes = Array(name.utf8.drop(while: { $0 == 47 }))
-        if bytes.count >= 2, isLetter(bytes[0]), bytes[1] == 58 {
+        if syntax == .portable, bytes.count >= 2, isLetter(bytes[0]), bytes[1] == 58 {
             bytes.removeFirst(2)
         }
-        // Windows の区切りも安全側で扱い、drive を落とした後の traversal を拒否する。
-        let raw = bytes.split(whereSeparator: { $0 == 47 || $0 == 92 })
+        let raw = bytes.split(whereSeparator: { $0 == 47 || (syntax == .portable && $0 == 92) })
             .map { String(decoding: $0, as: UTF8.self) }
         guard !raw.contains("..") else { throw ExtractionFailure.refused(String(localized: "パスに..成分があります。")) }
+        // \\ を特別に扱う driver にも、親へ戻る一歩を渡さない。
+        if syntax == .posix, raw.contains(where: containsBackslashParent) {
+            throw ExtractionFailure.refused(String(localized: "パスに..成分があります。"))
+        }
         let components = raw.filter { $0 != "." }
         guard !components.isEmpty else { throw ExtractionFailure.refused(String(localized: "パスに有効な名前がありません。")) }
         return components
+    }
+
+    static func containsBackslashParent(_ component: String) -> Bool {
+        component.utf8.split(separator: 92).contains { $0.elementsEqual([46, 46]) }
     }
 
     static func isInside(_ candidate: URL, root: URL) -> Bool {

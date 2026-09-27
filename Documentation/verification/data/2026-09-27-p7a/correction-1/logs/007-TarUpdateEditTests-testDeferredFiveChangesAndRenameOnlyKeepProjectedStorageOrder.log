@@ -1,0 +1,11 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:23.235.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:23.235.
+Test Suite 'TarUpdateEditTests' started at 2026-09-27 05:07:23.235.
+Test Case '-[KaitoFinderTests.TarUpdateEditTests testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder]' started.
+Test Case '-[KaitoFinderTests.TarUpdateEditTests testDeferredFiveChangesAndRenameOnlyKeepProjectedStorageOrder]' passed (0.031 seconds).
+Test Suite 'TarUpdateEditTests' passed at 2026-09-27 05:07:23.266.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.031 (0.031) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:23.266.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.031 (0.031) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:23.267.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.031 (0.032) seconds

@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import GyoshukuKit
+import KaitoKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -78,6 +79,21 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
         return volume
     }
 
+    private func assertOutOfSpace(_ error: any Error, file: StaticString = #filePath, line: UInt = #line) {
+        let cocoa = error as NSError, reason = ArchiveErrorText.describe(error)
+        let descriptions = [
+            ArchiveErrorText.describe(CocoaError(.fileWriteOutOfSpace)),
+            ArchiveErrorText.describe(WriterError.io(operation: "write", code: ENOSPC)),
+            ArchiveErrorText.describe(POSIXError(.ENOSPC)),
+            ArchiveErrorText.describe(ExtractionFailure.system(ENOSPC))
+        ]
+        let typed = (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue)
+            || (cocoa.domain == NSPOSIXErrorDomain && cocoa.code == Int(ENOSPC))
+        // 項目名を付けた書き込みエラーも、同じ言語の ENOSPC 説明で照合する。
+        XCTAssertTrue(typed || descriptions.contains { reason == $0 || reason.hasSuffix(": " + $0) },
+                      reason, file: file, line: line)
+    }
+
     func testFullDiskExtractionReportsNoSpaceAndRemovesPartialPayload() async throws {
         let fixture = try ScenarioFixture(script: "with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z: z.writestr('large.bin', b'x' * (32 * 1024 * 1024))")
         let volume = try volume(), original = try ScenarioFixture.digest(fixture.archive)
@@ -105,10 +121,7 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
             _ = try await document.append(urls: [source], to: "", progress: Progress(), willPublish: { XCTFail("容量不足で公開境界に進みました") })
             XCTFail("容量のないボリュームへ追加を公開しました")
         } catch {
-            let cocoa = error as NSError
-            let reason = String(describing: error)
-            XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
-                          || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+            assertOutOfSpace(error)
         }
         XCTAssertEqual(try ScenarioFixture.digest(archive), before)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -157,9 +170,7 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
                                           willPublish: { XCTFail("容量不足で公開境界に進みました") })
             XCTFail("LHA streaming append exceeded the test volume")
         } catch {
-            let cocoa = error as NSError, reason = String(describing: error)
-            XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
-                || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+            assertOutOfSpace(error)
         }
         XCTAssertEqual(try ScenarioFixture.digest(archive), before)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -191,9 +202,7 @@ nonisolated final class ScenarioDiskTests: XCTestCase {
                                               willPublish: { XCTFail("容量不足で公開境界に進みました") })
                 XCTFail("compressed tar append exceeded the test volume")
             } catch {
-                let cocoa = error as NSError, reason = String(describing: error)
-                XCTAssertTrue(reason.contains("\(ENOSPC)") || reason.localizedCaseInsensitiveContains("space")
-                    || (cocoa.domain == NSCocoaErrorDomain && cocoa.code == CocoaError.fileWriteOutOfSpace.rawValue), reason)
+                assertOutOfSpace(error)
             }
             XCTAssertEqual(try ScenarioFixture.digest(archive), before)
             XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -221,7 +230,9 @@ extension ScenarioDiskTests {
         XCTAssertThrowsError(try ArchiveImportTransaction.publish(archive: archive, mode: .inPlace,
             options: WriterOptions(), progress: Progress(), willPublish: {
                 guard chmod(parent.path, 0o555) == 0 else { throw ExtractionFailure.system(errno) }
-            }, registry: registry, mutate: { try $0.add(data: Data("added".utf8), as: "added.txt", modificationDate: nil, permissions: nil) }))
+            }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+                additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace),
+            mutate: { try $0.add(data: Data("added".utf8), as: "added.txt", modificationDate: nil, permissions: nil) }))
         let work = try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)
             .filter { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") }
         XCTAssertEqual(work.count, 1)

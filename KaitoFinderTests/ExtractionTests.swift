@@ -71,10 +71,10 @@ nonisolated final class ExtractionTests: XCTestCase {
     }
 
     func testPathSanitizationAndResolvedContainment() throws {
-        XCTAssertEqual(try ExtractionPath.components("/C:\\a\\.\\b"), ["a", "b"])
-        XCTAssertEqual(try ExtractionPath.components("/./a//b"), ["a", "b"])
+        XCTAssertEqual(try ExtractionPath.components("/C:\\a\\.\\b", syntax: .portable), ["a", "b"])
+        XCTAssertEqual(try ExtractionPath.components("/./a//b", syntax: .portable), ["a", "b"])
         for name in ["", ".", "/", "C:", "a/../b", "a\\..\\b", "a\0b", "/\u{301}../.."] {
-            XCTAssertThrowsError(try ExtractionPath.components(name), name)
+            XCTAssertThrowsError(try ExtractionPath.components(name, syntax: .portable), name)
         }
         let root = URL(fileURLWithPath: "/private/tmp/root")
         XCTAssertFalse(ExtractionPath.isInside(root.appendingPathComponent("../outside"), root: root))
@@ -266,11 +266,11 @@ nonisolated final class ExtractionTests: XCTestCase {
         for item in result.written {
             let components: [String]
             if let index = item.entryIndex {
-                components = try ExtractionPath.components(entries[index].name)
+                components = try ExtractionPath.components(entries[index].name, syntax: .portable)
                 XCTAssertEqual(try Data(contentsOf: item.url), Data("payload".utf8))
             } else {
                 let relative = String(item.url.path.dropFirst(root.path.count + 1))
-                components = try ExtractionPath.components(relative)
+                components = try ExtractionPath.components(relative, syntax: .portable)
             }
             let previous = components.reduce(root) { $0.appendingPathComponent($1) }
             XCTAssertEqual(Array(item.url.path.utf8), Array(previous.path.utf8))
@@ -368,14 +368,78 @@ nonisolated final class ExtractionTests: XCTestCase {
         XCTAssertTrue(result.cancelled)
         XCTAssertTrue(result.failures.isEmpty)
         XCTAssertEqual(result.written.count, 3)
-        XCTAssertEqual(progress.completedUnitCount, 3)
-        XCTAssertEqual(progress.totalUnitCount, 10)
+        XCTAssertEqual(progress.completedUnitCount, 12)
+        XCTAssertEqual(progress.totalUnitCount, 40)
         XCTAssertEqual(progress.kind, .file)
         XCTAssertEqual(progress.userInfo[.fileOperationKindKey] as? Progress.FileOperationKind, .copying)
         XCTAssertEqual(progress.userInfo[.fileURLKey] as? URL, fixture.destination)
         XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 10)
         XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 3)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.destination.path).count, 3)
+    }
+
+    @MainActor func testSingleLargeEntryAdvancesBytesWhileItemCountStaysZero() async throws {
+        let fixture = try Fixture("""
+        with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_STORED) as z:
+            z.writestr('large.bin', b'x' * (4 * 1024 * 1024))
+        """)
+        let session = try ArchiveSession(url: fixture.archive), progress = Progress(), gate = ScenarioGate()
+        defer { gate.release() }
+        let payload = ArchiveEntryPayload(archiveURL: fixture.archive, generation: 0, entryIndex: 0,
+                                          path: "large.bin", isDirectory: false)
+        let output = fixture.destination
+        let task = Task {
+            try await ExtractionService.extract([payload], from: session, to: output, progress: progress,
+                                                didWrite: { _ in gate.pauseOnce() })
+        }
+        try await scenarioWait { gate.isEntered }
+        XCTAssertGreaterThan(progress.fractionCompleted, 0)
+        XCTAssertLessThan(progress.fractionCompleted, 1)
+        XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 0)
+        let sheet = ExtractionProgressSheet(progress: progress)
+        sheet.refresh()
+        XCTAssertEqual(sheet.statusLabel.stringValue, String(localized: "\(Int64(0)) / \(Int64(1))項目"))
+        gate.release()
+        let result = try await task.value
+        XCTAssertTrue(result.failures.isEmpty)
+        XCTAssertEqual(progress.fractionCompleted, 1)
+        sheet.refresh()
+        XCTAssertEqual(sheet.statusLabel.stringValue, String(localized: "\(Int64(1)) / \(Int64(1))項目"))
+        sheet.finish()
+    }
+
+    func testByteProgressTopsUpFailuresAndUsesNominalUnitsForEmptyEntries() async throws {
+        let fixture = try Fixture("""
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('../refused', b'x' * 1000)
+            z.writestr('empty', b'')
+            z.writestr('directory/', b'')
+            z.writestr('last', b'xyz')
+        """)
+        let progress = Progress()
+        let result = try await fixture.extract(progress: progress)
+        XCTAssertEqual(result.failures.count, 1)
+        XCTAssertEqual(progress.totalUnitCount, 1005)
+        XCTAssertEqual(progress.completedUnitCount, 1005)
+        XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 4)
+    }
+
+    func testUnknownOrOverflowingSizesKeepItemProgress() {
+        func entry(_ index: Int, _ size: UInt64?) -> ArchiveEntry {
+            ArchiveEntry(index: index, rawName: .init(bytes: [97]), name: "a", pathComponents: ["a"],
+                kind: .file, uncompressedSize: size, compressedSize: nil, modificationDate: nil,
+                posixPermissions: nil, isEncrypted: false, solidGroup: -1, crc32: nil,
+                methodDescription: "stored", formatSpecific: [:])
+        }
+        for entries in [[entry(0, nil)], [entry(0, UInt64.max)], [entry(0, UInt64(Int64.max)), entry(1, 1)]] {
+            let progress = Progress()
+            let observed = ExtractionProgress(entries: entries, progress: progress)
+            observed.wrote(1024)
+            XCTAssertEqual(progress.completedUnitCount, 0)
+            observed.finishedEntry()
+            XCTAssertEqual(progress.completedUnitCount, 1)
+            XCTAssertEqual(progress.totalUnitCount, Int64(entries.count))
+        }
     }
 
     func testTaskCancellationAndPrecancelledProgress() async throws {

@@ -1,0 +1,111 @@
+[
+  {
+    "selection": "DragInTests/testCancellationPartwayPreservesOriginalBytesAndGeneration",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests/testCancellationPartwayPreservesOriginalBytesAndGeneration",
+      "~/Github/KaitoFinder/build/s39-p6a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "~/Github/KaitoFinder/build/s39-p6a-correction-1/001-DragInTests-testCancellationPartwayPreservesOriginalBytesAndGeneration.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.DragInTests",
+        "testCancellationPartwayPreservesOriginalBytesAndGeneration",
+        "passed"
+      ]
+    ]
+  },
+  {
+    "selection": "DragInTests/testFailureAfterFirstItemLeavesOriginalUntouched",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests/testFailureAfterFirstItemLeavesOriginalUntouched",
+      "~/Github/KaitoFinder/build/s39-p6a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "~/Github/KaitoFinder/build/s39-p6a-correction-1/002-DragInTests-testFailureAfterFirstItemLeavesOriginalUntouched.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.DragInTests",
+        "testFailureAfterFirstItemLeavesOriginalUntouched",
+        "passed"
+      ]
+    ]
+  },
+  {
+    "selection": "DragInTests/testCancellationAfterStagedCommitStillLeavesOriginalUntouched",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests/testCancellationAfterStagedCommitStillLeavesOriginalUntouched",
+      "~/Github/KaitoFinder/build/s39-p6a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "~/Github/KaitoFinder/build/s39-p6a-correction-1/003-DragInTests-testCancellationAfterStagedCommitStillLeavesOriginalUntouched.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.DragInTests",
+        "testCancellationAfterStagedCommitStillLeavesOriginalUntouched",
+        "passed"
+      ]
+    ]
+  },
+  {
+    "selection": "DragInTests/testFailureAfterStagedCommitStillLeavesOriginalUntouched",
+    "exit": 0,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests/testFailureAfterStagedCommitStillLeavesOriginalUntouched",
+      "~/Github/KaitoFinder/build/s39-p6a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "~/Github/KaitoFinder/build/s39-p6a-correction-1/004-DragInTests-testFailureAfterStagedCommitStillLeavesOriginalUntouched.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": [
+      [
+        "KaitoFinderTests.DragInTests",
+        "testFailureAfterStagedCommitStillLeavesOriginalUntouched",
+        "passed"
+      ]
+    ]
+  },
+  {
+    "selection": "ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
+    "exit": 69,
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
+      "~/Github/KaitoFinder/build/s39-p6a-correction-1/P1dAS33Tests.xctest"
+    ],
+    "log": "~/Github/KaitoFinder/build/s39-p6a-correction-1/005-ArchiveImportSafetyTests-testNewArchivePanelCancellationStopsSingleFileCompression.log",
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s39-p6a-final",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s39-p6a-final:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    },
+    "cases": []
+  }
+]

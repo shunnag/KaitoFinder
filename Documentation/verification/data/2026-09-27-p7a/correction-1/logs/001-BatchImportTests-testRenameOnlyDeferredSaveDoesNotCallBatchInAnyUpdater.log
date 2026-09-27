@@ -1,0 +1,23 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:04:22.376.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:04:22.377.
+Test Suite 'BatchImportTests' started at 2026-09-27 05:04:22.377.
+Test Case '-[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater]' started.
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - zip, ledger: false
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - zip, ledger: true
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tar, ledger: false
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tar, ledger: true
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:76: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertFalse failed - tarGzip
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tarGzip, ledger: false
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:76: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertFalse failed - tarGzip
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - tarGzip, ledger: true
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - sevenZip, ledger: false
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - sevenZip, ledger: true
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - lha, ledger: false
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:79: error: -[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater] : XCTAssertEqual failed: ("1") is not equal to ("0") - lha, ledger: true
+Test Case '-[KaitoFinderTests.BatchImportTests testRenameOnlyDeferredSaveDoesNotCallBatchInAnyUpdater]' failed (0.115 seconds).
+Test Suite 'BatchImportTests' failed at 2026-09-27 05:04:22.492.
+	 Executed 1 test, with 12 failures (0 unexpected) in 0.115 (0.115) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 05:04:22.493.
+	 Executed 1 test, with 12 failures (0 unexpected) in 0.115 (0.116) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 05:04:22.493.
+	 Executed 1 test, with 12 failures (0 unexpected) in 0.115 (0.116) seconds

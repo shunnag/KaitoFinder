@@ -1,0 +1,29 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:25.481.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:25.482.
+Test Suite 'ByteProgressIntegrationTests' started at 2026-09-27 05:07:25.482.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCancellationAfterRenameStillCompletesLedgerAndOperation]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCancellationAfterRenameStillCompletesLedgerAndOperation]' passed (0.016 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCancellationInEveryPhasePreservesOriginalAndUndo]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCancellationInEveryPhasePreservesOriginalAndUndo]' passed (0.341 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testConversionReplayOffsetsAdditionsAndOmitsRootFromItemCount]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testConversionReplayOffsetsAdditionsAndOmitsRootFromItemCount]' passed (0.048 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCreationAndUnchangedConversionCountOutputItems]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCreationAndUnchangedConversionCountOutputItems]' passed (3.738 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCreationCancellationRemovesTemporaryOutput]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testCreationCancellationRemovesTemporaryOutput]' passed (3.419 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testDeferredSaveCountsTwoAdditionsRenameAndFolder]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testDeferredSaveCountsTwoAdditionsRenameAndFolder]' passed (0.129 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testImportPlanCountsOnlyRegularFileContents]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testImportPlanCountsOnlyRegularFileContents]' passed (0.008 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testLargeDeleteAndFolderMoveHaveByteCommitProgress]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testLargeDeleteAndFolderMoveHaveByteCommitProgress]' passed (0.688 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testLargeImmediateAdditionInEveryRequiredUpdater]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testLargeImmediateAdditionInEveryRequiredUpdater]' passed (14.425 seconds).
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testRewriteBothPlacementsMapsCarryAndDeferredReads]' started.
+Test Case '-[KaitoFinderTests.ByteProgressIntegrationTests testRewriteBothPlacementsMapsCarryAndDeferredReads]' passed (0.143 seconds).
+Test Suite 'ByteProgressIntegrationTests' passed at 2026-09-27 05:07:48.437.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 22.954 (22.955) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:48.437.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 22.954 (22.955) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:48.437.
+	 Executed 10 tests, with 0 failures (0 unexpected) in 22.954 (22.956) seconds

@@ -1,12 +1,29 @@
 import Darwin
 import Foundation
 import GyoshukuKit
-import KaitoKit
+@_spi(TarEditLayout) import KaitoKit
 
 nonisolated struct ArchiveImportResult: Sendable {
     let addedPaths: [String]
     let failures: [ArchiveImportPlan.Failure]
     var reloadFailure: String?
+    var publishedIdentity: ArchiveSetIdentity?
+}
+
+nonisolated struct ArchivePublicationError: Error, Equatable, LocalizedError, CustomNSError {
+    static let verificationFailed = Self(reason: nil)
+    let reason: ArchiveVerificationFailure?
+    // 診断の詳細は利用者向けの error の同値性と NSError に混ぜない。
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+    static var errorDomain: String { "KaitoFinder.ArchivePublicationError" }
+    var errorCode: Int { 0 }
+    var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: message()] }
+
+    var errorDescription: String? { message() }
+
+    func message(bundle: Bundle = .main) -> String {
+        String(localized: "変更後のアーカイブを検証できなかったため、保存を中止しました。元のアーカイブは変更されていません。", bundle: bundle)
+    }
 }
 
 nonisolated enum ArchiveEditError: Error, Equatable, LocalizedError, CustomStringConvertible {
@@ -72,6 +89,7 @@ nonisolated struct ArchiveEditResult: Sendable {
     let removedPaths: [String]
     let renamedPaths: [String]
     var reloadFailure: String?
+    var publishedIdentity: ArchiveSetIdentity?
     var published: Bool { !removedPaths.isEmpty || !renamedPaths.isEmpty }
 }
 
@@ -100,12 +118,22 @@ nonisolated struct ArchiveEditPlan: Sendable {
     let removals: [Entry]
     let renames: [Rename]
     let existing: [ArchiveEntry]
+    let format: GyoshukuKit.ArchiveFormat
+
+    init(removals: [Entry], renames: [Rename], existing: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat = .zip) {
+        self.removals = removals
+        self.renames = renames
+        self.existing = existing
+        self.format = format
+    }
 
     static func build(removing selections: [ArchiveEditSelection], renaming: [ArchiveEditRename],
-                      moving: [ArchiveEditMove] = [], existing: [ArchiveEntry]) throws -> Self {
+                      moving: [ArchiveEditMove] = [], existing: [ArchiveEntry],
+                      format: GyoshukuKit.ArchiveFormat = .zip,
+                      occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
         // 実体のない親フォルダも移動先になる。ファイルを親として扱うことはない。
         var folders: Set<String> = [], files: Set<String> = []
-        if !moving.isEmpty {
+        if !moving.isEmpty, cached == nil {
             for entry in existing {
                 let path = key(entry.name)
                 let parts = ArchivePath.components(path)
@@ -125,29 +153,29 @@ nonisolated struct ArchiveEditPlan: Sendable {
             }
             if !folder.isEmpty {
                 let parts = ArchivePath.components(folder)
-                guard folders.contains(folder), !(1...max(1, parts.count)).contains(where: {
+                guard cached?.isFolder(folder) ?? (folders.contains(folder) && !(1...max(1, parts.count)).contains(where: {
                     files.contains(parts.prefix($0).joined(separator: "/"))
-                }) else { throw ArchiveEditError.missingFolder(move.folder) }
+                })) else { throw ArchiveEditError.missingFolder(move.folder) }
             }
             let leaf = ArchivePath.components(source).last ?? ""
             return (selection: move.selection, destination: folder.isEmpty ? leaf : folder + "/" + leaf)
         }
         let hasFolders = (selections + renaming.map(\.selection) + moving.map(\.selection)).contains { $0.isDirectory }
         // 抽出と同じ索引を使うが、成分は EntryNode の表示と揃え、途中の . などを解決しない。
-        let selectionIndex = hasFolders ? ArchiveEntryPayload.SubtreeIndex(entries: existing, components: {
+        let selectionIndex = hasFolders && cached == nil ? ArchiveEntryPayload.SubtreeIndex(entries: existing, syntax: .init(format), components: {
             Array($0.pathComponents.drop(while: { $0 == "." }))
         }) : nil
         var removed: [Int: Entry] = [:]
         for selection in selections {
-            try validate(selection, existing: existing, subtrees: selectionIndex)
+            try validate(selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
             for entry in selection.entries { removed[entry.index] = Entry(entry) }
         }
-        var occupied = ArchivePathOccupancy()
-        if !renaming.isEmpty || !moving.isEmpty {
-            for entry in existing where removed[entry.index] == nil {
-                occupied.insert(key(entry.name), directory: entry.kind == .directory)
-            }
+        var initial = ArchivePathOccupancy()
+        if cached == nil, !renaming.isEmpty || !moving.isEmpty {
+            for entry in existing { initial.insert(key(entry.name), directory: entry.kind == .directory) }
         }
+        var occupied = cached ?? .init(initial)
+        for entry in removed.values { occupied.remove(key(entry.expectedName), directory: entry.isDirectory) }
         var renamed: Set<Int> = [], destinations: Set<String> = [], changes: [Rename] = []
         // 改名と移動は同じ部分木変換。衝突・index 照合・正準等価の扱いを分岐させない。
         func rename(_ selection: ArchiveEditSelection, to destination: String) throws {
@@ -179,7 +207,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
                         path = renamed
                     }
                 } else { path = destination }
-                let normalized = try normalizedPath(path, directory: entry.kind == .directory)
+                let normalized = try normalizedPath(path, directory: entry.kind == .directory, format: format)
                 if !entry.name.utf8.elementsEqual(normalized.utf8) {
                     changes.append(Rename(entry: Entry(entry), path: normalized))
                 }
@@ -187,26 +215,34 @@ nonisolated struct ArchiveEditPlan: Sendable {
         }
         for change in renaming {
             let selection = change.selection
-            try validate(selection, existing: existing, subtrees: selectionIndex)
-            let leaf = try leafName(change.name)
+            try validate(selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
+            let leaf = try leafName(change.name, format: format)
             let parent = ArchivePath.components(selection.path).dropLast().joined(separator: "/")
             try rename(selection, to: parent.isEmpty ? leaf : parent + "/" + leaf)
         }
         for move in moves {
-            try validate(move.selection, existing: existing, subtrees: selectionIndex)
+            try validate(move.selection, existing: existing, subtrees: selectionIndex, occupancy: cached)
             try rename(move.selection, to: move.destination)
         }
-        let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing)
-        try plan.validate(entries: existing)
+        let plan = Self(removals: removed.values.sorted { $0.index < $1.index }, renames: changes, existing: existing, format: format)
+        try plan.validate(entries: existing, occupancy: cached)
         return plan
     }
 
     private static func validate(_ selection: ArchiveEditSelection, existing: [ArchiveEntry],
-                                 subtrees: ArchiveEntryPayload.SubtreeIndex?) throws {
+                                 subtrees: ArchiveEntryPayload.SubtreeIndex?, occupancy: ArchivePathOccupancy.Overlay?) throws {
         guard !selection.path.isEmpty, !selection.entries.isEmpty else { throw ArchiveEditError.staleSelection }
         for entry in selection.entries { try validate(Entry(entry), entries: existing) }
         if selection.isDirectory {
             let components = ArchivePath.components(selection.path)
+            if let occupancy {
+                let indices = Set(selection.entries.map(\.index))
+                guard indices.count == occupancy.selectionCount(at: key(selection.path)), selection.entries.allSatisfy({ entry in
+                    let parts = entry.pathComponents
+                    return parts.starts(with: components) && (parts.count > components.count || entry.kind == .directory)
+                }) else { throw ArchiveEditError.staleSelection }
+                return
+            }
             let current = Set(subtrees?.subtree(for: components).map(\.index) ?? [])
             // 選択後に子が増えた場合も、古い部分木だけを削除して孤児を残さない。
             guard current == Set(selection.entries.map(\.index)) else { throw ArchiveEditError.staleSelection }
@@ -222,30 +258,41 @@ nonisolated struct ArchiveEditPlan: Sendable {
     }
 
     func validate(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
-                  allowsRepeatedRenames: Bool = false) throws {
+                  allowsRepeatedRenames: Bool = false, occupancy: ArchivePathOccupancy.Overlay? = nil,
+                  baseKeys: [Int: String]? = nil) throws {
         for entry in removals + renames.map(\.entry) { try Self.validate(entry, entries: entries) }
-        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames)
+        try validateChanges(entries: entries, additions: additions, allowsRepeatedRenames: allowsRepeatedRenames, occupancy: occupancy, baseKeys: baseKeys)
     }
 
     func validateChanges(entries: [ArchiveEntry], additions: [(path: String, isDirectory: Bool)] = [],
-                         allowsRepeatedRenames: Bool = false) throws {
+                         allowsRepeatedRenames: Bool = false, occupancy cached: ArchivePathOccupancy.Overlay? = nil,
+                         baseKeys: [Int: String]? = nil) throws {
         let removed = Set(removals.map(\.index))
         guard !renames.isEmpty || !additions.isEmpty else { return }
-        var occupied = ArchivePathOccupancy()
+        var initial = ArchivePathOccupancy()
         var names: [Int: String] = [:], renamed: Set<Int> = []
-        for entry in entries where !removed.contains(entry.index) {
-            let path = Self.key(entry.name)
-            names[entry.index] = path
-            occupied.insert(path, directory: entry.kind == .directory)
+        if cached == nil {
+            for entry in entries where !removed.contains(entry.index) {
+                let key = Self.key(entry.name)
+                initial.insert(key, directory: entry.kind == .directory)
+                names[entry.index] = key
+            }
+        }
+        var occupied = cached ?? .init(initial)
+        if cached != nil {
+            for index in removed {
+                let entry = entries[index]
+                occupied.remove(baseKeys?[index] ?? Self.key(entry.name), directory: entry.kind == .directory)
+            }
         }
         for change in renames {
             guard !removed.contains(change.entry.index), renamed.insert(change.entry.index).inserted || allowsRepeatedRenames else {
                 throw ArchiveEditError.conflictingSelection
             }
-            let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory)
+            let path = try Self.normalizedPath(change.path, directory: change.entry.isDirectory, format: format)
             let key = Self.key(path)
             // updater は予約順で衝突を調べる。最終形だけでなく途中の全予約も先に検証する。
-            if let previous = names[change.entry.index] {
+            if let previous = names[change.entry.index] ?? (cached == nil ? nil : baseKeys?[change.entry.index] ?? Self.key(change.entry.expectedName)) {
                 occupied.remove(previous, directory: change.entry.isDirectory)
             }
             guard !occupied.collides(key, directory: change.entry.isDirectory) else {
@@ -255,7 +302,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
             occupied.insert(key, directory: change.entry.isDirectory)
         }
         for addition in additions {
-            let path = try Self.normalizedPath(addition.path, directory: addition.isDirectory)
+            let path = try Self.normalizedPath(addition.path, directory: addition.isDirectory, format: format)
             let key = Self.key(path)
             guard !occupied.collides(key, directory: addition.isDirectory) else { throw ArchiveEditError.collision(path) }
             occupied.insert(key, directory: addition.isDirectory)
@@ -281,6 +328,9 @@ nonisolated struct ArchiveEditPlan: Sendable {
     }
 
     static func key(_ path: String) -> String {
+        #if DEBUG
+        ArchiveTestCounters.keys.get()?.increment()
+        #endif
         let displayed = displayPath(path)
         return (displayed.hasSuffix("/") ? String(displayed.dropLast()) : displayed).precomposedStringWithCanonicalMapping
     }
@@ -294,18 +344,19 @@ nonisolated struct ArchiveEditPlan: Sendable {
         return displayed == "." ? "" : displayed
     }
 
-    static func leafName(_ name: String) throws -> String {
+    static func leafName(_ name: String, format: GyoshukuKit.ArchiveFormat = .zip) throws -> String {
         guard !name.utf8.contains(47) else { throw ArchiveEditError.invalidName(name) }
-        return try normalizedPath(name, directory: false)
+        return try normalizedPath(name, directory: false, format: format)
     }
 
-    static func normalizedPath(_ path: String, directory: Bool) throws -> String {
+    static func normalizedPath(_ path: String, directory: Bool, format: GyoshukuKit.ArchiveFormat = .zip) throws -> String {
         var name = path.precomposedStringWithCanonicalMapping
         if directory && !name.hasSuffix("/") { name += "/" }
         let body = directory ? String(name.dropLast()) : name
         let parts = ArchivePath.components(body, omittingEmptySubsequences: false)
         // writer と同じ制約を公開前に説明する。長い親パスを含む子孫も例外にしない。
-        guard !body.isEmpty, !body.utf8.contains(0), !body.utf8.contains(92), !body.utf8.contains(58),
+        guard !body.isEmpty, !body.utf8.contains(0),
+              format.allowsColonsAndBackslashes || (!body.utf8.contains(92) && !body.utf8.contains(58)),
               parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
               name.utf8.count <= Int(UInt16.max) else { throw ArchiveEditError.invalidName(path) }
         return name
@@ -316,11 +367,13 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
     let path: String
     let existing: [ArchiveEntry]
 
-    static func build(in folder: String, baseName: String, existing: [ArchiveEntry]) throws -> Self {
-        let base = try ArchiveEditPlan.leafName(baseName)
-        let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false)
+    static func build(in folder: String, baseName: String, existing: [ArchiveEntry],
+                      format: GyoshukuKit.ArchiveFormat = .zip,
+                      occupancy cached: ArchivePathOccupancy.Overlay? = nil) throws -> Self {
+        let base = try ArchiveEditPlan.leafName(baseName, format: format)
+        let parent = folder.isEmpty ? "" : try ArchiveEditPlan.normalizedPath(folder, directory: false, format: format)
         var occupied: Set<String> = [], directories: Set<String> = [], files: Set<String> = []
-        for entry in existing {
+        for entry in cached == nil ? existing : [] {
             let parts = ArchivePath.components(ArchiveEditPlan.key(entry.name), omittingEmptySubsequences: false)
             for count in 1...parts.count {
                 let path = parts.prefix(count).joined(separator: "/")
@@ -330,17 +383,17 @@ nonisolated struct ArchiveNewFolderPlan: Sendable {
             }
         }
         if !parent.isEmpty {
-            guard directories.contains(parent) else { throw ArchiveEditError.staleSelection }
+            guard cached.map({ $0.selectionCount(at: parent) > 0 }) ?? directories.contains(parent) else { throw ArchiveEditError.staleSelection }
             let parts = ArchivePath.components(parent)
             for count in 1...parts.count {
                 let path = parts.prefix(count).joined(separator: "/")
-                guard !files.contains(path) else { throw ArchiveEditError.collision(path) }
+                guard cached.map({ $0.firstFileAncestor(path) == nil }) ?? !files.contains(path) else { throw ArchiveEditError.collision(path) }
             }
         }
         var name = base, number = 2
         while true {
-            let path = try ArchiveEditPlan.normalizedPath(parent.isEmpty ? name : parent + "/" + name, directory: true)
-            if !occupied.contains(ArchiveEditPlan.key(path)) { return Self(path: path, existing: existing) }
+            let path = try ArchiveEditPlan.normalizedPath(parent.isEmpty ? name : parent + "/" + name, directory: true, format: format)
+            if !(cached?.containsSubtree(at: ArchiveEditPlan.key(path)) ?? occupied.contains(ArchiveEditPlan.key(path))) { return Self(path: path, existing: existing) }
             // 仮想フォルダや表示から隠れた兄弟も予約済み。Finder と同じ空白付き連番で避ける。
             name = String(localized: "\(base) \(number)")
             number += 1
@@ -352,29 +405,37 @@ nonisolated enum ArchiveEditTransaction {
     static func run(plan: ArchiveEditPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveEditResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                    sessionReader: sending ArchiveReader? = nil, occupancy: ArchivePathOccupancy.Overlay? = nil) throws -> ArchiveEditResult {
         guard !plan.removals.isEmpty || !plan.renames.isEmpty else {
             return ArchiveEditResult(removedPaths: [], renamedPaths: [])
         }
-        progress.totalUnitCount = Int64(plan.removals.count + plan.renames.count + 1)
-        progress.completedUnitCount = 0
-        try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
-                                             willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
+        let count = plan.removals.count + plan.renames.count
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: count, additions: [], itemCount: count,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(plan.existing, removing: plan.removals.map(\.index)), changesExisting: true))
+        let identity = try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
+            ledger: ledger,
+            willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
+            verifiedOutput: verifiedOutput, sessionReader: sessionReader,
+            expectedOutput: .init(existing: plan.existing, removing: plan.removals.map(\.index), renaming: plan.renames, mode: mode)) { updater in
             // 別 reader での照合では updater の index を証明できない。予約前に本人の一覧と照合する。
-            try plan.verifyNames(updater.entryNames)
-            try plan.validateChanges(entries: plan.existing)
+            try ArchiveStageDiagnostics.measure(.planValidation) {
+                try plan.verifyNames(updater.entryNames)
+                try plan.validateChanges(entries: plan.existing, occupancy: occupancy)
+            }
             try ArchiveImportPlan.checkCancellation(progress)
             if !plan.removals.isEmpty {
                 try updater.remove(entriesAt: plan.removals.map(\.index))
-                progress.completedUnitCount += Int64(plan.removals.count)
+                ledger.didCount(plan.removals.count)
             }
             for change in plan.renames {
                 try ArchiveImportPlan.checkCancellation(progress)
                 try updater.rename(entryAt: change.entry.index, to: change.path)
-                progress.completedUnitCount += 1
+                ledger.didCount()
             }
         }
-        return ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path))
+        return ArchiveEditResult(removedPaths: plan.removals.map(\.expectedName), renamedPaths: plan.renames.map(\.path), publishedIdentity: identity)
     }
 }
 
@@ -382,83 +443,139 @@ nonisolated enum ArchiveEditTransaction {
 nonisolated enum ArchiveImportTransaction {
     // 文書・session の公開 API を変えず、append の子 Task にも注入を引き継ぐ。
     static let pendingWorkRegistry = TaskLocal<PendingWorkRegistry>(wrappedValue: .shared)
+    #if DEBUG
+    static let willAddFileForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
+    static let didCommitForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
+    static let didOpenVerificationSourceForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
+    static let didVerifyForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
+    static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
+    static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
+    static let didCommitTarUpdaterForTesting = TaskLocal<(@Sendable (TarUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didCommitLHAUpdaterForTesting = TaskLocal<(@Sendable (LHAUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didCommitSevenZipUpdaterForTesting = TaskLocal<(@Sendable (SevenZipUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didCommitCompressedTarUpdaterForTesting = TaskLocal<(@Sendable (CompressedTarUpdater) throws -> Void)?>(wrappedValue: nil)
+    static let didFallBackToRewriteForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
+    static let didFallBackToFullVerificationForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
+    #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                              willOpenUpdater: (@Sendable () throws -> Void)? = nil,
-                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
-        progress.totalUnitCount = 2
-        progress.completedUnitCount = 0
-        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
-                    willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity) { updater in
-            try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
+                             willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                    sessionReader: sending ArchiveReader? = nil) throws -> ArchiveImportResult {
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: 1, additions: [], itemCount: 1,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(plan.existing), changesExisting: false))
+        let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress,
+            ledger: ledger,
+            willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: expectedIdentity,
+            verifiedOutput: verifiedOutput, sessionReader: sessionReader,
+            expectedOutput: .init(existing: plan.existing, additions: [.init(adding: plan.path, kind: .directory)], mode: mode)) { updater in
+            try ArchiveStageDiagnostics.measure(.planValidation) {
+                try ArchiveEditPlan.verifyNames(updater.entryNames, existing: plan.existing)
+            }
             try ArchiveImportPlan.checkCancellation(progress)
             try updater.addDirectory(plan.path)
-            progress.completedUnitCount += 1
+            ledger.didCount()
         }
-        return ArchiveImportResult(addedPaths: [plan.path], failures: [])
+        return ArchiveImportResult(addedPaths: [plan.path], failures: [], publishedIdentity: identity)
     }
 
     // phase hook は同じ worker 上で呼び、取消し・障害の境界を XCTest で再現する。
     static func run(plan: ArchiveImportPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                     options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
                     didProcess: (@Sendable (Int) throws -> Void)? = nil,
-                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil) throws -> ArchiveImportResult {
+                    willPublish: (@Sendable () throws -> Void)? = nil, expectedIdentity: ArchiveSetIdentity? = nil,
+                    verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                    sessionReader: sending ArchiveReader? = nil) throws -> ArchiveImportResult {
         guard plan.failures.isEmpty, !plan.items.isEmpty else {
             return ArchiveImportResult(addedPaths: [], failures: plan.failures)
         }
-        guard plan.replacingEntries.isEmpty || plan.expectedEntries != nil else { throw ArchiveEditError.staleSelection }
+        guard let existing = plan.expectedEntries else { throw ArchiveEditError.staleSelection }
         for stamp in plan.sourceStamps {
             try ArchiveImportPlan.checkCancellation(progress)
             try stamp.verify()
         }
-        progress.totalUnitCount = Int64(plan.items.count + plan.replacingEntries.count + 1)
-        progress.completedUnitCount = 0
+        let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: plan.replacingEntries.count,
+            additions: plan.items.map(\.byteCount), itemCount: plan.items.count,
+            carriedBytes: ArchiveWriteProgress.carriedBytes(existing, removing: plan.replacingEntries),
+            changesExisting: !plan.replacingEntries.isEmpty))
         let quarantine = try ExtractionQuarantine.firstValue(from: plan.items.lazy.map(\.url)) {
             try ArchiveImportPlan.checkCancellation(progress)
         }
-        try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, willPublish: {
+        let expectedOutput = try ArchiveOutputProjection(existing: existing, removing: plan.replacingEntries,
+                                                        additions: plan.items.map { try .init(adding: $0) }, mode: mode)
+        let identity = try publish(archive: archive, mode: mode, options: options, password: password, progress: progress, ledger: ledger, willPublish: {
             for stamp in plan.sourceStamps { try ArchiveImportPlan.checkCancellation(progress); try stamp.verify() }
             try willPublish?()
         },
-                    expectedIdentity: expectedIdentity, additionalQuarantine: quarantine, registry: pendingWorkRegistry.get()) { updater in
-            if let existing = plan.expectedEntries { try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing) }
+            expectedIdentity: expectedIdentity, verifiedOutput: verifiedOutput, sessionReader: sessionReader,
+            additionalQuarantine: quarantine, registry: pendingWorkRegistry.get(),
+            expectedOutput: expectedOutput) { updater in
+            try ArchiveStageDiagnostics.measure(.planValidation) {
+                try ArchiveEditPlan.verifyNames(updater.entryNames, existing: existing)
+            }
             if !plan.replacingEntries.isEmpty {
                 try updater.remove(entriesAt: plan.replacingEntries)
-                progress.completedUnitCount += Int64(plan.replacingEntries.count)
+                ledger.didCount(plan.replacingEntries.count)
             }
-            for (index, item) in plan.items.enumerated() {
-                try ArchiveImportPlan.checkCancellation(progress)
-                // add(contentsOf:) のディレクトリ再帰は使わず、一項目ごとに取消しを確認する。
+            let additions = plan.items.map { item in
+                ArchiveAddition(path: item.path, source: item.isDirectory
+                    ? .directory(modificationDate: nil) : .contents(of: item.url))
+            }
+            if !additions.isEmpty {
+                var callbackFailure: (any Error)?
                 do {
-                    if item.isDirectory { try updater.addDirectory(item.path) }
-                    else { try updater.add(contentsOf: item.url, as: item.path) }
+                    try updater.add(additions) { event in
+                        switch event {
+                        case .willStart(let index):
+                            try ArchiveImportPlan.checkCancellation(progress)
+                            #if DEBUG
+                            let item = plan.items[index]
+                            if !item.isDirectory { willAddFileForTesting.get()?(item.url) }
+                            #endif
+                        case .progress(let index, let value):
+                            try ledger.addition(index)(value)
+                        case .didFinish(let index):
+                            ledger.didFinishAddition(index)
+                            do { try didProcess?(index) }
+                            catch { callbackFailure = error; throw error }
+                        }
+                    }
+                } catch let error as ArchiveAdditionError {
+                    // A callback can itself throw a batch error from another operation.
+                    if let callbackFailure { throw callbackFailure }
+                    throw ExtractionFailure.refused("\(plan.items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
                 }
-                catch { throw ExtractionFailure.refused("\(item.path): \(error)") }
-                progress.completedUnitCount += 1
-                try didProcess?(index)
             }
             for stamp in plan.sourceStamps {
                 try ArchiveImportPlan.checkCancellation(progress)
                 try stamp.verify()
             }
         }
-        return ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: [])
+        return ArchiveImportResult(addedPaths: plan.items.map(\.path), failures: [], publishedIdentity: identity)
     }
 
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
-    static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
+    @discardableResult static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
+                        ledger: ArchiveWriteProgress? = nil,
+                        commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)? = nil,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
                         expectedIdentity: ArchiveSetIdentity? = nil,
+                        verifiedOutput: ArchiveVerifiedOutputSink? = nil,
+                        sessionReader: sending ArchiveReader? = nil,
                         additionalQuarantine: Data? = nil,
                         registry: PendingWorkRegistry = .shared,
                         publication: ArchiveSavePublication? = nil,
                         deferredPlan: ArchiveSaveReplayPlan? = nil,
-                        mutate: (any ArchiveEditing) throws -> Void) throws {
+                        expectedOutput: ArchiveOutputProjection,
+                        mutate: (any ArchiveEditing) throws -> Void) throws -> ArchiveSetIdentity {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         try ArchiveImportPlan.checkCancellation(progress)
         let original = try ArchiveSetIdentity.capture(url: archive)
+        let archiveBytes = ArchiveWriteProgress.sum(original.volumes.lazy.map(\.size))
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
         let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
         do { try registry.register(directory) }
@@ -473,46 +590,303 @@ nonisolated enum ArchiveImportTransaction {
         defer { registry.removeAndUnregister(directory) }
         do { try registry.recordIdentity(directory) }
         catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
-        let work: URL
-        switch mode {
-        case .inPlace:
-            work = directory.appendingPathComponent("archive.zip")
-            try FileManager.default.copyItem(at: archive, to: work)
-            try willOpenUpdater?()
-            let updater = try ArchiveUpdater.open(url: work, options: options)
-            try mutate(updater)
-            try ArchiveImportPlan.checkCancellation(progress)
-            // commit の属性復元が失敗しても、変わるのは作業コピーだけ。
-            try updater.commit()
-        case .rewrite(let format):
-            let suffix = archive.pathExtension.isEmpty ? "bin" : archive.pathExtension
-            work = directory.appendingPathComponent("archive." + suffix)
-            try willOpenUpdater?()
-            if let deferredPlan, ArchiveDeferredTarWriter.isNeeded(format: format, options: options) {
-                try ArchiveDeferredTarWriter.write(source: archive, password: password, output: work, format: format,
-                                                   options: options, plan: deferredPlan, progress: progress)
-            } else {
-                let rewriter = try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
-                // 入力の復号鍵と出力の暗号化設定を分離し、削除だけが平文へ書き直せる。
-                guard !rewriter.hasEncryptedEntries || password != nil else {
-                    throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
-                }
-                try mutate(rewriter)
+        let outputFormat = mode.outputFormat
+        let work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: outputFormat))
+        var publishedMode = mode
+        var spliceBase: TarEditingSnapshot?
+        var spliced: CompressedTarCommitResult?
+        func updateCommitProgress() -> (ArchiveUpdater.CommitProgress) throws -> Void {
+            if let ledger { return ledger.commit }
+            // Compatibility for ledger-free callers, including the existing transaction test doubles.
+            progress.totalUnitCount += 1_000
+            var completed: Int64 = 0
+            return { value in
                 try ArchiveImportPlan.checkCancellation(progress)
-                progress.totalUnitCount += Int64(rewriter.entryNames.count)
-                try rewriter.commit { _, _ in
-                    progress.completedUnitCount += 1
+                let units: Int64 = value.totalBytes == 0 ? 1_000
+                    : Int64(min(1, Double(value.completedBytes) / Double(value.totalBytes)) * 1_000)
+                let next = max(completed, units)
+                progress.completedUnitCount += next - completed
+                completed = next
+            }
+        }
+        func rewriteBranch(format: GyoshukuKit.ArchiveFormat) throws {
+            var info = stat()
+            guard lstat(work.path, &info) != 0 else { throw ExtractionFailure.system(EEXIST) }
+            guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
+            let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+                try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
+            }
+            // 入力の復号鍵と出力の暗号化設定を分離する。
+            guard !rewriter.hasEncryptedEntries || password != nil else {
+                throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
+            }
+            ledger?.begin(.rewriter(format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit), archiveBytes: archiveBytes, options: options)
+            try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
+            try ArchiveImportPlan.checkCancellation(progress)
+            if let ledger { try rewriter.finishAdditions(progress: ledger.finishAdditions) }
+            // LHA・7z の fallback は、削除済みの項目と root を carry の予算に含めない。
+            let carryCount = [.lha, .sevenZip].contains(format)
+                ? expectedOutput.resolving(.rewrite(format)).entries.filter { !$0.isAddition }.count
+                : rewriter.entryNames.count
+            if ledger == nil { progress.totalUnitCount += Int64(carryCount) }
+            try ArchiveStageDiagnostics.measure(.commit) {
+                try rewriter.commit(progress: ledger?.commit) { done, total in
+                    if let ledger { ledger.didCarry(done, total) }
+                    else { progress.completedUnitCount += 1 }
                     try ArchiveImportPlan.checkCancellation(progress)
                 }
             }
             try preserveAttributes(from: archive, to: work)
+        }
+        switch mode {
+        case .inPlace:
+            try willOpenUpdater?()
+            let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: archive, output: work, options: options) }
+            ledger?.begin(.updater(.zip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
+            try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+            try ArchiveImportPlan.checkCancellation(progress)
+            if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+            try ArchiveStageDiagnostics.measure(.commit) {
+                #if DEBUG
+                try willCommitUpdaterForTesting.get()?()
+                #endif
+                try updater.commit(progress: ledger?.commit ?? commitProgress)
+            }
+            #if DEBUG
+            try didCommitUpdaterForTesting.get()?(updater)
+            #endif
+            try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+        case .rewrite(let format):
+            try willOpenUpdater?()
+            try rewriteBranch(format: format)
+        case .update(let format) where [.tarGzip, .tarBzip2, .tarXZ].contains(format):
+            guard let reader = sessionReader else { throw ArchiveEditError.staleSelection }
+            // 同じ独立 reader から Sendable な base を採り、reader の所有権は GK へ渡す。
+            spliceBase = reader.tarEditingSnapshot()
+            try willOpenUpdater?()
+            var updater: CompressedTarUpdater?
+            do {
+                // sending の reader を計測 closure に捕捉せず、一度だけ移す。
+                #if DEBUG
+                let span = ArchiveStageDiagnostics.begin(.updaterOpen)
+                defer { span?.end() }
+                #endif
+                updater = try CompressedTarUpdater.open(reader: reader, output: work, format: format, options: options)
+            } catch TarUpdaterError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                ledger?.begin(.updater(format, processesAdditionsAtCommit: true), archiveBytes: archiveBytes, options: options)
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
+                do {
+                    spliced = try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        return try updater.commit(progress: commitCallback)
+                    }
+                } catch let error as TarUpdaterError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitCompressedTarUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+            } else {
+                spliceBase = nil
+                publishedMode = .rewrite(format)
+                try rewriteBranch(format: format)
+            }
+        case .update(.tar):
+            try willOpenUpdater?()
+            var updater: TarUpdater?
+            do {
+                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                    try TarUpdater.open(url: archive, output: work, options: options)
+                }
+            } catch TarUpdaterError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                ledger?.begin(.updater(.tar, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
+                do {
+                    try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        try updater.commit(progress: commitCallback)
+                    }
+                } catch let error as TarUpdaterError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitTarUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+            } else {
+                publishedMode = .rewrite(.tar)
+                try rewriteBranch(format: .tar)
+            }
+        case .update(.lha):
+            try willOpenUpdater?()
+            var updater: LHAUpdater?
+            do {
+                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                    try LHAUpdater.open(url: archive, output: work, options: options)
+                }
+            } catch UpdaterRouteError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                ledger?.begin(.updater(.lha, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
+                do {
+                    try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        try updater.commit(progress: commitCallback)
+                    }
+                } catch let error as UpdaterRouteError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitLHAUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
+            } else {
+                publishedMode = .rewrite(.lha)
+                try rewriteBranch(format: .lha)
+            }
+        case .update(.sevenZip):
+            try willOpenUpdater?()
+            var updater: SevenZipUpdater?
+            do {
+                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+                    try SevenZipUpdater.open(url: archive, password: password, output: work, options: options)
+                }
+            } catch UpdaterRouteError.requiresRewrite(let reason) {
+                #if DEBUG
+                didFallBackToRewriteForTesting.get()?(reason)
+                #endif
+            }
+            if let updater {
+                ledger?.begin(.updater(.sevenZip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
+                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+                try ArchiveImportPlan.checkCancellation(progress)
+                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+                let commitCallback = updateCommitProgress()
+                do {
+                    try ArchiveStageDiagnostics.measure(.commit) {
+                        #if DEBUG
+                        try willCommitUpdaterForTesting.get()?()
+                        #endif
+                        try updater.commit(progress: commitCallback)
+                    }
+                } catch let error as UpdaterRouteError {
+                    guard case .outputVerificationFailed = error else { throw error }
+                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
+                }
+                #if DEBUG
+                try didCommitSevenZipUpdaterForTesting.get()?(updater)
+                #endif
+                try preserveAttributes(from: archive, to: work, includingCreationDate: true, copyingExtendedAttributes: false)
+            } else {
+                publishedMode = .rewrite(.sevenZip)
+                try rewriteBranch(format: .sevenZip)
+            }
+        case .update: throw ArchiveEditError.staleSelection
         }
         if let additionalQuarantine {
             // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
             // 公開前の作業コピーだけに付け、取消しや検証失敗で原本の属性を変えない。
             try ExtractionQuarantine.apply(try ExtractionQuarantine.read(from: work) ?? additionalQuarantine, to: work)
         }
-        _ = try ArchiveReader.open(url: work, options: .kaitoFinder(password: options.password))
+        #if DEBUG
+        try didCommitForTesting.get()?(work)
+        #endif
+        // 検証前の実体を記録し、公開直前までの差し替え・書き換えを拒否する。
+        let identity: ArchiveSetIdentity
+        let source: ArchiveVerifiedFileSource
+        let verified: ArchiveReader
+        let adoptable = ArchiveVerifiedOutput.usesPublishedName(archive, format: outputFormat)
+        let hint = adoptable ? archive.standardizedFileURL : work
+        do { source = try ArchiveVerifiedFileSource(url: work) }
+        catch { throw ArchiveVerificationFailure.sourceOpen(.init(error)).reported(file: archive) }
+        #if DEBUG
+        try didOpenVerificationSourceForTesting.get()?(work)
+        #endif
+        try verifyWorkIdentity(source: source, work: work, phase: .beforeVerification, archive: archive)
+        identity = source.identity
+        if let spliced {
+            let actual = source.fileIdentity, expected = spliced.output
+            guard actual.device == expected.device, actual.inode == expected.inode, actual.size == expected.size,
+                  actual.modificationSeconds == expected.modificationSeconds,
+                  actual.modificationNanoseconds == expected.modificationNanoseconds else {
+                throw ArchiveVerificationFailure.updaterVerification(.init(
+                    TarUpdaterError.outputVerificationFailed(reason: "output identity"))).reported(file: archive)
+            }
+        }
+        do {
+            let verificationOptions = ReaderOptions.kaitoFinderVerification(password: options.password)
+            verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
+                guard let spliced, let spliceBase else {
+                    return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
+                }
+                do {
+                    return try ArchiveReader.openSplicedCompressedTar(output: source, sourceURL: hint, base: spliceBase,
+                        splice: CompressedTarSplice(segments: spliced.segments.map(Self.kaitoKitSegment)), options: verificationOptions)
+                } catch let error as TarSpliceVerificationError where error.reason == .baseNotSpliceable {
+                    #if DEBUG
+                    didFallBackToFullVerificationForTesting.get()?("\(error.reason)")
+                    #endif
+                    return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
+                }
+            }
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw ArchiveVerificationFailure.readerOpen(.init(error)).reported(file: archive) }
+        if outputFormat == .zip {
+            try ArchiveStageDiagnostics.measure(.outputProbe) {
+                let count: UInt64
+                do { count = try ArchiveUpdater.probe(url: work).entryCount }
+                catch is CancellationError { throw CancellationError() }
+                catch { throw ArchiveVerificationFailure.outputProbe(.init(error)).reported(file: archive) }
+                guard count == UInt64(verified.entries.count) else {
+                    throw ArchiveVerificationFailure.outputCount(expected: UInt64(verified.entries.count), actual: count).reported(file: archive)
+                }
+            }
+        }
+        try ArchiveStageDiagnostics.measure(.entryComparison) {
+            if let failure = expectedOutput.resolving(publishedMode).validationFailure(verified, format: outputFormat) {
+                throw failure.reported(file: archive)
+            }
+        }
+        #if DEBUG
+        try didVerifyForTesting.get()?(work)
+        #endif
+        #if DEBUG
+        let publishSpan = ArchiveStageDiagnostics.begin(.publish)
+        defer { publishSpan?.end() }
+        #endif
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard try ArchiveSetIdentity.capture(url: archive) == original else {
@@ -522,17 +896,67 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
-        try publication?.enter(progress: progress)
+        try verifyWorkIdentity(source: source, work: work, phase: .beforePublication, archive: archive)
+        try (publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
-        progress.completedUnitCount += 1
+        #if DEBUG
+        didPublishForTesting.get()?(archive)
+        #endif
+        verifiedOutput?.publishedMode = publishedMode
+        if adoptable {
+            verifiedOutput?.output = ArchiveVerifiedOutput(identity: identity, reader: verified, source: source,
+                hint: hint, verificationPassword: options.password, format: outputFormat)
+        }
+        if let ledger { ledger.didPublish() }
+        else { progress.completedUnitCount += 1 }
+        return identity
     }
 
-    private static func preserveAttributes(from archive: URL, to work: URL) throws {
+    private static func kaitoKitSegment(_ segment: CompressedTarOutputSegment) -> CompressedTarSplice.Segment {
+        switch segment {
+        case .reused(let output, let base): .reused(output: output, base: base)
+        case .encoded(let output): .encoded(output: output)
+        }
+    }
+
+    private static func verifyWorkIdentity(source: ArchiveVerifiedFileSource, work: URL,
+                                           phase: ArchiveVerificationFailure.Phase, archive: URL) throws {
+        // volume UUID の取得成否や URL の resource cache に依存させない。
+        // ctime/atime は xattr・Spotlight・読み出しでも変わるので内容の同一性には使わない。
+        for anchor in [ArchiveVerificationFailure.Anchor.descriptor, .path] {
+            let current: ArchiveFileIdentity
+            do {
+                current = try anchor == .descriptor ? ArchiveFileIdentity.capture(descriptor: source.descriptor)
+                    : ArchiveFileIdentity.capture(url: work)
+            } catch {
+                throw ArchiveVerificationFailure.identity(phase, anchor, expected: source.fileIdentity,
+                    actual: nil, error: .init(error)).reported(file: archive)
+            }
+            guard current == source.fileIdentity else {
+                throw ArchiveVerificationFailure.identity(phase, anchor, expected: source.fileIdentity,
+                    actual: current, error: nil).reported(file: archive)
+            }
+        }
+    }
+
+    private static func preserveAttributes(from archive: URL, to work: URL, includingCreationDate: Bool = false,
+                                           copyingExtendedAttributes: Bool = true) throws {
         var info = stat()
         guard lstat(archive.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
         guard chmod(work.path, info.st_mode & 0o7777) == 0 else { throw ExtractionFailure.system(errno) }
-        // copyItem のない rewrite でも、Finder タグや quarantine を含む全 xattr を運ぶ。
-        // 原本の属性が途中で変われば、公開直前の identity 照合でも拒否される。
+        if includingCreationDate {
+            // Date の浮動小数への往復で原本の作成日の精度を落とさない。
+            var attributes = attrlist()
+            attributes.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
+            attributes.commonattr = attrgroup_t(ATTR_CMN_CRTIME)
+            var created = info.st_birthtimespec
+            guard setattrlist(work.path, &attributes, &created, MemoryLayout<timespec>.size, UInt32(FSOPT_NOFOLLOW)) == 0 else {
+                throw ExtractionFailure.system(errno)
+            }
+        }
+        // 7z の sequential 出力は原本の xattr を運ばない。clone は既に属性を持つ。
+        guard copyingExtendedAttributes else { return }
+        // 単一作業ファイルと rewrite の両方で、Finder タグや quarantine を含む全 xattr を運ぶ。
         let size = listxattr(archive.path, nil, 0, XATTR_NOFOLLOW)
         guard size >= 0 else { throw ExtractionFailure.system(errno) }
         var names = [CChar](repeating: 0, count: size)

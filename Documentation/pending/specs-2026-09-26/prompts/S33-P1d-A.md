@@ -1,0 +1,7 @@
+# S33 = P1d-A stage 1 (KaitoFinder) — launch after S21 is committed and B-P1d has been re-taken at that commit
+
+Spec: ~/Github/KaitoFinder/Documentation/pending/specs-2026-09-26/P12-P13-P1d.md, section "## P1d-A（KaitoFinder、S32 → S33）" (A1–A6, AA1–AA9) with "## 共通の前提と計測の事実"; interfaces in
+~/Github/KaitoFinder/Documentation/pending/specs-2026-09-26/ORDER-P6-P13.md §2 (ArchiveNameIndexChange / reloadAfterMutation(advancing:), ArchiveSaveReplayPlan init(baseOccupancy:), stage names,
+probe trace rule §1-4 which also applies to the LHA/7z save rows added by S21/S25). Stage A0 (7b623b4) is committed.
+Decision 3 (A5's pre-save differential check): approved by the user on 2026-09-26 — implement A5 including the pre-save differential check.
+Never edit a published release's notes under Documentation/releases/; put release-note text in the verification record. Volume tests via hdiutil (HFS+/FAT32/exFAT) cannot run in the Codex sandbox: write them to skip when hdiutil fails; the orchestrator runs them. New defaults keys go into TestProcessSetup.autosaveKeys and AutosaveIsolationTests; new strings need all 26 localizations (WordingAcceptanceTests, French colon style). Line numbers in the specs are from older commits: read by function name and stop and report if a named function is missing. Build against committed sibling heads exported with git archive in an isolated layout unless told otherwise. Do not commit. Report exactly what ran.

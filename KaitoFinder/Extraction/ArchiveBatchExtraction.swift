@@ -63,21 +63,19 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         self.currentArchive = currentArchive
     }
 
-    func run(archives: [URL], base: URL?, progress: Progress) async -> Report {
+    func run(archives: [URL], base: URL?, progress: Progress,
+             didWrite: (@Sendable (Int) -> Void)? = nil,
+             didProcess: (@Sendable (Int) -> Void)? = nil) async -> Report {
         // 複数の巻を選んでも同じセットは一度だけ展開し、認証・結果も入口の URL に揃える。
         var seen = Set<URL>()
         let archives = archives.map { ArchiveSplitVolume.gateURL(for: $0) }.filter { seen.insert($0).inserted }
         progress.totalUnitCount = Int64(archives.count)
         progress.completedUnitCount = 0
-        let operation = Task { await extractArchives(archives, base: base, progress: progress) }
-        // Progressの取消しを、入力待ちと認証中のTaskにも届ける。
-        let cancellation = Task {
-            while !Task.isCancelled {
-                if progress.isCancelled { operation.cancel(); return }
-                try? await Task.sleep(for: .milliseconds(50))
-            }
+        let operation = Task {
+            await extractArchives(archives, base: base, progress: progress, didWrite: didWrite, didProcess: didProcess)
         }
-        defer { cancellation.cancel() }
+        let cancellation = ArchiveProgressCancellation(progress: progress) { _ in operation.cancel() }
+        defer { cancellation.invalidate() }
         return await withTaskCancellationHandler {
             await operation.value
         } onCancel: {
@@ -86,7 +84,9 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         }
     }
 
-    private func extractArchives(_ archives: [URL], base: URL?, progress: Progress) async -> Report {
+    private func extractArchives(_ archives: [URL], base: URL?, progress: Progress,
+                                 didWrite: (@Sendable (Int) -> Void)?,
+                                 didProcess: (@Sendable (Int) -> Void)?) async -> Report {
         var extracted: [URL] = []
         var failures: [Failure] = []
         var revealedItems: [URL] = []
@@ -134,7 +134,7 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                 let payloads = ArchiveEntryPayload.payloads(for: root.children, archiveURL: item.archive,
                                                            generation: snapshot.generation)
                 let result = try await ExtractionService.extract(payloads, from: opened, to: item.destinationFolder,
-                                                                 progress: child)
+                    progress: child, didWrite: didWrite, didProcess: didProcess)
                 written = result.written
                 if result.cancelled { throw CancellationError() }
                 try Self.checkCancellation(progress)

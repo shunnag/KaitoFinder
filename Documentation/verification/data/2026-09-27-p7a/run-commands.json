@@ -1,0 +1,2028 @@
+[
+  {
+    "layout": "s41-p7a",
+    "selection": "BatchImportTests",
+    "exit": 1,
+    "passed": 8,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/001-BatchImportTests.log",
+    "sha256": "17804a0a8f955d83794e3127a13b54a7190094a8f5adf972ee10807b26959270",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DragInTests",
+    "exit": 1,
+    "passed": 25,
+    "skipped": 1,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/002-DragInTests.log",
+    "sha256": "2e3c6d0ef548a8874f166800cca04068ee3948c8b6c1685658c22e92967f5471",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSavePlanEquivalenceTests",
+    "exit": 0,
+    "passed": 5,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/003-DeferredSavePlanEquivalenceTests.log",
+    "sha256": "84ecf86c83748e61ec1375da7eb059d5898efc33f7b19aab4f31aa25045e3c75",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "NameIndexEquivalenceTests",
+    "exit": 0,
+    "passed": 11,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/004-NameIndexEquivalenceTests.log",
+    "sha256": "ad28e0a3f375a81fa68ed47134e2590755dbb1b4d8247d4a8818ab686913cc13",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.NameIndexEquivalenceTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveWriteProgressTests",
+    "exit": 0,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/005-ArchiveWriteProgressTests.log",
+    "sha256": "4f8d06d642c3ce719d078c053e7d925810d771c3e7b270a7ab3e99307460a397",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveWriteProgressTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveErrorTextTests",
+    "exit": 0,
+    "passed": 15,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/006-ArchiveErrorTextTests.log",
+    "sha256": "da9ba3d1386313acb8ba29144d6c94ae4115a500bc26da61a35d651be04079b5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveErrorTextTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "WordingAcceptanceTests",
+    "exit": 1,
+    "passed": 49,
+    "skipped": 0,
+    "failed": 3,
+    "interrupted": 0,
+    "log": "build/s41-p7a/007-WordingAcceptanceTests.log",
+    "sha256": "7e4794436bfb2c79b9d77d302de55f157967d085a2c8f1807c167383373c6f04",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.WordingAcceptanceTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "BatchImportTests",
+    "exit": 1,
+    "passed": 8,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/008-BatchImportTests.log",
+    "sha256": "b9ac6f5c605585188085442886753fa27ac76976b6da5da0f8338ec529425f4d",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DragInTests",
+    "exit": 0,
+    "passed": 26,
+    "skipped": 1,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/009-DragInTests.log",
+    "sha256": "6fcd38ff47fb50c3c9c81b05614a7bb8d4ed6262dc35720413aff62637bc88e2",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveCreationTests",
+    "exit": 0,
+    "passed": 37,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/010-ArchiveCreationTests.log",
+    "sha256": "55ba69049c3f8328c9d69f3a41b66828212a4d67ae5edac881e5aeb97040a477",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveCreationTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ByteProgressIntegrationTests",
+    "exit": 0,
+    "passed": 10,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/011-ByteProgressIntegrationTests.log",
+    "sha256": "68cb1a5adda48ecf84c1e7f9dba87d4eb3bf1bac8cfc30b686fb066a20d0815c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ByteProgressIntegrationTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportConflictTests",
+    "exit": 0,
+    "passed": 13,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/012-ArchiveImportConflictTests.log",
+    "sha256": "c019ba58ef4e0e251da8441e4633cf9bcf9868b06d8291ab17cd2251185b9d1f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportConflictTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportCorrectionTests",
+    "exit": 0,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/013-ArchiveImportCorrectionTests.log",
+    "sha256": "53bbf36cccae7477215a5bd3e9594720acf948fbbf151fa6d2fbc766c1ac994b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportCorrectionTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveEditTests",
+    "exit": 0,
+    "passed": 54,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/014-ArchiveEditTests.log",
+    "sha256": "c35dd38e4dca1267bd8b2550f2ed4042646c3311cf7fdc6e16d9ded05a8e48c5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveEditTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveAttributeTests",
+    "exit": 69,
+    "passed": 2,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a/015-DeferredSaveAttributeTests.log",
+    "sha256": "21be9de1140ad5a056d7e4b15cdcbd820e42749e6d49ad86fa791c6882211982",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveSplitVolumeTests",
+    "exit": 0,
+    "passed": 16,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/016-ArchiveSplitVolumeTests.log",
+    "sha256": "bec27b5b093e085e177f2bc85171f1b880a163ce030b40d198f0e1d633ddcb06",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveSplitVolumeTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "CompressionCapabilityTests",
+    "exit": 0,
+    "passed": 45,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/017-CompressionCapabilityTests.log",
+    "sha256": "012c155e0ddcf00621604af90298b7d7f158ae864e1f117fc47989af21f7c5b9",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.CompressionCapabilityTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "BatchImportTests",
+    "exit": 0,
+    "passed": 10,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/018-BatchImportTests.log",
+    "sha256": "d91255f1abda0fd5837f21324771742342fefe57ad78f26c86a3cdd689d7175c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "BatchImportCompatibilityTests",
+    "exit": 0,
+    "passed": 0,
+    "skipped": 1,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/019-BatchImportCompatibilityTests.log",
+    "sha256": "85c63ec42f0e33be2da00ab625e1bf944d797655fcf3e63ab276d360c3bdba6f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportCompatibilityTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DragInTests",
+    "exit": 0,
+    "passed": 26,
+    "skipped": 1,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/020-DragInTests.log",
+    "sha256": "12bb2eaca252006c1df2235b3bc5462d7a2fd0e3d6b3e05d37458aa9c37bc0b7",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DragInTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportConflictTests",
+    "exit": 0,
+    "passed": 13,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/021-ArchiveImportConflictTests.log",
+    "sha256": "831ffdb924a1cefd7257355a93931e4afb11262ed170bf474b8f2d10833a7b1e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportConflictTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportCorrectionTests",
+    "exit": 0,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/022-ArchiveImportCorrectionTests.log",
+    "sha256": "b8c3ceb9b2e8429df777d273629261f154088cee08e5183d089b303d4e7de52a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportCorrectionTests",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testImmediateImportCancelledInsideFileStopsWithoutAlert",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/023-ArchiveImportSafetyTests-testImmediateImportCancelledInsideFileStopsWithoutAlert.log",
+    "sha256": "c476cc47c01ec2ad478fd9b37e96c330dc14f27efa939157c16657cf51a616e8",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testImmediateImportCancelledInsideFileStopsWithoutAlert",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a/024-ArchiveImportSafetyTests-testNewArchivePanelCancellationStopsSingleFileCompression.log",
+    "sha256": "137fd96de7eebdd51dd9b0b62f2c7c8d8be16f265afd033dad490c886df3d954",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testAppendPropagatesQuarantineFromNestedFilesAndDirectories",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/025-ArchiveImportSafetyTests-testAppendPropagatesQuarantineFromNestedFilesAndDirectories.log",
+    "sha256": "09a04a84cc64e839cddb1c7e340d163cc70ce8ad6b0690a2c59ea75bc0cf007d",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testAppendPropagatesQuarantineFromNestedFilesAndDirectories",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testAppendPreservesOriginalQuarantineAndCancellationDoesNotPublishNewQuarantine",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/026-ArchiveImportSafetyTests-testAppendPreservesOriginalQuarantineAndCancellationDoesNotPublishNewQuarantine.log",
+    "sha256": "273bbfc1ac7a5d8b5383299abcaf0839366ace0eaac4af115b73c4edfcf382c6",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testAppendPreservesOriginalQuarantineAndCancellationDoesNotPublishNewQuarantine",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testCreationPropagatesQuarantineFromNestedEmptyDirectory",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/027-ArchiveImportSafetyTests-testCreationPropagatesQuarantineFromNestedEmptyDirectory.log",
+    "sha256": "c3321d21c641adbd42542b348ee5072b40224b01e2ac66a2681c8aec59aeef0b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testCreationPropagatesQuarantineFromNestedEmptyDirectory",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testCreationCannotReplaceAnImportedDescendantOrItsHardLink",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/028-ArchiveImportSafetyTests-testCreationCannotReplaceAnImportedDescendantOrItsHardLink.log",
+    "sha256": "ac49c7dbbb07f1b40bacaccbb6e7cfe4a24a580d7e3f09b998eb4b2793c32ba0",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testCreationCannotReplaceAnImportedDescendantOrItsHardLink",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "ArchiveImportSafetyTests/testCreationCanSaveANewArchiveInsideItsSourceDirectory",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/029-ArchiveImportSafetyTests-testCreationCanSaveANewArchiveInsideItsSourceDirectory.log",
+    "sha256": "5db8498f96e2fe1204f0b8362717d789196837498808f0177941bbf9d78f127c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testCreationCanSaveANewArchiveInsideItsSourceDirectory",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveAttributeTests/testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/030-DeferredSaveAttributeTests-testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories.log",
+    "sha256": "3a0c9bb4fa7df3d6a433e47737c5812c6f6f05b3eb6a6b1352f6e4e485f9b155",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/031-DeferredSaveAttributeTests-testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat.log",
+    "sha256": "b0bb0112bf818fb755268c638e07d5a36a4b20ffa6b8cb3317242aeeb655bbc5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveAttributeTests/testTarOwnerCarrierPreservesLargeIDsAndPAXPaths",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/032-DeferredSaveAttributeTests-testTarOwnerCarrierPreservesLargeIDsAndPAXPaths.log",
+    "sha256": "33300a23beed25101dc6a8b1184ab36ceb7262d00fd9cc5309a05def23fb8c12",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testTarOwnerCarrierPreservesLargeIDsAndPAXPaths",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/033-DeferredSaveDocumentTests-testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption.log",
+    "sha256": "2a9911807ca998d6b196dcfb76377f5455e866623c4f0b8b0d965388e21db590",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testDeferredEncryptionFallbackResetsReplayAndCommitProgress",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/034-DeferredSaveDocumentTests-testDeferredEncryptionFallbackResetsReplayAndCommitProgress.log",
+    "sha256": "e3569092e6dcdebaf6a313b9eb366e60caa945433907f4f9bc32e0f95ffe302c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredEncryptionFallbackResetsReplayAndCommitProgress",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a/035-DeferredSaveDocumentTests-testDeferredSaveAsCallerCancellationReachesUnstructuredTask.log",
+    "sha256": "990bde27394367a0167efa2926800484684825908c3ef258c114e760b6cde2cf",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a/036-DeferredSaveDocumentTests-testDeferredSaveAsSheetCancellationReachesWritingTask.log",
+    "sha256": "e643ce8fa95802326a65ede35b98be84f5ca361e19b15427722d8fc41d726ad2",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testPreferenceIsImmediateByDefaultAndCapturedOnce",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/037-DeferredSaveDocumentTests-testPreferenceIsImmediateByDefaultAndCapturedOnce.log",
+    "sha256": "945c13d668c5c90de253be0a837dc4f646e414ed298cdc8909eb5f0a958b3178",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testPreferenceIsImmediateByDefaultAndCapturedOnce",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testAllSingleFileFormatsReserveUndoRedoAndPublishOnce",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/038-DeferredSaveDocumentTests-testAllSingleFileFormatsReserveUndoRedoAndPublishOnce.log",
+    "sha256": "3861dbef7330e58ae729b536a4136a8802c33b58d85cf3df9fb1c1e5158657a8",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testAllSingleFileFormatsReserveUndoRedoAndPublishOnce",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testTwoSavesSynchronizeModificationDateAndToken",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/039-DeferredSaveDocumentTests-testTwoSavesSynchronizeModificationDateAndToken.log",
+    "sha256": "060b5005950bbc1a18b9c02b8f76a23dcc34ec281bff2a7d2ab37218eff76177",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testTwoSavesSynchronizeModificationDateAndToken",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testSwapReservationsAreFoldedFromBaseIndices",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/040-DeferredSaveDocumentTests-testSwapReservationsAreFoldedFromBaseIndices.log",
+    "sha256": "cde07182453b46eb08f5ae10e03c0cd7035d1b2537c8008d287e00e70166e06a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSwapReservationsAreFoldedFromBaseIndices",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testAddThenDeleteSavesWithoutPublishingOrChangingMtime",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/041-DeferredSaveDocumentTests-testAddThenDeleteSavesWithoutPublishingOrChangingMtime.log",
+    "sha256": "199797e2d117932e4469767b3527f0066e98963c2fdfdbc244238c6f76baadf0",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testAddThenDeleteSavesWithoutPublishingOrChangingMtime",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/042-DeferredSaveDocumentTests-testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader.log",
+    "sha256": "a45b355200c4dc47f3323990818e5b3569815bdbf32e2212b879b1c63a7e8d8d",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testExternalChangeSaveFailsAndRevertReloads",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/043-DeferredSaveDocumentTests-testExternalChangeSaveFailsAndRevertReloads.log",
+    "sha256": "7a30006c0681eb97da343bfc25283a7447a62be2b0f46c9b3cc985daeb78a2fc",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testExternalChangeSaveFailsAndRevertReloads",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testCloseWithoutSavingIsIdempotentAndCleanupOutlivesDocumentList",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/044-DeferredSaveDocumentTests-testCloseWithoutSavingIsIdempotentAndCleanupOutlivesDocumentList.log",
+    "sha256": "5e51ec0aa2efe16ac4f49c36cf2ee2ebdd730b89f4280716db6e207ac10d37e8",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testCloseWithoutSavingIsIdempotentAndCleanupOutlivesDocumentList",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/045-DeferredSaveDocumentTests-testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition.log",
+    "sha256": "e0883e1fdd3b14cf12454e2e6341bbf8f6248971bbbb528ed5b9abf6a0d58cd1",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testPasswordAdoptsNewKeyOnlyAfterSave",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/046-DeferredSaveDocumentTests-testPasswordAdoptsNewKeyOnlyAfterSave.log",
+    "sha256": "c848360d3ed9f787ae4d60a032e9cc0ee306247e91cd802fcc67b8b77ae0af57",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testPasswordAdoptsNewKeyOnlyAfterSave",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testLateEditWaitsForSaveAndRemainsPendingAndDirty",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/047-DeferredSaveDocumentTests-testLateEditWaitsForSaveAndRemainsPendingAndDirty.log",
+    "sha256": "3736aad0b799e620f9af352f81fd68a8b74036afe5e1f2b48951897de413a389",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testLateEditWaitsForSaveAndRemainsPendingAndDirty",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testCancelledSaveKeepsReservationsAndStaging",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/048-DeferredSaveDocumentTests-testCancelledSaveKeepsReservationsAndStaging.log",
+    "sha256": "ab127147abdf238a57b4cec9618068df519e08852e9d6286d55de6c4a18f8da3",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testCancelledSaveKeepsReservationsAndStaging",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a/049-DeferredSaveDocumentTests-testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal.log",
+    "sha256": "3d23e59e07f729d0ba0da1bed502ed78a128713910b609d7f76df2280b09d01a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/050-DeferredSaveDocumentTests-testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears.log",
+    "sha256": "366c8a49557347430719b6af2e9646a6acd1207264a97dbad548544022ad830a",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testSplitReservationsLeaveEveryVolumeUnchangedUntilSave",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/051-DeferredSaveDocumentTests-testSplitReservationsLeaveEveryVolumeUnchangedUntilSave.log",
+    "sha256": "d0aba0ce2ab29abbca227793b0959ce70bcf0a216d219e89692e4d9815d2b86d",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSplitReservationsLeaveEveryVolumeUnchangedUntilSave",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSaveDocumentTests/testDeferredFolderEnumerationExcludesApplicationWorkNames",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/052-DeferredSaveDocumentTests-testDeferredFolderEnumerationExcludesApplicationWorkNames.log",
+    "sha256": "9537ce7c45617b5f121ebe746bf245548473754fc9365bdd2d85013a7b354b7b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredFolderEnumerationExcludesApplicationWorkNames",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testZIPPasswordMixedSavesUseUpdaterAndOnlyNonRelocatableFallsBack",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/053-DeferredSplitSaveTests-testZIPPasswordMixedSavesUseUpdaterAndOnlyNonRelocatableFallsBack.log",
+    "sha256": "92ea5de8b03aa4bc245fe60f4ad74f0f7dc5eaf1f854937b5074c4c45a9cf78e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testZIPPasswordMixedSavesUseUpdaterAndOnlyNonRelocatableFallsBack",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testSplitReencryptionFailureKeepsOriginalCapabilityAndPendingChanges",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/054-DeferredSplitSaveTests-testSplitReencryptionFailureKeepsOriginalCapabilityAndPendingChanges.log",
+    "sha256": "b13a1f42af96ea29f04655342044ea7655e7e8ea62b32d47bbfbd1225f094dd3",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testSplitReencryptionFailureKeepsOriginalCapabilityAndPendingChanges",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testSplitPasswordVerificationRejectsOnePlainFile",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/055-DeferredSplitSaveTests-testSplitPasswordVerificationRejectsOnePlainFile.log",
+    "sha256": "b0ee75b439acb7dbbe1f8ece2b05c3351e6b9d98c7f662500c6a820175f3231e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testSplitPasswordVerificationRejectsOnePlainFile",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testZIPPasswordWorkProducerProgressFallbackAndRealFailures",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/056-DeferredSplitSaveTests-testZIPPasswordWorkProducerProgressFallbackAndRealFailures.log",
+    "sha256": "a96f4b12fd60193b84993b129af7c6135ef85efa24f6487e4bcdd1d37a8de3d2",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testZIPPasswordWorkProducerProgressFallbackAndRealFailures",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/057-DeferredSplitSaveTests-testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing.log",
+    "sha256": "ee0f5d567f4aed85ac73557e83b9915ae8a59e4bada2703d365cb68d294128a5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/058-DeferredSplitSaveTests-testGrowAndShrinkUseWrittenLengthWithoutStaleTails.log",
+    "sha256": "9f4f51c8433d84bf29bf93d32e8ceb4b294a08817c6026261a28767a09c45499",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testOneVolumeReopenRestoresScheduleAndSplitsAgain",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/059-DeferredSplitSaveTests-testOneVolumeReopenRestoresScheduleAndSplitsAgain.log",
+    "sha256": "a4fdb155aabf85b25f9a84efc4db79dace68f6dcc806d2424210039513f42795",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testOneVolumeReopenRestoresScheduleAndSplitsAgain",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/060-DeferredSplitSaveTests-testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending.log",
+    "sha256": "b23cd2e49f67c69d1bc20bf6fd15a514ec5e9ab3a897cf69b54303a5ffc4d60e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testHazardConsentBeforeOneBeginAndOncePerDocument",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/061-DeferredSplitSaveTests-testHazardConsentBeforeOneBeginAndOncePerDocument.log",
+    "sha256": "8f4b139f79e23d139cbdee4f0a37d2be7a3d77dd828be0e06307e6e409fd9b6b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testHazardConsentBeforeOneBeginAndOncePerDocument",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testCoordinationTimeoutUsesDocumentPresenterAndNeverEntersS5",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/062-DeferredSplitSaveTests-testCoordinationTimeoutUsesDocumentPresenterAndNeverEntersS5.log",
+    "sha256": "cc144b56ec386551318e31c9368213d96758805b8861bbd04762a51cd9282ff7",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCoordinationTimeoutUsesDocumentPresenterAndNeverEntersS5",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testExternalThirdVolumeChangeAfterReservationRefusesSave",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/063-DeferredSplitSaveTests-testExternalThirdVolumeChangeAfterReservationRefusesSave.log",
+    "sha256": "750ea7bf1671502e131dc76741e0f5735b38519db0af57550a7795d05f9cc5ac",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testExternalThirdVolumeChangeAfterReservationRefusesSave",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/064-DeferredSplitSaveTests-testProvenRollbackKeepsPendingAndCanRetryWithoutReopening.log",
+    "sha256": "8b7d51fdf2e55aba2ff1e3108fff7eea920557a504a502f61d51ed71ac840497",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testEncryptedSplitRequiresPasswordBeforeReservations",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/065-DeferredSplitSaveTests-testEncryptedSplitRequiresPasswordBeforeReservations.log",
+    "sha256": "4988f985410423f1f918f80a17b41232a97c83ef2c43050a5772a80ef7bdbf86",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testEncryptedSplitRequiresPasswordBeforeReservations",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/066-DeferredSplitSaveTests-testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending.log",
+    "sha256": "212b1d49fab3bdb46ff04f0e515872ef87b4140f3dcf3fd97a90190a81bf5179",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+    "exit": -10,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a/067-DeferredSplitSaveTests-testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization.log",
+    "sha256": "63d537980372000af2448c6877b3f1071d377c7b3bd3cf0eee21c342be2afa54",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testMixedNativeXattrsRefuseEditingButRemainReadable",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/068-DeferredSplitSaveTests-testMixedNativeXattrsRefuseEditingButRemainReadable.log",
+    "sha256": "ac54c9f64192f10f126840a097ac28ffdcffac8f8450d4b316c37d207c81dd28",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testMixedNativeXattrsRefuseEditingButRemainReadable",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testPendingExtractionUsesAssembledSetAndStagedAddition",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/069-DeferredSplitSaveTests-testPendingExtractionUsesAssembledSetAndStagedAddition.log",
+    "sha256": "400b4ff0197534e22156e988cbf218c39b9d02b63a2f581db6686c1861b2c5d4",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testPendingExtractionUsesAssembledSetAndStagedAddition",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a/070-DeferredSplitSaveTests-testZIPGatekeeperFallsBackToRewriterAndReportsNotice.log",
+    "sha256": "b2992acc0bc7e4a0c1e3894092c730cafcfbf59c0d8244539c8c371ecd77298c",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "DeferredSplitSaveTests/testFAT32ConsentLeavesNoAppleDoubleAndOneVolumeReopensWithSchedule",
+    "exit": 0,
+    "passed": 0,
+    "skipped": 1,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/071-DeferredSplitSaveTests-testFAT32ConsentLeavesNoAppleDoubleAndOneVolumeReopensWithSchedule.log",
+    "sha256": "ef906010c60a5e207089d18e54deac9c3228cfeaa57cabd29d621ae719300b78",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testFAT32ConsentLeavesNoAppleDoubleAndOneVolumeReopensWithSchedule",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a",
+    "selection": "BatchImportCompatibilityTests/testExportWhenEnabled",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a/072-BatchImportCompatibilityTests-testExportWhenEnabled.log",
+    "sha256": "10cc2f1435449de59a1bd6451c9bb6c82447770130aabc8c467fbf55ed69756e",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportCompatibilityTests/testExportWhenEnabled",
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "KAITOFINDER_P7_EXPORT_DIRECTORY": "~/GitHub/KaitoFinder/build/s41-p7a/compatibility-export",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/001-ArchiveImportSafetyTests-testNewArchivePanelCancellationStopsSingleFileCompression.log",
+    "sha256": "87b6071b86b35a7e2638efb56b3995f0783ee20fa130a0d5850d94197a2f2892",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSaveAttributeTests/testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/002-DeferredSaveAttributeTests-testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs.log",
+    "sha256": "dfd3a0486f2fd7dc491c058f48d371ef1a376f332e5d0c018c60d5fad087aad3",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveAttributeTests/testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSaveDocumentTests/testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/003-DeferredSaveDocumentTests-testDeferredSaveAsCallerCancellationReachesUnstructuredTask.log",
+    "sha256": "4470478c8db5db008081461e15a255b221960ee45fbe844e983354a690ddc410",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/004-DeferredSaveDocumentTests-testDeferredSaveAsSheetCancellationReachesWritingTask.log",
+    "sha256": "fdd10dcb6f6f55ccf94f07c1591c462eed87bc79b06742c64d5b3c227bbc99de",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+    "exit": 69,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/005-DeferredSaveDocumentTests-testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal.log",
+    "sha256": "15de331ca69b90f49a610f00107b67974a76abbf15d45187a1f4128e01a630a6",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/006-DeferredSplitSaveTests-testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending.log",
+    "sha256": "6806bbd6dc525c5d156c60cf9099e4f0dcb02cfc5cd6ec1205e51f46c068fbdf",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+    "exit": -10,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/007-DeferredSplitSaveTests-testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization.log",
+    "sha256": "42793a32a73fe8c18777c35f7e518f1be1ffcd3ccfbb766da49389193fdd5022",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/008-DeferredSplitSaveTests-testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing.log",
+    "sha256": "0fc4f7bf58d1e47da4345bee648551ce81cd07fae739d46622c2b3161086530b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/009-DeferredSplitSaveTests-testGrowAndShrinkUseWrittenLengthWithoutStaleTails.log",
+    "sha256": "83a1476f090255c4a87563eb25b5d7a8ca9b219ad81616c243b94c79dd9fb63b",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testHazardConsentBeforeOneBeginAndOncePerDocument",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/010-DeferredSplitSaveTests-testHazardConsentBeforeOneBeginAndOncePerDocument.log",
+    "sha256": "258817695a1001a6787f0e7ccf34e0f0add43204f7a7588735c1bee80e06e989",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testHazardConsentBeforeOneBeginAndOncePerDocument",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testMixedNativeXattrsRefuseEditingButRemainReadable",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/011-DeferredSplitSaveTests-testMixedNativeXattrsRefuseEditingButRemainReadable.log",
+    "sha256": "bfd00bb4cdb1daae0b519b624effe990cdced77008ece8896690470f26a2acdb",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testMixedNativeXattrsRefuseEditingButRemainReadable",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testOneVolumeReopenRestoresScheduleAndSplitsAgain",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/012-DeferredSplitSaveTests-testOneVolumeReopenRestoresScheduleAndSplitsAgain.log",
+    "sha256": "83c767d5eb3f51dda1b329d40083c8aebc897f1bc10c2ea622b2ba926268eb44",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testOneVolumeReopenRestoresScheduleAndSplitsAgain",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/013-DeferredSplitSaveTests-testProvenRollbackKeepsPendingAndCanRetryWithoutReopening.log",
+    "sha256": "4ffa6ddf2a3e64da6fa985c70de469e0362a2a174f029cd677cdcba42d082953",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/014-DeferredSplitSaveTests-testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending.log",
+    "sha256": "efda8045cf6cfb5439ededae10c533401f169a8c41593d7fd209337b13b65aa4",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "DeferredSplitSaveTests/testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/015-DeferredSplitSaveTests-testZIPGatekeeperFallsBackToRewriterAndReportsNotice.log",
+    "sha256": "676a8e52738a397d36b04f6495b3c449b3ac273f3ef6aabd0e74470a082bb5e1",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.DeferredSplitSaveTests/testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "WordingAcceptanceTests/testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/016-WordingAcceptanceTests-testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations.log",
+    "sha256": "00dfbb37008fa0e2ee28986ef072d89f3176cabde0481921ffb5d5aa7942acb5",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.WordingAcceptanceTests/testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "WordingAcceptanceTests/testJapaneseMenuCorrectionsAndNamedProgressTitle",
+    "exit": -5,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 1,
+    "log": "build/s41-p7a-baseline/017-WordingAcceptanceTests-testJapaneseMenuCorrectionsAndNamedProgressTitle.log",
+    "sha256": "1f211661f46ce0e7b08e5805f299e2423149a5291c8dd12247b6a809738252fd",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.WordingAcceptanceTests/testJapaneseMenuCorrectionsAndNamedProgressTitle",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "WordingAcceptanceTests/testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings",
+    "exit": 1,
+    "passed": 0,
+    "skipped": 0,
+    "failed": 1,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/018-WordingAcceptanceTests-testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings.log",
+    "sha256": "fa439134180ad83a68697a226aa8f9cd522262a05dff39344f682c5dcb19e48f",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.WordingAcceptanceTests/testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "WordingAcceptanceTests",
+    "exit": 1,
+    "passed": 49,
+    "skipped": 0,
+    "failed": 3,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/019-WordingAcceptanceTests.log",
+    "sha256": "5d3258075930d4d53b3367c481c230c25438e6cb1796d893697c26dd99ea2578",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.WordingAcceptanceTests",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  },
+  {
+    "layout": "s41-p7a-baseline",
+    "selection": "BatchImportCompatibilityTests/testExportWhenEnabled",
+    "exit": 0,
+    "passed": 1,
+    "skipped": 0,
+    "failed": 0,
+    "interrupted": 0,
+    "log": "build/s41-p7a-baseline/020-BatchImportCompatibilityTests-testExportWhenEnabled.log",
+    "sha256": "dfae78c205d2de6fe83a4ed009b598564d4ff511d0c7dd1e9748c88a4fc6c681",
+    "command": [
+      "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "-XCTest",
+      "KaitoFinderTests.BatchImportCompatibilityTests/testExportWhenEnabled",
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+    ],
+    "environment": {
+      "KAITOFINDER_P7_EXPORT_DIRECTORY": "~/GitHub/KaitoFinder/build/s41-p7a-baseline/compatibility-export",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "TZ": "Asia/Tokyo"
+    }
+  }
+]

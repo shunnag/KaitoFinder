@@ -1,0 +1,608 @@
+{
+  "S41": [
+    {
+      "selection": "ReplacementProbeTests/testDocumentReplacementTimeline",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ReplacementProbeTests/testDocumentReplacementTimeline",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/001-ReplacementProbeTests-testDocumentReplacementTimeline.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ReplacementProbeTests",
+          "testDocumentReplacementTimeline",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-001-ReplacementProbeTests-testDocumentReplacementTimeline.log.gz",
+        "sha256_uncompressed": "fecb2bd0e1883a6925b5b51f8a429620ed8aa96104e6397c9a2c1df8b83bcdfa"
+      }
+    },
+    {
+      "selection": "ReplacementProbeTests/testLHAUpdaterItemsAndBatch",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ReplacementProbeTests/testLHAUpdaterItemsAndBatch",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/002-ReplacementProbeTests-testLHAUpdaterItemsAndBatch.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ReplacementProbeTests",
+          "testLHAUpdaterItemsAndBatch",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-002-ReplacementProbeTests-testLHAUpdaterItemsAndBatch.log.gz",
+        "sha256_uncompressed": "ef425f58ec83c987c0e18b6e5d3c53429e29eae78eb9aef343232cc935edf8ac"
+      }
+    },
+    {
+      "selection": "ReplacementProbeTests/testDocumentReplacementTimeline",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.ReplacementProbeTests/testDocumentReplacementTimeline",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/003-ReplacementProbeTests-testDocumentReplacementTimeline.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_REPLACEMENT_P0_OBSERVER": "1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/GitHub/KaitoFinder/build/s41-p7a-correction-2/p0-observer",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.ReplacementProbeTests",
+          "testDocumentReplacementTimeline",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-003-ReplacementProbeTests-testDocumentReplacementTimeline.log.gz",
+        "sha256_uncompressed": "1c1c43452b9563875a04359fa658bcd427b4b0bce6e83e242839f445b4d1c00f"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/004-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/batch-1",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-004-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "89d1157700c3a56e4091d4b8415fde7b6e48ee23e9b34c6c010208274a408323"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/005-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/batch-2",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-005-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "df1809e282c74ac37560ab8a1813676f50e83c184db06c60ea606ebcca7f2e11"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/006-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "3",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/batch-1",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-006-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "5bcd24372c27e32b1013339bf3d9ef46293dda5d2a8d35cb11580eea3aefea78"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/007-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "3",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/batch-2",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S41-007-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "e91a82f2cc5101701519bc30a6126939be18f0ecb5c5c00ce094941c93f043af"
+      }
+    }
+  ],
+  "S39-caller": [
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/001-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/items-1",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S39-caller-001-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "d3392a97aa0f76065c21c5eb56e2de4e39ca23dda110b66bff31a29847abbcf4"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/002-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "7",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/items-2",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S39-caller-002-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "39809cc1e4d2bfb7bd612d8c8f485f161304f63c59c54539b8191728842d706b"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/003-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "3",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/items-1",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S39-caller-003-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "8a119b9cd9b093b5bbd48b3e2d9f313bd3dfd8c3d0f2b211540819fd7b0c1a4b"
+      }
+    },
+    {
+      "selection": "PerformanceProbeTests/testReplacementForCorrection2",
+      "exit": 0,
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/004-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_REPLACEMENT_PROBE": "1",
+        "KAITOFINDER_REPLACEMENT_RUNS": "3",
+        "KAITOFINDER_PROBE_FORMATS": "lha",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/items-2",
+        "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testReplacementForCorrection2",
+          "passed"
+        ]
+      ],
+      "retained_log": {
+        "path": "logs/S39-caller-004-PerformanceProbeTests-testReplacementForCorrection2.log.gz",
+        "sha256_uncompressed": "8392f8368f57e433345abd4ba3257f987d4449e528b5436afeb4ca78af8f8002"
+      }
+    }
+  ],
+  "full-sequence": [
+    {
+      "label": "batch-1",
+      "build": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveOpeningWhenEnabled",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-1.log",
+      "start": 1790464714.25715,
+      "end": 1790465012.5106251,
+      "load_start": [
+        3.90771484375,
+        3.443359375,
+        4.169921875
+      ],
+      "load_end": [
+        3.28173828125,
+        4.13134765625,
+        4.33056640625
+      ],
+      "exit": 1,
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveEditorsDirectlyWhenEnabled",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveEditsWhenEnabled",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveOpeningWhenEnabled",
+          "failed"
+        ]
+      ],
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
+        "KAITOFINDER_CORRECTION2_FULL_TIMELINE": "1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "retained_log": {
+        "path": "logs/full-batch-1.log.gz",
+        "sha256_uncompressed": "0e2f847af6ba280a0ecd85e096b325121119d2f155bc18147d2924f015e840c0"
+      }
+    },
+    {
+      "label": "items-1",
+      "build": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveOpeningWhenEnabled",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/items-1.log",
+      "start": 1790465034.576519,
+      "end": 1790465332.0253,
+      "load_start": [
+        3.49560546875,
+        4.12255859375,
+        4.32275390625
+      ],
+      "load_end": [
+        3.6015625,
+        4.568359375,
+        4.5419921875
+      ],
+      "exit": 1,
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveEditorsDirectlyWhenEnabled",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveEditsWhenEnabled",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveOpeningWhenEnabled",
+          "failed"
+        ]
+      ],
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
+        "KAITOFINDER_CORRECTION2_FULL_TIMELINE": "1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/items-1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "retained_log": {
+        "path": "logs/full-items-1.log.gz",
+        "sha256_uncompressed": "49772b9d8fe8b3b4baf5c201414c10e980e8d87001542ca71d324d8c995209ae"
+      }
+    },
+    {
+      "label": "batch-2",
+      "build": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+      "command": [
+        "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+        "-XCTest",
+        "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveOpeningWhenEnabled",
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+      ],
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-2.log",
+      "start": 1790465361.302033,
+      "end": 1790465659.010092,
+      "load_start": [
+        2.88623046875,
+        4.3046875,
+        4.44677734375
+      ],
+      "load_end": [
+        6.72509765625,
+        4.74462890625,
+        4.55419921875
+      ],
+      "exit": 1,
+      "cases": [
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveEditorsDirectlyWhenEnabled",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveEditsWhenEnabled",
+          "passed"
+        ],
+        [
+          "KaitoFinderTests.PerformanceProbeTests",
+          "testArchiveOpeningWhenEnabled",
+          "failed"
+        ]
+      ],
+      "environment": {
+        "KAITOFINDER_PERFORMANCE_PROBES": "1",
+        "KAITOFINDER_PROBE_ENTRIES": "100000",
+        "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+        "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
+        "KAITOFINDER_CORRECTION2_FULL_TIMELINE": "1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-2",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "TZ": "Asia/Tokyo"
+      },
+      "retained_log": {
+        "path": "logs/full-batch-2.log.gz",
+        "sha256_uncompressed": "156e44d415a30c37a7182f2ac773fc32a52e4f5350bd1938036abc41ecd30e88"
+      }
+    }
+  ],
+  "native-attempt": {
+    "command": [
+      "xcodebuild",
+      "test-without-building",
+      "-xctestrun",
+      "~/Github/KaitoFinder/build/s41-p7a-correction-2/native-sequence/Products/KaitoFinder_macosx27.0-arm64.xctestrun",
+      "-destination",
+      "platform=macOS,arch=arm64",
+      "-parallel-testing-enabled",
+      "NO",
+      "-resultBundlePath",
+      "~/Github/KaitoFinder/build/s41-p7a-correction-2/native-sequence/result.xcresult",
+      "-only-testing:KaitoFinderTests/PerformanceProbeTests/testArchiveEditsWhenEnabled",
+      "-only-testing:KaitoFinderTests/PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled",
+      "-only-testing:KaitoFinderTests/PerformanceProbeTests/testArchiveOpeningWhenEnabled"
+    ],
+    "source_products": "$SP/bp41/dd-opt/Build/Products",
+    "artifact_checks": {
+      "Debug/KaitoFinder.app/Contents/MacOS/KaitoFinder": {
+        "source": "6db83ffde145664a532707d4fd860a307fc5b47012bc97af037066022e7a3ab2",
+        "copy": "6db83ffde145664a532707d4fd860a307fc5b47012bc97af037066022e7a3ab2"
+      },
+      "Debug/KaitoFinder.app/Contents/PlugIns/KaitoFinderTests.xctest/Contents/MacOS/KaitoFinderTests": {
+        "source": "7643927b5f3733254ef10d000f288e6f63a2ce18aae7f3f8c4af63ee3bd0a45b",
+        "copy": "7643927b5f3733254ef10d000f288e6f63a2ce18aae7f3f8c4af63ee3bd0a45b"
+      }
+    },
+    "environment": {
+      "TEST_RUNNER_KAITOFINDER_PERFORMANCE_PROBES": "1",
+      "TEST_RUNNER_KAITOFINDER_PROBE_ENTRIES": "100000",
+      "TEST_RUNNER_KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
+      "TEST_RUNNER_KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha"
+    },
+    "start": 1790465335.140726,
+    "load_start": [
+      3.31298828125,
+      4.4921875,
+      4.51513671875
+    ],
+    "exit": -5,
+    "end": 1790465336.249249,
+    "load_end": [
+      3.31298828125,
+      4.4921875,
+      4.51513671875
+    ],
+    "retained_log": {
+      "path": "logs/native-xcodebuild.log.gz",
+      "sha256_uncompressed": "b2999cd9735fde0b07ab9e4a32c1d396688da82fe41647831ca2f9db2a921b01"
+    }
+  }
+}

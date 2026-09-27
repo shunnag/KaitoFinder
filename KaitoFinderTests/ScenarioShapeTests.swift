@@ -61,10 +61,10 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
             soft = tarfile.TarInfo('soft'); soft.type = tarfile.SYMTYPE; soft.linkname = 'body'; t.addfile(soft)
         """#, suffix: "tar")
         let session = try ArchiveSession(url: fixture.archive), source = try fixture.file("new.txt")
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.tar))
+        XCTAssertEqual(session.capabilities.mode, .update(.tar))
         _ = try await session.append(urls: [source], to: "", progress: Progress())
         let entries = await session.entries()
-        // rewriterは追加項目を先に書くため、名前と種類の対応で保存結果を検証する。
+        XCTAssertEqual(entries.map(\.name), ["body", "hard", "soft", "new.txt"])
         XCTAssertEqual(Dictionary(uniqueKeysWithValues: entries.map { ($0.name, $0.kind) }),
                        ["body": .file, "hard": .hardlink, "soft": .symlink, "new.txt": .file])
         let out = try fixture.folder("out"), result = try await fixture.extract(to: out, session: session)
@@ -79,7 +79,10 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
         try fixture.directory.run("/usr/bin/bsdtar", ["-tf", fixture.archive.path])
     }
 
-    func testSolidSevenZipRewriteAppendKeepsEveryEntryAndByte() async throws {
+    func testSolidSevenZipUpdateAppendKeepsEveryEntryAndByte() async throws { try await assertSolidSevenZipAppend(.end) }
+    func testSolidSevenZipLegacyBeginningAppendKeepsEveryEntryAndByte() async throws { try await assertSolidSevenZipAppend(.beginning) }
+
+    private func assertSolidSevenZipAppend(_ placement: AdditionPlacement) async throws {
         let fixture = try ScenarioFixture(), archive = fixture.root.appendingPathComponent("solid.7z")
         var expected: [String: Data] = [:]
         for n in 0..<12 {
@@ -88,28 +91,40 @@ nonisolated final class ScenarioShapeTests: XCTestCase {
             _ = try fixture.file(name, bytes: bytes)
         }
         try fixture.directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-ms=on", archive.path] + expected.keys.sorted())
-        let session = try ArchiveSession(url: archive), before = await session.entries()
+        let session = try ArchiveSession(url: archive, writerOptions: { _ in .init(additionPlacement: placement) })
+        let before = await session.entries()
         XCTAssertEqual(Set(before.map(\.solidGroup)).count, 1)
         XCTAssertGreaterThanOrEqual(try XCTUnwrap(before.first).solidGroup, 0)
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+        XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
         let source = try fixture.file("new.txt")
         _ = try await session.append(urls: [source], to: "", progress: Progress())
         expected["new.txt"] = Data("added".utf8)
         XCTAssertEqual(try ScenarioFixture.contents(archive), expected)
-        XCTAssertEqual(try ArchiveReader.open(url: archive).entries.count, 13)
+        let result = try ArchiveReader.open(url: archive).entries
+        XCTAssertEqual(result.count, 13)
+        XCTAssertEqual(placement == .end ? result.last?.name : result.first?.name, "new.txt")
         try fixture.directory.run("/opt/homebrew/bin/7zz", ["t", "-bd", archive.path])
     }
 
-    func testCP932LHANameAndContentsSurviveRewriteAppend() async throws {
+    func testCP932LHANameAndContentsSurviveUpdateAppend() async throws { try await assertCP932LHAAppend(.end) }
+    func testCP932LHANameAndContentsSurviveLegacyBeginningAppend() async throws { try await assertCP932LHAAppend(.beginning) }
+
+    private func assertCP932LHAAppend(_ placement: AdditionPlacement) async throws {
         let fixture = try ScenarioFixture(), archive = fixture.root.appendingPathComponent("legacy.lzh")
         let writer = try ArchiveWriter.create(url: archive, format: .lha)
         try writer.add(data: Data("legacy".utf8), as: "日本語.txt")
         try writer.finish()
         let before = try XCTUnwrap(ArchiveReader.open(url: archive).entries.first)
         XCTAssertEqual(before.rawName.bytes, [0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea, 0x2e, 0x74, 0x78, 0x74])
-        let session = try ArchiveSession(url: archive), source = try fixture.file("追加.txt")
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.lha))
+        let options = WriterOptions(additionPlacement: placement)
+        let session = try ArchiveSession(url: archive, writerOptions: { _ in options }), source = try fixture.file("追加.txt")
+        XCTAssertEqual(session.capabilities.mode, .update(.lha))
+        XCTAssertNil(session.capabilities.rewriteNotice)
+        XCTAssertEqual(session.capabilities.mode?.resolved(with: options), placement == .end ? .update(.lha) : .rewrite(.lha))
+        XCTAssertEqual(session.capabilities.editNotice(options: options, onSave: false), placement == .end ? nil
+            : String(localized: "編集するとアーカイブ全体を再圧縮します"))
         _ = try await session.append(urls: [source], to: "", progress: Progress())
+        XCTAssertEqual(try ArchiveReader.open(url: archive).entries.map(\.name), placement == .end ? ["日本語.txt", "追加.txt"] : ["追加.txt", "日本語.txt"])
         XCTAssertEqual(try ScenarioFixture.contents(archive), ["日本語.txt": Data("legacy".utf8), "追加.txt": Data("added".utf8)])
         XCTAssertEqual(try ArchiveReader.open(url: archive).entries.first(where: { $0.name == "日本語.txt" })?.rawName.bytes, before.rawName.bytes)
     }

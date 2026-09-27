@@ -4,30 +4,6 @@ import KaitoKit
 import XCTest
 @testable import KaitoFinder
 
-@MainActor private final class ArchiveDropProbe: NSObject, NSOutlineViewDataSource {
-    let controller: ArchiveWindowController
-    var proposedOperation: NSDragOperation = []
-    var accepted = false
-    init(_ controller: ArchiveWindowController) { self.controller = controller }
-    func outlineView(_ view: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        controller.outlineView(view, numberOfChildrenOfItem: item)
-    }
-    func outlineView(_ view: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
-        controller.outlineView(view, child: index, ofItem: item)
-    }
-    func outlineView(_ view: NSOutlineView, isItemExpandable item: Any) -> Bool {
-        controller.outlineView(view, isItemExpandable: item)
-    }
-    func outlineView(_ view: NSOutlineView, validateDrop info: any NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
-        proposedOperation = controller.outlineView(view, validateDrop: info, proposedItem: item, proposedChildIndex: index)
-        return proposedOperation
-    }
-    func outlineView(_ view: NSOutlineView, acceptDrop info: any NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool {
-        accepted = controller.outlineView(view, acceptDrop: info, item: item, childIndex: index)
-        return accepted
-    }
-}
-
 /// OS が与える drag 情報だけを差し替え、pasteboard → acceptDrop → 文書更新は実物を使う。
 @MainActor final class FileURLDragInfo: NSObject, NSDraggingInfo {
     let draggingPasteboard: NSPasteboard
@@ -48,7 +24,7 @@ import XCTest
         draggingDestinationWindow = window
         draggingLocation = location
         super.init()
-        XCTAssertTrue(draggingPasteboard.writeObjects(urls.map { $0 as NSURL }))
+        if !urls.isEmpty { XCTAssertTrue(draggingPasteboard.writeObjects(urls.map { $0 as NSURL })) }
     }
     func slideDraggedImage(to screenPoint: NSPoint) {}
     nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
@@ -59,6 +35,78 @@ import XCTest
 }
 
 nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
+    @MainActor func testBlankLocalMoveRefusesCurrentFolderWithoutPasteboardFiles() async throws {
+        _ = NSApplication.shared
+        preserveArchiveWindowFrame()
+        let fixture = try DeferredSaveFixture(files: [("a/original.txt", "original")])
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        fixture.document.addWindowController(controller)
+        defer { fixture.document.close() }
+        let session = try XCTUnwrap(fixture.document.session)
+        controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
+        let view = controller.outlineView
+        view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        controller.openEntry(nil)
+        XCTAssertEqual(controller.currentFolderPath, "a")
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
+        let node = try XCTUnwrap(view.item(atRow: 0) as? EntryNode)
+        controller.setDraggedNodesForTesting([node])
+        defer { controller.setDraggedNodesForTesting([]) }
+        let info = FileURLDragInfo(urls: [], window: controller.window,
+            location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
+        defer { info.draggingPasteboard.releaseGlobally() }
+        info.draggingSource = view
+        info.draggingSourceOperationMask = .move
+        XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), [])
+        XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
+        XCTAssertNil(controller.extractionTask)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original)
+    }
+
+    @MainActor func testBlankDropUsesCurrentFolderAndRejectsSameLocationMoveInBothSaveModes() async throws {
+        _ = NSApplication.shared
+        preserveArchiveWindowFrame()
+        let probe = NSPasteboard.withUniqueName()
+        defer { probe.releaseGlobally() }
+        guard probe.writeObjects([URL(fileURLWithPath: "/tmp/probe.txt") as NSURL]) else {
+            throw XCTSkip("The pasteboard service is unavailable in this test host")
+        }
+        for behavior in ArchivePreferences.SaveBehavior.allCases {
+            let fixture = try DeferredSaveFixture(behavior: behavior, files: [("a/original.txt", "original")])
+            let controller = ArchiveWindowController(preferencesStore: fixture.store)
+            fixture.document.addWindowController(controller)
+            defer { fixture.document.close() }
+            let session = try XCTUnwrap(fixture.document.session)
+            controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
+            let view = controller.outlineView
+            view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            controller.openEntry(nil)
+            XCTAssertEqual(controller.currentFolderPath, "a")
+            controller.window?.contentView?.layoutSubtreeIfNeeded()
+            let source = try fixture.file("dropped.txt")
+            let info = FileURLDragInfo(urls: [source], window: controller.window,
+                location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
+            defer { info.draggingPasteboard.releaseGlobally() }
+            XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), .copy)
+            XCTAssertTrue(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
+            await controller.extractionTask?.value
+            let entries = try await fixture.document.projectedEntries()
+            XCTAssertTrue(entries.contains { $0.name == "a/dropped.txt" })
+            XCTAssertFalse(entries.contains { $0.name == "dropped.txt" })
+            if behavior == .onSave { XCTAssertEqual(try Data(contentsOf: fixture.archive), fixture.original) }
+            let node = try XCTUnwrap(view.item(atRow: 0) as? EntryNode)
+            controller.setDraggedNodesForTesting([node])
+            info.draggingSource = view
+            info.draggingSourceOperationMask = .move
+            XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), [])
+            XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
+            controller.setDraggedNodesForTesting([])
+            XCTAssertEqual(ArchiveDropTarget.localOperation(dragged: [.init(node)],
+                target: ArchiveDropTarget.folder(for: nil, blankArea: "a"), mask: .move,
+                capabilities: session.capabilities, busy: false), .none)
+        }
+    }
+
     @MainActor func testThousandFileDropIsOneUndoableBatchAndRejectsAnotherDropWhileBusy() async throws {
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:
@@ -225,90 +273,6 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         XCTAssertEqual(try ScenarioFixture.digest(target.archive), originalTarget)
         XCTAssertFalse(targetDocument.undoManager?.canUndo == true)
     }
-    @MainActor private func dragSelection(from source: ArchiveWindowController, to destination: ArchiveWindowController,
-                                         tabbed: Bool, expectedCount: Int, paths: Set<String>? = nil) async throws {
-        let probe = ArchiveDropProbe(destination)
-        destination.outlineView.dataSource = probe
-        defer { destination.outlineView.dataSource = destination }
-        let first = try XCTUnwrap(source.window), second = try XCTUnwrap(destination.window)
-        first.tabbingIdentifier = UUID().uuidString
-        second.tabbingIdentifier = UUID().uuidString
-        destination.showWindow(nil)
-        source.showWindow(nil)
-        first.setFrame(NSRect(x: 40, y: 240, width: 680, height: 500), display: true)
-        second.setFrame(NSRect(x: 750, y: 240, width: 680, height: 500), display: true)
-        second.makeKeyAndOrderFront(nil)
-        first.makeKeyAndOrderFront(nil)
-        first.makeMain()
-        if tabbed {
-            first.addTabbedWindow(second, ordered: .above)
-            first.tabGroup?.selectedWindow = first
-            first.makeKeyAndOrderFront(nil)
-            XCTAssertTrue(first.tabGroup === second.tabGroup)
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        first.makeKeyAndOrderFront(nil)
-        first.orderFrontRegardless()
-        source.outlineView.expandItem(nil, expandChildren: true)
-        if let paths {
-            let view = source.outlineView
-            view.selectRowIndexes(IndexSet((0..<view.numberOfRows).filter { row in
-                (view.item(atRow: row) as? EntryNode).map { paths.contains($0.path) } == true
-            }), byExtendingSelection: false)
-        } else { source.outlineView.selectAll(nil) }
-        first.contentView?.layoutSubtreeIfNeeded()
-        second.contentView?.layoutSubtreeIfNeeded()
-        try await Task.sleep(for: .milliseconds(80))
-        let startRow = source.outlineView.selectedRowIndexes.first ?? 0
-        source.outlineView.scrollRowToVisible(startRow)
-        let rect = source.outlineView.rect(ofRow: startRow)
-        let start = first.convertPoint(toScreen: source.outlineView.convert(NSPoint(x: 120, y: rect.midY), to: nil))
-        let end = second.convertPoint(toScreen: destination.outlineView.convert(NSPoint(x: 120, y: 150), to: nil))
-        func post(_ type: NSEvent.EventType, at point: NSPoint) throws {
-            let window = tabbed ? (first.tabGroup?.selectedWindow ?? first) : (second.frame.contains(point) ? second : first)
-            try postNativeMouseEvent(type, at: point, in: window)
-        }
-        try post(.mouseMoved, at: start)
-        try await Task.sleep(for: .milliseconds(50))
-        var mouseIsDown = true
-        defer { if mouseIsDown { try? post(.leftMouseUp, at: start) } }
-        try post(.leftMouseDown, at: start)
-        try await Task.sleep(for: .milliseconds(80))
-        try post(.leftMouseDragged, at: NSPoint(x: start.x + 8, y: start.y))
-        try await scenarioWait { source.draggedNodes.count == expectedCount }
-        var travelStart = start
-        if tabbed {
-            let frame = try nativeTabFrame(for: second)
-            let hover = NSPoint(x: frame.midX, y: frame.midY)
-            for step in 1...8 {
-                try await Task.sleep(for: .milliseconds(40))
-                let fraction = CGFloat(step) / 8
-                try post(.leftMouseDragged, at: NSPoint(x: start.x + (hover.x - start.x) * fraction,
-                                                       y: start.y + (hover.y - start.y) * fraction))
-            }
-            // タブをコードから選ばず、実際にカーソルを保持して選択が変わることを確認する。
-            try await scenarioWait { first.tabGroup?.selectedWindow === second }
-            XCTAssertEqual(source.draggedNodes.count, expectedCount)
-            travelStart = hover
-        }
-        for step in 1...20 {
-            try await Task.sleep(for: .milliseconds(40))
-            let fraction = CGFloat(step) / 20
-            try post(.leftMouseDragged, at: NSPoint(x: travelStart.x + (end.x - travelStart.x) * fraction,
-                                                   y: travelStart.y + (end.y - travelStart.y) * fraction))
-        }
-        for _ in 0..<20 where probe.proposedOperation != .copy {
-            try await Task.sleep(for: .milliseconds(50))
-            try post(.leftMouseDragged, at: end)
-        }
-        XCTAssertEqual(probe.proposedOperation, .copy)
-        XCTAssertEqual(source.draggedNodes.count, expectedCount, "子孫の二重送信を防ぎ、全ファイルを運ぶ")
-        try post(.leftMouseUp, at: end)
-        mouseIsDown = false
-        try await scenarioWait { probe.accepted }
-        XCTAssertTrue(probe.accepted)
-    }
-
     @MainActor func testNativeDragCanReplaceOneHundredFilesAndFolderInAnotherTab() async throws {
         try await assertNativeCopy(tabbed: true, replacing: true)
     }

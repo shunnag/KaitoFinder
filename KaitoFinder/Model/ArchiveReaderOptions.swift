@@ -1,7 +1,13 @@
-import KaitoKit
+@_spi(TarEditLayout) @_spi(SevenZipEditLayout) import KaitoKit
 import Synchronization
 
 nonisolated extension ReaderOptions {
+    static func kaitoFinderVerification(password: String? = nil) -> ReaderOptions {
+        var options = kaitoFinder(password: password)
+        options.lazyLocalHeaders = false
+        return options
+    }
+
     #if DEBUG
     /// テストが書庫を開いた回数を数えるためのもの（GyoshukuKit 内部の open は含まない）。
     static let kaitoFinderOpenCount = Mutex<Int>(0)
@@ -19,7 +25,10 @@ nonisolated extension ReaderOptions {
         // name/..namedfork/rsrc として公開する。削除で ArchiveUpdater.remove(entriesAt:) に
         // 渡す index と ArchiveCapabilities の entry 数を GyoshukuKit（.expose）に合わせる。
         // 表示と編集を .expose に統一し、Finder 製 ZIP の一覧も 0.1.0 と同じに保つ。
-        return ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max),
-                             password: password, appleDoublePolicy: .expose)
+        var options = ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max),
+                                    password: password, appleDoublePolicy: .expose)
+        options.recordsTarEditLayout = true
+        options.recordsSevenZipEditLayout = true
+        return options
     }
 }

@@ -1,0 +1,201 @@
+{
+  "head": "4d4be0b2738766fcf0d59440567225406041bf35",
+  "target": "arm64-apple-macos26.0",
+  "commits": {
+    "KaitoFinder": "4d4be0b2738766fcf0d59440567225406041bf35",
+    "GyoshukuKit": "20d81653aa376f0e71b1f90865191e162137395c",
+    "KaitoKit": "aca39dc37df546c5d3d340c940b4ca4d9110c29a"
+  },
+  "archives": {
+    "KaitoKit": {
+      "files": 1513,
+      "mismatches": []
+    },
+    "GyoshukuKit": {
+      "files": 295,
+      "mismatches": []
+    }
+  },
+  "baseline": {
+    "files": 309,
+    "mismatches": []
+  },
+  "compiled_inputs": {
+    "KaitoKit": {
+      "files": 207,
+      "mismatches": []
+    },
+    "GyoshukuKit": {
+      "files": 62,
+      "mismatches": []
+    },
+    "app": {
+      "files": 107,
+      "mismatches": []
+    },
+    "test": {
+      "files": 151,
+      "mismatches": []
+    }
+  },
+  "canonical": {
+    "KaitoFinder": {
+      "files": 140,
+      "mismatches": []
+    },
+    "KaitoFinderTests": {
+      "files": 173,
+      "mismatches": []
+    },
+    "Tools": {
+      "files": 32,
+      "mismatches": []
+    }
+  },
+  "protected_file_diff": [],
+  "diff_check": 0,
+  "default_appearance": {
+    "differing_bytes": 0,
+    "height": 1200,
+    "metrics_equal": true,
+    "pixels_equal": true,
+    "width": 2080
+  },
+  "resource_checks": {
+    "new_keys": [
+      "アイコンのサイズ:",
+      "並べ順:",
+      "列:",
+      "大",
+      "小",
+      "文字のサイズ:",
+      "昇順",
+      "表示オプション",
+      "表示オプションを表示",
+      "表示オプションを隠す",
+      "降順",
+      "順序:"
+    ],
+    "translations_checked": 312,
+    "old_entries_unchanged": 434,
+    "french_colon": "NBSP",
+    "icon_size_comments": true
+  },
+  "non_debug_typecheck": {
+    "exit": 0
+  },
+  "build_runs": [
+    {
+      "name": "KaitoKit",
+      "exit": 0
+    },
+    {
+      "name": "GyoshukuKit",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    },
+    {
+      "name": "test",
+      "exit": 0
+    },
+    {
+      "name": "app",
+      "exit": 0
+    }
+  ],
+  "test_runs": {
+    "s36": {
+      "invocations": 61,
+      "all_counts": {
+        "passed": 169,
+        "failed": 4,
+        "skipped": 11
+      },
+      "latest_case_counts": {
+        "passed": 121,
+        "failed": 4,
+        "skipped": 8
+      },
+      "nonzero_exits": [
+        {
+          "selection": "ArchiveThumbnailTests",
+          "exit": 1
+        },
+        {
+          "selection": "ArchiveSortingTests",
+          "exit": -5
+        },
+        {
+          "selection": "ArchiveHiddenFilesTests",
+          "exit": 1
+        },
+        {
+          "selection": "ArchivePreferencesUITests/testToolbarSwitchesPanesWithoutMovingControlsOffScreen",
+          "exit": 1
+        }
+      ]
+    },
+    "s35_baseline": {
+      "invocations": 2,
+      "all_counts": {
+        "failed": 2
+      },
+      "latest_case_counts": {
+        "failed": 2
+      },
+      "nonzero_exits": [
+        {
+          "selection": "ArchiveThumbnailTests/testDisplayReplacesAndCancelsThePreviousThumbnailProvider",
+          "exit": 1
+        },
+        {
+          "selection": "ArchiveThumbnailTests/testPNGThumbnailReplacesNameIconWithoutPasswordProgressOrTemporaryCopies",
+          "exit": 1
+        }
+      ]
+    }
+  },
+  "probe_counts": {
+    "initial": {
+      "exit": 1,
+      "counts": {
+        "passed": 1,
+        "failed": 1
+      }
+    },
+    "corrected": {
+      "exit": 0,
+      "counts": {
+        "passed": 2
+      }
+    },
+    "final": {
+      "exit": 0,
+      "counts": {
+        "passed": 2
+      }
+    },
+    "baseline": {
+      "exit": 0,
+      "counts": {
+        "passed": 1
+      }
+    }
+  },
+  "appkit_control_warnings": []
+}

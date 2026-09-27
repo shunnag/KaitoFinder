@@ -27,6 +27,8 @@ nonisolated struct VolumePublishOperations: Sendable {
         renameatx_np(fd, from, fd, to, flags)
     }
     var didHash: @Sendable (URL) -> Void = { _ in }
+    var didRecheckStamps: @Sendable (URL) -> Void = { _ in }
+    var allowsStampRecheck = true
     var didBarrier: @Sendable (VolumePublishBarrier) -> Void = { _ in }
     var willCoordinate: @Sendable (URL) throws -> Void = { _ in }
     /// Nil always uses Foundation. Tests can withhold the callback to exercise the real timeout.

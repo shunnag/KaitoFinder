@@ -164,7 +164,7 @@ nonisolated final class DeferredSaveExtractionTests: XCTestCase {
         let unversioned = ArchiveEntryPayload(archiveURL: current.archiveURL, generation: current.generation,
             entryIndex: current.entryIndex, path: current.path, isDirectory: false)
         XCTAssertThrowsError(try snapshot.resolve(unversioned))
-        XCTAssertThrowsError(try current.resolve(in: snapshot.base, generation: current.generation))
+        XCTAssertThrowsError(try current.resolve(in: snapshot.base, generation: current.generation, syntax: snapshot.nameSyntax))
         // Undo restores the name, but must not make an old revision valid again.
         document.undoManager?.undo()
         document.undoManager?.undo()

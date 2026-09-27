@@ -1,0 +1,12 @@
+tar.gz   deferred_split   save_rename  total   3230 ->   2709  limit   2870  OK
+   recheck 0.2/0.1 digest 0.0 work_validation absent input_copy -  others>±10%: []
+tar.gz   immediate_split  add_file     total   3322 ->   2780  limit   2957  OK
+   recheck 0.2/0.2 digest 0.0 work_validation absent input_copy -  others>±10%: []
+tar.gz   immediate_split  delete_end   total   3278 ->   2803  limit   2921  OK
+   recheck 0.2/0.2 digest 0.0 work_validation absent input_copy -  others>±10%: []
+zip      deferred_split   save_rename  total    710 ->    494  limit    579  OK
+   recheck 0.1/0.1 digest 0.0 work_validation absent input_copy 98->83  others>±10%: [('split_input_copy', 98, 83)]
+zip      immediate_split  add_file     total    821 ->    627  limit    686  OK
+   recheck 0.1/0.1 digest 0.0 work_validation absent input_copy 96->84  others>±10%: [('split_copy', 79, 100), ('split_input_copy', 96, 84)]
+zip      immediate_split  delete_end   total    690 ->    493  limit    556  OK
+   recheck 0.1/0.1 digest 0.0 work_validation absent input_copy 98->83  others>±10%: [('split_copy', 80, 96), ('split_input_copy', 98, 83)]

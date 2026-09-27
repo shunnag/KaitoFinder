@@ -150,6 +150,14 @@ caffeinate -d python3 Tools/verify_save_panel_animation.py
 成功扱いにせず検証記録に残し、前面での操作は実機確認に残す。前面化とは独立して、ツールバーと
 ウインドウ内の実 responder chain による編集・取り消し・やり直し・テキスト選択を自動検証する。
 
+進捗の表示待ち中の key window 維持と入力遮断は、`commands` の選択に含む
+`ArchiveEntryControlsTests.testDelayedEditKeepsKeyWindowAndBlocksApplicationEventsExceptEscape` と
+`testDelayedEditKeepsKeyWindowAndBlocksWindowEventsExceptEscape` で検証する。
+それぞれ `NSApp.sendEvent` と `window.sendEvent` から入力し、選択・改名の不変と Escape による取消しを確認する。
+通常テストで host を前面にできない場合は skip し、このドライバーでは skip を成功扱いにしない。
+同じ選択には `testSuspendedUndoAllowsWindowSelectionExceptWhileProgressSheetIsPending` も含む。
+undo が停止中でも、進捗シートの表示待ちでなければクリックと矢印キーで選択できることを検証する。
+
 AppKit の自動 validation と responder 解決の仕様は
 [Apple のメニュー有効化の説明](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MenuList/Articles/EnablingMenuItems.html)を参照。
 

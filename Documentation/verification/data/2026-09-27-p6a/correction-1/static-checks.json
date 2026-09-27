@@ -1,0 +1,19 @@
+{
+  "head": "36b2a9376448f34878e0a9e26ed6121b474df348",
+  "changed_test_files": [
+    "KaitoFinderTests/DragInTests.swift",
+    "KaitoFinderTests/ArchiveImportSafetyTests.swift"
+  ],
+  "other_tracked_diff_unchanged": true,
+  "protected_file_hashes_checked": 145,
+  "protected_hash_mismatches": [],
+  "compiled_test_sources": 160,
+  "compiled_test_source_mismatches": [],
+  "git_diff_check_exit": 0,
+  "test_attempts": 5,
+  "passed": 4,
+  "failed": 0,
+  "skipped": 0,
+  "interrupted": 1,
+  "interrupted_exit": 69
+}

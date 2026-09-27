@@ -1,0 +1,12 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:12:43.913.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:12:43.913.
+Test Suite 'DeferredSplitSaveTests' started at 2026-09-27 04:12:43.913.
+Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending]' started.
+<unknown>:0: error: -[KaitoFinderTests.DeferredSplitSaveTests testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending] : failed: caught error: "ArchiveSplitSaveFailure(context: KaitoFinder.ArchiveSplitSaveFailure.Context.deferredReplacement, kind: KaitoFinder.ArchiveSplitSaveFailure.Kind.failed, staging: nil, diagnostic: "ファイル“archive.7z.001”をフォルダ“set-1C1BF1DE-0120-4DCE-BB6D-AA5805197BEC”に保存できませんでした。", keepsPendingChanges: true, restoredIdentity: nil)"
+Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending]' failed (0.231 seconds).
+Test Suite 'DeferredSplitSaveTests' failed at 2026-09-27 04:12:44.145.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.231 (0.231) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:12:44.145.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.231 (0.231) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:12:44.145.
+	 Executed 1 test, with 1 failure (1 unexpected) in 0.231 (0.232) seconds

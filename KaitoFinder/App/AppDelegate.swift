@@ -2,12 +2,25 @@ import AppKit
 import Darwin
 
 @main
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, NSMenuDelegate {
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
+    private var columnsMenu: NSMenu?
+    private var columnsMenuBundle: Bundle = .main
     private let preferencesStore: ArchivePreferencesStore
     private let softwareUpdater: any SoftwareUpdating
     private(set) var preferencesWindowController: PreferencesWindowController?
+    private(set) var viewOptionsController: ArchiveViewOptionsController?
+    #if DEBUG
+    // 非アクティブな test host でも、メニューとパネルに同じ main window を渡す。
+    var mainWindowForTesting: (() -> NSWindow?)?
+    #endif
+    private var archiveMenuMainWindow: NSWindow? {
+        #if DEBUG
+        if let mainWindowForTesting { return mainWindowForTesting() }
+        #endif
+        return NSApp.mainWindow
+    }
     private(set) var welcomeWindowController: WelcomeWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
@@ -85,10 +98,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     @objc func toggleHiddenFiles(_ sender: Any?) { preferencesStore.preferences.showsHiddenFiles.toggle() }
 
+    @objc func toggleFoldersOnTop(_ sender: Any?) { preferencesStore.preferences.keepsFoldersOnTop.toggle() }
+
+    @objc func toggleViewOptions(_ sender: Any?) {
+        guard (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false else { return }
+        if let controller = viewOptionsController, controller.window?.isVisible == true {
+            controller.window?.orderOut(sender)
+        } else {
+            if viewOptionsController == nil {
+                #if DEBUG
+                if let mainWindowForTesting {
+                    viewOptionsController = ArchiveViewOptionsController(store: preferencesStore, mainWindow: mainWindowForTesting)
+                } else {
+                    viewOptionsController = ArchiveViewOptionsController(store: preferencesStore)
+                }
+                #else
+                viewOptionsController = ArchiveViewOptionsController(store: preferencesStore)
+                #endif
+            }
+            viewOptionsController?.showWindow(sender)
+        }
+    }
+
+    @objc func toggleArchiveColumn(_ sender: NSMenuItem) {
+        (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === columnsMenu else { return }
+        let controller = archiveMenuMainWindow?.windowController as? ArchiveWindowController
+        ArchiveColumn.populate(menu, bundle: columnsMenuBundle, table: controller?.outlineView,
+                               target: self, action: #selector(toggleArchiveColumn(_:)))
+    }
+
     @objc func checkForUpdates(_ sender: Any?) { softwareUpdater.checkForUpdates() }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(toggleViewOptions(_:)):
+            menuItem.title = viewOptionsController?.window?.isVisible == true
+                ? String(localized: "表示オプションを隠す", bundle: columnsMenuBundle)
+                : String(localized: "表示オプションを表示", bundle: columnsMenuBundle)
+            return (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false
         case #selector(checkForUpdates(_:)):
             return softwareUpdater.canCheckForUpdates
         case #selector(newArchive(_:)):
@@ -97,6 +148,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             return batchExtractionTask == nil && batchExtractionOpenPanel == nil
         case #selector(forgetArchivePasswords(_:)):
             return forgetPasswordsTask == nil
+        case #selector(toggleArchiveColumn(_:)):
+            guard let controller = archiveMenuMainWindow?.windowController as? ArchiveWindowController else {
+                menuItem.state = .off
+                return false
+            }
+            return controller.validateColumnMenuItem(menuItem)
+        case #selector(toggleFoldersOnTop(_:)):
+            menuItem.state = preferencesStore.preferences.keepsFoldersOnTop ? .on : .off
         case #selector(toggleHiddenFiles(_:)):
             menuItem.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
         default: break
@@ -201,6 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         archiveCreationTask?.cancel()
         batchExtractionTask?.cancel()
         promises.cancelActiveWrites()
+        for document in documents { document.cancelForTermination() }
         let creation = archiveCreationTask, batch = batchExtractionTask
         terminationReplied = false
         terminationAwaitingCriticalSection = false
@@ -500,6 +560,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         hidden.keyEquivalentModifierMask = [.command, .shift]
         hidden.target = self
         hidden.state = preferencesStore.preferences.showsHiddenFiles ? .on : .off
+        viewMenu.addItem(.separator())
+        let columns = NSMenu(title: String(localized: "列", bundle: bundle))
+        columnsMenu = columns
+        columnsMenuBundle = bundle
+        columns.delegate = self
+        menuNeedsUpdate(columns)
+        viewMenu.addItem(withTitle: columns.title, action: nil, keyEquivalent: "").submenu = columns
+        let folders = viewMenu.addItem(withTitle: String(localized: "フォルダを常に先頭に表示", bundle: bundle),
+                                      action: #selector(toggleFoldersOnTop(_:)), keyEquivalent: "")
+        folders.target = self
+        folders.state = preferencesStore.preferences.keepsFoldersOnTop ? .on : .off
+        viewMenu.addItem(.separator())
+        let options = viewMenu.addItem(withTitle: String(localized: "表示オプションを表示", bundle: bundle),
+                                      action: #selector(toggleViewOptions(_:)), keyEquivalent: "j")
+        options.target = self
+        let goMenu = NSMenu(title: String(localized: "移動", table: "GoMenu", bundle: bundle))
+        goMenu.addItem(withTitle: String(localized: "戻る", bundle: bundle),
+                       action: #selector(ArchiveWindowController.goBack(_:)), keyEquivalent: "[")
+        goMenu.addItem(withTitle: String(localized: "進む", bundle: bundle),
+                       action: #selector(ArchiveWindowController.goForward(_:)), keyEquivalent: "]")
+        goMenu.addItem(.separator())
+        goMenu.addItem(withTitle: String(localized: "内包フォルダ", bundle: bundle),
+                       action: #selector(ArchiveWindowController.goToEnclosingFolder(_:)), keyEquivalent: "\u{f700}")
         let windowMenu = NSMenu(title: String(localized: "ウインドウ", bundle: bundle))
         let welcome = windowMenu.addItem(withTitle: String(localized: "ようこそKaitoFinderへ", bundle: bundle),
                                         action: #selector(showWelcome(_:)), keyEquivalent: "1")
@@ -519,7 +602,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         ArchiveMenuSymbols.apply(to: fileMenu)
         ArchiveMenuSymbols.apply(to: editMenu)
         ArchiveMenuSymbols.apply(to: viewMenu)
-        for submenu in [appMenu, fileMenu, editMenu, viewMenu, windowMenu, helpMenu] {
+        ArchiveMenuSymbols.apply(to: goMenu)
+        for submenu in [appMenu, fileMenu, editMenu, viewMenu, goMenu, windowMenu, helpMenu] {
             let item = NSMenuItem(title: submenu.title, action: nil, keyEquivalent: "")
             item.submenu = submenu
             menu.addItem(item)

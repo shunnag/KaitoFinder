@@ -1,0 +1,264 @@
+--- a/KaitoFinderTests/PerformanceProbeTests.swift
++++ b/KaitoFinderTests/PerformanceProbeTests.swift
+@@ -107,6 +107,25 @@
+     }
+     #endif
+ 
++
++    @MainActor func testReplacementForCorrection2() async throws {
++        let configuration = try ArchiveProbeConfiguration()
++        preserveArchiveWindowFrame()
++        for format in configuration.formats {
++            let fixture = try await ArchiveProbeFixtures.fixture(.payload, format: format, configuration: configuration)
++            let runs = Int(ProcessInfo.processInfo.environment["KAITOFINDER_REPLACEMENT_RUNS"] ?? "7") ?? 7
++            for run in 0..<runs {
++                let timeline = ReplacementProbeTests.Timeline()
++                try await ReplacementProbeTests.active.withValue(timeline) {
++                    let operations: [ImmediateOperation] = ProcessInfo.processInfo.environment["KAITOFINDER_REPLACEMENT_ALL_EDITS"] == "1"
++                        ? ImmediateOperation.allCases : [.replaceFile]
++                    for operation in operations { try await probeImmediate(operation, fixture: fixture) }
++                }
++                try timeline.emit("p0b/\(format.rawValue)/r\(run)")
++            }
++        }
++    }
++
+     @MainActor func testArchiveOpeningWhenEnabled() async throws {
+         #if DEBUG
+         let configuration = try ArchiveProbeConfiguration()
+@@ -379,7 +398,7 @@
+             }
+             let trace = ArchiveProbeTrace(fixture: payload, mode: deferred ? "deferred_split" : "immediate_split", operation: operation.rawValue)
+             do {
+-                try await ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
++                try await ArchiveStageDiagnostics.observer.withValue({ ReplacementProbeTests.active.get()?.stage($0); trace.record($0) }) {
+                     let total = ArchiveStageDiagnostics.begin(.total)
+                     defer { total?.end() }
+                     switch operation {
+@@ -758,7 +777,7 @@
+         let trace = ArchiveProbeTrace(fixture: fixture, mode: "direct", operation: nearStart ? "delete_start" : "delete_end")
+         let index = nearStart ? 0 : fixture.entryCount - 1
+         do {
+-            try ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
++            try ArchiveStageDiagnostics.observer.withValue({ ReplacementProbeTests.active.get()?.stage($0); trace.record($0) }) {
+                 var preferences = ArchivePreferences()
+                 preferences.additionPosition = try ArchiveProbeConfiguration().additionPosition
+                 let options = preferences.writerOptions(for: fixture.format.writerFormat)
+@@ -814,7 +833,7 @@
+     @MainActor private static func traced<Value>(_ trace: ArchiveProbeTrace, output: URL,
+         _ action: @MainActor () async throws -> Value) async throws -> Value {
+         do {
+-            let value = try await ArchiveStageDiagnostics.observer.withValue({ trace.record($0) }) {
++            let value = try await ArchiveStageDiagnostics.observer.withValue({ ReplacementProbeTests.active.get()?.stage($0); trace.record($0) }) {
+                 let span = ArchiveStageDiagnostics.begin(.total)
+                 defer { span?.end() }
+                 return try await ArchiveImportTransaction.didCommitCompressedTarUpdaterForTesting.withValue({ updater in
+@@ -824,7 +843,7 @@
+                         trace.recordSevenZip(try XCTUnwrap(updater.lastCommitStatistics))
+                     }) {
+                         try await ArchiveWriteProgress.lifecycleForTesting.withValue(trace.recordProgressLifecycle) {
+-                            try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.recordProgress) { try await action() }
++                            try await ArchiveWriteProgress.didCreditForTesting.withValue({ slot, done, total in ReplacementProbeTests.active.get()?.progress(slot, done, total); trace.recordProgress(slot, done, total) }) { try await action() }
+                         }
+                     }
+                 }
+--- a/KaitoFinderTests/Support/ArchivePerformanceProbe.swift
++++ b/KaitoFinderTests/Support/ArchivePerformanceProbe.swift
+@@ -378,9 +378,12 @@
+     private let mode: String
+     private let operation: String
+     private let reportsPasswordVerification: Bool
++    private let correction2Timeline: ReplacementProbeTests.Timeline? =
++        ProcessInfo.processInfo.environment["KAITOFINDER_CORRECTION2_FULL_TIMELINE"] == "1" ? .init() : nil
+     private let state = Mutex(State())
+ 
+     func recordProgress(_ slot: ArchiveWriteProgress.Slot, _ completed: Int64, _ total: Int64) {
++        correction2Timeline?.progress(slot, completed, total)
+         let now = ContinuousClock.now
+         state.withLock {
+             if let previous = $0.lastCredit { $0.maximumGap = max($0.maximumGap, previous.duration(to: now)) }
+@@ -464,6 +467,14 @@
+     }
+ 
+     func record(_ event: ArchiveStageDiagnostics.Event) {
++        correction2Timeline?.stage(event)
++        let observed: String
++        switch event {
++        case .began(_, let stage): observed = "begin:" + stage.rawValue
++        case .ended(_, let stage, _): observed = "end:" + stage.rawValue
++        }
++        correction2Timeline?.mark("observer_begin", observed)
++        defer { correction2Timeline?.mark("observer_end", observed) }
+         switch event {
+         case .began(let id, let stage):
+             state.withLock {
+@@ -507,6 +518,9 @@
+     }
+ 
+     func finish(outputs: [URL], status: String = "ok") {
++        if let correction2Timeline {
++            try? correction2Timeline.emit("full/\(fixture.format.rawValue)/\(fixture.kind.rawValue)/\(mode)/\(operation)")
++        }
+         let snapshot = state.withLock { $0 }
+         if snapshot.credits > 0, mode == "immediate" || operation == "create_many" {
+             func ms(_ duration: Duration) -> String {
+--- /dev/null
++++ b/KaitoFinderTests/ReplacementProbeTests.swift
+@@ -0,0 +1,157 @@
++import AppKit
++import Darwin
++import Foundation
++@_spi(Testing) import GyoshukuKit
++import KaitoKit
++import Synchronization
++import XCTest
++@testable import KaitoFinder
++
++nonisolated final class ReplacementProbeTests: XCTestCase {
++    static let active = TaskLocal<Timeline?>(wrappedValue: nil)
++    final class Timeline: Sendable {
++        struct Row: Sendable { let time: Double; let event: String; let name: String }
++        let start = ContinuousClock.now
++        let rows = Mutex<[Row]>([])
++        func mark(_ event: String, _ name: String) {
++            let duration = start.duration(to: .now).components
++            let time = Double(duration.seconds) * 1_000 + Double(duration.attoseconds) / 1e15
++            rows.withLock { $0.append(Row(time: time, event: event, name: name)) }
++        }
++        func stage(_ event: ArchiveStageDiagnostics.Event) {
++            switch event {
++            case .began(_, let stage): mark("begin", stage.rawValue)
++            case .ended(_, let stage, _): mark("end", stage.rawValue)
++            }
++        }
++        func progress(_ slot: ArchiveWriteProgress.Slot, _ done: Int64, _ total: Int64) {
++            if slot == .finishAdditions { mark("credit", "finish_additions:\(done)/\(total)") }
++        }
++        func measure<T>(_ name: String, _ body: () throws -> T) rethrows -> T {
++            mark("begin", name); defer { mark("end", name) }
++            return try body()
++        }
++        func emit(_ label: String) throws {
++            var load = [Double](repeating: 0, count: 3)
++            _ = getloadavg(&load, 3)
++            let values = rows.withLock { $0.sorted { $0.time < $1.time } }
++            let object: [String: Any] = ["label": label, "load": load,
++                "events": values.map { ["ms": $0.time, "event": $0.event, "name": $0.name] as [String: Any] }]
++            let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
++            if let path = ProcessInfo.processInfo.environment["KAITOFINDER_REPLACEMENT_OUTPUT"] {
++                let directory = URL(fileURLWithPath: path, isDirectory: true)
++                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
++                try data.write(to: directory.appendingPathComponent(label.replacingOccurrences(of: "/", with: "-") + ".json"))
++            }
++            try FileHandle.standardOutput.write(contentsOf: Data("P7-REPLACE\t".utf8) + data + Data([10]))
++        }
++    }
++
++    private func configuration() throws -> ArchiveProbeConfiguration {
++        guard ProcessInfo.processInfo.environment["KAITOFINDER_REPLACEMENT_PROBE"] == "1" else {
++            throw XCTSkip("Set KAITOFINDER_REPLACEMENT_PROBE=1")
++        }
++        return try ArchiveProbeConfiguration()
++    }
++    private var runs: Int { Int(ProcessInfo.processInfo.environment["KAITOFINDER_REPLACEMENT_RUNS"] ?? "7") ?? 7 }
++
++    @MainActor func testDocumentReplacementTimeline() async throws {
++        let configuration = try configuration()
++        for format in configuration.formats {
++            let fixture = try await ArchiveProbeFixtures.fixture(.payload, format: format, configuration: configuration)
++            for run in 0..<runs {
++                let directory = try ArchiveTestDirectory()
++                let archive = directory.url.appendingPathComponent("edit." + format.rawValue)
++                try FileManager.default.copyItem(at: fixture.url, to: archive)
++                let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
++                store.preferences = ArchivePreferences(); store.preferences.saveBehavior = .immediate
++                let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)
++                defer { document.close(); withExtendedLifetime((directory, defaults)) {} }
++                try document.read(from: archive, ofType: "public.data")
++                document.fileURL = archive; document.fileType = "public.data"
++                document.fileModificationDate = try FileManager.default.attributesOfItem(atPath: archive.path)[.modificationDate] as? Date
++                let entries = try await document.projectedEntries()
++                XCTAssertEqual(entries.first?.uncompressedSize, 4 << 20)
++                let tree = await EntryNode.build(from: entries, format: format.writerFormat, indexingEdits: true)
++                let controller = ArchiveWindowController(preferencesStore: store)
++                document.addWindowController(controller)
++                let session = try XCTUnwrap(document.session)
++                controller.display(tree, session: session, generation: session.generation, indexingRenames: false)
++                let components = ArchivePath.components(fixture.firstPath)
++                let source = directory.url.appendingPathComponent(components.last!)
++                try Data([43]).write(to: source)
++                let progress = Progress(), trace = Timeline()
++                let probe = ArchiveProbeTrace(fixture: fixture, mode: "immediate", operation: "replace_file")
++                let recordsDiskIO = ProcessInfo.processInfo.environment["KAITOFINDER_REPLACEMENT_P0_OBSERVER"] == "1"
++                try await ArchiveStageDiagnostics.observer.withValue({ event in
++                    trace.stage(event)
++                    if recordsDiskIO {
++                        switch event {
++                        case .began(_, let stage): trace.measure("observer_begin_" + stage.rawValue) { probe.record(event) }
++                        case .ended(_, let stage, _): trace.measure("observer_end_" + stage.rawValue) { probe.record(event) }
++                        }
++                    }
++                }) {
++                    try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.progress) {
++                        try await ArchiveImportTransaction.didCommitForTesting.withValue({ _ in trace.mark("mark", "work_committed") }) {
++                            trace.mark("begin", "total")
++                            let result = try await document.append(urls: [source], to: components.dropLast().joined(separator: "/"),
++                                progress: progress, resolveConflict: { _ in .init(choice: .replace) },
++                                willPublish: { trace.mark("mark", "will_publish") })
++                            trace.mark("end", "total")
++                            XCTAssertTrue(result.failures.isEmpty); XCTAssertNil(result.reloadFailure)
++                        }
++                    }
++                }
++                try trace.emit("document/\(format.rawValue)/r\(run)")
++                XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
++                let after = try await document.projectedEntries()
++                XCTAssertEqual(after.count, fixture.entryCount)
++                XCTAssertEqual(after.first { $0.name == fixture.firstPath }?.uncompressedSize, 1)
++                let deadline = ContinuousClock.now + .seconds(60)
++                while !controller.renameIndexIsReady, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(2)) }
++                XCTAssertTrue(controller.renameIndexIsReady)
++                await document.prepareForTermination()
++            }
++        }
++    }
++
++    func testLHAUpdaterItemsAndBatch() async throws {
++        let configuration = try configuration()
++        let fixture = try await ArchiveProbeFixtures.fixture(.payload, format: .lha, configuration: configuration)
++        let directory = try ArchiveTestDirectory(), source = directory.url.appendingPathComponent("replacement")
++        try Data([43]).write(to: source)
++        let options = ArchivePreferences().writerOptions(for: .lha)
++        for run in 0..<runs {
++            for batch in (run.isMultiple(of: 2) ? [false, true] : [true, false]) {
++                try autoreleasepool {
++                    let input = directory.url.appendingPathComponent("input.lzh"), output = directory.url.appendingPathComponent("output.lzh")
++                    try FileManager.default.copyItem(at: fixture.url, to: input)
++                    defer { try? FileManager.default.removeItem(at: input); try? FileManager.default.removeItem(at: output) }
++                    let trace = Timeline()
++                    trace.mark("begin", "total")
++                    var updater: LHAUpdater? = try trace.measure("updater_open") { try LHAUpdater.open(url: input, output: output, options: options) }
++                    try trace.measure("remove") { try updater!.remove(entriesAt: [0]) }
++                    try trace.measure("add") {
++                        if batch {
++                            try updater!.add([.init(path: fixture.firstPath, source: .contents(of: source))]) { event in
++                                if case .didFinish = event { trace.mark("mark", "addition_accepted") }
++                            }
++                        } else {
++                            try updater!.add(contentsOf: source, as: fixture.firstPath, ownerIDs: nil, progress: { _ in })
++                            trace.mark("mark", "addition_accepted")
++                        }
++                    }
++                    try trace.measure("finish_additions") { try updater!.finishAdditions(progress: { _ in }) }
++                    try trace.measure("commit") { try updater!.commit(progress: { _ in }) }
++                    trace.measure("teardown") { updater = nil }
++                    trace.mark("end", "total")
++                    try trace.emit("updater/\(batch ? "batch" : "items")/r\(run)")
++                    let reader = try ArchiveReader.open(url: output)
++                    let replacement = try XCTUnwrap(reader.entries.first { $0.name == fixture.firstPath })
++                    XCTAssertEqual(try reader.read(replacement), Data([43]))
++                }
++            }
++        }
++    }
++}

@@ -96,7 +96,21 @@ final class ArchiveCreationController {
             warning.withLock { $0 = result.warning }
             observer(result)
         }
-        let result = try await Self.create(plan: plan, progress: progress, willPublish: willPublish, index: volumeRecoveryIndex, metadata: volumeMetadataStore, hooks: hooks)
+        let publication = existing?.publication ?? ArchiveSavePublication()
+        defer { if existing?.publication == nil { publication.finish() } }
+        let task = Task {
+            try await ArchiveSavePublication.current.withValue(publication) {
+                try await Self.create(plan: plan, progress: progress, willPublish: willPublish,
+                    index: volumeRecoveryIndex, metadata: volumeMetadataStore, hooks: hooks)
+            }
+        }
+        let cancellation = publication.watchCancellation(progress: progress) { task.cancel() }
+        defer { cancellation.invalidate() }
+        let result = try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            publication.cancelBeforePublication(progress: progress) { task.cancel() }
+        }
         createdSplitNotice = warning.withLock { $0 }
         createdEncryption = save.encryptionSettings
         save.passwordFields.clear()
@@ -104,7 +118,7 @@ final class ArchiveCreationController {
     }
 
     static func existingArchive(from session: ArchiveSession, progress: Progress) async throws -> ArchiveCreationPlan.Existing {
-        let password = try await session.preparedPassword()
+        let password = try await session.preparedPassword(progress: progress)
         let snapshot = await session.snapshot()
         try ArchiveImportPlan.checkCancellation(progress)
         return .init(url: session.sourceURL, password: password, entries: snapshot.entries,

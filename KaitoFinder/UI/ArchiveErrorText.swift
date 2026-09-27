@@ -8,6 +8,8 @@ nonisolated enum ArchiveErrorText {
         switch error {
         case is CancellationError:
             return String(localized: "キャンセルされました", bundle: bundle)
+        case let error as ArchiveAdditionError:
+            return "\(error.path): " + describe(error.underlying, bundle: bundle)
         case let error as KaitoError:
             switch error {
             case .unsupportedFormat: return String(localized: "対応していないアーカイブ形式です", bundle: bundle)
@@ -31,7 +33,13 @@ nonisolated enum ArchiveErrorText {
             case .sourceChanged(let path): return String(localized: "追加中にファイルが変更されました: \(path)", bundle: bundle)
             case .invalidDate: return String(localized: "日付が不正です", bundle: bundle)
             case .invalidState: return String(localized: "内部状態が不正です", bundle: bundle)
-            case .io(let operation, let code): return String(localized: "\(operation): \(posix(code))", bundle: bundle)
+            case .io(_, let code):
+                // operation はライブラリ内の処理名。利用者向けには原因だけを示す。
+                switch code {
+                case ENOSPC, EDQUOT: return CocoaError(.fileWriteOutOfSpace).localizedDescription
+                case EPERM, EACCES, EROFS: return CocoaError(.fileWriteNoPermission).localizedDescription
+                default: return posix(code)
+                }
             case .compression(let code): return String(localized: "圧縮に失敗しました(コード \(code))", bundle: bundle)
             case .sizeOverflow: return String(localized: "サイズが上限を超えています", bundle: bundle)
             }
@@ -51,10 +59,13 @@ nonisolated enum ArchiveErrorText {
             case .invalidEntryIndex(let index): return String(localized: "項目の番号が不正です: \(index)", bundle: bundle)
             case .nonRelocatableEntry(_, let name, let reason):
                 return String(localized: "移動できない項目があります: \(name)(\(reason))", bundle: bundle)
+            case .reencryptionFailed(_, let name, let reason):
+                return String(localized: "暗号化を変更できない項目があります: \(name)(\(reason))", bundle: bundle)
             case .sourceChanged: return String(localized: "アーカイブが変更されています。開き直してください", bundle: bundle)
             case .invalidState: return String(localized: "内部状態が不正です", bundle: bundle)
             }
         case let error as VolumePublishError: return error.message(bundle: bundle)
+        case let error as ArchivePublicationError: return error.message(bundle: bundle)
         case let error as ArchiveEditError: return error.errorDescription ?? error.localizedDescription
         case let error as ExtractionFailure: return error.description
         default: return error.localizedDescription

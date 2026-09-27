@@ -6,15 +6,56 @@ final class PreferencesViewModel {
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
     static let saveBehaviors = ArchivePreferences.SaveBehavior.allCases
+    static let additionPositions = ArchivePreferences.AdditionPosition.allCases
+    static let tarCarriedOwnerPolicies = ArchivePreferences.CarriedOwnerIDPolicy.allCases
     static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
+    static let folderOpenings = ArchivePreferences.FolderOpening.allCases
     private let store: ArchivePreferencesStore
+    let hardware: ArchiveHardware
+    private let bundle: Bundle
 
-    init(store: ArchivePreferencesStore = .shared) { self.store = store }
+    init(store: ArchivePreferencesStore = .shared, hardware: ArchiveHardware = .current, bundle: Bundle = .main) {
+        self.store = store
+        self.hardware = hardware
+        self.bundle = bundle
+    }
 
     var preferences: ArchivePreferences { store.preferences }
+    var compressionThreadChoices: [Int] { Array(0...max(hardware.processors, preferences.compressionThreads)) }
+    var compressionThreadIndex: Int { compressionThreadChoices.firstIndex(of: preferences.compressionThreads)! }
+    var compressionThreadTitles: [String] {
+        compressionThreadChoices.map {
+            $0 == 0 ? String(format: String(localized: "自動（%lld）", bundle: bundle), hardware.automaticCompressionThreads) : String($0)
+        }
+    }
+    var memoryNote: (text: String, warns: Bool) {
+        let threads = preferences.compressionThreads == 0 ? hardware.automaticCompressionThreads : preferences.compressionThreads
+        let warns = ArchiveHardware.estimatedLZMA2Memory(threads: threads) > hardware.memory / 4
+        return (memoryNote(threads: threads, warns: warns), warns)
+    }
+    var maximumMemoryNote: String {
+        memoryNote(threads: compressionThreadChoices.last!, warns: true)
+    }
+
+    private func memoryNote(threads: Int, warns: Bool) -> String {
+        let memory = ByteCountFormatter.string(fromByteCount: Int64(ArchiveHardware.estimatedLZMA2Memory(threads: threads)),
+                                               countStyle: .memory)
+        let estimate = String(format: String(localized: "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。", bundle: bundle), memory)
+        return warns ? estimate + " " + String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。", bundle: bundle) : estimate
+    }
+
+    func selectCompressionThreads(at index: Int) {
+        let choices = compressionThreadChoices
+        guard choices.indices.contains(index) else { return }
+        store.preferences.compressionThreads = choices[index]
+    }
+
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
     var saveBehaviorIndex: Int { Self.saveBehaviors.firstIndex(of: preferences.saveBehavior)! }
     var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
+    var folderOpeningIndex: Int { Self.folderOpenings.firstIndex(of: preferences.folderOpening)! }
+    var additionPositionIndex: Int { Self.additionPositions.firstIndex(of: preferences.additionPosition)! }
+    var tarCarriedOwnerIDsIndex: Int { Self.tarCarriedOwnerPolicies.firstIndex(of: preferences.tarCarriedOwnerIDs)! }
     var zipMethodIndex: Int { Self.zipMethods.firstIndex(of: preferences.zipMethod)! }
     var extractionDestinationIndex: Int { Self.extractionDestinations.firstIndex(of: preferences.extractionDestination)! }
     var afterExpansionIndex: Int { preferences.trashesArchiveAfterExtraction ? 1 : 0 }
@@ -38,16 +79,25 @@ final class PreferencesViewModel {
         store.preferences.openingBehavior = Self.openingBehaviors[index]
     }
 
+    func selectFolderOpening(at index: Int) {
+        guard Self.folderOpenings.indices.contains(index) else { return }
+        store.preferences.folderOpening = Self.folderOpenings[index]
+    }
+
     func selectZipMethod(at index: Int) {
         guard Self.zipMethods.indices.contains(index) else { return }
         store.preferences.zipMethod = Self.zipMethods[index]
     }
+
+    func changeAdditionPosition(to value: ArchivePreferences.AdditionPosition) { store.preferences.additionPosition = value }
+    func changeTarCarriedOwnerIDs(to value: ArchivePreferences.CarriedOwnerIDPolicy) { store.preferences.tarCarriedOwnerIDs = value }
 
     func changeZipLevel(to level: Int) { store.preferences.zipLevel = ArchivePreferences.clampedLevel(level) }
     func changeZipSkipsCompressedTypes(to enabled: Bool) { store.preferences.zipSkipsCompressedTypes = enabled }
     func changeTarGzipLevel(to level: Int) { store.preferences.tarGzipLevel = ArchivePreferences.clampedLevel(level) }
     func changeTarBzip2Level(to level: Int) { store.preferences.tarBzip2Level = ArchivePreferences.clampedLevel(level) }
     func changeTarPreservesOwnerIDs(to enabled: Bool) { store.preferences.tarPreservesOwnerIDs = enabled }
+    func changeKeepsFoldersOnTop(to enabled: Bool) { store.preferences.keepsFoldersOnTop = enabled }
     func changeShowsHiddenFiles(to enabled: Bool) { store.preferences.showsHiddenFiles = enabled }
     func changeShowsWelcomeWindowAtLaunch(to enabled: Bool) { store.preferences.showsWelcomeWindowAtLaunch = enabled }
     func changeRenamesOnClick(to enabled: Bool) { store.preferences.renamesOnClick = enabled }
@@ -101,6 +151,11 @@ final class PreferencesWindowController: NSWindowController {
     let defaultFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let saveBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let openingBehaviorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let folderOpeningPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let additionPositionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
@@ -114,6 +169,7 @@ final class PreferencesWindowController: NSWindowController {
     let folderPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let afterExpansionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let revealsExtractedItemsInFinderCheckbox: NSButton
+    let keepsFoldersOnTopCheckbox: NSButton
     let showsHiddenFilesCheckbox: NSButton
     let showsWelcomeWindowAtLaunchCheckbox: NSButton
     let renamesOnClickCheckbox: NSButton
@@ -126,7 +182,7 @@ final class PreferencesWindowController: NSWindowController {
     let updateAvailabilityLabel: NSTextField
 
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main,
-         softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared) {
+         softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared, hardware: ArchiveHardware = .current) {
         self.bundle = bundle
         self.softwareUpdater = softwareUpdater
         automaticallyChecksForUpdatesCheckbox = NSButton(
@@ -138,6 +194,8 @@ final class PreferencesWindowController: NSWindowController {
             String(localized: "ダウンロードしたアップデートは、KaitoFinderの終了時にインストールされます。", bundle: bundle))
         showsWelcomeWindowAtLaunchCheckbox = NSButton(
             checkboxWithTitle: String(localized: "起動時にようこそウインドウを表示", bundle: bundle), target: nil, action: nil)
+        keepsFoldersOnTopCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "フォルダを常に先頭に表示", bundle: bundle), target: nil, action: nil)
         showsHiddenFilesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "隠しファイルを表示", bundle: bundle), target: nil, action: nil)
         renamesOnClickCheckbox = NSButton(
@@ -149,10 +207,10 @@ final class PreferencesWindowController: NSWindowController {
         zipSkipsCompressedTypesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納", bundle: bundle), target: nil, action: nil)
         tarPreservesOwnerIDsCheckbox = NSButton(
-            checkboxWithTitle: String(localized: "所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
+            checkboxWithTitle: String(localized: "追加するファイルの所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
         revealsExtractedItemsInFinderCheckbox = NSButton(
             checkboxWithTitle: String(localized: "展開した項目をFinderに表示", bundle: bundle), target: nil, action: nil)
-        viewModel = PreferencesViewModel(store: store)
+        viewModel = PreferencesViewModel(store: store, hardware: hardware, bundle: bundle)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 240),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         super.init(window: window)
@@ -166,22 +224,37 @@ final class PreferencesWindowController: NSWindowController {
         tabController.tabStyle = .toolbar
         tabController.canPropagateSelectedChildViewControllerTitle = false
         configureControls()
+        compressionMemoryNote.stringValue = viewModel.maximumMemoryNote
+        compressionMemoryNote.preferredMaxLayoutWidth = 360
+        compressionMemoryNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        compressionMemoryNote.textColor = .secondaryLabelColor
+        // 警告を含む最長の注記の高さを先に確保し、選択でタブの高さが変わらないようにする。
+        let memoryNoteSize = compressionMemoryNote.sizeThatFits(NSSize(width: 360, height: CGFloat.greatestFiniteMagnitude))
+        compressionMemoryNote.heightAnchor.constraint(greaterThanOrEqualToConstant: ceil(memoryNoteSize.height)).isActive = true
         let saveNote = NSTextField(wrappingLabelWithString: String(localized: "次に開くアーカイブから有効になります。", bundle: bundle))
         saveNote.preferredMaxLayoutWidth = 360
         saveNote.textColor = .secondaryLabelColor
         saveNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let additionNote = NSTextField(wrappingLabelWithString: String(localized: "ZIPでは常に末尾に追加します。", bundle: bundle))
+        additionNote.preferredMaxLayoutWidth = 360
+        additionNote.textColor = .secondaryLabelColor
+        additionNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", sections: [
             group(rows: [
                 row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
                 row(String(localized: "アーカイブを開くとき:", bundle: bundle), control: openingBehaviorPopup),
                 row(String(localized: "変更の書き込み:", bundle: bundle), control: saveBehaviorPopup),
-                row("", control: saveNote)
+                row("", control: saveNote),
+                row(String(localized: "追加した項目の位置:", bundle: bundle), control: additionPositionPopup),
+                row("", control: additionNote)
             ]),
             group(rows: [
                 checkboxRow(showsHiddenFilesCheckbox),
+                checkboxRow(keepsFoldersOnTopCheckbox),
                 checkboxRow(showsWelcomeWindowAtLaunchCheckbox),
-                checkboxRow(renamesOnClickCheckbox)
-            ], spanningRows: [0, 1, 2])
+                checkboxRow(renamesOnClickCheckbox),
+                row(String(localized: "フォルダを開くとき:", bundle: bundle), control: folderOpeningPopup)
+            ], spanningRows: [0, 1, 2, 3])
         ])
         let footnote = NSTextField(wrappingLabelWithString: String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle))
         footnote.textColor = .secondaryLabelColor
@@ -189,6 +262,10 @@ final class PreferencesWindowController: NSWindowController {
         footnote.preferredMaxLayoutWidth = 520
         addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", sections: [
             group(rows: [checkboxRow(excludesDSStoreCheckbox), checkboxRow(excludesHiddenFilesCheckbox)], spanningRows: [0, 1]),
+            group(rows: [
+                row(String(localized: "圧縮の並列数:", bundle: bundle), control: compressionThreadsPopup),
+                row("", control: compressionMemoryNote)
+            ]),
             group(title: String(localized: "ZIP", bundle: bundle), rows: [
                 row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
                 row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
@@ -197,7 +274,8 @@ final class PreferencesWindowController: NSWindowController {
             group(title: String(localized: "tar", bundle: bundle), rows: [
                 row(String(localized: "gzipレベル:", bundle: bundle), control: levelControl(tarGzipLevelSlider, label: tarGzipLevelLabel)),
                 row(String(localized: "bzip2レベル:", bundle: bundle), control: levelControl(tarBzip2LevelSlider, label: tarBzip2LevelLabel)),
-                checkboxRow(tarPreservesOwnerIDsCheckbox)
+                checkboxRow(tarPreservesOwnerIDsCheckbox),
+                row(String(localized: "変更しない項目の所有者ID:", bundle: bundle), control: tarCarriedOwnerIDsPopup)
             ], spanningRows: [2]),
             footnote
         ])
@@ -235,6 +313,8 @@ final class PreferencesWindowController: NSWindowController {
             updateAvailabilityLabel,
             updateActions
         ])
+        additionPositionPopup.setAccessibilityLabel(String(localized: "追加した項目の位置", bundle: bundle))
+        tarCarriedOwnerIDsPopup.setAccessibilityLabel(String(localized: "変更しない項目の所有者ID", bundle: bundle))
         // 長い翻訳も省略しない共通の幅を選び、高さはタブの内容に合わせる。
         let width = tabController.tabViewItems.reduce(CGFloat(600)) { width, item in
             max(width, item.viewController?.preferredContentSize.width ?? 0)
@@ -265,12 +345,19 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func configureControls() {
+        folderOpeningPopup.addItems(withTitles: [String(localized: "フォルダに移動", bundle: bundle),
+                                                 String(localized: "その場で展開", bundle: bundle)])
+        compressionThreadsPopup.addItems(withTitles: viewModel.compressionThreadTitles)
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         saveBehaviorPopup.addItems(withTitles: [String(localized: "すぐに書き込む", bundle: bundle),
                                                String(localized: "保存時にまとめて書き込む", bundle: bundle)])
         openingBehaviorPopup.addItems(withTitles: [String(localized: "macOSの設定に従う", bundle: bundle),
                                                   String(localized: "新しいタブ", bundle: bundle),
                                                   String(localized: "新しいウインドウ", bundle: bundle)])
+        additionPositionPopup.addItems(withTitles: [String(localized: "末尾", bundle: bundle),
+            String(localized: "先頭（編集のたびに全体を書き直す）", bundle: bundle)])
+        tarCarriedOwnerIDsPopup.addItems(withTitles: [String(localized: "そのまま保つ", bundle: bundle),
+            String(localized: "0に戻す（編集のたびに全体を書き直す）", bundle: bundle)])
         zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle)])
         extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じディレクトリ内", bundle: bundle), String(localized: "場所を選択…", bundle: bundle)])
         afterExpansionPopup.addItems(withTitles: [String(localized: "アーカイブをそのままにする", bundle: bundle),
@@ -280,12 +367,17 @@ final class PreferencesWindowController: NSWindowController {
         let actions: [(NSControl, Selector)] = [
             (showsWelcomeWindowAtLaunchCheckbox, #selector(changeShowsWelcomeWindowAtLaunch(_:))),
             (showsHiddenFilesCheckbox, #selector(changeShowsHiddenFiles(_:))),
+            (keepsFoldersOnTopCheckbox, #selector(changeKeepsFoldersOnTop(_:))),
             (renamesOnClickCheckbox, #selector(changeRenamesOnClick(_:))),
             (excludesDSStoreCheckbox, #selector(changeExcludesDSStore(_:))),
             (excludesHiddenFilesCheckbox, #selector(changeExcludesHiddenFiles(_:))),
             (defaultFormatPopup, #selector(changeDefaultFormat(_:))),
             (saveBehaviorPopup, #selector(changeSaveBehavior(_:))),
             (openingBehaviorPopup, #selector(changeOpeningBehavior(_:))),
+            (folderOpeningPopup, #selector(changeFolderOpening(_:))),
+            (additionPositionPopup, #selector(changeAdditionPosition(_:))),
+            (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
+            (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
@@ -324,18 +416,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func row(_ title: String, control: NSView) -> [NSView] {
-        let label = NSTextField(labelWithString: title)
-        label.alignment = .left
-        if label.intrinsicContentSize.width > 260 {
-            // 長い翻訳だけを二行まで折り返し、行のコントロールはグリッドで中央に揃える。
-            label.usesSingleLineMode = false
-            label.cell?.wraps = true
-            label.lineBreakMode = .byWordWrapping
-            label.maximumNumberOfLines = 2
-            label.preferredMaxLayoutWidth = 260
-        }
-        control.setAccessibilityLabel(title)
-        return [label, control]
+        ArchiveFormRow.make(title, control: control)
     }
 
     private func checkboxRow(_ button: NSButton) -> [NSView] {
@@ -464,6 +545,7 @@ final class PreferencesWindowController: NSWindowController {
         refreshUpdateControls()
         let preferences = viewModel.preferences
         showsWelcomeWindowAtLaunchCheckbox.state = preferences.showsWelcomeWindowAtLaunch ? .on : .off
+        keepsFoldersOnTopCheckbox.state = preferences.keepsFoldersOnTop ? .on : .off
         showsHiddenFilesCheckbox.state = preferences.showsHiddenFiles ? .on : .off
         renamesOnClickCheckbox.state = preferences.renamesOnClick ? .on : .off
         excludesDSStoreCheckbox.state = preferences.excludesDSStore ? .on : .off
@@ -471,6 +553,18 @@ final class PreferencesWindowController: NSWindowController {
         defaultFormatPopup.selectItem(at: viewModel.defaultFormatIndex)
         saveBehaviorPopup.selectItem(at: viewModel.saveBehaviorIndex)
         openingBehaviorPopup.selectItem(at: viewModel.openingBehaviorIndex)
+        folderOpeningPopup.selectItem(at: viewModel.folderOpeningIndex)
+        additionPositionPopup.selectItem(at: viewModel.additionPositionIndex)
+        tarCarriedOwnerIDsPopup.selectItem(at: viewModel.tarCarriedOwnerIDsIndex)
+        let threadTitles = viewModel.compressionThreadTitles
+        if compressionThreadsPopup.itemTitles != threadTitles {
+            compressionThreadsPopup.removeAllItems()
+            compressionThreadsPopup.addItems(withTitles: threadTitles)
+        }
+        compressionThreadsPopup.selectItem(at: viewModel.compressionThreadIndex)
+        let memoryNote = viewModel.memoryNote
+        compressionMemoryNote.stringValue = memoryNote.text
+        compressionMemoryNote.textColor = memoryNote.warns ? .systemOrange : .secondaryLabelColor
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.integerValue = preferences.zipLevel
         zipLevelLabel.stringValue = viewModel.zipLevelLabel
@@ -491,6 +585,8 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }
     @objc private func changeSaveBehavior(_ sender: NSPopUpButton) { viewModel.selectSaveBehavior(at: sender.indexOfSelectedItem) }
     @objc private func changeOpeningBehavior(_ sender: NSPopUpButton) { viewModel.selectOpeningBehavior(at: sender.indexOfSelectedItem) }
+    @objc private func changeFolderOpening(_ sender: NSPopUpButton) { viewModel.selectFolderOpening(at: sender.indexOfSelectedItem) }
+    @objc private func changeKeepsFoldersOnTop(_ sender: NSButton) { viewModel.changeKeepsFoldersOnTop(to: sender.state == .on) }
     @objc private func changeShowsHiddenFiles(_ sender: NSButton) { viewModel.changeShowsHiddenFiles(to: sender.state == .on) }
     @objc private func changeRenamesOnClick(_ sender: NSButton) { viewModel.changeRenamesOnClick(to: sender.state == .on) }
     @objc private func changeShowsWelcomeWindowAtLaunch(_ sender: NSButton) {
@@ -498,7 +594,18 @@ final class PreferencesWindowController: NSWindowController {
     }
     @objc private func changeExcludesDSStore(_ sender: NSButton) { viewModel.changeExcludesDSStore(to: sender.state == .on) }
     @objc private func changeExcludesHiddenFiles(_ sender: NSButton) { viewModel.changeExcludesHiddenFiles(to: sender.state == .on) }
+    @objc private func changeAdditionPosition(_ sender: NSPopUpButton) {
+        guard PreferencesViewModel.additionPositions.indices.contains(sender.indexOfSelectedItem) else { return }
+        viewModel.changeAdditionPosition(to: PreferencesViewModel.additionPositions[sender.indexOfSelectedItem])
+    }
+    @objc private func changeTarCarriedOwnerIDs(_ sender: NSPopUpButton) {
+        guard PreferencesViewModel.tarCarriedOwnerPolicies.indices.contains(sender.indexOfSelectedItem) else { return }
+        viewModel.changeTarCarriedOwnerIDs(to: PreferencesViewModel.tarCarriedOwnerPolicies[sender.indexOfSelectedItem])
+    }
     @objc private func changeZipMethod(_ sender: NSPopUpButton) { viewModel.selectZipMethod(at: sender.indexOfSelectedItem) }
+    @objc private func changeCompressionThreads(_ sender: NSPopUpButton) {
+        viewModel.selectCompressionThreads(at: sender.indexOfSelectedItem)
+    }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }
     @objc private func changeTarGzipLevel(_ sender: NSSlider) { viewModel.changeTarGzipLevel(to: sender.integerValue) }

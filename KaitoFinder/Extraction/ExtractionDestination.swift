@@ -11,6 +11,7 @@ nonisolated final class ExtractionDestination {
     private var quarantine: Data?
     private let permissionMask: mode_t
     private let readOnly: Bool
+    private let nameSyntax: ExtractionPath.NameSyntax
     private let didWrite: (@Sendable (Int) -> Void)?
     private(set) var createdDirectories: [URL] = []
     private var createdDirectoryPaths = Set<String>()
@@ -19,9 +20,10 @@ nonisolated final class ExtractionDestination {
     private var cachedValidatedParent: [String]?
     private static let directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
 
-    init(url: URL, quarantine: Data?, readOnly: Bool = false,
+    init(url: URL, quarantine: Data?, readOnly: Bool = false, nameSyntax: ExtractionPath.NameSyntax = .portable,
          didWrite: (@Sendable (Int) -> Void)? = nil) throws {
         self.readOnly = readOnly
+        self.nameSyntax = nameSyntax
         self.didWrite = didWrite
         guard url.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
         guard let resolvedRoot = ExtractionPath.resolvedPath(url.path) else {
@@ -58,7 +60,8 @@ nonisolated final class ExtractionDestination {
         }
         guard !components.isEmpty,
               components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." &&
-                  !$0.utf8.contains(0) && !$0.utf8.contains(47) && !$0.utf8.contains(92) }) else {
+                  !$0.utf8.contains(0) && !$0.utf8.contains(47) &&
+                  (nameSyntax == .portable ? !$0.utf8.contains(92) : !ExtractionPath.containsBackslashParent($0)) }) else {
             throw ExtractionFailure.refused(String(localized: "出力先の外へ解決されるパスです。"))
         }
         let parent = Array(components.dropLast())
@@ -81,13 +84,23 @@ nonisolated final class ExtractionDestination {
         }
     }
 
-    private func parentDescriptor(for components: [String]) throws -> Int32 {
+    private func parentDescriptor(for components: [String], create: Bool = true) throws -> Int32 {
         if let cachedParent, cachedParent.components == components { return cachedParent.descriptor }
         if let cachedParent { close(cachedParent.descriptor) }
         cachedParent = nil
-        let parent = try openDirectory(components, create: true)
+        let parent = try openDirectory(components, create: create)
         cachedParent = (components, parent)
         return parent
+    }
+
+    func prepareParents(for components: [String], beforeCreating: () throws -> Void) throws {
+        let parent = Array(components.dropLast())
+        do { _ = try parentDescriptor(for: parent, create: false) }
+        catch {
+            // stream の取得失敗では、直列経路と同じく親を残さない。
+            try beforeCreating()
+            _ = try parentDescriptor(for: parent)
+        }
     }
 
     private func openDirectory(_ components: [String], create: Bool) throws -> Int32 {
@@ -140,8 +153,9 @@ nonisolated final class ExtractionDestination {
     }
 
     func file(_ components: [String], entry: ArchiveEntry, stream: EntryStream, buffer: inout [UInt8],
+              createParents: Bool = true,
               checkCancellation: () throws -> Void) throws {
-        let parent = try parentDescriptor(for: Array(components.dropLast()))
+        let parent = try parentDescriptor(for: Array(components.dropLast()), create: createParents)
         let leaf = components.last!
         // 同名の既存ファイル、symlink、別 entry は絶対に上書きしない。
         let file = openat(parent, leaf, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)

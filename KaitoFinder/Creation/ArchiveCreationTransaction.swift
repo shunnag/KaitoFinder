@@ -26,7 +26,7 @@ nonisolated enum ArchiveCreationTransaction {
         }
         let imported = try ArchiveImportPlan.build(urls: plan.sources, folder: "",
                                                   existing: plan.existing?.entries ?? [], progress: progress,
-                                                  options: plan.importOptions)
+                                                  options: plan.importOptions, format: plan.format)
         guard imported.failures.isEmpty else {
             throw ExtractionFailure.refused(ArchiveFailureReport.describe(imported.failures, name: \.name, reason: \.reason))
         }
@@ -48,8 +48,25 @@ nonisolated enum ArchiveCreationTransaction {
         if let existing = plan.existing, (existing.volumeLayout?.volumes.map(\.url) ?? [existing.url]).contains(where: { isSameFile($0, plan.destination) }) {
             throw ExtractionFailure.refused(String(localized: "元のアーカイブとは別の保存先を選んでください。"))
         }
-        progress.totalUnitCount = Int64(imported.items.count + (plan.existing?.entries.count ?? 0) + 1)
-        progress.completedUnitCount = 0
+        let ledger: ArchiveWriteProgress?
+        if plan.existing?.volumeLayout != nil, imported.items.isEmpty {
+            // The split-input producer owns its existing byte accounting.
+            ledger = nil
+            progress.totalUnitCount = Int64((plan.existing?.entries.count ?? 0) + 1)
+            progress.completedUnitCount = 0
+        } else {
+            let pending = plan.existing?.pending
+            let carried = (pending?.projected ?? plan.existing?.entries ?? []).filter {
+                $0.pendingID == nil && ($0.kind != .directory || !$0.pathComponents.drop(while: { $0 == "." }).isEmpty)
+            }
+            let counted = (pending?.edits.removals.count ?? 0) + (pending?.edits.renames.count ?? 0) + (pending?.folders.count ?? 0)
+            let additions = (pending?.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 } ?? []) + imported.items.map(\.byteCount)
+            ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: counted, additions: additions,
+                itemCount: carried.count + additions.count + (pending?.folders.count ?? 0),
+                carriedBytes: ArchiveWriteProgress.carriedBytes(carried),
+                changesExisting: pending.map { !$0.edits.removals.isEmpty || !$0.edits.renames.isEmpty } ?? false,
+                countsCarriedItems: plan.existing != nil))
+        }
         let directory = plan.destination.deletingLastPathComponent()
             .appendingPathComponent(".KaitoFinder-new-" + UUID().uuidString, isDirectory: true)
         do { try registry.register(directory) }
@@ -74,29 +91,38 @@ nonisolated enum ArchiveCreationTransaction {
                     try ArchiveSaveReplayPlan.validateRepresentability(pending.projected, format: plan.format)
                 }
                 if existing.volumeLayout != nil, imported.items.isEmpty {
-                    let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init())
+                    let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init(), format: plan.format)
                     _ = try ArchiveSplitWorkProducer.produce(existing: existing, workURL: output, format: plan.format,
                         options: plan.options, plan: replay, progress: progress, didRead: splitHooks.didReadInputBytes)
-                } else if let pending = existing.pending, imported.items.isEmpty,
-                   ArchiveDeferredTarWriter.isNeeded(format: plan.format, options: plan.options) {
-                    try ArchiveDeferredTarWriter.write(source: existing.url, password: existing.password, output: output,
-                                                       format: plan.format, options: plan.options, plan: pending, progress: progress)
                 } else {
                     let rewriter = try ArchiveRewriter.open(url: existing.url, password: existing.password,
                                                             output: output, format: plan.format, options: plan.options)
-                    try existing.pending?.replay(on: rewriter, progress: progress)
-                    try add(imported.items, progress: progress, directory: rewriter.addDirectory,
-                            file: rewriter.add(contentsOf:as:))
+                    let ledger = ledger!
+                    ledger.begin(.rewriter(plan.format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit),
+                                 archiveBytes: 0, options: plan.options)
+                    try ArchiveStageDiagnostics.measure(.mutate) {
+                        try existing.pending?.replay(on: rewriter, progress: progress,
+                            preservingOwnerIDs: plan.options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(plan.format), ledger: ledger)
+                        try add(imported.items, progress: progress, ledger: ledger, additionBase: existing.pending?.additions.count ?? 0,
+                                batch: rewriter.add(_:events:))
+                        try ArchiveImportPlan.checkCancellation(progress)
+                        try rewriter.finishAdditions(progress: ledger.finishAdditions)
+                    }
                     try ArchiveImportPlan.checkCancellation(progress)
-                    try rewriter.commit { _, _ in
-                        progress.completedUnitCount += 1
+                    try rewriter.commit(progress: ledger.commit) { done, total in
+                        ledger.didCarry(done, total)
                         try ArchiveImportPlan.checkCancellation(progress)
                     }
                 }
             } else {
                 let writer = try ArchiveWriter.create(url: output, format: plan.format, options: plan.options)
-                try add(imported.items, progress: progress, directory: writer.addDirectory,
-                        file: writer.add(contentsOf:as:))
+                let ledger = ledger!
+                ledger.begin(.writer(plan.format), archiveBytes: 0, options: plan.options)
+                try ArchiveStageDiagnostics.measure(.mutate) {
+                    try add(imported.items, progress: progress, ledger: ledger, batch: writer.add(_:events:))
+                    try ArchiveImportPlan.checkCancellation(progress)
+                    try writer.finishAdditions(progress: ledger.finishAdditions)
+                }
                 try ArchiveImportPlan.checkCancellation(progress)
                 try writer.finish()
             }
@@ -117,10 +143,11 @@ nonisolated enum ArchiveCreationTransaction {
         // 書き直しの間に変わった巻も、保存先へ公開する直前に検出する。
         if let existing = plan.existing { try verifySource(existing) }
         try plan.existing?.pending?.validate()
-        try plan.existing?.publication?.enter(progress: progress)
+        try (plan.existing?.publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }
         // rewriter が省く root directory record も含め、公開後は必ず完了を示す。
-        progress.completedUnitCount = progress.totalUnitCount
+        if let ledger { ledger.didPublish() }
+        else { progress.completedUnitCount = progress.totalUnitCount }
         return plan.destination
     }
 
@@ -130,7 +157,7 @@ nonisolated enum ArchiveCreationTransaction {
         guard plan.sources.isEmpty, let existing = plan.existing,
               ArchiveCreationPlan.hasAcceptedExtension(plan.destination, for: plan.format) else { throw VolumePublishError.invalidPlan }
         try verifySource(existing)
-        let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init())
+        let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init(), format: plan.format)
         try ArchiveSaveReplayPlan.validateRepresentability(replay.projected, format: plan.format)
         let parent = try VolumePublishFS.canonicalParent(of: plan.destination)
         var target = VolumeSetTarget(parent: parent, newSetScheme: .numbered(stem: plan.destination.lastPathComponent, width: 3),
@@ -143,6 +170,9 @@ nonisolated enum ArchiveCreationTransaction {
         // when expanded. M2 recalculates the complete plan from W before any member is placed.
         let identity = try existing.identity ?? ArchiveSetIdentity.capture(url: existing.url, layout: existing.volumeLayout)
         var estimate = identity.volumes.reduce(UInt64(0)) { $0 + $1.size }
+        let additionalWorkBytes: UInt64
+        if let layout = existing.volumeLayout, case .numbered = layout.scheme { additionalWorkBytes = estimate }
+        else { additionalWorkBytes = 0 }
         for addition in replay.additions {
             let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
             let padded = next.partialValue.addingReportingOverflow(1024)
@@ -150,8 +180,8 @@ nonisolated enum ArchiveCreationTransaction {
             estimate = padded.partialValue
         }
         estimate = max(1, estimate)
-        _ = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimate, plan: replay,
-            password: plan.options.password, progress: progress, publication: existing.publication,
+        _ = try ArchiveSplitSavePipeline.run(target: target, estimatedLength: estimate, additionalWorkBytes: additionalWorkBytes, plan: replay,
+            password: plan.options.password, progress: progress, publication: existing.publication ?? ArchiveSavePublication.current.get(),
             index: index, metadataStore: metadataStore, hooks: hooks, willPublish: {
                 try willPublish?()
                 try verifySource(existing)
@@ -180,18 +210,31 @@ nonisolated enum ArchiveCreationTransaction {
             && original.st_dev == output.st_dev && original.st_ino == output.st_ino
     }
 
-    private static func add(_ items: [ArchiveImportPlan.Item], progress: Progress,
-                            directory: (String) throws -> Void, file: (URL, String) throws -> Void) throws {
-        for item in items {
-            try ArchiveImportPlan.checkCancellation(progress)
-            // writer の再帰追加を使わず、ディレクトリも一項目ずつ扱う。
-            do {
-                if item.isDirectory { try directory(item.path) }
-                else { try file(item.url, item.path) }
-            } catch is CancellationError { throw CancellationError() }
-            catch let error as RewriterError { throw error }
-            catch { throw ExtractionFailure.refused("\(item.path): \(ArchiveErrorText.describe(error))") }
-            progress.completedUnitCount += 1
+    private static func add(_ items: [ArchiveImportPlan.Item], progress: Progress, ledger: ArchiveWriteProgress, additionBase: Int = 0,
+                            batch: ([ArchiveAddition], ((ArchiveAdditionEvent) throws -> Void)?) throws -> Void) throws {
+        let additions = items.map { item in
+            ArchiveAddition(path: item.path, source: item.isDirectory
+                ? .directory(modificationDate: nil) : .contents(of: item.url))
+        }
+        guard !additions.isEmpty else { return }
+        do {
+            try batch(additions) { event in
+                switch event {
+                case .willStart(let index):
+                    try ArchiveImportPlan.checkCancellation(progress)
+                    #if DEBUG
+                    let item = items[index]
+                    if !item.isDirectory { ArchiveImportTransaction.willAddFileForTesting.get()?(item.url) }
+                    #endif
+                case .progress(let index, let value):
+                    try ledger.addition(additionBase + index)(value)
+                case .didFinish(let index):
+                    ledger.didFinishAddition(additionBase + index)
+                }
+            }
+        } catch let error as ArchiveAdditionError {
+            if let underlying = error.underlying as? RewriterError { throw underlying }
+            throw ExtractionFailure.refused("\(items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
         }
     }
 }

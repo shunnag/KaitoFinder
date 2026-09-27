@@ -4,7 +4,8 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
-    @MainActor private func interface() async throws -> (ArchiveDocument, ArchiveWindowController, ArchivePreferencesStore) {
+    @MainActor private func interface(opening: ArchivePreferences.FolderOpening = .enter, disablesUndo: Bool = false) async throws
+        -> (ArchiveDocument, ArchiveWindowController, ArchivePreferencesStore) {
         guard ProcessInfo.processInfo.environment["KAITOFINDER_FINDER_INPUT_REQUEST"] != nil else {
             throw XCTSkip("Run Tools/verify_finder_interactions.py for native Finder-style input")
         }
@@ -16,7 +17,8 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
             z.writestr('folder.ext/nested.txt', b'Nested')
         """)
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        let document = ArchiveDocument()
+        store.preferences.folderOpening = opening
+        let document = ArchiveDocument(undoStack: ArchiveUndoStack(maximumCount: disablesUndo ? 0 : 10), preferencesStore: store)
         try document.read(from: fixture.archive, ofType: "public.zip-archive")
         document.fileURL = fixture.archive
         let session = try XCTUnwrap(document.session)
@@ -111,7 +113,7 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
     }
 
     @MainActor func testDoubleClickOpensFolderWithoutStartingRename() async throws {
-        let (_, controller, _) = try await interface(), view = controller.outlineView
+        let (_, controller, _) = try await interface(opening: .expand), view = controller.outlineView
         let row = try row("folder.ext", in: view), folder = try XCTUnwrap(view.item(atRow: row) as? EntryNode)
         view.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         try await click("folder.ext", in: view)
@@ -192,7 +194,7 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
     }
 
     @MainActor func testCommandArrowKeysOpenFoldersAndSelectTheirParent() async throws {
-        let (_, controller, _) = try await interface(), view = controller.outlineView
+        let (_, controller, _) = try await interface(opening: .expand), view = controller.outlineView
         let window = try XCTUnwrap(controller.window)
         func press(_ key: Int) async throws {
             try await nativeInput(window, events: ["keyDown", "keyUp"].map {
@@ -216,6 +218,99 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
         try await press(125)
         XCTAssertEqual(opens, 1)
         XCTAssertFalse(view.handleEntryKey("\u{f701}", modifiers: [.command, .option]))
+    }
+
+    @MainActor func testDoubleClickEntersFolderWithoutStartingRename() async throws {
+        let (_, controller, _) = try await interface(), view = controller.outlineView
+        view.selectRowIndexes(IndexSet(integer: try row("folder.ext", in: view)), byExtendingSelection: false)
+        try await click("folder.ext", in: view)
+        try await click("folder.ext", in: view, count: 2)
+        try await waitForClick()
+        XCTAssertEqual(controller.currentFolderPath, "folder.ext")
+        XCTAssertEqual(view.numberOfRows, 1)
+        XCTAssertEqual((view.item(atRow: 0) as? EntryNode)?.name, "nested.txt")
+        XCTAssertFalse(view.isRenaming)
+    }
+
+    @MainActor func testNavigationKeysRespectSearchRenameAndToolbarFocus() async throws {
+        let (_, controller, _) = try await interface(), view = controller.outlineView
+        let window = try XCTUnwrap(controller.window)
+        func press(_ key: Int) async throws {
+            try await nativeInput(window, events: ["keyDown", "keyUp"].map {
+                ["type": $0, "key": key, "modifiers": NSEvent.ModifierFlags.command.rawValue]
+            })
+        }
+        func press(_ character: String) async throws {
+            try await nativeInput(window, events: ["keyDown", "keyUp"].map {
+                ["type": $0, "character": character, "modifiers": NSEvent.ModifierFlags.command.rawValue]
+            })
+        }
+        view.selectRowIndexes(IndexSet(integer: try row("folder.ext", in: view)), byExtendingSelection: false)
+        try await press(125)
+        XCTAssertEqual(controller.currentFolderPath, "folder.ext")
+        try await press(126)
+        XCTAssertEqual(controller.currentFolderPath, "")
+        XCTAssertEqual(controller.selectedNodes.map(\.name), ["folder.ext"])
+        try await press("[")
+        XCTAssertEqual(controller.currentFolderPath, "folder.ext")
+        try await press("]")
+        XCTAssertEqual(controller.currentFolderPath, "")
+
+        controller.setFilterQuery("abc")
+        window.makeFirstResponder(controller.searchField)
+        let searchEditor = try XCTUnwrap(controller.searchField.currentEditor() as? NSTextView)
+        searchEditor.setSelectedRange(NSRange(location: 3, length: 0))
+        try await press(126)
+        XCTAssertEqual(searchEditor.selectedRange().location, 0)
+        XCTAssertEqual(controller.currentFolderPath, "")
+        try await press("[")
+        try await press("]")
+        try await press(125)
+        XCTAssertEqual(controller.currentFolderPath, "")
+        XCTAssertEqual(controller.requestedFilterQuery, "abc")
+        let toolbar = try XCTUnwrap(window.toolbar)
+        let group = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "navigation" } as? NSToolbarItemGroup)
+        group.validate()
+        XCTAssertTrue(group.subitems[0].isEnabled)
+        let control = try XCTUnwrap(group.view)
+        let point = window.convertPoint(toScreen: control.convert(NSPoint(x: control.bounds.width / 4, y: control.bounds.midY), to: nil))
+        try await nativeInput(window, events: ["down", "up"].map {
+            ["type": $0, "x": point.x, "y": point.y, "count": 1]
+        })
+        XCTAssertEqual(controller.currentFolderPath, "folder.ext")
+        XCTAssertEqual(controller.searchField.stringValue, "")
+
+        window.makeFirstResponder(view)
+        view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        controller.renameEntry(nil)
+        let renameEditor = try XCTUnwrap(view.renameField?.currentEditor() as? NSTextView)
+        renameEditor.setSelectedRange(NSRange(location: renameEditor.string.utf16.count, length: 0))
+        try await press(126)
+        XCTAssertEqual(renameEditor.selectedRange().location, 0)
+        try await press("[")
+        try await press("]")
+        try await press(125)
+        XCTAssertTrue(view.isRenaming)
+        XCTAssertEqual(controller.currentFolderPath, "folder.ext")
+        view.cancelRenaming()
+    }
+
+    @MainActor func testNavigationKeysDoNothingDuringDeletionConfirmation() async throws {
+        let (_, controller, _) = try await interface(disablesUndo: true), view = controller.outlineView
+        let window = try XCTUnwrap(controller.window)
+        view.selectRowIndexes(IndexSet(integer: try row("folder.ext", in: view)), byExtendingSelection: false)
+        controller.openEntry(nil)
+        view.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        controller.deleteEntries(nil)
+        let alert = try XCTUnwrap(controller.deletionConfirmation)
+        defer { window.endSheet(alert.window, returnCode: .alertSecondButtonReturn); alert.window.orderOut(nil) }
+        for key: [String: Any] in [["key": 126], ["character": "["]] {
+            try await nativeInput(window, events: ["keyDown", "keyUp"].map {
+                key.merging(["type": $0, "modifiers": NSEvent.ModifierFlags.command.rawValue]) { _, value in value }
+            })
+            XCTAssertEqual(controller.currentFolderPath, "folder.ext")
+            XCTAssertTrue(controller.operationInFlight)
+        }
     }
 
     @MainActor func testFolderClickSelectsWholeNameAndEscapeDoesNotChangeArchive() async throws {

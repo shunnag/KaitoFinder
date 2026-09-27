@@ -6,6 +6,114 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class DeferredSaveAttributeTests: XCTestCase {
+    private final class RecordingEditor: ArchiveEditing {
+        struct DirectoryCall: Equatable { let path: String; let date: Date?; let owners: ArchiveOwnerIDs? }
+        var entryNames: [String] { [] }
+        var files: [(URL, String, ArchiveOwnerIDs?)] = []
+        var directories: [DirectoryCall] = []
+        var plainFileCalls = 0
+        func add(contentsOf url: URL, as path: String) throws { plainFileCalls += 1; files.append((url, path, nil)) }
+        func add(contentsOf url: URL, as path: String, ownerIDs: ArchiveOwnerIDs?) throws { files.append((url, path, ownerIDs)) }
+        func addDirectory(_ path: String, modificationDate: Date?, ownerIDs: ArchiveOwnerIDs?) throws {
+            directories.append(.init(path: path, date: modificationDate, owners: ownerIDs))
+        }
+        func addDirectory(_ path: String) throws { XCTFail("Replay must pass the reserved date") }
+        func add(data: Data, as path: String, modificationDate: Date?, permissions: UInt16?) throws { XCTFail("Unexpected data addition") }
+        func remove(entriesAt indices: [Int]) throws { XCTFail("Unexpected removal") }
+        func rename(entryAt index: Int, to path: String) throws { XCTFail("Unexpected rename") }
+        func commit() throws {}
+    }
+
+    func testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories() throws {
+        let directory = try ArchiveTestDirectory(), file = directory.url.appendingPathComponent("file")
+        try Data("data".utf8).write(to: file)
+        let fileStamp = try ArchiveImportSourceStamp(file), folderStamp = try ArchiveImportSourceStamp(directory.url)
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        var pending = ArchivePendingChanges()
+        pending.additions = [.init(id: UUID(), path: "file", stagedURL: file, sourceStamp: fileStamp, stagedStamp: fileStamp),
+                             .init(id: UUID(), path: "directory/", stagedURL: directory.url, sourceStamp: folderStamp,
+                                   stagedStamp: folderStamp, reservedAt: date)]
+        pending.createdFolders = [.init(id: UUID(), path: "created/", date: date)]
+        let plan = try ArchiveSaveReplayPlan(base: [], generation: 0, pending: pending, format: .tar)
+        for preserving in [false, true] {
+            let editor = RecordingEditor()
+            try plan.replay(on: editor, progress: Progress(), preservingOwnerIDs: preserving)
+            XCTAssertEqual(editor.files.count, 1)
+            XCTAssertEqual(editor.files.first?.0, file)
+            XCTAssertEqual(editor.files.first?.2, preserving ? .init(user: fileStamp.userID, group: fileStamp.groupID) : nil)
+            XCTAssertEqual(editor.plainFileCalls, preserving ? 0 : 1)
+            XCTAssertEqual(editor.directories, ["directory/", "created/"].map {
+                .init(path: $0, date: date, owners: preserving ? .init(user: 0, group: 0) : nil)
+            })
+        }
+    }
+
+    func testDeferredDirectoryDatesAndCarriedOwnersWithKeepAndReset() async throws {
+        for format: GyoshukuKit.ArchiveFormat in [.tar, .tarGzip, .sevenZip, .lha] {
+            for owners: CarriedOwnerIDs in [.keep, .reset] {
+                let directory = try ArchiveTestDirectory(), raw = try TarUpdateFixture.archive(directory.url)
+                let archive: URL
+                if format == .tar { archive = raw }
+                else {
+                    archive = directory.url.appendingPathComponent("wrapped." + ArchiveCreationPlan.filenameExtension(for: format))
+                    let rewriter = try ArchiveRewriter.open(url: raw, output: archive, format: format)
+                    try rewriter.commit()
+                }
+                let folder = directory.url.appendingPathComponent("incoming")
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
+                let stamp = try ArchiveImportSourceStamp(folder), date = Date(timeIntervalSince1970: 1_700_000_000)
+                let session = try ArchiveSession(url: archive, writerOptions: { output in .init(preserveOwnerIDs: output == .tar || output == .tarGzip, carriedTarOwnerIDs: owners) })
+                let snapshot = try await session.deferredSnapshot()
+                var pending = ArchivePendingChanges()
+                pending.additions = [.init(id: UUID(), path: "directory/", stagedURL: folder, sourceStamp: stamp, stagedStamp: stamp, reservedAt: date)]
+                pending.createdFolders = [.init(id: UUID(), path: "created/", date: date)]
+                let publication = ArchiveSavePublication(); defer { publication.finish() }
+                let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
+                XCTAssertNil(result.reloadFailure)
+                let entries = try ArchiveReader.open(url: archive).entries
+                for name in ["directory/", "created/"] {
+                    let entry = try XCTUnwrap(entries.first { $0.name == name })
+                    XCTAssertEqual(entry.modificationDate, date, "\(format)")
+                    if format == .tar || format == .tarGzip {
+                        XCTAssertEqual(entry.formatSpecific["uid"], "0"); XCTAssertEqual(entry.formatSpecific["gid"], "0")
+                    }
+                }
+                if format == .tar || format == .tarGzip {
+                    let entry = try XCTUnwrap(entries.first { $0.name == "keep" })
+                    XCTAssertEqual(entry.formatSpecific["uid"], owners == .keep ? "501" : "0")
+                    XCTAssertEqual(entry.formatSpecific["gid"], owners == .keep ? "20" : "0")
+                }
+                await session.close()
+            }
+        }
+    }
+
+    func testDeferredTarAdditionUsesOriginalSourceOwnersInsteadOfStagingOwners() async throws {
+        let source = URL(fileURLWithPath: "/etc/hosts"), sourceStamp = try ArchiveImportSourceStamp(source)
+        guard sourceStamp.userID != getuid() else { throw XCTSkip("Needs a source owned by another user") }
+        for format: GyoshukuKit.ArchiveFormat in [.tar, .tarGzip] {
+            let directory = try ArchiveTestDirectory(), staged = directory.url.appendingPathComponent("staged")
+            try Data(contentsOf: source).write(to: staged)
+            let stamp = try ArchiveImportSourceStamp(staged)
+            XCTAssertNotEqual(stamp.userID, sourceStamp.userID)
+            let archive = directory.url.appendingPathComponent("original." + ArchiveCreationPlan.filenameExtension(for: format))
+            let writer = try ArchiveWriter.create(url: archive, format: format)
+            try writer.add(data: Data("keep".utf8), as: "keep"); try writer.finish()
+            let session = try ArchiveSession(url: archive, writerOptions: { _ in .init(preserveOwnerIDs: true) })
+            let snapshot = try await session.deferredSnapshot()
+            var pending = ArchivePendingChanges()
+            pending.additions = [.init(id: UUID(), path: "hosts", stagedURL: staged, sourceStamp: sourceStamp, stagedStamp: stamp)]
+            let publication = ArchiveSavePublication(); defer { publication.finish() }
+            let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
+            XCTAssertNil(result.reloadFailure)
+            let reader = try ArchiveReader.open(url: archive), added = try XCTUnwrap(reader.entries.last)
+            XCTAssertEqual(added.name, "hosts")
+            XCTAssertEqual(added.formatSpecific["uid"], String(sourceStamp.userID)); XCTAssertEqual(added.formatSpecific["gid"], String(sourceStamp.groupID))
+            XCTAssertEqual(try reader.read(added), try Data(contentsOf: source))
+            await session.close()
+        }
+    }
+
     private struct Attributes: Equatable {
         let mode: UInt16
         let seconds: Int64
@@ -50,7 +158,7 @@ nonisolated final class DeferredSaveAttributeTests: XCTestCase {
     }
 
     @MainActor func testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat() async throws {
-        for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip, .tarGzip, .lha] {
+        for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip, .tar, .tarGzip, .lha] {
             let fixture = try DeferredSaveFixture(format: format), document = fixture.document
             defer { document.close() }
             let source = fixture.directory.url.appendingPathComponent("source")
@@ -141,8 +249,10 @@ nonisolated final class DeferredSaveAttributeTests: XCTestCase {
         pending.createdFolders.append(.init(id: UUID(), path: "created/"))
         let plan = try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending)
         let output = fixture.root.appendingPathComponent("saved.tar.gz")
-        try ArchiveDeferredTarWriter.write(source: fixture.archive, password: nil, output: output, format: .tarGzip,
-                                           options: .init(preserveOwnerIDs: true), plan: plan, progress: Progress())
+        let rewriter = try ArchiveRewriter.open(url: fixture.archive, output: output, format: .tarGzip,
+                                                options: .init(preserveOwnerIDs: true))
+        try plan.replay(on: rewriter, progress: Progress(), preservingOwnerIDs: true)
+        try rewriter.commit()
         let entries = try ArchiveReader.open(url: output).entries
         let file = try XCTUnwrap(entries.first { $0.kind == .file })
         XCTAssertEqual(file.name, "移動/" + base[0].name)

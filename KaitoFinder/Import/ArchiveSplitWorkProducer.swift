@@ -39,6 +39,10 @@ nonisolated struct ArchiveVolumeInput: Sendable {
 
     /// Stream, with fd and path checks before and after each member. Never follows a substituted symlink.
     func copy(to workURL: URL, progress: Progress, didRead: (Int) -> Void = { _ in }) throws {
+        #if DEBUG
+        let span = ArchiveStageDiagnostics.begin(.splitInputCopy)
+        defer { span?.end() }
+        #endif
         func checkCancellation() throws { try ArchiveImportPlan.checkCancellation(progress) }
         try verify(nil, requiresAssembledSet: false, checkCancellation: checkCancellation, hashes: false)
         let parent = try VolumePublishDirectory(layout.gateURL.deletingLastPathComponent())
@@ -54,17 +58,22 @@ nonisolated struct ArchiveVolumeInput: Sendable {
             var before = stat(), after = stat()
             guard fstat(fd, &before) == 0, let path = try parent.info(volume.name),
                   VolumePublishFS.sameFile(before, path) else { throw VolumePublishError.setChanged }
-            var copied: UInt64 = 0, hash = SHA256()
+            // hash と比べない入力でも、fd・path・stamp の前後の照合は必ず残す。
+            var copied: UInt64 = 0
+            var hash: SHA256? = usesHashes ? SHA256() : nil
+            #if DEBUG
+            if usesHashes { ArchiveTestCounters.splitInputHashes.get()?.increment() }
+            #endif
             while copied < volume.size {
                 try checkCancellation()
                 let data = try VolumePublishFS.read(fd, length: Int(min(1024 * 1024, volume.size - copied)), offset: copied)
-                hash.update(data: data)
+                hash?.update(data: data)
                 try VolumePublishFS.write(output, data: data, offset: offset + copied)
                 copied += UInt64(data.count)
                 didRead(data.count)
             }
             try checkCancellation()
-            let digest = hash.finalize().map { String(format: "%02x", $0) }.joined()
+            let digest = hash?.finalize().map { String(format: "%02x", $0) }.joined()
             guard !usesHashes || digest == volume.sha256,
                   fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
                   let pathAfter = try parent.info(volume.name),
@@ -78,7 +87,10 @@ nonisolated struct ArchiveVolumeInput: Sendable {
 }
 
 nonisolated enum ArchiveSplitWorkProducer {
-    struct Result: Sendable { let recompressedZIP: Bool }
+    struct Result: Sendable {
+        let recompressedZIP: Bool
+        let mode: ArchiveCapabilities.Mode
+    }
 
     /// Produces a complete single archive W. The verifier is called BEFORE any pending edit is replayed.
     /// Overwrite passes publication.verifyAssembledInput; a new-set caller can pass source.verify.
@@ -88,29 +100,50 @@ nonisolated enum ArchiveSplitWorkProducer {
         try plan.validate()
         switch mode {
         case .inPlace:
+            let baseTotal = progress.totalUnitCount, baseCompleted = progress.completedUnitCount
             try source.copy(to: workURL, progress: progress)
             let updater: ArchiveUpdater
-            do { updater = try ArchiveUpdater.open(url: workURL, options: options) }
+            do { updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: workURL, options: options) } }
             catch let error as UpdaterError where isStructuralRefusal(error) {
                 try FileManager.default.removeItem(at: workURL)
                 try rewrite(source: source, workURL: workURL, format: .zip, password: password, options: options,
                             plan: plan, progress: progress, verifyAssembledInput: verifyAssembledInput)
-                return Result(recompressedZIP: true)
+                return Result(recompressedZIP: true, mode: .rewrite(.zip))
             }
-            try plan.replay(on: updater, progress: progress)
+            let meter = ArchiveReencryptionProgress(progress)
+            if plan.outputEncryption != nil { progress.totalUnitCount += ArchiveReencryptionProgress.units }
+            try ArchiveStageDiagnostics.measure(.replay) { try plan.replay(on: updater, sourcePassword: password, progress: progress) }
             try ArchiveImportPlan.checkCancellation(progress)
-            try updater.commit()
+            do {
+                try ArchiveStageDiagnostics.measure(.commit) {
+                    #if DEBUG
+                    try ArchiveImportTransaction.willCommitUpdaterForTesting.get()?()
+                    #endif
+                    try updater.commit(progress: plan.outputEncryption == nil ? nil : meter.update)
+                }
+            } catch UpdaterError.nonRelocatableEntry where plan.outputEncryption != nil {
+                try FileManager.default.removeItem(at: workURL)
+                progress.totalUnitCount = baseTotal
+                progress.completedUnitCount = baseCompleted
+                try rewrite(source: source, workURL: workURL, format: .zip, password: password, options: options,
+                            plan: plan, progress: progress, verifyAssembledInput: verifyAssembledInput)
+                return Result(recompressedZIP: true, mode: .rewrite(.zip))
+            }
+            #if DEBUG
+            try ArchiveImportTransaction.didCommitUpdaterForTesting.get()?(updater)
+            #endif
+        case .update: throw ArchiveEditError.staleSelection
         case .rewrite(let format):
             try rewrite(source: source, workURL: workURL, format: format, password: password, options: options,
                         plan: plan, progress: progress, verifyAssembledInput: verifyAssembledInput)
         }
-        return Result(recompressedZIP: false)
+        return Result(recompressedZIP: false, mode: mode)
     }
 
     private static func isStructuralRefusal(_ error: UpdaterError) -> Bool {
         switch error {
         case .editingRefused, .invalidArchive, .nonRelocatableEntry: true
-        case .invalidEntryIndex, .sourceChanged, .invalidState: false
+        case .invalidEntryIndex, .sourceChanged, .invalidState, .reencryptionFailed: false
         }
     }
 
@@ -129,7 +162,7 @@ nonisolated enum ArchiveSplitWorkProducer {
                     try input.verify(nil, requiresAssembledSet: false, checkCancellation: { try ArchiveImportPlan.checkCancellation(progress) })
                 }
             try input.verify(nil, requiresAssembledSet: false, checkCancellation: { try ArchiveImportPlan.checkCancellation(progress) })
-            return Result(recompressedZIP: false)
+            return Result(recompressedZIP: false, mode: .rewrite(format))
         }
         func verify(_ set: ArchiveVolumeSet?) throws {
             if let set {
@@ -142,7 +175,7 @@ nonisolated enum ArchiveSplitWorkProducer {
         try plan.validate()
         try rewrite(sourceURL: existing.url, workURL: workURL, format: format, password: existing.password,
                     options: options, plan: plan, progress: progress, verifyAssembledInput: verify)
-        return Result(recompressedZIP: false)
+        return Result(recompressedZIP: false, mode: .rewrite(format))
     }
 
     private static func rewrite(source: ArchiveVolumeInput, workURL: URL, format: GyoshukuKit.ArchiveFormat,
@@ -158,24 +191,25 @@ nonisolated enum ArchiveSplitWorkProducer {
     private static func rewrite(sourceURL: URL, workURL: URL, format: GyoshukuKit.ArchiveFormat,
                                 password: String?, options: WriterOptions, plan: ArchiveSaveReplayPlan,
                                 progress: Progress, verifyAssembledInput: (ArchiveVolumeSet?) throws -> Void) throws {
-        if ArchiveDeferredTarWriter.isNeeded(format: format, options: options) {
-            try ArchiveDeferredTarWriter.write(source: sourceURL, password: password, output: workURL,
-                format: format, options: options, plan: plan, progress: progress, verifyAssembledInput: { set in
-                    try verifyAssembledInput(set)
-                })
-        } else {
-            let rewriter = try ArchiveRewriter.open(url: sourceURL, password: password,
-                                                  output: workURL, format: format, options: options)
-            try verifyAssembledInput(rewriter.volumeSet)
-            try plan.replay(on: rewriter, progress: progress)
-            try rewriter.commit { _, _ in try ArchiveImportPlan.checkCancellation(progress) }
+        let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+            try ArchiveRewriter.open(url: sourceURL, password: password, output: workURL, format: format, options: options)
+        }
+        try verifyAssembledInput(rewriter.volumeSet)
+        try ArchiveStageDiagnostics.measure(.replay) {
+            try plan.replay(on: rewriter, progress: progress,
+                            preservingOwnerIDs: options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format))
+        }
+        progress.totalUnitCount += Int64(rewriter.entryNames.count)
+        try ArchiveStageDiagnostics.measure(.commit) {
+            try rewriter.commit { _, _ in
+                progress.completedUnitCount += 1
+                try ArchiveImportPlan.checkCancellation(progress)
+            }
         }
     }
 
-    static func validate(_ reader: ArchiveReader, plan: ArchiveSaveReplayPlan) throws {
-        // Rewriters may reorder additions and omit the nameless tar root. Compare normalized multisets.
-        let expected = plan.projected.map { ArchiveEditPlan.key($0.name) }.filter { !$0.isEmpty }.sorted()
-        let actual = reader.entries.map { ArchiveEditPlan.key($0.name) }.filter { !$0.isEmpty }.sorted()
-        guard actual == expected else { throw VolumePublishError.validationFailed }
+    static func validate(_ reader: ArchiveReader, plan: ArchiveSaveReplayPlan, mode: ArchiveCapabilities.Mode,
+                         zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = nil) throws {
+        try ArchiveOutputProjection(plan: plan, mode: mode, zipEncryption: zipEncryption).validate(reader)
     }
 }

@@ -29,6 +29,7 @@ nonisolated enum ArchiveVolumeMetadata {
         let setUUID: UUID
         let generation: UInt64
         let count: Int
+        // 巻順の digest の生 byte 列の SHA-256。旧版の W 全体の値も書式が同じなら受理する。
         let totalSHA256: String
         // Cache only: security and source xattrs also travel on the actual output volumes.
         var attributes: [[String: Data]]? = nil
@@ -46,6 +47,35 @@ nonisolated enum ArchiveVolumeMetadata {
         var layout: ArchiveVolumeLayout?
         var mixed = false
         var quarantine: Data?
+    }
+
+    struct PublicationDraft: Sendable {
+        let layout: Layout
+        let setUUID: UUID
+        let generation: UInt64
+        let count: Int
+        let attributes: [[String: Data]]?
+
+        func finish(volumes: [VolumePublishJournalRecord.NewVolume]) throws -> Publication {
+            let digest = try ArchiveStageDiagnostics.measure(.splitMetadataDigest) { try setDigest(volumes) }
+            return Publication(layout: layout, setUUID: setUUID, generation: generation, count: count,
+                               totalSHA256: digest, attributes: attributes)
+        }
+    }
+
+    static func setDigest(_ volumes: [VolumePublishJournalRecord.NewVolume]) throws -> String {
+        var hash = SHA256()
+        // 切り出し結果は巻順。旧版は書式だけを検査するため、JSON は保ち digest の意味だけを変える。
+        for volume in volumes {
+            let hex = Array(volume.sha256.utf8)
+            guard hex.count == 64, hex.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+                throw VolumePublishError.validationFailed
+            }
+            func nibble(_ byte: UInt8) -> UInt8 { byte <= 57 ? byte - 48 : byte - 87 }
+            let bytes = stride(from: 0, to: hex.count, by: 2).map { nibble(hex[$0]) * 16 + nibble(hex[$0 + 1]) }
+            hash.update(data: Data(bytes))
+        }
+        return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     static func read<T: Decodable>(_ type: T.Type, key: String, at url: URL) throws -> T? {
@@ -104,12 +134,9 @@ nonisolated enum ArchiveVolumeMetadata {
         return result
     }
 
-    static func prepare(plan: VolumePlan, schedule: VolumePlan.Schedule, oldLayout: ArchiveVolumeLayout?,
-                        work: URL, store: ArchiveVolumeMetadataStore, additionalQuarantine: Data?,
-                        checkCancellation: () throws -> Void) throws -> Publication {
+    static func prepareDraft(plan: VolumePlan, schedule: VolumePlan.Schedule, oldLayout: ArchiveVolumeLayout?,
+                             store: ArchiveVolumeMetadataStore, additionalQuarantine: Data?) throws -> PublicationDraft {
         guard case .numbered(let stem, let width) = plan.scheme else { throw VolumePublishError.unsupportedScheme }
-        let parent = try VolumePublishDirectory(work.deletingLastPathComponent())
-        let totalHash = try VolumePublishFS.hash(parent, work.lastPathComponent, checkCancellation: checkCancellation)
         var previous: Marker?
         var attributes: [[String: Data]]?
         if let oldLayout {
@@ -133,9 +160,9 @@ nonisolated enum ArchiveVolumeMetadata {
             } else { previous = try read(Marker.self, key: setKey, at: oldLayout.gateURL) }
         }
         guard previous?.generation != UInt64.max else { throw VolumePublishError.validationFailed }
-        return Publication(layout: Layout(stem: stem, width: width, schedule: schedule),
+        return PublicationDraft(layout: Layout(stem: stem, width: width, schedule: schedule),
             setUUID: previous?.setUUID ?? UUID(), generation: (previous?.generation ?? 0) + 1,
-            count: plan.volumes.count, totalSHA256: totalHash, attributes: attributes)
+            count: plan.volumes.count, attributes: attributes)
     }
 
     static func writeNative(_ publication: Publication, in directory: VolumePublishDirectory) throws {

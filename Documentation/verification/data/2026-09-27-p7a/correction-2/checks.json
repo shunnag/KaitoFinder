@@ -1,0 +1,139 @@
+{
+  "archives": {
+    "S41": {
+      "KaitoFinder": {
+        "commit": "f8b439499154955d16a028c8d1aa8359b6997993",
+        "archive_command": [
+          "git",
+          "-C",
+          "~/Github/KaitoFinder",
+          "archive",
+          "--format=tar",
+          "f8b439499154955d16a028c8d1aa8359b6997993"
+        ],
+        "source_files": 0,
+        "mismatches": []
+      },
+      "GyoshukuKit": {
+        "commit": "94c9e6f",
+        "archive_command": [
+          "git",
+          "-C",
+          "~/Github/GyoshukuKit",
+          "archive",
+          "--format=tar",
+          "94c9e6f"
+        ],
+        "source_files": 65,
+        "mismatches": []
+      },
+      "KaitoKit": {
+        "commit": "aca39dc",
+        "archive_command": [
+          "git",
+          "-C",
+          "~/Github/KaitoKit",
+          "archive",
+          "--format=tar",
+          "aca39dc"
+        ],
+        "source_files": 216,
+        "mismatches": []
+      }
+    },
+    "S39-caller": {
+      "KaitoFinder": {
+        "commit": "7b74bf9",
+        "archive_command": [
+          "git",
+          "-C",
+          "~/Github/KaitoFinder",
+          "archive",
+          "--format=tar",
+          "7b74bf9"
+        ],
+        "source_files": 0,
+        "mismatches": []
+      },
+      "GyoshukuKit": {
+        "commit": "94c9e6f",
+        "archive_command": [
+          "git",
+          "-C",
+          "~/Github/GyoshukuKit",
+          "archive",
+          "--format=tar",
+          "94c9e6f"
+        ],
+        "source_files": 65,
+        "mismatches": []
+      },
+      "KaitoKit": {
+        "commit": "aca39dc",
+        "archive_command": [
+          "git",
+          "-C",
+          "~/Github/KaitoKit",
+          "archive",
+          "--format=tar",
+          "aca39dc"
+        ],
+        "source_files": 216,
+        "mismatches": []
+      }
+    }
+  },
+  "sources_and_dependencies": {
+    "s41-p7a-correction-2": {
+      "compiled_source_mismatches": [],
+      "canonical_product_mismatches": [],
+      "library_hashes": {
+        "libGyoshukuKit.dylib": "ddf91f91ded45c998776e34c4d9ae03f6507eead0e1415714be0d189d159997f",
+        "libKaitoKit.dylib": "82c07854947963dbb38af91d7f9c8cb4b91926b327ca58245e1d97c5b729d0cd"
+      }
+    },
+    "s41-p7a-correction-2-items": {
+      "compiled_source_mismatches": [],
+      "canonical_product_mismatches": "Control product is archived KF 7b74bf9.",
+      "library_hashes": {
+        "libGyoshukuKit.dylib": "ddf91f91ded45c998776e34c4d9ae03f6507eead0e1415714be0d189d159997f",
+        "libKaitoKit.dylib": "82c07854947963dbb38af91d7f9c8cb4b91926b327ca58245e1d97c5b729d0cd"
+      }
+    }
+  },
+  "final_archive_source_verification": {
+    "S41": {
+      "KaitoFinder": {
+        "swift_files": 108,
+        "mismatches": []
+      },
+      "GyoshukuKit": {
+        "swift_files": 63,
+        "mismatches": []
+      },
+      "KaitoKit": {
+        "swift_files": 210,
+        "mismatches": []
+      }
+    },
+    "S39-caller": {
+      "KaitoFinder": {
+        "swift_files": 108,
+        "mismatches": []
+      },
+      "GyoshukuKit": {
+        "swift_files": 63,
+        "mismatches": []
+      },
+      "KaitoKit": {
+        "swift_files": 210,
+        "mismatches": []
+      }
+    }
+  },
+  "canonical_scope": {
+    "product_changed": false,
+    "canonical_tests_changed": false,
+    "no_commit": true
+  }
+}

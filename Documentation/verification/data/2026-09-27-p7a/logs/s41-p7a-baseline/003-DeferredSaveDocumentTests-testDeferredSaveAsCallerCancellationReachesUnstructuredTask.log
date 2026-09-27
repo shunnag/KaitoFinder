@@ -1,0 +1,6 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:17:15.071.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:15.071.
+Test Suite 'DeferredSaveDocumentTests' started at 2026-09-27 04:17:15.071.
+Test Case '-[KaitoFinderTests.DeferredSaveDocumentTests testDeferredSaveAsCallerCancellationReachesUnstructuredTask]' started.
+2026-09-27 04:17:15.202 xctest[23615:13561440] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'ClientCallsAuxiliary': Connection invalid
+2026-09-27 04:17:15.202 xctest[23615:13561440] +[NSXPCSharedListener endpointForReply:withListenerName:replyErrorCode:]: an error occurred while attempting to obtain endpoint for listener 'HostCallsAuxiliary': Connection invalid

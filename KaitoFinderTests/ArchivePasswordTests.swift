@@ -749,16 +749,22 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
             .filter { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") }
         XCTAssertEqual(directories.count, 1)
         let work = try XCTUnwrap(directories.first).appendingPathComponent("archive.zip")
-        // 公開直前 hook で fixture の作業コピーだけを壊し、公開後の read 失敗を再現する。
+        // 検証後の破損が公開されないことを確かめる。
         try Data("invalid archive for reload failure".utf8).write(to: work)
+    }
+
+    private static func damagePublishedArchive(_ archive: URL) {
+        // 公開済みの原本を壊し、再読込の失敗だけを再現する。
+        XCTAssertNoThrow(try Data("invalid archive for reload failure".utf8).write(to: archive))
     }
 
     func testPublishedAppendReloadFailureDoesNotExposePasswordOrReaderOptions() async throws {
         let fixture = try Fixture(.aes), session = try ArchiveSession(url: fixture.archive, password: fixture.password)
-        let addition = fixture.directory.url.appendingPathComponent("added.txt"), root = fixture.directory.url
+        let addition = fixture.directory.url.appendingPathComponent("added.txt")
         try Data("added".utf8).write(to: addition)
-        let result = try await session.append(urls: [addition], to: "", progress: Progress(),
-                                              willPublish: { try Self.damageWorkingCopy(in: root) })
+        let result = try await ArchiveImportTransaction.didPublishForTesting.withValue({ Self.damagePublishedArchive($0) }) {
+            try await session.append(urls: [addition], to: "", progress: Progress())
+        }
         XCTAssertEqual(result.addedPaths, ["added.txt"])
         let reason = try XCTUnwrap(result.reloadFailure)
         XCTAssertFalse(reason.contains(fixture.password))
@@ -772,10 +778,11 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
     @MainActor func testPublishedEditReloadFailureDoesNotExposePasswordOrReaderOptions() async throws {
         let fixture = try Fixture(.pkware), session = try ArchiveSession(url: fixture.archive, password: fixture.password)
-        let entries = await session.entries(), root = fixture.directory.url
+        let entries = await session.entries()
         let node = try XCTUnwrap(EntryNode.tree(from: entries).children.first)
-        let result = try await session.rename(ArchiveEditSelection(node), to: "renamed.bin", progress: Progress(),
-                                              willPublish: { try Self.damageWorkingCopy(in: root) })
+        let result = try await ArchiveImportTransaction.didPublishForTesting.withValue({ Self.damagePublishedArchive($0) }) {
+            try await session.rename(ArchiveEditSelection(node), to: "renamed.bin", progress: Progress())
+        }
         XCTAssertTrue(result.published)
         let reason = try XCTUnwrap(result.reloadFailure)
         XCTAssertFalse(reason.contains(fixture.password))
@@ -785,6 +792,27 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertTrue(refreshed.isEmpty)
         await session.close()
         await assertPassword(session, equals: nil)
+    }
+
+    func testWorkDamageInWillPublishIsRefusedAndPreservesOriginal() async throws {
+        let fixture = try Fixture(.aes), session = try ArchiveSession(url: fixture.archive, password: fixture.password)
+        let original = try Data(contentsOf: fixture.archive), root = fixture.directory.url
+        let addition = root.appendingPathComponent("added.txt")
+        try Data("added".utf8).write(to: addition)
+        do {
+            _ = try await session.append(urls: [addition], to: "", progress: Progress(),
+                                         willPublish: { try Self.damageWorkingCopy(in: root) })
+            XCTFail("Published a work file changed after verification")
+        } catch {
+            XCTAssertEqual(error as? ArchivePublicationError, .verificationFailed)
+            XCTAssertEqual(ArchiveErrorText.describe(error), ArchivePublicationError.verificationFailed.message())
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), original)
+        XCTAssertEqual(session.generation, 0)
+        let entries = await session.entries()
+        XCTAssertEqual(entries.map(\.name), ["secret.bin"])
+        await assertPassword(session, equals: fixture.password)
+        await session.close()
     }
 
     @MainActor func testPasswordPromptAndNewMessagesHaveAllTwentySixTranslations() throws {

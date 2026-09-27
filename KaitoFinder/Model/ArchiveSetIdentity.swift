@@ -2,6 +2,45 @@ import Darwin
 import Foundation
 import KaitoKit
 
+/// パスと記述子の照合には Foundation の resource cache や volume lookup を介さない。
+nonisolated struct ArchiveFileIdentity: Sendable, Equatable, CustomStringConvertible {
+    let device: UInt64
+    let inode: UInt64
+    let size: UInt64
+    let mode: UInt16
+    let modificationSeconds: Int64
+    let modificationNanoseconds: Int64
+
+    static func capture(url: URL) throws -> Self {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
+        return try Self(info)
+    }
+
+    static func capture(descriptor: Int32) throws -> Self {
+        var info = stat()
+        guard fstat(descriptor, &info) == 0 else { throw ExtractionFailure.system(errno) }
+        return try Self(info)
+    }
+
+    private init(_ info: stat) throws {
+        guard info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0 else { throw ExtractionFailure.system(EINVAL) }
+        device = UInt64(UInt32(bitPattern: info.st_dev)); inode = info.st_ino
+        size = UInt64(info.st_size); mode = info.st_mode
+        modificationSeconds = Int64(info.st_mtimespec.tv_sec)
+        modificationNanoseconds = Int64(info.st_mtimespec.tv_nsec)
+    }
+
+    func contentEquals(_ other: Self) -> Bool {
+        device == other.device && inode == other.inode && size == other.size
+            && modificationSeconds == other.modificationSeconds && modificationNanoseconds == other.modificationNanoseconds
+    }
+
+    var description: String {
+        "dev=\(device),ino=\(inode),size=\(size),mode=\(mode),mtime=\(modificationSeconds).\(modificationNanoseconds)"
+    }
+}
+
 /// 全巻の同一性と、連結される続きの巻がないことをひとまとまりで照合する。
 nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
     struct Volume: Codable, Sendable, Equatable {
@@ -50,6 +89,16 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
         Self(volumes: [try captureVolume(url)], nextVolumeName: nil)
     }
 
+    static func capture(descriptor: Int32, url: URL) throws -> Self {
+        Self(file: try ArchiveFileIdentity.capture(descriptor: descriptor), url: url)
+    }
+
+    init(file: ArchiveFileIdentity, url: URL) {
+        self.init(volumes: [Volume(fileName: url.lastPathComponent,
+            volumeUUID: Self.volumeUUID(for: url, device: file.device), inode: file.inode, size: file.size, mode: file.mode,
+            modificationSeconds: file.modificationSeconds, modificationNanoseconds: file.modificationNanoseconds)], nextVolumeName: nil)
+    }
+
     static func capture(layout: ArchiveVolumeLayout) throws -> Self {
         let volumes = try layout.volumes.map { try captureVolume($0.url) }
         var info = stat()
@@ -91,7 +140,8 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
 
     private static func volumeUUID(for url: URL, device: UInt64) -> String {
         // 親の UUID を使えば、再マウントで st_dev が変わっても同じボリュームとして扱える。
-        (try? url.deletingLastPathComponent().resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString)
+        (try? URL(fileURLWithPath: url.deletingLastPathComponent().path, isDirectory: true)
+            .resourceValues(forKeys: [.volumeUUIDStringKey]).volumeUUIDString)
             ?? String(device)
     }
 

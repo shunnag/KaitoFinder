@@ -1,0 +1,119 @@
+{
+  "latest_cases": {
+    "passed": 424,
+    "interrupted": 12,
+    "skipped": 6,
+    "failed": 7
+  },
+  "classes": {
+    "KaitoFinderTests.ArchiveCreationTests": {
+      "passed": 37
+    },
+    "KaitoFinderTests.ArchiveEditTests": {
+      "passed": 54
+    },
+    "KaitoFinderTests.ArchiveImportConflictTests": {
+      "passed": 13
+    },
+    "KaitoFinderTests.ArchiveImportCorrectionTests": {
+      "passed": 7
+    },
+    "KaitoFinderTests.ArchiveImportSafetyTests": {
+      "passed": 6,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.ArchiveImportTransactionVerificationTests": {
+      "passed": 12
+    },
+    "KaitoFinderTests.ArchivePasswordEditingTests": {
+      "passed": 20,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.ArchiveRewriteTests": {
+      "passed": 35
+    },
+    "KaitoFinderTests.ArchiveSplitVolumeTests": {
+      "passed": 16
+    },
+    "KaitoFinderTests.ArchiveUndoStackTests": {
+      "passed": 25,
+      "failed": 3,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.ArchiveWriteProgressTests": {
+      "passed": 7
+    },
+    "KaitoFinderTests.ByteProgressIntegrationTests": {
+      "passed": 10
+    },
+    "KaitoFinderTests.CompressedTarDeferredSaveTests": {
+      "passed": 3
+    },
+    "KaitoFinderTests.CompressionCapabilityTests": {
+      "passed": 45
+    },
+    "KaitoFinderTests.DeferredSaveAttributeTests": {
+      "passed": 5,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.DeferredSaveCorrectionTests": {
+      "passed": 6,
+      "interrupted": 4
+    },
+    "KaitoFinderTests.DeferredSaveDocumentTests": {
+      "passed": 17,
+      "interrupted": 3
+    },
+    "KaitoFinderTests.DeferredSavePlanEquivalenceTests": {
+      "passed": 5
+    },
+    "KaitoFinderTests.DeferredSplitSaveTests": {
+      "failed": 1,
+      "passed": 1,
+      "interrupted": 1
+    },
+    "KaitoFinderTests.LHAUpdateFallbackTests": {
+      "passed": 4
+    },
+    "KaitoFinderTests.NameIndexEquivalenceTests": {
+      "passed": 11
+    },
+    "KaitoFinderTests.PerformanceProbeTests": {
+      "passed": 2
+    },
+    "KaitoFinderTests.SevenZipUpdatePasswordTests": {
+      "passed": 5
+    },
+    "KaitoFinderTests.SevenZipUpdateRoutingTests": {
+      "passed": 6
+    },
+    "KaitoFinderTests.SplitSavePassTests": {
+      "passed": 14,
+      "skipped": 3
+    },
+    "KaitoFinderTests.TarUpdateEditTests": {
+      "passed": 9,
+      "skipped": 3
+    },
+    "KaitoFinderTests.WordingAcceptanceTests": {
+      "passed": 49,
+      "failed": 3
+    }
+  },
+  "runs": 96,
+  "by_layout": {
+    "s39-p6a": {
+      "passed": 250,
+      "interrupted": 7,
+      "failed": 5,
+      "skipped": 3
+    },
+    "s39-p6a-final": {
+      "passed": 174,
+      "skipped": 3,
+      "interrupted": 5,
+      "failed": 2
+    }
+  },
+  "not_a_full_suite": true
+}

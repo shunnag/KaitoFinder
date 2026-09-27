@@ -1,0 +1,55 @@
+FILTER-PROBE n=100000 perFolder=100 ja=false query='file' prevRows=1000 rows=101000 total=195.7 capture=0.3 collapse=0.3 filter=25.9 cache_clear=0.0 reload_data=0.6 expand=166.8 restore=1.8 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='file99999' prevRows=101000 rows=2 total=174.7 capture=0.2 collapse=30.7 filter=128.0 cache_clear=1.1 reload_data=3.3 expand=4.2 restore=7.3 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='' prevRows=2 rows=1000 total=13.8 capture=0.2 collapse=0.9 filter=0.0 cache_clear=0.0 reload_data=1.8 expand=0.0 restore=10.9 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='file99999' prevRows=1000 rows=2 total=131.4 capture=0.1 collapse=0.3 filter=124.4 cache_clear=0.0 reload_data=3.3 expand=3.2 restore=0.1 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='zzz' prevRows=2 rows=0 total=116.8 capture=0.1 collapse=0.5 filter=114.5 cache_clear=0.0 reload_data=1.6 expand=0.0 restore=0.2 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='' prevRows=0 rows=1000 total=13.5 capture=0.1 collapse=0.0 filter=0.0 cache_clear=0.0 reload_data=1.5 expand=0.0 restore=11.8 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='file' prevRows=1000 rows=101000 total=186.4 capture=0.1 collapse=0.3 filter=25.2 cache_clear=0.0 reload_data=3.4 expand=157.3 restore=0.1 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='' prevRows=101000 rows=1000 total=34.5 capture=0.2 collapse=29.8 filter=0.0 cache_clear=1.2 reload_data=3.2 expand=0.0 restore=0.2 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='資料9' prevRows=1000 rows=0 total=208.0 capture=0.0 collapse=0.2 filter=206.0 cache_clear=0.0 reload_data=1.3 expand=0.3 restore=0.2 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=false query='' prevRows=0 rows=1000 total=12.3 capture=0.0 collapse=0.0 filter=0.0 cache_clear=0.0 reload_data=1.5 expand=0.0 restore=10.7 sidebar=0.0
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=false query='file' ms=97.1 matching=101000
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=false query='file99999' ms=125.6 matching=2
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=false query='zzz' ms=113.5 matching=0
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=false query='資料9' ms=207.8 matching=0
+FILTER-PROBE-DISPLAY n=100000 perFolder=100 ja=false query='file99999' total=130.2 display_collapse=1.1 collapse=0.0 filter=123.7 cache_clear=0.0 reload_data=1.6 expand=3.2 restore=0.1 sidebar=0.0
+FILTER-PROBE-NOTE old tree released in background during the display above
+FILTER-PROBE-DISPLAY-AFTER-DRAIN n=100000 perFolder=100 ja=false query='file' total=424.1 display_collapse=28.7 collapse=0.0 filter=26.5 cache_clear=0.0 reload_data=3.2 expand=352.8 restore=12.4 sidebar=0.0
+FILTER-PROBE-HELD-OLD-TREE total=432.2
+FILTER-PROBE-DISPLAY n=100000 perFolder=100 ja=false query='file' total=432.3 display_collapse=28.6 collapse=0.0 filter=25.1 cache_clear=0.0 reload_data=7.3 expand=359.2 restore=11.5 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='文書' prevRows=1000 rows=101000 total=200.9 capture=0.2 collapse=0.3 filter=25.6 cache_clear=0.0 reload_data=0.6 expand=173.0 restore=1.2 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='文書99999' prevRows=101000 rows=2 total=238.7 capture=0.3 collapse=30.9 filter=186.4 cache_clear=0.7 reload_data=3.0 expand=3.7 restore=13.8 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='' prevRows=2 rows=1000 total=13.6 capture=0.2 collapse=0.8 filter=0.0 cache_clear=0.0 reload_data=1.7 expand=0.0 restore=10.8 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='文書99999' prevRows=1000 rows=2 total=193.0 capture=0.0 collapse=0.3 filter=185.8 cache_clear=0.0 reload_data=3.4 expand=3.3 restore=0.1 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='zzz' prevRows=2 rows=0 total=120.4 capture=0.1 collapse=0.5 filter=118.0 cache_clear=0.0 reload_data=1.5 expand=0.0 restore=0.2 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='' prevRows=0 rows=1000 total=12.6 capture=0.1 collapse=0.0 filter=0.0 cache_clear=0.0 reload_data=1.6 expand=0.0 restore=10.8 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='文書' prevRows=1000 rows=101000 total=199.6 capture=0.0 collapse=0.3 filter=25.5 cache_clear=0.0 reload_data=3.5 expand=170.2 restore=0.2 sidebar=0.0
+FILTER-PROBE n=100000 perFolder=100 ja=true query='' prevRows=101000 rows=1000 total=34.1 capture=0.2 collapse=29.1 filter=0.0 cache_clear=1.2 reload_data=3.4 expand=0.0 restore=0.2 sidebar=0.0
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=true query='文書' ms=193.2 matching=101000
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=true query='文書99999' ms=187.7 matching=2
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=true query='zzz' ms=115.9 matching=0
+FILTER-PROBE-OFFMAIN n=100000 perFolder=100 ja=true query='資料9' ms=174.7 matching=11211
+FILTER-PROBE-DISPLAY n=100000 perFolder=100 ja=true query='文書99999' total=199.0 display_collapse=1.1 collapse=0.0 filter=192.2 cache_clear=0.0 reload_data=1.6 expand=3.5 restore=0.2 sidebar=0.0
+FILTER-PROBE-NOTE old tree released in background during the display above
+FILTER-PROBE-DISPLAY-AFTER-DRAIN n=100000 perFolder=100 ja=true query='文書' total=447.9 display_collapse=29.3 collapse=0.0 filter=25.5 cache_clear=0.0 reload_data=3.3 expand=369.9 restore=19.4 sidebar=0.0
+FILTER-PROBE-HELD-OLD-TREE total=448.1
+FILTER-PROBE-DISPLAY n=100000 perFolder=100 ja=true query='文書' total=448.1 display_collapse=28.9 collapse=0.0 filter=24.8 cache_clear=0.0 reload_data=7.6 expand=369.3 restore=16.9 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='file' prevRows=5000 rows=505000 total=1012.6 capture=0.3 collapse=1.5 filter=131.4 cache_clear=0.0 reload_data=2.1 expand=875.7 restore=1.6 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='file499999' prevRows=505000 rows=2 total=1033.8 capture=0.8 collapse=145.0 filter=658.3 cache_clear=6.5 reload_data=6.9 expand=4.0 restore=212.2 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='' prevRows=2 rows=5000 total=20.3 capture=0.8 collapse=0.9 filter=0.0 cache_clear=0.0 reload_data=6.5 expand=0.0 restore=12.1 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='file499999' prevRows=5000 rows=2 total=668.4 capture=0.3 collapse=1.4 filter=656.3 cache_clear=0.1 reload_data=6.6 expand=3.4 restore=0.3 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='zzz' prevRows=2 rows=0 total=610.5 capture=0.7 collapse=0.5 filter=603.6 cache_clear=0.0 reload_data=5.3 expand=0.0 restore=0.3 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='' prevRows=0 rows=5000 total=18.7 capture=0.4 collapse=0.0 filter=0.0 cache_clear=0.0 reload_data=6.1 expand=0.0 restore=12.1 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='file' prevRows=5000 rows=505000 total=985.5 capture=0.3 collapse=1.3 filter=130.1 cache_clear=0.0 reload_data=8.6 expand=844.8 restore=0.3 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='' prevRows=505000 rows=5000 total=160.6 capture=0.8 collapse=144.6 filter=0.0 cache_clear=6.4 reload_data=8.5 expand=0.0 restore=0.2 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='資料9' prevRows=5000 rows=0 total=1105.0 capture=0.2 collapse=1.3 filter=1097.6 cache_clear=0.1 reload_data=5.1 expand=0.4 restore=0.3 sidebar=0.0
+FILTER-PROBE n=500000 perFolder=100 ja=false query='' prevRows=0 rows=5000 total=18.3 capture=0.3 collapse=0.0 filter=0.0 cache_clear=0.0 reload_data=6.3 expand=0.0 restore=11.7 sidebar=0.0
+FILTER-PROBE-OFFMAIN n=500000 perFolder=100 ja=false query='file' ms=186.4 matching=505000
+FILTER-PROBE-OFFMAIN n=500000 perFolder=100 ja=false query='file499999' ms=656.4 matching=2
+FILTER-PROBE-OFFMAIN n=500000 perFolder=100 ja=false query='zzz' ms=605.6 matching=0
+FILTER-PROBE-OFFMAIN n=500000 perFolder=100 ja=false query='資料9' ms=1105.1 matching=0
+FILTER-PROBE-DISPLAY n=500000 perFolder=100 ja=false query='file499999' total=663.9 display_collapse=1.1 collapse=0.0 filter=652.8 cache_clear=0.0 reload_data=5.4 expand=3.3 restore=0.3 sidebar=0.0
+FILTER-PROBE-NOTE old tree released in background during the display above
+FILTER-PROBE-DISPLAY-AFTER-DRAIN n=500000 perFolder=100 ja=false query='file' total=5986.1 display_collapse=148.0 collapse=0.0 filter=133.3 cache_clear=0.0 reload_data=8.8 expand=5392.4 restore=302.5 sidebar=0.0
+FILTER-PROBE-HELD-OLD-TREE total=5903.7
+FILTER-PROBE-DISPLAY n=500000 perFolder=100 ja=false query='file' total=5903.7 display_collapse=172.1 collapse=0.0 filter=132.5 cache_clear=0.0 reload_data=14.6 expand=5316.9 restore=266.4 sidebar=0.0

@@ -11,6 +11,27 @@ nonisolated struct ArchiveVolumeOpenRecovery: Sendable {
 
     static func discover(_ url: URL, index: RecoverableWorkIndex = .shared,
                          metadataStore: ArchiveVolumeMetadataStore = .shared) throws -> Self? {
+        do { return try inspect(url, index: index, metadataStore: metadataStore) }
+        catch {
+            let underlying: NSError
+            let reason: String
+            if case VolumePublishError.system(let code) = error {
+                underlying = NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+                reason = ArchiveErrorText.describe(ExtractionFailure.system(code))
+            } else {
+                underlying = error as NSError
+                reason = ""
+            }
+            throw NSError(domain: "com.shunnag.KaitoFinder.split-discovery", code: underlying.code, userInfo: [
+                NSLocalizedDescriptionKey: String(localized: "分割アーカイブの状態を確認できませんでした"),
+                NSLocalizedFailureReasonErrorKey: reason,
+                NSUnderlyingErrorKey: underlying
+            ])
+        }
+    }
+
+    private static func inspect(_ url: URL, index: RecoverableWorkIndex,
+                                metadataStore: ArchiveVolumeMetadataStore) throws -> Self? {
         guard let parsed = ArchiveVolumeSet.parse(fileName: url.lastPathComponent),
               case .numbered(let stem, _) = parsed.scheme else { return nil }
         let parent = try VolumePublishDirectory(VolumePublishFS.canonicalParent(of: url))

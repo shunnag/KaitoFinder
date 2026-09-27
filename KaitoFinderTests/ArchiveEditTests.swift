@@ -61,7 +61,8 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                     willPublish: {
                         gate.pauseOnce()
                         if fail { throw Failure.injected }
-                    }, registry: registry) { updater in
+                    }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+                        additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
                         try updater.add(contentsOf: source, as: "added.txt")
                     }
             }
@@ -95,7 +96,8 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let registry = PendingWorkRegistry(fileURL: blocker.appendingPathComponent("pending.json"))
         XCTAssertThrowsError(try registry.register(fixture.root.appendingPathComponent(".KaitoFinder-add-probe")))
         try ArchiveImportTransaction.publish(archive: fixture.archive, mode: .inPlace, options: .init(), progress: Progress(),
-            willPublish: nil, registry: registry) { updater in
+            willPublish: nil, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: fixture.archive).entries,
+                additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
                 try updater.add(contentsOf: source, as: "added.txt")
             }
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive)["added.txt"], Data("added".utf8))
@@ -764,8 +766,8 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             XCTAssertEqual(surviving.nameBytes, record.nameBytes, name)
         }
         XCTAssertEqual(session.generation, 1)
-        XCTAssertEqual(progress.completedUnitCount, 2)
-        XCTAssertEqual(progress.totalUnitCount, 2)
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
+        XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         XCTAssertTrue(try fixture.directory.run("/usr/bin/unzip", ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 
@@ -1058,7 +1060,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     @MainActor private func assertDocumentMoveUndoRedo(tar: Bool) async throws {
         let fixture = try moveFixture(realDirectory: true, tar: tar), document = try document(fixture)
         let session = try XCTUnwrap(document.session), before = try digest(fixture.archive), contents = try moveContents(fixture.archive)
-        XCTAssertEqual(session.capabilities.mode, tar ? .rewrite(.tar) : .inPlace)
+        XCTAssertEqual(session.capabilities.mode, tar ? .update(.tar) : .inPlace)
         let folder = try await node("a", in: session), file = try await node("root.txt", in: session), published = Mutex(0)
         let result = try await document.move([folder, file], to: "b", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
         XCTAssertTrue(result.published)

@@ -1,0 +1,11 @@
+Test Suite 'Selected tests' started at 2026-09-27 02:25:06.898.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 02:25:06.898.
+Test Suite 'DragInTests' started at 2026-09-27 02:25:06.898.
+Test Case '-[KaitoFinderTests.DragInTests testCancellationPartwayPreservesOriginalBytesAndGeneration]' started.
+Test Case '-[KaitoFinderTests.DragInTests testCancellationPartwayPreservesOriginalBytesAndGeneration]' passed (0.071 seconds).
+Test Suite 'DragInTests' passed at 2026-09-27 02:25:06.970.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.071 (0.072) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 02:25:06.970.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.071 (0.072) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 02:25:06.970.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.071 (0.072) seconds

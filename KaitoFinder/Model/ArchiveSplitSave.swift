@@ -125,12 +125,13 @@ nonisolated extension ArchivePasswordEditResult: ArchiveMutationResult {
 
 /// Owns the M5 begin / produce / validate / publish sequence for replacement and new sets.
 nonisolated enum ArchiveSplitSavePipeline {
-    static func run(target: VolumeSetTarget, estimatedLength: UInt64, plan: ArchiveSaveReplayPlan,
-                    password: String?, progress: Progress, publication: ArchiveSavePublication?,
+    static func run(target: VolumeSetTarget, estimatedLength: UInt64, additionalWorkBytes: UInt64 = 0, plan: ArchiveSaveReplayPlan,
+                    password: String?, zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = nil,
+                    progress: Progress, publication: ArchiveSavePublication?,
                     index: RecoverableWorkIndex, metadataStore: ArchiveVolumeMetadataStore,
                     hooks: ArchiveSplitSaveHooks, willPublish: (@Sendable () throws -> Void)?,
                     keepsPendingChanges: Bool = true, produce: (VolumeSetPublication) throws -> ArchiveSplitWorkProducer.Result) throws
-        -> (published: PublishedVolumeSet, recompressedZIP: Bool) {
+        -> (published: PublishedVolumeSet, recompressedZIP: Bool, mode: ArchiveCapabilities.Mode) {
         var started: VolumeSetPublication?
         do {
             progress.totalUnitCount = Int64(plan.edits.removals.count + plan.edits.renames.count + plan.additions.count + plan.folders.count + 1)
@@ -139,7 +140,8 @@ nonisolated enum ArchiveSplitSavePipeline {
             target.writesVolumeMetadata = true
             try hooks.willBegin(target)
             let options = ReaderOptions.kaitoFinder(password: password)
-            let split = try VolumeSetPublication.begin(target, estimatedOutputLength: estimatedLength, progress: progress,
+            let split = try VolumeSetPublication.begin(target, estimatedOutputLength: estimatedLength,
+                additionalWorkBytes: additionalWorkBytes, progress: progress,
                 index: index, options: options, coordinationTimeout: hooks.coordinationTimeout,
                 operations: hooks.operations, metadataStore: metadataStore, fault: { step in
                     if step == .s5 { try publication?.enterSplitBoundary() }
@@ -148,16 +150,16 @@ nonisolated enum ArchiveSplitSavePipeline {
             started = split
             defer { split.cancel() }
             let produced = try produce(split)
-            try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: split.workURL, options: options), plan: plan)
+            // S4 が W と同じ byte の巻を計画と照合する。拒否は引き続き S5 より前。
             try hooks.didProduceWork(split.workURL)
             try plan.validate()
             try willPublish?()
             let published = try split.publish(progress: progress) { reader in
-                try ArchiveSplitWorkProducer.validate(reader, plan: plan)
+                try ArchiveSplitWorkProducer.validate(reader, plan: plan, mode: produced.mode, zipEncryption: zipEncryption)
             }
             hooks.didPublish(published)
             progress.completedUnitCount = progress.totalUnitCount
-            return (published, produced.recompressedZIP)
+            return (published, produced.recompressedZIP, produced.mode)
         } catch is CancellationError { throw CancellationError() }
         catch {
             var failure = ArchiveSplitSaveFailure.map(error, staging: started?.stagingURL)

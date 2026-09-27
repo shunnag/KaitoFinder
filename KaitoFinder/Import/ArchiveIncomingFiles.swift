@@ -1,4 +1,5 @@
 import AppKit
+import GyoshukuKit
 import Synchronization
 
 nonisolated enum ArchiveIncomingRepresentation {
@@ -104,7 +105,14 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
 
     func originalPath(for url: URL) -> String? { state.withLock { $0.originalPaths[url] } }
 
-    @concurrent func receive(progress: Progress) async throws -> [URL] {
+    static func restoredLeaf(originalPath: String, format: GyoshukuKit.ArchiveFormat?) throws -> String? {
+        guard let name = ArchivePath.components(originalPath).last else { return nil }
+        let leaf = try ArchiveImportPlan.path(name, format: format ?? .tar)
+        guard ArchivePath.components(leaf).count == 1 else { throw ArchiveEditError.invalidName(name) }
+        return leaf
+    }
+
+    @concurrent func receive(progress: Progress, format: GyoshukuKit.ArchiveFormat? = .zip) async throws -> [URL] {
         while state.withLock({ $0.remaining > 0 }) {
             try ArchiveImportPlan.checkCancellation(progress)
             try await Task.sleep(for: .milliseconds(50))
@@ -117,11 +125,12 @@ nonisolated final class ArchiveIncomingFiles: Sendable {
             let files = $0.files.sorted { $0.index == $1.index ? $0.url.path < $1.url.path : $0.index < $1.index }
             for file in files {
                 try ArchiveImportPlan.checkCancellation(progress)
-                guard let path = file.originalPath, let name = ArchivePath.components(path).last else { urls.append(file.url); continue }
+                guard let path = file.originalPath, let leaf = try Self.restoredLeaf(originalPath: path, format: format) else {
+                    urls.append(file.url)
+                    continue
+                }
                 // AppKit は same.txt / same 2.txt と改名する。アプリ内では元の名前を
                 // 個別領域に復元し、追加側の比較・置き換えの選択を通す。
-                let leaf = try ArchiveImportPlan.path(name)
-                guard ArchivePath.components(leaf).count == 1 else { throw ArchiveEditError.invalidName(name) }
                 let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
                 let url = folder.appendingPathComponent(leaf)

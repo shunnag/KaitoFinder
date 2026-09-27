@@ -13,24 +13,73 @@ nonisolated final class ArchivePreferencesTestDefaults {
 }
 
 nonisolated final class ArchivePreferencesTests: XCTestCase {
+    @MainActor func testListSizesPersistAndInvalidValuesUseDefaults() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        XCTAssertEqual(store.preferences.listIconSize, .small)
+        XCTAssertEqual(store.preferences.listTextSize, 13)
+        XCTAssertEqual(ArchivePreferences.ListIconSize.small.pointSize, 16)
+        XCTAssertEqual(ArchivePreferences.ListIconSize.large.pointSize, 32)
+        for icon in ArchivePreferences.ListIconSize.allCases {
+            for size in ArchivePreferences.listTextSizeRange {
+                store.preferences.listIconSize = icon
+                store.preferences.listTextSize = size
+                let reopened = ArchivePreferencesStore(defaults: suite.defaults)
+                XCTAssertEqual(reopened.preferences.listIconSize, icon)
+                XCTAssertEqual(reopened.preferences.listTextSize, size)
+                XCTAssertEqual(suite.defaults.string(forKey: "ArchiveListIconSize"), icon.rawValue)
+                XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveListTextSize"), size)
+            }
+        }
+        for value: Any in ["huge", 32, true, Data([0])] {
+            suite.defaults.set(value, forKey: "ArchiveListIconSize")
+            XCTAssertEqual(store.preferences.listIconSize, .small)
+        }
+        for value: Any in [9, 17, -1, 13.5, "13", true, Data([0])] {
+            suite.defaults.set(value, forKey: "ArchiveListTextSize")
+            XCTAssertEqual(store.preferences.listTextSize, 13)
+        }
+        for value in [9, 17, Int.max, Int.min] {
+            store.preferences.listTextSize = value
+            XCTAssertEqual(store.preferences.listTextSize, 13)
+        }
+    }
+
+    @MainActor func testFolderOpeningPersistsAndUnknownValuesUseEnter() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        for mode in ArchivePreferences.FolderOpening.allCases {
+            store.preferences.folderOpening = mode
+            XCTAssertEqual(suite.defaults.string(forKey: "ArchiveFolderOpening"), mode.rawValue)
+            XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences.folderOpening, mode)
+        }
+        for value: Any in ["unknown", 17, true, Data([0])] {
+            suite.defaults.set(value, forKey: "ArchiveFolderOpening")
+            XCTAssertEqual(store.preferences.folderOpening, .enter)
+        }
+    }
+
     @MainActor func testEmptyStoreUsesDefaults() throws {
         let suite = try ArchivePreferencesTestDefaults()
         let value = ArchivePreferencesStore(defaults: suite.defaults).preferences
         XCTAssertEqual(value.defaultFormat, .zip)
+        XCTAssertEqual(value.compressionThreads, 0)
         XCTAssertEqual(value.zipMethod, .deflate)
         XCTAssertEqual(value.zipLevel, 6)
         XCTAssertTrue(value.zipSkipsCompressedTypes)
         XCTAssertEqual(value.tarGzipLevel, 6)
         XCTAssertEqual(value.tarBzip2Level, 9)
         XCTAssertFalse(value.tarPreservesOwnerIDs)
+        XCTAssertEqual(value.additionPosition, .end)
+        XCTAssertEqual(value.tarCarriedOwnerIDs, .keep)
         XCTAssertEqual(value.extractionDestination, .sameFolder)
         XCTAssertEqual(value.folderPolicy, .whenMultipleTopLevelItems)
         XCTAssertFalse(value.trashesArchiveAfterExtraction)
         XCTAssertFalse(value.revealsExtractedItemsInFinder)
+        XCTAssertFalse(value.keepsFoldersOnTop)
         XCTAssertFalse(value.showsHiddenFiles)
         XCTAssertTrue(value.showsWelcomeWindowAtLaunch)
         XCTAssertTrue(value.renamesOnClick)
         XCTAssertEqual(value.openingBehavior, .system)
+        XCTAssertEqual(value.folderOpening, .enter)
         XCTAssertEqual(value.saveBehavior, .immediate)
         XCTAssertTrue(value.excludesDSStore)
         XCTAssertFalse(value.excludesHiddenFiles)
@@ -40,13 +89,14 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
     @MainActor func testStoreRoundTripsEveryField() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for (index, format) in ArchivePreferences.formats.enumerated() {
-            let value = ArchivePreferences(defaultFormat: format, zipMethod: index.isMultiple(of: 2) ? .stored : .deflate,
+            let value = ArchivePreferences(defaultFormat: format, compressionThreads: index, zipMethod: index.isMultiple(of: 2) ? .stored : .deflate,
                                            zipLevel: 1 + index, zipSkipsCompressedTypes: !index.isMultiple(of: 2),
                                            tarGzipLevel: 9 - index, tarBzip2Level: 1 + index, tarPreservesOwnerIDs: index.isMultiple(of: 2),
                                            extractionDestination: index.isMultiple(of: 2) ? .ask : .sameFolder,
                                            folderPolicy: [.always, .whenMultipleTopLevelItems, .never][index % 3],
                                            trashesArchiveAfterExtraction: index.isMultiple(of: 2),
                                            revealsExtractedItemsInFinder: !index.isMultiple(of: 2),
+                                           keepsFoldersOnTop: !index.isMultiple(of: 2),
                                            showsHiddenFiles: index.isMultiple(of: 2),
                                            showsWelcomeWindowAtLaunch: !index.isMultiple(of: 2),
                                            renamesOnClick: index.isMultiple(of: 2),
@@ -57,6 +107,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             let reopened = ArchivePreferencesStore(defaults: try XCTUnwrap(UserDefaults(suiteName: suite.name)))
             XCTAssertEqual(reopened.preferences, value)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "lzh"][index])
+            XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveCompressionThreads"), value.compressionThreads)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveZipMethod"), value.zipMethod.rawValue)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveZipLevel"), value.zipLevel)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveZipSkipsCompressedTypes"), value.zipSkipsCompressedTypes)
@@ -86,7 +137,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             "ArchiveFolderPolicy": "sometimes", "ArchiveTrashesArchiveAfterExtraction": Data([0xff]),
             "ArchiveRevealsExtractedItems": "true", "ArchiveShowsHiddenFiles": "broken", "ArchiveShowsWelcomeAtLaunch": "broken",
             "ArchiveExcludesDSStore": "broken", "ArchiveExcludesHiddenFiles": "broken", "ArchiveOpeningBehavior": "replace",
-            "ArchiveRenamesOnClick": "false", "ArchiveSaveBehavior": "sometimes"
+            "ArchiveRenamesOnClick": "false", "ArchiveSaveBehavior": "sometimes", "ArchiveFolderOpening": "unknown"
         ]
         for (key, value) in corrupt { suite.defaults.set(value, forKey: key) }
         XCTAssertEqual(store.preferences, ArchivePreferences())
@@ -108,11 +159,38 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         }
     }
 
+    @MainActor func testCompressionThreadsRoundTripAndRejectInvalidValues() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let key = ArchivePreferencesStore.Key.compressionThreads
+        XCTAssertEqual(key, "ArchiveCompressionThreads")
+        XCTAssertEqual(ArchivePreferences.compressionThreadRange, 1...64)
+        XCTAssertEqual(store.preferences.compressionThreads, 0)
+        for threads in [0, 1, 7, 64] {
+            store.preferences.compressionThreads = threads
+            XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences.compressionThreads, threads)
+            XCTAssertEqual(suite.defaults.integer(forKey: key), threads)
+        }
+        let invalidValues: [Any] = [65, -1, true, false, 1.5, "7", "broken", Date(), Data([0]), Int.max, Int.min]
+        for invalid in invalidValues {
+            suite.defaults.set(invalid, forKey: key)
+            XCTAssertEqual(store.preferences.compressionThreads, 0, "\(invalid)")
+        }
+        suite.defaults.removeObject(forKey: key)
+        XCTAssertEqual(store.preferences.compressionThreads, 0)
+        suite.defaults.set(NSNumber(value: 7.0), forKey: key)
+        XCTAssertEqual(store.preferences.compressionThreads, 7)
+        for invalid in [-1, 65, Int.min, Int.max] {
+            store.preferences.compressionThreads = invalid
+            XCTAssertEqual(store.preferences.compressionThreads, 0)
+            XCTAssertEqual(suite.defaults.integer(forKey: key), 0)
+        }
+    }
+
     @MainActor func testStorePostsDidChangeSynchronouslyAfterSaving() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let calls = Mutex(0)
         let suiteName = suite.name
-        let value = ArchivePreferences(defaultFormat: .tarGzip, zipMethod: .stored, zipLevel: 9,
+        let value = ArchivePreferences(defaultFormat: .tarGzip, compressionThreads: 7, zipMethod: .stored, zipLevel: 9,
                                        zipSkipsCompressedTypes: false, tarGzipLevel: 1, tarPreservesOwnerIDs: true,
                                        extractionDestination: .ask, folderPolicy: .never, trashesArchiveAfterExtraction: true,
                                        revealsExtractedItemsInFinder: true)
@@ -122,6 +200,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             XCTAssertTrue(notification.object as AnyObject? === store)
             MainActor.assumeIsolated {
                 let defaults = UserDefaults(suiteName: suiteName)!
+                XCTAssertEqual(defaults.integer(forKey: "ArchiveCompressionThreads"), 7)
                 XCTAssertEqual(ArchivePreferencesStore(defaults: defaults).preferences, value)
             }
             calls.withLock { $0 += 1 }
@@ -139,8 +218,11 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(actual.deflateLevel, expected.deflateLevel, file: file, line: line)
         XCTAssertEqual(actual.bzip2Level, expected.bzip2Level, file: file, line: line)
         XCTAssertEqual(actual.useCompressionHeuristic, expected.useCompressionHeuristic, file: file, line: line)
+        XCTAssertEqual(actual.additionPlacement, expected.additionPlacement, file: file, line: line)
+        XCTAssertEqual(actual.carriedTarOwnerIDs, expected.carriedTarOwnerIDs, file: file, line: line)
         XCTAssertEqual(actual.preserveOwnerIDs, expected.preserveOwnerIDs, file: file, line: line)
         XCTAssertEqual(actual.preserveMacOSMetadata, expected.preserveMacOSMetadata, file: file, line: line)
+        XCTAssertEqual(actual.compressionThreads, expected.compressionThreads, file: file, line: line)
     }
 
     @MainActor func testWriterOptionsMatchEachFormatAndKeepFixedEncodersDefault() throws {

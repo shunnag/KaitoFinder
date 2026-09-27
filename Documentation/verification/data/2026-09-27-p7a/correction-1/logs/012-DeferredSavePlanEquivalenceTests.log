@@ -1,0 +1,19 @@
+Test Suite 'Selected tests' started at 2026-09-27 05:07:48.690.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:07:48.691.
+Test Suite 'DeferredSavePlanEquivalenceTests' started at 2026-09-27 05:07:48.691.
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testCachedAndUncachedValidationHaveIdenticalErrors]' started.
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testCachedAndUncachedValidationHaveIdenticalErrors]' passed (0.008 seconds).
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testGeneratedPlansMatchReferenceIncludingInvalidAndConflictingNames]' started.
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testGeneratedPlansMatchReferenceIncludingInvalidAndConflictingNames]' passed (0.073 seconds).
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testHardLinkTargetsAndChainsMatchReference]' started.
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testHardLinkTargetsAndChainsMatchReference]' passed (0.024 seconds).
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testKeyCountsAreBoundedByEntriesAndChanges]' started.
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testKeyCountsAreBoundedByEntriesAndChanges]' passed (0.194 seconds).
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testRepresentabilityFastPathPreservesHardLinkIndexSemantics]' started.
+Test Case '-[KaitoFinderTests.DeferredSavePlanEquivalenceTests testRepresentabilityFastPathPreservesHardLinkIndexSemantics]' passed (0.006 seconds).
+Test Suite 'DeferredSavePlanEquivalenceTests' passed at 2026-09-27 05:07:48.996.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.305 (0.305) seconds
+Test Suite 'P1dAS33Tests.xctest' passed at 2026-09-27 05:07:48.996.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.305 (0.305) seconds
+Test Suite 'Selected tests' passed at 2026-09-27 05:07:48.996.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.305 (0.306) seconds

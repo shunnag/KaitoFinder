@@ -19,11 +19,35 @@ nonisolated final class StagingRegistry: Sendable {
         let path: String
         let device: Int64
         let inode: UInt64
+        var discardable: Bool? = nil
     }
 
-    init(root: URL) {
+    init(root: URL, fileURL: URL? = nil) {
         self.root = root
-        fileURL = root.deletingLastPathComponent().appendingPathComponent("staging.json")
+        self.fileURL = fileURL ?? root.deletingLastPathComponent().appendingPathComponent("staging.json")
+    }
+
+    struct Temporary: Sendable {
+        let registry: StagingRegistry
+        let pendingWork: PendingWorkRegistry
+        func remove() { pendingWork.removeAndUnregister(registry.root) }
+    }
+
+    static func temporary(beside archive: URL, pendingWork: PendingWorkRegistry = .shared) throws -> Temporary {
+        let directory = archive.deletingLastPathComponent()
+            .appendingPathComponent(".KaitoFinder-staging-" + UUID().uuidString, isDirectory: true)
+        try pendingWork.register(directory)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                                                   attributes: [.posixPermissions: 0o700])
+            try pendingWork.recordIdentity(directory)
+        } catch {
+            pendingWork.removeAndUnregister(directory)
+            throw error
+        }
+        // 即時編集の入力と台帳は保存先にまとめ、終了時は親ごと回収する。
+        return Temporary(registry: StagingRegistry(root: directory, fileURL: directory.appendingPathComponent("staging.json")),
+                         pendingWork: pendingWork)
     }
 
     nonisolated final class Lease: Sendable {
@@ -42,7 +66,10 @@ nonisolated final class StagingRegistry: Sendable {
             self.registry = registry
         }
         deinit { close(descriptor) }
-        func remove() { registry.remove(directory) }
+        func remove() {
+            guard let tombstone = registry.retire(directory) else { return }
+            Task.detached { self.registry.deleteRetired(tombstone) }
+        }
 
         func acquireRead() throws -> ReadLease {
             try reads.withLock {
@@ -52,7 +79,7 @@ nonisolated final class StagingRegistry: Sendable {
             return ReadLease(owner: self)
         }
 
-        func removeWhenUnused() async {
+        @concurrent func removeWhenUnused() async {
             await withCheckedContinuation { continuation in
                 let ready = reads.withLock {
                     $0.retiring = true
@@ -62,7 +89,7 @@ nonisolated final class StagingRegistry: Sendable {
                 }
                 if ready { continuation.resume() }
             }
-            remove()
+            if let tombstone = registry.retire(directory) { registry.deleteRetired(tombstone) }
         }
 
         fileprivate func releaseRead() {
@@ -109,13 +136,41 @@ nonisolated final class StagingRegistry: Sendable {
         }
     }
 
-    private func remove(_ directory: URL) {
+    private func retire(_ directory: URL) -> URL? {
         do {
+            return try exclusive {
+                var entries = try read()
+                guard let record = entries.first(where: { $0.path == directory.path }) else { return nil }
+                var info = stat()
+                if lstat(directory.path, &info) != 0 {
+                    guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
+                    entries.removeAll { $0.path == directory.path }
+                    try save(entries)
+                    return nil
+                }
+                guard Int64(info.st_dev) == record.device, info.st_ino == record.inode,
+                      info.st_mode & S_IFMT == S_IFDIR else { throw ExtractionFailure.system(ESTALE) }
+                let tombstone = root.appendingPathComponent(".KaitoFinder-deleted-" + UUID().uuidString, isDirectory: true)
+                // rename の前に記録し、途中終了でも削除許可済みの領域だけを回収する。
+                entries.append(Entry(path: tombstone.path, device: record.device, inode: record.inode, discardable: true))
+                try save(entries)
+                guard rename(directory.path, tombstone.path) == 0 else { throw ExtractionFailure.system(errno) }
+                entries.removeAll { $0.path == directory.path }
+                try save(entries)
+                return tombstone
+            }
+        } catch {
+            NSLog("保存前の退避領域を削除できません: %@", String(describing: error))
+            return nil
+        }
+    }
+
+    private func deleteRetired(_ directory: URL) {
+        do {
+            try Self.removeSnapshot(directory)
             try exclusive {
                 var entries = try read()
-                do { try Self.removeSnapshot(directory) }
-                catch CocoaError.fileNoSuchFile { }
-                entries.removeAll { $0.path == directory.path }
+                entries.removeAll { $0.path == directory.path && $0.discardable == true }
                 try save(entries)
             }
         } catch { NSLog("保存前の退避領域を削除できません: %@", String(describing: error)) }
@@ -127,12 +182,15 @@ nonisolated final class StagingRegistry: Sendable {
         try FileManager.default.trashItem(at: directory, resultingItemURL: &result)
         return result as URL? ?? directory
     }) throws -> [URL] {
-        try exclusive {
-            var retained: [Entry] = [], recovered: [URL] = []
+        let result = try exclusive {
+            var retained: [Entry] = [], recovered: [URL] = [], discarded: [URL] = []
             for entry in try read() {
                 let directory = URL(fileURLWithPath: entry.path)
                 guard directory.deletingLastPathComponent().standardizedFileURL.path == root.standardizedFileURL.path,
-                      UUID(uuidString: directory.lastPathComponent) != nil else { retained.append(entry); continue }
+                      UUID(uuidString: directory.lastPathComponent) != nil ||
+                        (entry.discardable == true && directory.lastPathComponent.hasPrefix(".KaitoFinder-deleted-") &&
+                         UUID(uuidString: String(directory.lastPathComponent.dropFirst(".KaitoFinder-deleted-".count))) != nil)
+                else { retained.append(entry); continue }
                 var info = stat()
                 guard lstat(directory.path, &info) == 0 else {
                     if errno != ENOENT { retained.append(entry) }
@@ -151,13 +209,20 @@ nonisolated final class StagingRegistry: Sendable {
                     }
                 }
                 defer { if descriptor >= 0 { close(descriptor) } }
-                do { recovered.append(try trash(directory)) }
-                catch { retained.append(entry) }
+                if entry.discardable == true { retained.append(entry); discarded.append(directory) }
+                else {
+                    do { recovered.append(try trash(directory)) }
+                    catch { retained.append(entry) }
+                }
             }
             try save(retained)
-            return recovered
+            return (recovered, discarded)
         }
+        for directory in result.1 { deleteRetired(directory) }
+        return result.0
     }
+
+    @concurrent static func removeSnapshotInBackground(_ url: URL) async throws { try removeSnapshot(url) }
 
     static func copySnapshot(from source: URL, to target: URL, isDirectory: Bool,
                              progress: Progress = Progress(), allowsClone: Bool = true,
@@ -253,6 +318,7 @@ nonisolated final class StagingRegistry: Sendable {
     }
 
     static func removeSnapshot(_ url: URL) throws {
+        ArchiveReservationDiagnostics.record(.stagingDeletion)
         do { try FileManager.default.removeItem(at: url) }
         catch {
             var info = stat()

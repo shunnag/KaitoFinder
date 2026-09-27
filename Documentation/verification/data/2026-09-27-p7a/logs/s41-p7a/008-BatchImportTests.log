@@ -1,0 +1,32 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:06:07.068.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:06:07.069.
+Test Suite 'BatchImportTests' started at 2026-09-27 04:06:07.069.
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessErrorRetainsIdentityAndPreventsPublication]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testDidProcessErrorRetainsIdentityAndPreventsPublication]' passed (0.016 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testErrorTextFallbackUsesBatchPathAndRequestedLocalization]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testErrorTextFallbackUsesBatchPathAndRequestedLocalization]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationPreventsNextImportAndCreationHook]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationPreventsNextImportAndCreationHook]' passed (0.017 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationStopsAtNextReplayWillStart]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testProgressOnlyCancellationStopsAtNextReplayWillStart]' passed (0.006 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testReplacedStagingCopyKeepsReplayErrorUnwrapped]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testReplacedStagingCopyKeepsReplayErrorUnwrapped]' passed (0.007 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testReplayUnwrapsBatchFailureAndKeepsLedgerFreeItemCounts]' passed (0.005 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesItsPathAndPreservesDestination]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesItsPathAndPreservesDestination]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' started.
+Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' passed (0.036 seconds).
+Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' started.
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' failed (1.268 seconds).
+Test Suite 'BatchImportTests' failed at 2026-09-27 04:06:08.473.
+	 Executed 9 tests, with 5 failures (0 unexpected) in 1.404 (1.404) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:06:08.473.
+	 Executed 9 tests, with 5 failures (0 unexpected) in 1.404 (1.404) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:06:08.473.
+	 Executed 9 tests, with 5 failures (0 unexpected) in 1.404 (1.405) seconds

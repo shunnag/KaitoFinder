@@ -1,0 +1,33 @@
+{
+  "GyoshukuKit": {
+    "commit": "20d81653aa376f0e71b1f90865191e162137395c",
+    "files": 295,
+    "mismatches": []
+  },
+  "KaitoKit": {
+    "commit": "aca39dc37df546c5d3d340c940b4ca4d9110c29a",
+    "files": 1513,
+    "mismatches": []
+  },
+  "fixtures": {
+    "archives": 33,
+    "archives_and_goldens": 35,
+    "upstream_byte_mismatches": [],
+    "frozen_sha256_mismatches": []
+  },
+  "localization": {
+    "new_keys": [
+      "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します"
+    ],
+    "languages": 26,
+    "unchanged_existing_keys": true
+  },
+  "protected_files_unchanged": true,
+  "sevenzip_spi_files": [
+    "KaitoFinder/Model/ArchiveReaderOptions.swift"
+  ],
+  "publish_branch_audit": "passed",
+  "replay_order": "remove, rename, reencryption, add, folders",
+  "fixture_resource_collisions": {},
+  "diff_check": 0
+}

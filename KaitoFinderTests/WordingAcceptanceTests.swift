@@ -41,6 +41,196 @@ nonisolated enum LocalizationAcceptance {
 }
 
 nonisolated final class WordingAcceptanceTests: XCTestCase {
+    func testSevenZipSolidNoticeHasAllTwentySixTranslations() throws {
+        let key = "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します"
+        let translations = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let unit = try XCTUnwrap(translations[language]).stringUnit
+            XCTAssertEqual(unit.state, "translated")
+            XCTAssertFalse(unit.value.isEmpty)
+            XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+            if language == "ja" { XCTAssertEqual(unit.value, key) }
+        }
+    }
+
+    func testViewOptionsWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["表示オプション", "表示オプションを表示", "表示オプションを隠す", "並べ順:", "順序:", "昇順", "降順",
+                    "列:", "アイコンのサイズ:", "小", "大", "文字のサイズ:"] {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+                if language == "fr", key.hasSuffix(":") { XCTAssertTrue(unit.value.hasSuffix("\u{00a0}:")) }
+            }
+        }
+    }
+
+    func testFolderNavigationWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["戻る", "進む", "内包フォルダ", "戻る/進む", "フォルダを開くとき:", "フォルダに移動", "その場で展開"] {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+        XCTAssertEqual(catalog.strings["フォルダを開くとき:"]?.localizations["fr"]?.stringUnit.value, "À l’ouverture des dossiers\u{00a0}:")
+        XCTAssertEqual(catalog.strings["移動"]?.localizations["en"]?.stringUnit.value, "Move")
+    }
+
+    func testGoMenuCatalogAndBuiltTableHaveAllTwentySixTranslations() throws {
+        let url = LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/Resources/GoMenu.xcstrings")
+        let catalog = try JSONDecoder().decode(LocalizationAcceptance.Catalog.self, from: Data(contentsOf: url))
+        XCTAssertEqual(catalog.sourceLanguage, "ja")
+        XCTAssertEqual(Set(catalog.strings.keys), ["移動"])
+        let translations = try XCTUnwrap(catalog.strings["移動"]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        XCTAssertEqual(translations["ja"]?.stringUnit.value, "移動")
+        XCTAssertEqual(translations["en"]?.stringUnit.value, "Go")
+        for language in LocalizationAcceptance.languages {
+            let unit = try XCTUnwrap(translations[language]).stringUnit
+            XCTAssertEqual(unit.state, "translated")
+            XCTAssertFalse(unit.value.isEmpty)
+            let bundle = try LocalizationAcceptance.bundle(language)
+            XCTAssertNotNil(bundle.url(forResource: "GoMenu", withExtension: "strings"))
+            XCTAssertEqual(bundle.localizedString(forKey: "移動", value: nil, table: "GoMenu"), unit.value)
+        }
+    }
+
+    func testSearchPendingStatusHasAllTwentySixTranslations() throws {
+        let key = "検索しています…", catalog = try LocalizationAcceptance.catalog()
+        let translations = try XCTUnwrap(catalog.strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let unit = try XCTUnwrap(translations[language]).stringUnit
+            XCTAssertEqual(unit.state, "translated")
+            XCTAssertFalse(unit.value.isEmpty)
+            XCTAssertFalse(unit.value.contains("..."))
+            XCTAssertTrue(unit.value.hasSuffix(language == "zh-Hant" ? "⋯" : language == "de" ? "\u{00a0}…" : "…"))
+            XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+            if language == "ja" { XCTAssertEqual(unit.value, key) }
+        }
+    }
+
+    func testFirstCompressedTarEditWordingHasAllTwentySixTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["最初の編集でアーカイブ全体を再圧縮します", "最初の保存でアーカイブ全体を再圧縮します"] {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated"); XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+    }
+
+    func testCompressionThreadWordingHasAllTwentySixTranslations() throws {
+        let keys = ["圧縮の並列数:", "自動（%lld）", "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。",
+                    "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。"]
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in keys {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages), key)
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+        XCTAssertEqual(catalog.strings["圧縮の並列数:"]?.localizations["fr"]?.stringUnit.value, "Nombre de threads de compression\u{00a0}:")
+    }
+
+    func testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations() throws {
+        let keys = ["追加した項目の位置:", "末尾", "先頭（編集のたびに全体を書き直す）", "ZIPでは常に末尾に追加します。",
+                    "追加するファイルの所有者ID(uid / gid)を保存", "変更しない項目の所有者ID:", "そのまま保つ",
+                    "0に戻す（編集のたびに全体を書き直す）", "追加した項目の位置", "変更しない項目の所有者ID"]
+        let catalog = try LocalizationAcceptance.catalog()
+        XCTAssertNil(catalog.strings["所有者ID(uid / gid)を保存"])
+        for key in keys {
+            let translations = try XCTUnwrap(catalog.strings[key]).localizations
+            XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages), key)
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(translations[language]).stringUnit
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                XCTAssertEqual(try LocalizationAcceptance.bundle(language).localizedString(forKey: key, value: nil, table: nil), unit.value)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+    }
+
+
+    func testEditedOutputVerificationFailureHasAllTranslationsAndKeepsSplitWording() throws {
+        let key = "変更後のアーカイブを検証できなかったため、保存を中止しました。元のアーカイブは変更されていません。"
+        let translations = try XCTUnwrap(LocalizationAcceptance.catalog().strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let message = ArchivePublicationError.verificationFailed.message(bundle: bundle)
+            XCTAssertEqual(message, translations[language]?.stringUnit.value, language)
+            XCTAssertEqual(ArchiveErrorText.describe(ArchivePublicationError.verificationFailed, bundle: bundle), message, language)
+            XCTAssertEqual(ArchiveAlertText.informativeText(message, bundle: bundle), message, language)
+            let split = ArchiveErrorText.describe(VolumePublishError.validationFailed, bundle: bundle)
+            XCTAssertEqual(split, String(localized: "アーカイブの原本を確認できません。", bundle: bundle) + "\n"
+                + String(localized: "保存できませんでした。設定、保存先のアクセス権と空き容量を確認して、もう一度試してください。", bundle: bundle), language)
+            XCTAssertNotEqual(split, message, language)
+        }
+    }
+
+    @MainActor func testListLoadingStatusHasAllTwentySixTranslations() throws {
+        let key = "項目を読み込んでいます…", catalog = try LocalizationAcceptance.catalog()
+        let translations = try XCTUnwrap(catalog.strings[key]).localizations
+        XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages))
+        for language in LocalizationAcceptance.languages {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            XCTAssertEqual(String(localized: "項目を読み込んでいます…", bundle: bundle), translations[language]?.stringUnit.value)
+        }
+    }
+
+    @MainActor func testColumnAndFolderSortingWordingInAllTwentySixLanguages() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        let keys = ["列", "圧縮率", "CRC-32", "アクセス権", "格納順", "フォルダを常に先頭に表示"]
+        let folders = [
+            "cs": "Nejprve zobrazovat složky", "da": "Behold mapper øverst", "de": "Ordner oben anzeigen",
+            "en": "Keep Folders on Top", "es": "Mantener las carpetas en la parte superior", "fi": "Pidä kansiot ylimpänä",
+            "fr": "Laisser les dossiers en haut", "hi": "फ़ोल्डर ऊपर रखें", "id": "Simpan folder di atas",
+            "it": "Tieni le cartelle in alto", "ja": "フォルダを常に先頭に表示", "ko": "폴더 우선 정렬",
+            "ms": "Kekalkan folder di atas", "nb": "Behold mapper øverst", "nl": "Zorg dat mappen bovenaan staan",
+            "pl": "Utrzymuj foldery na górze", "pt-BR": "Manter pastas na parte superior", "pt-PT": "Mostrar pastas primeiro",
+            "ru": "Отображать папки вверху списка", "sv": "Behåll mappar överst", "th": "ให้โฟลเดอร์อยู่ด้านบนสุดเสมอ",
+            "tr": "Klasörleri en üstte tut", "uk": "Тримати папки вгорі", "vi": "Giữ thư mục ở trên cùng",
+            "zh-Hans": "将文件夹保持在顶部", "zh-Hant": "將檔案夾保留在最上方"
+        ]
+        for key in keys {
+            let entry = try XCTUnwrap(catalog.strings[key], key)
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages), key)
+            for language in LocalizationAcceptance.languages {
+                let translation = try XCTUnwrap(entry.localizations[language])
+                XCTAssertEqual(translation.stringUnit.state, "translated")
+                XCTAssertFalse(translation.stringUnit.value.isEmpty)
+                let bundle = try LocalizationAcceptance.bundle(language)
+                XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), translation.stringUnit.value)
+                if language == "ja" { XCTAssertEqual(translation.stringUnit.value, key) }
+            }
+        }
+        for (language, expected) in folders {
+            XCTAssertEqual(String(localized: "フォルダを常に先頭に表示", bundle: try LocalizationAcceptance.bundle(language)), expected)
+        }
+    }
 
     func testSplitCorrectionWordingHasAllTwentySixTranslations() throws {
         let catalog = try LocalizationAcceptance.catalog()
@@ -241,6 +431,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertFalse(text.contains("「%@」"), key)
             // Wave A の指定ラベルは、形式名・ファイル名を区切る空白も仕様どおりに保つ。
             if ![".DS_Store を含めない", "tar.xz、7z、LHA の圧縮レベルは固定です", "tar と LHA は暗号化できません",
+                  "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。",
                   "この形式は暗号化できません。別名で保存で ZIP か 7z にしてください。"].contains(key) {
                 XCTAssertNil(spacing.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), key)
             }
@@ -716,8 +907,9 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
                 item(menu, title).map { menu.index(of: $0) } ?? -1
             }
             let submenus = menu.items.compactMap(\.submenu)
+            let goTitle = LocalizationAcceptance.normalizedTitle(String(localized: "移動", table: "GoMenu", bundle: bundle))
             XCTAssertEqual(submenus.map { LocalizationAcceptance.normalizedTitle($0.title) },
-                           ["KaitoFinder", title("ファイル"), title("編集"), title("表示"), title("ウインドウ"), title("ヘルプ")])
+                           ["KaitoFinder", title("ファイル"), title("編集"), title("表示"), goTitle, title("ウインドウ"), title("ヘルプ")])
             let app = try XCTUnwrap(submenus.first)
             XCTAssertEqual(app.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
                            [title("KaitoFinderについて"), "", title("設定…"), title("アップデートを確認…"), "", title("サービス"), "",
@@ -753,6 +945,21 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
             XCTAssertEqual(LocalizationAcceptance.normalizedTitle(clear.title), title("メニューを消去"))
             try check(clear, #selector(NSDocumentController.clearRecentDocuments(_:)), "")
             try check(item(file, title("開く")), #selector(ArchiveWindowController.openEntry(_:)), "o")
+            let view = try XCTUnwrap(item(menu, title("表示"))?.submenu)
+            let options = try XCTUnwrap(item(view, title("表示オプションを表示")))
+            XCTAssertTrue(options === view.items.last)
+            XCTAssertTrue(view.items[view.items.count - 2].isSeparatorItem)
+            XCTAssertEqual(options.action, #selector(AppDelegate.toggleViewOptions(_:)))
+            XCTAssertTrue(options.target === delegate)
+            XCTAssertEqual(options.keyEquivalent, "j")
+            XCTAssertEqual(options.keyEquivalentModifierMask, [.command])
+            let go = try XCTUnwrap(item(menu, goTitle)?.submenu)
+            XCTAssertEqual(go.items.map { LocalizationAcceptance.normalizedTitle($0.title) },
+                           [title("戻る"), title("進む"), "", title("内包フォルダ")])
+            XCTAssertTrue(go.items[2].isSeparatorItem)
+            try check(item(go, title("戻る")), #selector(ArchiveWindowController.goBack(_:)), "[")
+            try check(item(go, title("進む")), #selector(ArchiveWindowController.goForward(_:)), "]")
+            try check(item(go, title("内包フォルダ")), #selector(ArchiveWindowController.goToEnclosingFolder(_:)), "\u{f700}")
 
             let edit = try XCTUnwrap(item(menu, title("編集"))?.submenu)
             let selectAll = try XCTUnwrap(item(edit, title("すべてを選択")))

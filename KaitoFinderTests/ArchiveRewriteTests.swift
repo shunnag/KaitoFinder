@@ -117,25 +117,36 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let before = try digest(fixture.archive)
         let files = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted()
         let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: reader.format)
-        XCTAssertEqual(capability.mode, .rewrite(format.output), file: file, line: line)
+        XCTAssertEqual(capability.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output), file: file, line: line)
         XCTAssertTrue(capability.canEdit, file: file, line: line)
         XCTAssertNil(capability.refusal, file: file, line: line)
         XCTAssertNil(capability.readOnlyReason, file: file, line: line)
-        XCTAssertEqual(capability.rewriteNotice, String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
+        XCTAssertEqual(capability.rewriteNotice, [.tar, .lha, .sevenZip].contains(format.input) ? nil : String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
         XCTAssertEqual(try digest(fixture.archive), before, file: file, line: line)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted(), files,
                        file: file, line: line)
     }
 
-    func testTarCapabilityUsesRewriteMode() throws { try assertCapability(.tar) }
+    func testTarCapabilityUsesUpdateMode() throws { try assertCapability(.tar) }
     func testTGZCapabilityUsesTarGzipDespiteKaitoKitReportingTar() throws { try assertCapability(.tgz) }
-    func testSevenZipCapabilityUsesRewriteMode() throws { try assertCapability(.sevenZip) }
-    func testLHACapabilityUsesRewriteMode() throws { try assertCapability(.lha) }
+    func testSevenZipCapabilityUsesUpdateMode() throws { try assertCapability(.sevenZip) }
+    func testLHACapabilityUsesUpdateMode() throws { try assertCapability(.lha) }
+
+    func testLHABeginningPlacementResolvesToRewriteAndShowsNotice() throws {
+        let fixture = try Fixture(.lha)
+        let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: .lha)
+        let options = WriterOptions(additionPlacement: .beginning)
+        XCTAssertEqual(capability.mode?.resolved(with: options), .rewrite(.lha))
+        XCTAssertNil(capability.rewriteNotice)
+        XCTAssertEqual(capability.editNotice(options: options, onSave: false), String(localized: "編集するとアーカイブ全体を再圧縮します"))
+        XCTAssertEqual(capability.editNotice(options: options, onSave: true), String(localized: "保存するとアーカイブ全体を再圧縮します"))
+    }
+
 
     func testTarWrapperDetectionUsesMagicInsteadOfExtension() throws {
         for (format, name) in [(Format.tar, "plain.tgz"), (.tgz, "gzip.tar"), (.tgz, "archive.tar.gz")] {
             let fixture = try Fixture(format, filename: name)
-            XCTAssertEqual(ArchiveCapabilities.inspect(url: fixture.archive, format: .tar).mode, .rewrite(format.output))
+            XCTAssertEqual(ArchiveCapabilities.inspect(url: fixture.archive, format: .tar).mode, format.input == .tar ? .update(format.output) : .rewrite(format.output))
         }
     }
 
@@ -150,9 +161,9 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             XCTAssertEqual(reader.format, .tar)
             let capability = ArchiveCapabilities.inspect(url: archive, format: reader.format)
             XCTAssertNil(capability.refusal)
-            XCTAssertEqual(capability.mode, .rewrite(format))
+            XCTAssertEqual(capability.mode, .update(format))
             XCTAssertTrue(capability.canEdit)
-            XCTAssertNotNil(capability.rewriteNotice)
+            XCTAssertNil(capability.rewriteNotice)
             XCTAssertNil(capability.readOnlyReason)
         }
     }
@@ -224,7 +235,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let directory = try ArchiveTestDirectory(), archive = try encryptedSevenZip(in: directory, headers: headers)
             let session = try ArchiveSession(url: archive, password: "rewrite-test-password")
             session.setPasswordPrompt { _ in XCTFail("The known password must be reused"); throw CancellationError() }
-            XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+            XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
             _ = try await session.createFolder(in: "", progress: Progress())
             let added = directory.url.appendingPathComponent("added.txt")
             try Data("added encrypted contents".utf8).write(to: added)
@@ -255,7 +266,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertTrue(replacement.entries.contains(where: \.isEncrypted))
         XCTAssertEqual(Darwin.rename(encrypted.path, fixture.archive.path), 0)
         let before = try Data(contentsOf: fixture.archive)
-        XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+        XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
         do {
             // 全 entry を削除しても、暗号化された原本を平文の空書庫へ置換しない。
             _ = try await document.remove(nodes, progress: Progress())
@@ -426,7 +437,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertTrue(appended.failures.isEmpty)
         XCTAssertNil(appended.reloadFailure)
         XCTAssertEqual(Set(appended.addedPaths), ["first.txt", "second.bin", "incoming", "incoming/child.txt", "incoming/empty"])
-        XCTAssertEqual(progress.totalUnitCount, Int64(appended.addedPaths.count + Fixture.original.count + 1))
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, appended.addedPaths.count)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         expected.merge(["first.txt": .file(first), "second.bin": .file(second), "incoming": .directory,
                         "incoming/child.txt": .file(child), "incoming/empty": .directory]) { _, new in new }
@@ -459,7 +470,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         try assertContents(expected, in: fixture.archive, format: format.input)
         XCTAssertEqual(session.generation, 4)
         XCTAssertEqual(document.generation, 4)
-        XCTAssertEqual(session.capabilities.mode, .rewrite(format.output))
+        XCTAssertEqual(session.capabilities.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output))
         XCTAssertEqual(document.archiveUndoStack.slots.count, 4)
         try assertIndependentListing(fixture, names: Set(expected.keys))
 
@@ -471,7 +482,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             XCTAssertNil(document.undoFailure)
             XCTAssertEqual(try digest(fixture.archive), state)
             XCTAssertEqual(document.generation, UInt64(5 + offset))
-            XCTAssertEqual(session.capabilities.mode, .rewrite(format.output))
+            XCTAssertEqual(session.capabilities.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output))
         }
         XCTAssertFalse(manager.canUndo)
         try assertContents(Fixture.original, in: fixture.archive, format: format.input)
@@ -524,6 +535,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
     @MainActor func testTarGzipRewriteHonoursPreferredCompressionLevel() async throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.additionPosition = .beginning
         let bytes = Data(repeating: 0x61, count: 200 * 1024)
         var sizes: [Int] = []
         for level in [1, 9] {
@@ -555,6 +567,35 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
                 XCTAssertEqual(entry.formatSpecific["gid"], String(preserve ? getgid() : 0))
             }
         }
+    }
+
+    @MainActor func testTarAppendOwnerIDsVerificationStress() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let failures = Mutex<[ArchiveVerificationFailure]>([])
+        for format in [Format.tar, .tgz, .tbz2, .txz] {
+            let fixture = try Fixture(format), document = try document(fixture, preferencesStore: store)
+            for iteration in 0..<32 {
+                let preserve = iteration.isMultiple(of: 2)
+                store.preferences.tarPreservesOwnerIDs = preserve
+                let name = "stress-\(iteration).txt"
+                do {
+                    let result = try await ArchiveVerificationFailure.observer.withValue({ reason in failures.withLock { $0.append(reason) } }) {
+                        try await document.append(urls: [fixture.file(name)], to: "", progress: Progress())
+                    }
+                    XCTAssertEqual(result.addedPaths, [name]); XCTAssertNil(result.reloadFailure)
+                    let reader = try ArchiveReader.open(url: fixture.archive)
+                    let entry = try XCTUnwrap(reader.entries.first { $0.name == name })
+                    XCTAssertEqual(entry.formatSpecific["uid"], String(preserve ? getuid() : 0))
+                    XCTAssertEqual(entry.formatSpecific["gid"], String(preserve ? getgid() : 0))
+                    XCTAssertEqual(reader.entries.count, Fixture.original.count + iteration + 1)
+                } catch {
+                    XCTFail("format=\(format) iteration=\(iteration) reason=\(failures.withLock { $0 }) error=\(error)")
+                    throw error
+                }
+            }
+            try assertNoWorkDirectory(fixture.directory.url)
+        }
+        XCTAssertEqual(failures.withLock { $0 }, [])
     }
 
     @MainActor func testSessionRequestsOptionsForAppendCreateFolderAndEditInEveryMode() async throws {
@@ -601,27 +642,31 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     }
 
     @MainActor func testCancellationDuringRewriteCarryPreservesBytesAndRegistersNoUndo() async throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.additionPosition = .beginning
         for format in Format.allCases {
-            let fixture = try Fixture(format), document = try document(fixture)
+            let fixture = try Fixture(format), document = try document(fixture, preferencesStore: store)
             let before = try Data(contentsOf: fixture.archive), progress = Progress()
             let carried = Mutex(false), published = Mutex(false)
-            let total = Int64(Fixture.original.count + 2)
-            // 追加一件の後、commit の最初の carry が進捗を増やした瞬間に同期的に取り消す。
-            let observation = progress.observe(\.completedUnitCount, options: [.new]) { @Sendable observed, change in
-                if observed.totalUnitCount == total, change.newValue == 2 {
-                    carried.withLock { $0 = true }
-                    observed.cancel()
-                }
-            }
-            defer { observation.invalidate() }
+            let commitStart = Mutex<Int64?>(nil)
+            // The first commit notification marks the carry slot before any of its bytes advance.
             do {
-                _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: progress,
-                                              willPublish: { published.withLock { $0 = true } })
+                try await ArchiveWriteProgress.didCreditForTesting.withValue({ slot, completed, _ in
+                    if slot == .commit, commitStart.withLock({ value in
+                        guard value == nil else { return false }; value = completed; return true
+                    }) {
+                        carried.withLock { $0 = true }
+                        progress.cancel()
+                    }
+                }) {
+                    _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: progress,
+                                                  willPublish: { published.withLock { $0 = true } })
+                }
                 XCTFail("carry 中の取消しを無視しました: \(format)")
             } catch { XCTAssertTrue(error is CancellationError, "\(error)") }
             XCTAssertTrue(carried.withLock { $0 })
             XCTAssertFalse(published.withLock { $0 })
-            XCTAssertEqual(progress.completedUnitCount, 2)
+            XCTAssertEqual(progress.completedUnitCount, commitStart.withLock { $0 })
             XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
             XCTAssertEqual(document.generation, 0)
             XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -687,15 +732,15 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         for (name, data) in attributes { XCTAssertEqual(try xattr(name, at: fixture.archive), data, name) }
     }
 
-    @MainActor func testExtensionlessTarRewriteUsesBinWorkFile() async throws {
+    @MainActor func testExtensionlessTarRewriteUsesTarWorkFile() async throws {
         let fixture = try Fixture(.tar, filename: "archive"), document = try document(fixture)
         let root = fixture.directory.url
         _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: Progress(), willPublish: {
             let work = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
                 .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") })
-            XCTAssertTrue(FileManager.default.fileExists(atPath: work.appendingPathComponent("archive.bin").path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: work.appendingPathComponent("archive.tar").path))
         })
-        XCTAssertEqual(document.session?.capabilities.mode, .rewrite(.tar))
+        XCTAssertEqual(document.session?.capabilities.mode, .update(.tar))
         try assertContents(Fixture.original.merging(["added.txt": .file(Data("added".utf8))]) { _, new in new },
                            in: fixture.archive, format: .tar)
     }
@@ -707,7 +752,6 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     @MainActor func testWindowRewriteNoticeContainsRecompressionAndZIPDoesNot() async throws {
         let frameAutosave = ArchiveWindowFrameAutosave()
         defer { frameAutosave.restore() }
-        let notice = String(localized: "編集するとアーカイブ全体を再圧縮します")
         let controller = ArchiveWindowController()
         defer { controller.close() }
         controller.displayLocked()
@@ -717,8 +761,9 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let fixture = try Fixture(format), session = try ArchiveSession(url: fixture.archive)
             let snapshot = await session.snapshot()
             controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
-            XCTAssertEqual(capabilityNotice.stringValue, notice, format.suffix)
-            XCTAssertFalse(capabilityNotice.isHidden, format.suffix)
+            let expected = session.capabilities.editNotice(options: ArchivePreferences().writerOptions(for: format.output), onSave: false) ?? ""
+            XCTAssertEqual(capabilityNotice.stringValue, expected, format.suffix)
+            XCTAssertEqual(capabilityNotice.isHidden, expected.isEmpty, format.suffix)
             await session.close()
         }
         let directory = try ArchiveTestDirectory(), archive = try zip(in: directory)

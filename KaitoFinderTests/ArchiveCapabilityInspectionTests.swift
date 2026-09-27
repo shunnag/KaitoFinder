@@ -6,6 +6,97 @@ import XCTest
 
 /// B1: 編集可否は session が開いた reader から導き、書庫を開き直さない。
 nonisolated final class ArchiveCapabilityInspectionTests: XCTestCase {
+    func testSingleTarSpellingsUseUpdaterAndSplitTarStillRewrites() throws {
+        let directory = try ArchiveTestDirectory()
+        for name in ["sample.tar", "sample.TAR", "no-extension"] {
+            let archive = try TarUpdateFixture.archive(directory.url, name: name)
+            let reader = try ArchiveReader.open(url: archive)
+            let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
+            XCTAssertEqual(capability.mode, .update(.tar)); XCTAssertNil(capability.rewriteNotice)
+        }
+        let split = try SplitArchiveFixture(.tar), reader = try ArchiveReader.open(url: split.archive)
+        XCTAssertEqual(ArchiveCapabilities.inspect(reader: reader, url: split.archive, allowsSplitSave: true).mode, .rewrite(.tar))
+    }
+
+    func testSingleTarWithSplitVolumeNameStillRewritesWithoutSiblings() throws {
+        let directory = try ArchiveTestDirectory()
+        for name in ["single.tar.001", "wide.TAR.0001"] {
+            let archive = try TarUpdateFixture.archive(directory.url, name: name)
+            XCTAssertNotNil(ArchiveVolumeSet.parse(fileName: name))
+            XCTAssertFalse(ArchiveSplitVolume.isSplitVolumeMember(archive))
+            let reader = try ArchiveReader.open(url: archive)
+            XCTAssertNil(reader.volumeSet)
+            for capability in [ArchiveCapabilities.inspect(reader: reader, url: archive),
+                               ArchiveCapabilities.inspect(url: archive, format: reader.format)] {
+                XCTAssertTrue(capability.canEdit, name)
+                XCTAssertEqual(capability.mode, .rewrite(.tar), name)
+            }
+        }
+    }
+
+    func testTarUpdaterKeepsTheExistingRepresentabilityGate() throws {
+        let directory = try ArchiveTestDirectory()
+        let empty = Data()
+        let fixtures = [TarUpdateFixture.member("device", type: 51, body: empty),
+                        TarUpdateFixture.member("fifo", type: 54, body: empty),
+                        TarUpdateFixture.member("link", type: 49, body: empty, link: "absent"),
+                        TarUpdateFixture.member("same") + TarUpdateFixture.member("/same"),
+                        TarUpdateFixture.member("a/./b"), TarUpdateFixture.member("a/../b")]
+        for bytes in fixtures {
+            let archive = try TarUpdateFixture.archive(directory.url, bytes: bytes + Data(count: 1024))
+            let reader = try ArchiveReader.open(url: archive)
+            let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
+            XCTAssertFalse(capability.canEdit)
+            do { try ArchiveRewriter.probe(reader: reader, format: .tar); XCTFail("Expected refusal") }
+            catch RewriterError.unrepresentable(let name, let reason) {
+                XCTAssertEqual(capability.refusal, .unrepresentable(name + ": " + reason))
+            }
+        }
+    }
+
+    func testSingleLHASpellingsUseUpdaterAndSplitLHAStillRewrites() throws {
+        let directory = try ArchiveTestDirectory()
+        for fixture in ["names-ascii", "tl-S3b"] {
+            for name in ["sample.lzh", "sample.lha", "sample.LZH", "sample.LHA", "no-extension"] {
+                let archive = try LHAUpdateFixture.frozen(fixture, at: directory.url, filename: name)
+                let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder())
+                for capability in [ArchiveCapabilities.inspect(reader: reader, url: archive),
+                                   ArchiveCapabilities.inspect(url: archive, format: reader.format)] {
+                    XCTAssertEqual(capability.mode, .update(.lha))
+                    XCTAssertNil(capability.lhaRewriteReason); XCTAssertNil(capability.compressedTarAssessment)
+                    XCTAssertNil(capability.rewriteNotice)
+                    for onSave in [false, true] {
+                        XCTAssertNil(capability.editNotice(options: .init(), onSave: onSave))
+                        let legacy = WriterOptions(additionPlacement: .beginning)
+                        XCTAssertEqual(capability.mode?.resolved(with: legacy), .rewrite(.lha))
+                        XCTAssertEqual(capability.editNotice(options: legacy, onSave: onSave), onSave
+                            ? String(localized: "保存するとアーカイブ全体を再圧縮します")
+                            : String(localized: "編集するとアーカイブ全体を再圧縮します"))
+                    }
+                }
+            }
+        }
+        let modern = try LHAUpdateFixture.make(directory.url)
+        let capability = ArchiveCapabilities.inspect(url: modern, format: .lha)
+        XCTAssertEqual(capability.mode, .update(.lha)); XCTAssertNil(capability.lhaRewriteReason)
+        XCTAssertNil(capability.editNotice(options: .init(), onSave: false))
+        let split = try SplitArchiveFixture(.lha), reader = try ArchiveReader.open(url: split.archive)
+        XCTAssertEqual(ArchiveCapabilities.inspect(reader: reader, url: split.archive, allowsSplitSave: true).mode, .rewrite(.lha))
+    }
+
+    func testLHAUpdaterKeepsExistingNameAndSymlinkRefusals() throws {
+        for name in ["symlink", "unrepresentable", "colon"] {
+            let directory = try ArchiveTestDirectory(), archive = try LHAUpdateFixture.frozen(name, at: directory.url)
+            let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder())
+            let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
+            XCTAssertFalse(capability.canEdit, name)
+            do { try ArchiveRewriter.probe(reader: reader, format: .lha); XCTFail("Expected refusal: \(name)") }
+            catch RewriterError.unrepresentable(let entry, let reason) {
+                XCTAssertEqual(capability.refusal, .unrepresentable(entry + ": " + reason))
+            }
+        }
+    }
+
     private func openCount() -> Int { ReaderOptions.kaitoFinderOpenCount.withLock { $0 } }
 
     func testSessionOpenParsesZIPOnceAndInspectsFromTheReader() async throws {

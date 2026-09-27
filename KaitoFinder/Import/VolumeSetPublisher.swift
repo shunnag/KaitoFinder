@@ -40,6 +40,7 @@ nonisolated final class VolumeSetPublication: Sendable {
     private let setLock: VolumePublishLock
     private let stagingLock: VolumePublishLock
     private let isNetworkVolume: Bool
+    private let stampsProveContent: Bool
     private let index: RecoverableWorkIndex
     private let renamer: VolumeExclusiveRename
     private let initialRecord: VolumePublishJournalRecord
@@ -55,7 +56,7 @@ nonisolated final class VolumeSetPublication: Sendable {
 
     private init(target: VolumeSetTarget, parent: VolumePublishDirectory, staging: VolumePublishDirectory,
                  journal: VolumePublishJournal, setLock: VolumePublishLock, stagingLock: VolumePublishLock,
-                 isNetworkVolume: Bool, index: RecoverableWorkIndex,
+                 isNetworkVolume: Bool, stampsProveContent: Bool, index: RecoverableWorkIndex,
                  renamer: VolumeExclusiveRename, record: VolumePublishJournalRecord, options: ReaderOptions,
                  coordinationTimeout: TimeInterval, criticalSection: VolumePublishCriticalSection, operations: VolumePublishOperations,
                  metadataStore: ArchiveVolumeMetadataStore,
@@ -63,11 +64,12 @@ nonisolated final class VolumeSetPublication: Sendable {
         self.target = target; self.parent = parent; self.staging = staging; self.journal = journal
         self.setLock = setLock; self.index = index; self.renamer = renamer; initialRecord = record
         self.stagingLock = stagingLock; self.isNetworkVolume = isNetworkVolume
+        self.stampsProveContent = stampsProveContent
         self.options = options; self.coordinationTimeout = coordinationTimeout
         self.criticalSection = criticalSection; self.hook = hook; self.operations = operations; self.metadataStore = metadataStore
     }
 
-    static func begin(_ target: VolumeSetTarget, estimatedOutputLength: UInt64,
+    static func begin(_ target: VolumeSetTarget, estimatedOutputLength: UInt64, additionalWorkBytes: UInt64 = 0,
                       progress: Progress = Progress(), index: RecoverableWorkIndex = .shared, options: ReaderOptions = .kaitoFinder(),
                       coordinationTimeout: TimeInterval = 10, criticalSection: VolumePublishCriticalSection = .shared,
                       operations: VolumePublishOperations = .init(), metadataStore: ArchiveVolumeMetadataStore = .shared,
@@ -80,6 +82,8 @@ nonisolated final class VolumeSetPublication: Sendable {
                                   scheme: target.scheme, layout: target.layout)
         let parent = try VolumePublishDirectory(target.parent)
         let volume = try operations.volumeInfo(parent)
+        // ns mtime を信頼できる APFS だけ。永続化せず、回復は従来の全文 hash を使う。
+        let stampsProveContent = operations.allowsStampRecheck && volume.fileSystem == "apfs" && volume.hazard == nil
         let volumeRoot = try VolumePublishFS.volumeRoot(parent)
         try checkWorkLength(estimatedOutputLength, fileSystem: volume.fileSystem)
         if let hazard = volume.hazard, !target.allowHazardousVolume { throw VolumePublishError.hazardousVolume(hazard) }
@@ -88,7 +92,8 @@ nonisolated final class VolumeSetPublication: Sendable {
         try checkOldPermissions(target, parent: parent)
         try checkOccupancy(plan: plan, oldCount: target.layout?.volumes.count ?? 0, parent: parent)
         try verifyExpected(target, parent: parent)
-        try checkSpace(requiredOutput: estimatedOutputLength, largest: plan.largestVolume, available: volume.available)
+        try checkSpace(requiredOutput: estimatedOutputLength, additionalWorkBytes: additionalWorkBytes,
+                       largest: plan.largestVolume, available: volume.available)
         try checkDescriptorBudget(plan.volumes.count)
         guard case .numbered(let stem, let width) = target.scheme else { throw VolumePublishError.unsupportedScheme }
         let indexedWork = try index.entries()
@@ -161,7 +166,8 @@ nonisolated final class VolumeSetPublication: Sendable {
             try staging.sync(); try parent.sync()
             try checkCancellation()
             return VolumeSetPublication(target: target, parent: parent, staging: staging, journal: journal, setLock: setLock,
-                stagingLock: stagingLock, isNetworkVolume: !volume.isLocal, index: index, renamer: renamer, record: record,
+                stagingLock: stagingLock, isNetworkVolume: !volume.isLocal, stampsProveContent: stampsProveContent,
+                index: index, renamer: renamer, record: record,
                 options: options, coordinationTimeout: coordinationTimeout,
                 criticalSection: criticalSection, operations: operations, metadataStore: metadataStore, hook: fault)
         } catch is SimulatedCrash { throw SimulatedCrash() }
@@ -223,7 +229,8 @@ nonisolated final class VolumeSetPublication: Sendable {
         defer { journal.release(); stagingLock.release(); setLock.release(); state.withLock { $0.finished = true } }
         var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
             renamer: renamer, index: index, record: initialRecord, operations: operations,
-            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume, metadataStore: metadataStore)
+            stagingLock: stagingLock, isNetworkVolume: isNetworkVolume, stampsProveContent: stampsProveContent,
+            metadataStore: metadataStore)
         var critical = false
         do {
             try checkCancellation(progress)
@@ -232,20 +239,25 @@ nonisolated final class VolumeSetPublication: Sendable {
             try Self.checkWorkLength(UInt64(info.st_size), fileSystem: operations.volumeInfo(parent).fileSystem)
             let plan = try VolumePlan(totalLength: UInt64(info.st_size), schedule: target.schedule, scheme: target.scheme, layout: target.layout)
             try Self.checkOccupancy(plan: plan, oldCount: initialRecord.oldVolumes.count, parent: parent)
-            try Self.checkSpace(requiredOutput: 0, largest: plan.largestVolume, available: operations.volumeInfo(parent).available)
+            try Self.checkSpace(requiredOutput: 0, additionalWorkBytes: 0, largest: plan.largestVolume,
+                                available: operations.volumeInfo(parent).available)
+            let draft: ArchiveVolumeMetadata.PublicationDraft?
             if target.writesVolumeMetadata {
                 if let layout = target.layout, try VolumePublishFS.usesAppleDouble(parent) {
                     transaction.record.previousMetadata = try? metadataStore.entry(for: layout.gateURL)?.publication
                 }
-                transaction.record.metadata = try ArchiveVolumeMetadata.prepare(plan: plan, schedule: target.schedule,
-                    oldLayout: target.layout, work: workURL, store: metadataStore, additionalQuarantine: target.additionalQuarantine,
-                    checkCancellation: { try self.checkCancellation(progress) })
+                // 世代の上限と旧属性の読み取りは W を切り出す前に確定する。
+                draft = try ArchiveVolumeMetadata.prepareDraft(plan: plan, schedule: target.schedule,
+                    oldLayout: target.layout, store: metadataStore, additionalQuarantine: target.additionalQuarantine)
+            } else { draft = nil }
+            transaction.record.newVolumes = try ArchiveStageDiagnostics.measure(.splitCopy) {
+                try VolumeSplitter.split(workURL: workURL, into: staging.directory("new"),
+                    plan: plan, oldLayout: target.layout,
+                    avoidsAppleDouble: target.writesVolumeMetadata && (try VolumePublishFS.usesAppleDouble(parent)),
+                    additionalQuarantine: target.additionalQuarantine, checkCancellation: { try self.checkCancellation(progress) })
             }
-            transaction.record.newVolumes = try VolumeSplitter.split(workURL: workURL, into: staging.directory("new"),
-                plan: plan, oldLayout: target.layout,
-                avoidsAppleDouble: target.writesVolumeMetadata && (try VolumePublishFS.usesAppleDouble(parent)),
-                additionalQuarantine: target.additionalQuarantine, checkCancellation: { try self.checkCancellation(progress) })
             transaction.record.totalLength = plan.totalLength
+            transaction.record.metadata = try draft?.finish(volumes: transaction.record.newVolumes)
             if let metadata = transaction.record.metadata { try ArchiveVolumeMetadata.writeNative(metadata, in: staging.directory("new")) }
             try transaction.validateNew(in: staging.directory("new"), options: options, validation: validation)
             try transaction.phase(.prepared)
@@ -253,6 +265,9 @@ nonisolated final class VolumeSetPublication: Sendable {
             let gateURL = parent.url.appendingPathComponent(plan.gateName)
             try operations.willCoordinate(gateURL)
             let coordinator = VolumePublishCoordination(gate: gateURL, presenter: target.filePresenter, request: operations.coordinate)
+            #if DEBUG
+            let observer = ArchiveStageDiagnostics.observer.get()
+            #endif
             return try coordinator.withAccess(gate: gateURL, timeout: coordinationTimeout) {
                 try checkCancellation(progress)
                 try Self.verifyExpected(target, parent: parent)
@@ -263,7 +278,7 @@ nonisolated final class VolumeSetPublication: Sendable {
                 critical = true
                 progress.isCancellable = false
                 let prepared = transaction
-                return try VolumePublishUncancelled.run { [self] in
+                let publishPrepared: @Sendable () throws -> PublishedVolumeSet = { [self] in
                     var transaction = prepared
                     do {
                         try hook(.s5)
@@ -326,6 +341,14 @@ nonisolated final class VolumeSetPublication: Sendable {
                         oldVolumesDisposal: disposal, usedExclusiveRenameFallback: renamer.usesFallback,
                         outcome: .committed(cleanupFailed: cleanupFailure), metadataWarning: metadataWarning)
                 }
+                #if DEBUG
+                // TaskLocal は detach した thread へ自動では渡らない。
+                return try VolumePublishUncancelled.run {
+                    try ArchiveStageDiagnostics.observer.withValue(observer) { try publishPrepared() }
+                }
+                #else
+                return try VolumePublishUncancelled.run(publishPrepared)
+                #endif
             }
         } catch is SimulatedCrash { throw SimulatedCrash() }
         catch {
@@ -395,10 +418,11 @@ nonisolated final class VolumeSetPublication: Sendable {
         }
     }
 
-    private static func checkSpace(requiredOutput: UInt64, largest: UInt64, available: UInt64) throws {
+    private static func checkSpace(requiredOutput: UInt64, additionalWorkBytes: UInt64, largest: UInt64, available: UInt64) throws {
         let a = requiredOutput.addingReportingOverflow(largest)
         let b = a.partialValue.addingReportingOverflow(VolumePublishFS.margin)
-        let required: UInt64 = a.overflow || b.overflow ? .max : b.partialValue
+        let c = b.partialValue.addingReportingOverflow(additionalWorkBytes)
+        let required: UInt64 = a.overflow || b.overflow || c.overflow ? .max : c.partialValue
         guard available >= required else { throw VolumePublishError.insufficientSpace(required: required, available: available) }
     }
 

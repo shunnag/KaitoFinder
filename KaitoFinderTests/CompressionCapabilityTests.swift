@@ -189,7 +189,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 let session = try XCTUnwrap(document.session)
                 session.setPasswordPrompt { _ in "KaitoFixture" }
                 _ = try await session.preparedPassword()
-                XCTAssertEqual(session.capabilities.mode, .rewrite(.sevenZip))
+                XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
                 let additions = ["added-a.txt", "added-b.txt"].map { directory.url.appendingPathComponent($0) }
                 for url in additions { try Data(url.lastPathComponent.utf8).write(to: url) }
                 let result = try await document.append(urls: additions, to: "", progress: Progress())
@@ -313,7 +313,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
             writer.addfile(entry, io.BytesIO(b'payload'))
         """, suffix: "tar")
         XCTAssertEqual(try ArchiveReader.open(url: fixture.archive).format, .tar)
-        XCTAssertEqual(ArchiveCapabilities.inspect(url: fixture.archive, format: .tar).mode, .rewrite(.tar))
+        XCTAssertEqual(ArchiveCapabilities.inspect(url: fixture.archive, format: .tar).mode, .update(.tar))
     }
 
     // 新形式の期待 SHA-256 は各 fixture ディレクトリの manifest.json に記録された原文の値。

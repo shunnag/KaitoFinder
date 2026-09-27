@@ -17,6 +17,65 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
     private let scheme = ArchiveVolumeSet.Scheme.numbered(stem: "archive.tar", width: 3)
     private enum Injected: Error { case failure }
 
+    #if DEBUG
+    func testDiagnosticsPreserveFullHashPassesAcrossPublishThread() throws {
+        for (policy, trashFails): (VolumeOldDisposalPolicy, Bool) in [(.trash, false), (.remove, false), (.trash, true)] {
+            let fixture = try VolumePublishFixture()
+            let hashes = Mutex<[URL: Int]>([:]), rechecks = Mutex(0)
+            let stages = Mutex<[ArchiveStageDiagnostics.Stage: Int]>([:]), active = Mutex<Set<UUID>>([])
+            var operations = VolumePublishOperations()
+            operations.allowsStampRecheck = false
+            operations.coordinate = { _, _, queue, acquired in queue.addOperation { acquired(nil) } }
+            operations.trash = { url in
+                if trashFails { throw Injected.failure }
+                let destination = fixture.directory.url.appendingPathComponent("trash-" + UUID().uuidString)
+                try FileManager.default.moveItem(at: url, to: destination)
+                return destination
+            }
+            operations.didHash = { url in hashes.withLock { $0[url, default: 0] += 1 } }
+            operations.didRecheckStamps = { _ in rechecks.withLock { $0 += 1 } }
+            var target = fixture.target()
+            target.oldVolumeDisposal = policy
+            target.writesVolumeMetadata = true
+            let publication = try VolumeSetPublication.begin(target, estimatedOutputLength: UInt64(fixture.newBytes.count),
+                index: fixture.index, operations: operations)
+            defer { publication.cancel() }
+            try fixture.newBytes.write(to: publication.workURL)
+            let published = try ArchiveStageDiagnostics.observer.withValue({ event in
+                switch event {
+                case .began(let id, let stage):
+                    active.withLock { _ = $0.insert(id) }
+                    stages.withLock { $0[stage, default: 0] += 1 }
+                case .ended(let id, _, _):
+                    XCTAssertNotNil(active.withLock { $0.remove(id) })
+                }
+            }) {
+                try publication.publish(progress: Progress(), validation: { _ in })
+            }
+            let removes = policy == .remove || trashFails
+            let expected: [ArchiveStageDiagnostics.Stage] = [.splitMetadataDigest, .splitCopy,
+                .splitStagedProof, .splitStagedReader, .splitStagedRecheck,
+                .splitPlacedProof, .splitPlacedReader, .splitPlacedRecheck] + (removes ? [.splitDisposeProof] : [])
+            XCTAssertEqual(stages.withLock { $0 }, Dictionary(uniqueKeysWithValues: expected.map { ($0, 1) }))
+            XCTAssertTrue(active.withLock { $0.isEmpty })
+            XCTAssertNil(ArchiveStageDiagnostics.observer.get())
+            XCTAssertEqual(rechecks.withLock { $0 }, 0)
+            for volume in fixture.plan.volumes {
+                XCTAssertEqual(hashes.withLock { $0[publication.stagingURL.appendingPathComponent("new/" + volume.name)] }, 2)
+                XCTAssertEqual(hashes.withLock { $0[fixture.root.appendingPathComponent(volume.name)] }, removes ? 3 : 2)
+            }
+            let bytes = try published.layout.volumes.reduce(into: Data()) { $0.append(try Data(contentsOf: $1.url)) }
+            XCTAssertEqual(bytes, fixture.newBytes)
+            let marker = try XCTUnwrap(ArchiveVolumeMetadata.read(ArchiveVolumeMetadata.Marker.self,
+                key: ArchiveVolumeMetadata.setKey, at: published.gateURL))
+            let digests = try published.layout.volumes.reduce(into: Data()) {
+                $0.append(contentsOf: SHA256.hash(data: try Data(contentsOf: $1.url)))
+            }
+            XCTAssertEqual(marker.totalSHA256, SHA256.hash(data: digests).map { String(format: "%02x", $0) }.joined())
+        }
+    }
+    #endif
+
     func testUniformAndExplicitPlansAndVolumeLimit() throws {
         for (length, expected) in [(7, [7]), (20, [10, 10]), (23, [10, 10, 3])] {
             let plan = try VolumePlan(totalLength: UInt64(length), schedule: .uniform(size: 10), scheme: scheme)

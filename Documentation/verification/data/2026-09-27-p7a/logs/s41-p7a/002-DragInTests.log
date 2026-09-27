@@ -1,0 +1,86 @@
+Test Suite 'Selected tests' started at 2026-09-27 04:03:13.144.
+Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:03:13.144.
+Test Suite 'DragInTests' started at 2026-09-27 04:03:13.144.
+Test Case '-[KaitoFinderTests.DragInTests testAppendDirectoryPreservesSubtreeAndEmptyDirectoryUnderVirtualFolder]' started.
+Test Case '-[KaitoFinderTests.DragInTests testAppendDirectoryPreservesSubtreeAndEmptyDirectoryUnderVirtualFolder]' passed (0.117 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testAppendFilePreservesExistingBytesAndPassesUnzip]' started.
+Test Case '-[KaitoFinderTests.DragInTests testAppendFilePreservesExistingBytesAndPassesUnzip]' passed (0.042 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testAppendFreshOpenSeesNewInodeAndOldPromiseResolvesByPath]' started.
+Test Case '-[KaitoFinderTests.DragInTests testAppendFreshOpenSeesNewInodeAndOldPromiseResolvesByPath]' passed (0.042 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testAppendPreservesArchiveQuarantinePermissionsAndExtendedAttributes]' started.
+Test Case '-[KaitoFinderTests.DragInTests testAppendPreservesArchiveQuarantinePermissionsAndExtendedAttributes]' passed (0.041 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testCancellationAfterStagedCommitStillLeavesOriginalUntouched]' started.
+Test Case '-[KaitoFinderTests.DragInTests testCancellationAfterStagedCommitStillLeavesOriginalUntouched]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testCancellationPartwayPreservesOriginalBytesAndGeneration]' started.
+Test Case '-[KaitoFinderTests.DragInTests testCancellationPartwayPreservesOriginalBytesAndGeneration]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testCollisionRefusesWholeDropAndReportsEveryConflictingItem]' started.
+Test Case '-[KaitoFinderTests.DragInTests testCollisionRefusesWholeDropAndReportsEveryConflictingItem]' passed (0.038 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testDirectorySymlinkIsStoredWithoutFollowingItsSubtree]' started.
+Test Case '-[KaitoFinderTests.DragInTests testDirectorySymlinkIsStoredWithoutFollowingItsSubtree]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testDocumentAppendInvalidatesMaterializationCache]' started.
+Test Case '-[KaitoFinderTests.DragInTests testDocumentAppendInvalidatesMaterializationCache]' passed (0.120 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testDropRequiresCopyFilesAndIdleArchive]' started.
+Test Case '-[KaitoFinderTests.DragInTests testDropRequiresCopyFilesAndIdleArchive]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testDropTargetFolderFileEmptyAndVirtualRows]' started.
+2026-09-27 04:03:13.717 xctest[17107:13533993] 取り消し用の一時ファイルを削除できません: Error Domain=NSCocoaErrorDomain Code=4 "“（xctestで保存中の書類）”を削除できませんでした。" UserInfo={NSUserStringVariant=(
+    Remove
+), NSFilePath=/var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-DragIn-C2059AA9-365A-4754-A304-58F368429C61/（xctestで保存中の書類）, NSURL=file:///var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-DragIn-C2059AA9-365A-4754-A304-58F368429C61/%EF%BC%88xctest%E3%81%A6%E3%82%99%E4%BF%9D%E5%AD%98%E4%B8%AD%E3%81%AE%E6%9B%B8%E9%A1%9E%EF%BC%89, NSUnderlyingError=0x766e8ae610 {Error Domain=NSPOSIXErrorDomain Code=2 "No such file or directory"}}
+Test Case '-[KaitoFinderTests.DragInTests testDropTargetFolderFileEmptyAndVirtualRows]' passed (0.038 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testEveryReadOnlyRefusalOffersConversionForFileDrops]' started.
+Test Case '-[KaitoFinderTests.DragInTests testEveryReadOnlyRefusalOffersConversionForFileDrops]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched]' started.
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:236: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:237: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertEqual failed: ("Optional(2)") is not equal to ("Optional(1)")
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:237: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertEqual failed: ("10") is not equal to ("5")
+Test Case '-[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched]' failed (0.051 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testFailureAfterStagedCommitStillLeavesOriginalUntouched]' started.
+Test Case '-[KaitoFinderTests.DragInTests testFailureAfterStagedCommitStillLeavesOriginalUntouched]' passed (0.043 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testLeadingDotExistingEntryCollisionIsRefused]' started.
+Test Case '-[KaitoFinderTests.DragInTests testLeadingDotExistingEntryCollisionIsRefused]' passed (0.037 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testLocalDropOperationCoversMasksParentsSubtreesCapabilitiesAndBusyState]' started.
+Test Case '-[KaitoFinderTests.DragInTests testLocalDropOperationCoversMasksParentsSubtreesCapabilitiesAndBusyState]' passed (0.005 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter]' started.
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:397: -[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter] : Test skipped - この実行環境では名前付き pasteboard サービスへ書き込めません
+Test Case '-[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter]' skipped (0.103 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testPasteAddsFileURLsToDisplayedFolderWithoutUsingSelection]' started.
+Test Case '-[KaitoFinderTests.DragInTests testPasteAddsFileURLsToDisplayedFolderWithoutUsingSelection]' passed (0.110 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testPasteValidationNeverReadsObjectsAndDropReadsPromiseFirst]' started.
+Test Case '-[KaitoFinderTests.DragInTests testPasteValidationNeverReadsObjectsAndDropReadsPromiseFirst]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testPromiseRepresentationTakesPriorityOverFileURL]' started.
+Test Case '-[KaitoFinderTests.DragInTests testPromiseRepresentationTakesPriorityOverFileURL]' passed (0.004 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testSameBatchNameCollisionAndUnicodeNormalizationAreRefused]' started.
+Test Case '-[KaitoFinderTests.DragInTests testSameBatchNameCollisionAndUnicodeNormalizationAreRefused]' passed (0.040 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testSFXGatekeeperReasonAtOpen]' started.
+Test Case '-[KaitoFinderTests.DragInTests testSFXGatekeeperReasonAtOpen]' passed (0.039 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testTrailingDataGatekeeperReasonAtOpen]' started.
+Test Case '-[KaitoFinderTests.DragInTests testTrailingDataGatekeeperReasonAtOpen]' passed (0.038 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testTruncatedCentralDirectoryOffsetGatekeeperReasonAtOpen]' started.
+Test Case '-[KaitoFinderTests.DragInTests testTruncatedCentralDirectoryOffsetGatekeeperReasonAtOpen]' passed (0.038 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testUnsafeDestinationAndMissingFolderLeaveArchiveUntouched]' started.
+Test Case '-[KaitoFinderTests.DragInTests testUnsafeDestinationAndMissingFolderLeaveArchiveUntouched]' passed (0.039 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testUnsupportedTarWrapperAcceptsConversionDropButRefusesAppendWithFormatReason]' started.
+Test Case '-[KaitoFinderTests.DragInTests testUnsupportedTarWrapperAcceptsConversionDropButRefusesAppendWithFormatReason]' passed (0.046 seconds).
+Test Case '-[KaitoFinderTests.DragInTests testViewStateRestoresSelectionExpansionAndScrollAnchorByPath]' started.
+Test Case '-[KaitoFinderTests.DragInTests testViewStateRestoresSelectionExpansionAndScrollAnchorByPath]' passed (0.104 seconds).
+Test Suite 'DragInTests' failed at 2026-09-27 04:03:14.424.
+	 Executed 27 tests, with 1 test skipped and 3 failures (0 unexpected) in 1.277 (1.279) seconds
+Test Suite 'P1dAS33Tests.xctest' failed at 2026-09-27 04:03:14.424.
+	 Executed 27 tests, with 1 test skipped and 3 failures (0 unexpected) in 1.277 (1.279) seconds
+Test Suite 'Selected tests' failed at 2026-09-27 04:03:14.424.
+	 Executed 27 tests, with 1 test skipped and 3 failures (0 unexpected) in 1.277 (1.280) seconds
+Archive:  /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-DragIn-509589A3-EC5D-4B1E-A47F-9E40D969DE78/archive.zip
+    testing: old.txt                  OK
+    testing: sub/deep/old.txt         OK
+    testing: sub/deep/tree/           OK
+    testing: sub/deep/tree/a.txt      OK
+    testing: sub/deep/tree/deeper/    OK
+    testing: sub/deep/tree/deeper/b.txt   OK
+    testing: sub/deep/tree/empty/     OK
+No errors detected in compressed data of /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-DragIn-509589A3-EC5D-4B1E-A47F-9E40D969DE78/archive.zip.
+
+Archive:  /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-DragIn-3E9EE775-2C9C-4E88-93D5-BBE080985AEF/archive.zip
+    testing: old.txt                  OK
+    testing: sub/deep/old.txt         OK
+    testing: new.txt                  OK
+No errors detected in compressed data of /var/folders/vg/13nykq6d7nq3tnwcqwr1nfl40000gn/T/KaitoFinder-DragIn-3E9EE775-2C9C-4E88-93D5-BBE080985AEF/archive.zip.
+

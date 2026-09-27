@@ -131,7 +131,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
             plan: .init(sources: fixture.sources, destination: destination, format: format), progress: progress)
         XCTAssertEqual(result, destination, file: file, line: line)
         try assertContents(result, Fixture.contents, file: file, line: line)
-        XCTAssertEqual(progress.totalUnitCount, Int64(Fixture.contents.count + 1), file: file, line: line)
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, Fixture.contents.count, file: file, line: line)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount, file: file, line: line)
         let names = Set(Fixture.contents.keys)
         switch format {
@@ -348,7 +348,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: Array(fixture.sources.prefix(2)), destination: output,
                                                           format: .zip, existing: existing), progress: progress)
         try assertContents(output, ["old.txt": .file(original), "a.txt": Fixture.contents["a.txt"]!, "b.bin": Fixture.contents["b.bin"]!])
-        XCTAssertEqual(progress.totalUnitCount, Int64(2 + reader.entries.count + 1))
+        XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 2 + reader.entries.count)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         XCTAssertEqual(try digest(archive), before)
         try assertNoWorkDirectory(fixture.directory.url)

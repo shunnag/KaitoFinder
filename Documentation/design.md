@@ -306,7 +306,8 @@ ZIP 再圧縮・cleanup pending・旧巻残留・メタデータ記録失敗の�
 無効な指定サイズは NSError の localizedDescription で「64 KB以上のサイズを指定してください。」を示し、128巻の上限も確認する。
 ZIP は通常の ZIP のバイト分割。保存時モードでは予約を含め、元セットを変えず、新しい gate（分割なしなら単一ファイル）へ文書を切り替える。
 新セットもネイティブ xattr / AppleDouble ボリューム上のアプリ所有ストアという M5 のメタデータ規則を使う。
-別名保存の numbered 入力は一度だけ各巻を読み、fd・パス・stamp を前後で確認しながら SHA-256 と連結コピーを同時に生成する。
+別名保存の numbered 入力は一度だけ各巻を読み、fd・パス・stamp を前後で確認しながら連結コピーを生成する。
+入力の SHA-256 は `usesHashes` が真の置換時だけ計算する。別名保存は常に偽で、計算しない。
 作業領域の固定コピーを rewriter へ渡すため、FAT/exFAT 元巻の重複した全文 hash 検査を行わない。各 chunk で Progress の取消しを検査し S5 前に中止できる。
 エラー文言は保存時置換・即時置換・新セット作成を区別する。新セットの rollback/held は原本が不変であることと再試行または
 保存先の Finder 確認を案内し、原本の復元・原本を開き直すような案内や source document の held 状態を作らない。
@@ -333,7 +334,21 @@ begin 前のサイズシートで選び直す。実際の W が上限を超え�
 `verifyAssembledInput` で照合してから replay する。`.zip.001` は `ArchiveVolumeInput.copy(to:progress:)`
 で各巻の fd・パス・同一性を前後に照合しながら連結し、Updater で既存項目を再圧縮せず編集する。
 Updater の構造上の拒否（gatekeeper / invalidArchive / nonRelocatableEntry）は ZIP rewriter へ切り替え、保存後の通知欄で知らせる。
-W と切り出したセットを KaitoKit で開き、予定した名前の集合と照合する。
+切り出したセットを S4・S10 で KaitoKit から開き、予定した名前の集合と照合する。
+S4 の全文 hash が W と同じ byte の巻を証明するため、W 自体の開き直しは行わない。
+S4・S10 の最初の全文 hash と reader の照合、次巻名の不在（hash の前後と reader の後）、
+reader 失敗時の全文 hash、旧巻を削除する直前の新セットの証明、回復時のすべての証明は残す。
+reader 成功後の再照合だけは、hazard のない APFS で dev・inode・size・mtime（秒と ns）の stamp を比べる。
+全文 hash 前に採取した全巻の stamp が、hash 後の別の stat で記録した `newProof` とも一致することを要求する。
+これにより hash の最終 path 検査から証拠の stat までの間の、stamp を変える書き込みも再照合の対象になる。
+一巻でも違えば従来の全文 hash に戻す。HFS+・FAT/exFAT・ネットワーク・file provider は全文 hash のまま。
+xattr が変える ctime は stamp に含めない。同じ inode・size への書き込みは mtime を更新する場合に検出する。
+writeback 前の `MAP_SHARED` の store など、byte が変わっても mtime が更新されない書き込みや、
+mtime を意図して戻す書き込みは検出しない。2026-09-26の反証レビューでは、検証した APFS 上で `msync` なしの store が `read()` の返す byte を変え、
+`munmap`・close の2秒後も inode・size・mtime（ns）が同じだった。`pwrite` と `F_PUNCHHOLE` では stamp が変わった。
+これは既存の `newMatches` / `oldProof` および APFS の旧巻の照合と同じ信頼の範囲である。
+stamp の利用可否は journal に保存せず、回復には使わない。
+入力連結の SHA-256 は `usesHashes` のときだけ計算し、fd・path・stamp の前後の照合は常に行う。
 
 調整の presenter は必ず ArchiveDocument 自身。取得待ちは S5 の外にあり、時間切れは原本を変えず失敗する。
 公開中の presentedItemDidMove は無視し、終了時に fileURL を元の gate URL の綴りへ戻す。
@@ -345,6 +360,11 @@ publishedVerificationPending も失敗として予約を保持し、再オープ
 
 APFS/HFS+ では gate に `com.shunnag.KaitoFinder.volume-layout`（stem / width / schedule の JSON）、各巻に
 `com.shunnag.KaitoFinder.volume-set`（setUUID / generation / index / count / totalSHA256 の JSON）を書く。
+`totalSHA256` は巻順の各巻の SHA-256 を 32 byte に戻して連結した列の SHA-256 とする。
+旧版の「W 全体の SHA-256」から意味だけを変え、JSON の key・型・64 桁の小文字16進の書式を保つ。
+この値は旧版・新版とも書式だけを検査し、内容の一致や mixed の判定には使わない。
+新版と旧版のセット・journal・store は相互に受理できる。内容の証明は引き続き必須の巻別 `NewVolume.sha256` で行う。
+旧属性の読み取りと世代上限の拒否は切り出し前に行い、巻別 digest からの導出は切り出し後・xattr 書き込み前に行う。
 一巻に縮んでも gate の予定表を読んで再分割できる。setUUID・世代・巻数・順序の不一致は読み取りを残して編集を拒否する。
 他ツールの印のない巻は印の比較から除く。
 
@@ -1268,6 +1288,15 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
   `/abs.txt`、重複名を含む)。展開層で必ず、先頭 `/` を落とし、`..` 成分を拒否し、
   解決後の実パスが出力 root の内側にあることを確認する。root を出る target を
   持つ symlink も拒否する。
+  tar 系（外側の圧縮を問わず reader が tar）の名前は `/` だけで分け、`\` と先頭の `C:` もそのまま保つ。
+  ZIP と他形式は従来どおり `/` と `\` で分け、先頭の drive 文字を外す。
+  tar でも `\` で分けた片に `..` がある名前は拒否する。出力先の成分検査でも同じ条件を確認し、
+  directory descriptor に相対な `openat` / `mkdirat` と `O_NOFOLLOW`、葉の `O_EXCL` を保つ。
+  選択・保存前の snapshot・並列展開・file promise・Quick Look・コピーも同じ構文を使う。
+  出力名の重複判定は成分を `/` で結んだ NFC を鍵にし、最初の entry を優先する。
+- **変換時の受信名**: 読み取り専用の書庫へのドロップでは、出力形式を選ぶ前の promise の葉は
+  ファイルとして置ける一成分かだけを検査する。保存パネルで選んだ形式の規則は
+  `ArchiveCreationTransaction.run` が作業領域を作る前に適用する。
 - **quarantine**:書庫の `com.apple.quarantine` を展開物へ**伝播**させる。
   やらないと KaitoFinder が Gatekeeper 迂回路になる。`replaceItemAt` は
   quarantine を落とすので、書庫自身の印も編集後に付け直す。
