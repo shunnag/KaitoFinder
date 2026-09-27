@@ -20,8 +20,8 @@ canonical の `feature/2026-09-24-review`、clean な `b450765f78c15e4a7d69058b0
 | 対象 | 固定 commit |
 |---|---|
 | KaitoFinder の基底 | `b450765f78c15e4a7d69058b0b856e4ab221f34c` |
-| GyoshukuKit | `52655cbd76f73f97f4715d06baed1478d6b30a47` |
-| KaitoKit | `823ad460faab055b6b7051da10583480785e8f68` |
+| GyoshukuKit | `20d81653aa376f0e71b1f90865191e162137395c` |
+| KaitoKit | `aca39dc37df546c5d3d340c940b4ca4d9110c29a` |
 
 [source-checks.json](../../build/P10S35Verification/source-checks.json) で、固定archiveの全ファイル
 （KK1,513 / GK295）が隔離先と一致し、最終KFの製品137 / 試験172 / Tools21ファイルもcanonicalと一致することを確認。
@@ -216,7 +216,7 @@ S35の検証とcommit後、同じthreadでS36を開始する。今回はS36へ�
 
 ## S35 correction 1
 
-2026-09-26。オーケストレータから、固定 GK `52655cb` / KK `823ad46` の通常 Xcode test host で
+2026-09-26。オーケストレータから、固定 GK `20d8165` / KK `aca39dc` の通常 Xcode test host で
 build-for-testing 成功、全1,625件で既知のGUI環境依存失敗に加えて新規の決定的失敗2件、との報告を受けた。
 `ApplicationCommandIntegrationTests` と `LayoutOverflowTests/testLockedPlaceholderInEveryLanguage` を
 画面ロック解除後に絞っても再現し、前者の他10件は成功した、という報告に対する修正。
@@ -316,7 +316,7 @@ git diff --check
 
 ## オーケストレータの検証（S35、通常の Xcode test host、2026-09-26）
 
-隔離の三つ組（KaitoKit 823ad46・GyoshukuKit 52655cb は `git archive`、KaitoFinder は作業ツリー）。
+隔離の三つ組（KaitoKit aca39dc・GyoshukuKit 20d8165 は `git archive`、KaitoFinder は作業ツリー）。
 
 | 実行 | 結果 |
 |---|---|
@@ -376,8 +376,8 @@ P10-b AC-b1〜b10 の製品・試験を実装した。**未コミット。通常
 ### 隔離ビルド
 
 `build/P10S36Verification/layout/{KaitoFinder,GyoshukuKit,KaitoKit}` に `git archive` で展開した。
-KFの基底は上記S35、GK `52655cbd76f73f97f4715d06baed1478d6b30a47`、
-KK `823ad460faab055b6b7051da10583480785e8f68`。KFの製品・試験・Toolsのみcanonicalから同期した。
+KFの基底は上記S35、GK `20d81653aa376f0e71b1f90865191e162137395c`、
+KK `aca39dc37df546c5d3d340c940b4ca4d9110c29a`。KFの製品・試験・Toolsのみcanonicalから同期した。
 全KK1,513 / GK295ファイルがarchiveと一致。live siblingとGyoshukuKit-p14はビルドしていない。
 S35との比較は同じ固定依存moduleを使い、KFのS35 archiveを `baseline/layout/KaitoFinder` へ展開して製品・試験を新規ビルドした。
 
@@ -491,7 +491,7 @@ Release note用の文（公開済み文書は変更していない）:
 
 ## オーケストレータの検証（S36、通常の Xcode test host、2026-09-26）
 
-隔離の三つ組（KaitoKit 823ad46・GyoshukuKit 52655cb は `git archive`、KaitoFinder は作業ツリー）、画面ロック無し、利用者は別のアプリで作業中。
+隔離の三つ組（KaitoKit aca39dc・GyoshukuKit 20d8165 は `git archive`、KaitoFinder は作業ツリー）、画面ロック無し、利用者は別のアプリで作業中。
 
 | 実行 | 結果 |
 |---|---|
@@ -504,7 +504,7 @@ Release note用の文（公開済み文書は変更していない）:
 
 ## AC-a7（オーケストレータ、2026-09-27 00:41）
 
-KaitoFinder 786ec4c（S35・S36 を含む）の `-O`・wholemodule の Debug、GyoshukuKit 52655cb・KaitoKit 823ad46、
+KaitoFinder 7494da5（S35・S36 を含む）の `-O`・wholemodule の Debug、GyoshukuKit 20d8165・KaitoKit aca39dc、
 `TEST_RUNNER_KAITOFINDER_PERFORMANCE_PROBES=1 TEST_RUNNER_KAITOFINDER_PROBE_ENTRIES=500000` で
 `ArchiveFolderNavigationTests/testNavigationScaleWhenEnabled` を 1 回（負荷の平均 15.4–16.4）。
 
@@ -516,7 +516,7 @@ KaitoFinder 786ec4c（S35・S36 を含む）の `-O`・wholemodule の Debug、G
 
 ## GUI の試験の修正（前面に頼らない形へ）
 
-2026-09-27。KaitoFinder `eef4bf9` を基底とする。Terminal からの
+2026-09-27。KaitoFinder `438dc64` を基底とする。Terminal からの
 `Tools/verify_ui_integration.py` の [commands ログ](../../build/UIIntegrationVerification/40b7efe2-e610-4ca2-ba02-38fc570e9b9a/commands.log)
 では75件中、下記の移動と⌘Jの2件だけが製品のassertionに達する前に前面化待ちで失敗し、
 列メニューの1件が同じ理由でskipしていた。この節は、上の記録の「移動・⌘J・列メニューには前面化が必要」という試験条件を置き換える。
@@ -558,7 +558,7 @@ AppDelegateの既存の生成・validation・列actionは `NSApp.mainWindow` を
 
 `KaitoFinderTests` 全体を `NSApp.isActive`・`keyWindow`・`mainWindow`・`isKeyWindow`・
 `isMainWindow`・`activate`・`makeKeyAndOrderFront`・`makeMain` で検索した。
-加えてS33〜S41の範囲 `96a2bc5^..eef4bf9` で変更された全49 Swiftファイルと、同範囲の追加行を確認した。
+加えてS33〜S41の範囲 `96a2bc5^..438dc64` で変更された全49 Swiftファイルと、同範囲の追加行を確認した。
 全ファイル名と該当行は [調査一覧](../../build/P10InactiveHostVerification/activation-audit.json) に保存した。
 
 | 対象 | 判断 |
@@ -597,8 +597,8 @@ activation待ち、`ArchiveTabTests` のkey待ち、`ArchivePreviewSidebarTests`
 
 隔離先は `build/P10InactiveHostVerification/layout/{KaitoFinder,GyoshukuKit,KaitoKit}`。
 3つとも `git archive` で展開し、KFだけ作業ツリーの製品・試験・Tools・Xcode projectを同期した。
-GK `1223a61f8e3bb4ccf0ebbeaa7e1e001c37eee744`、
-KK `823ad460faab055b6b7051da10583480785e8f68` を固定した。
+GK `5b5271000f54ccb75038b31317a99a5e92dd863a`、
+KK `aca39dc37df546c5d3d340c940b4ca4d9110c29a` を固定した。
 GK全451 / KK全1,513 archiveファイルの一致を展開時と検証後に確認した。
 liveの `../GyoshukuKit`・`../KaitoKit` はビルドしていない。
 Sparkle frameworkは既存の取得済みバイナリを隔離先の `Frameworks` にコピーした。
@@ -654,7 +654,7 @@ python3 build/P10InactiveHostVerification/layout/KaitoFinder/Tools/verify_ui_int
 ### 追補: キーボードナビゲーション設定に依存しない検査
 
 オーケストレータからの報告では、通常Xcode host・画面ロック解除・Terminalを前面にした状態で、
-同じ隔離依存（GK `1223a61` / KK `823ad46`）によるbuildが成功した。
+同じ隔離依存（GK `5b52710` / KK `aca39dc`）によるbuildが成功した。
 ApplicationCommandIntegrationTests・ArchiveColumnsTests・ArchiveViewOptionsTests・
 ArchiveFolderNavigationTests・AutosaveIsolationTests・LayoutOverflowTests・WordingAcceptanceTestsの
 **115件を2回実行し、両回とも⌘J試験のTab移動のassertionだけが失敗**した。他は成功したとの報告である。
@@ -705,8 +705,8 @@ GK全451 / KK全1,513ファイルが前回の固定 `git archive` と一致す�
 
 利用者が Terminal から `python3 Tools/verify_ui_integration.py` を流すと、「commands」の組 75 件のうち
 `testGoMenuCommandsAndToolbarNavigateTheActiveArchive` と `testViewOptionsCommandJTracksMainArchiveWhilePanelIsKey` だけが、
-`NSApp.isActive` の待ちで時間切れになった（macOS は操作なしに前面を奪うことを許さない）。書き直した後、隔離の三つ組（GyoshukuKit 1223a61・
-KaitoKit 823ad46）で Terminal を前面にしたまま、ApplicationCommandIntegration・ArchiveColumns・ArchiveViewOptions・ArchiveFolderNavigation・
+`NSApp.isActive` の待ちで時間切れになった（macOS は操作なしに前面を奪うことを許さない）。書き直した後、隔離の三つ組（GyoshukuKit 5b52710・
+KaitoKit aca39dc）で Terminal を前面にしたまま、ApplicationCommandIntegration・ArchiveColumns・ArchiveViewOptions・ArchiveFolderNavigation・
 AutosaveIsolation・LayoutOverflow・WordingAcceptance の 115 件を 2 回流し、2 回とも失敗 0（skip 1）。途中で見つかった
 「⌘J のパネルで Tab が並べ順から順序の popup へ移る」の確認は、macOS のキーボードナビゲーションが有効なときだけ行う形にした
 （この Mac では既定の無効で、popup は key view の輪に入らない）。`AppDelegate` の変更は DEBUG の build だけの main window の注入口で、
@@ -714,7 +714,7 @@ Release の build では従来どおり `NSApp.mainWindow` を読む。
 
 ## キー入力の試験を配列に依らない形へ
 
-2026-09-27。利用者が KF `86d92e4` / GK `1223a61` / KK `823ad46` で
+2026-09-27。利用者が KF `21bfada` / GK `5b52710` / KK `aca39dc` で
 `python3 Tools/verify_finder_interactions.py --focused` を実行し、15件のうち
 `testNavigationKeysRespectSearchRenameAndToolbarFocus` だけが失敗したとの報告を受けた。
 元のlogは [finder.log](../../build/FinderInteractionVerification/c9ae08ee-6120-4f20-a0df-5b349eb0bd67/finder.log)。
@@ -745,9 +745,9 @@ driverは `{"type":"keyDown","character":"[","modifiers":1048576}` の形式を�
 
 | 対象 | 固定commit |
 |---|---|
-| KFの基底 | `86d92e4db0d2b400c369feae33aa1090146618b3` |
-| GK | `1223a61f8e3bb4ccf0ebbeaa7e1e001c37eee744` |
-| KK | `823ad460faab055b6b7051da10583480785e8f68` |
+| KFの基底 | `21bfada27e937508b6d45123f0a95c301b687bf3` |
+| GK | `5b5271000f54ccb75038b31317a99a5e92dd863a` |
+| KK | `aca39dc37df546c5d3d340c940b4ca4d9110c29a` |
 
 環境はmacOS 27.2 (26B5091g)、Apple Swift 6.4、Xcode 27.0 (27A266a)。
 既存の検証build scriptのcompiler引数を新しい隔離先へ差し替え、次を1回実行した。

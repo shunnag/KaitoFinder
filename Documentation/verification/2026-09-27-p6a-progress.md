@@ -2,7 +2,7 @@
 
 ## Scope and isolation
 
-S39 only, starting at KaitoFinder `b191380` on `feature/2026-09-24-review` in the canonical working tree.
+S39 only, starting at KaitoFinder `36b2a93` on `feature/2026-09-24-review` in the canonical working tree.
 No commit. P7 and the Step 0-P7 gate were not started. Read P6-A / AC-A1–A12, the P6 common API contract,
 ORDER-P6-P13 §2 / §3.4, the S38–S41 prompt, and the read-only S38 verification record before implementation.
 No AGENTS.md was found in the checkout or its parent paths.
@@ -14,9 +14,9 @@ both keep the protocol's default progress implementations.
 
 Both `build/s39-p6a` and `build/s39-p6a-final` contain independent `git archive` exports of:
 
-- KaitoKit `823ad460faab055b6b7051da10583480785e8f68`.
-- GyoshukuKit `b9da4bc1e152d5b02be5c306f05654c032030b9e`.
-- KaitoFinder `b191380`, overlaid with this working tree's product/test/project/tool files.
+- KaitoKit `aca39dc37df546c5d3d340c940b4ca4d9110c29a`.
+- GyoshukuKit `6586ed5a0a5abf02fb705b819ca9d3d4f275e012`.
+- KaitoFinder `36b2a93`, overlaid with this working tree's product/test/project/tool files.
 
 No live sibling checkout was built or modified. The ledger calls the public
 `maximumPendingInputBytes(for:)`; it does not duplicate the S38 bounds. In particular, tar.xz includes
@@ -135,14 +135,14 @@ tests and individual remaining password/deferred/undo cases. The exact final sel
 
 Remaining harness results were investigated without changing the product or weakening tests:
 
-- **Three failed cases and one interrupted case reproduce on untouched `b191380` with the same
+- **Three failed cases and one interrupted case reproduce on untouched `36b2a93` with the same
   exported KK/GK binaries.** The two undo cases are
   `testTwelveAppendsKeepTenSlotsAndDeleteOldestFiles` (replacement-directory cleanup) and
   `testSlotsStayOutsideArchiveParentDirectory` (Foundation puts its replacement directory beside the
   archive). The split cases are `testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending`
   (save failure) and `testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization`
   (same gate assertion then signal 10). Baseline product/test compilation succeeded; all 265 baseline
-  Swift source files were compared to `git show b191380`. No S39 changes were overlaid. Logs/argv are
+  Swift source files were compared to `git show 36b2a93`. No S39 changes were overlaid. Logs/argv are
   under `build/s39-p6a-baseline`, and the four baseline runs are included in runs.tsv but excluded from
   the candidate totals above.
 - **Four failed app-host cases:** ArchiveUndoStackTests' edit-menu shortcut test cannot find the
@@ -205,7 +205,7 @@ PROBE-PROGRESS reports credit count, distinct completion values, maximum gap fro
 last credit, and the tail through didPublish. The selected format list is shared with the existing probes.
 
 [many-baseline.patch](data/2026-09-27-p6a/many-baseline.patch) contains only the many-file test/configuration
-changes for B-P6 (`b191380`); `git apply --check` against exported original test files passed. It omits
+changes for B-P6 (`36b2a93`); `git apply --check` against exported original test files passed. It omits
 the new ledger hooks and requires only total for baseline creation, whose mutate span did not exist.
 Apply it only to the isolated B-P6 KF export. Both baseline and final use the same KK/GK pins above.
 
@@ -216,7 +216,7 @@ is inferred from the functional probe smoke runs. Step 0-P7 remains a separate g
 
 ## S39 correction 1
 
-The orchestrator reported that the normal Xcode test host, using isolated GK `b9da4bc` / KK `823ad46`,
+The orchestrator reported that the normal Xcode test host, using isolated GK `6586ed5` / KK `aca39dc`,
 passed build-for-testing and 291 tests across 14 related classes. Its 1,687-test full-suite run, made
 while the screen was locked, also exposed five stale progress expectations in addition to GUI failures.
 Those results precede this correction and were supplied by the orchestrator, not run in this correction.
@@ -285,20 +285,20 @@ document edit or P7 work was made.
 
 ## オーケストレータの検証（通常の Xcode test host、2026-09-27）
 
-隔離の三つ組（GyoshukuKit b9da4bc・KaitoKit 823ad46 は `git archive`、KaitoFinder は作業ツリー）。
+隔離の三つ組（GyoshukuKit 6586ed5・KaitoKit aca39dc は `git archive`、KaitoFinder は作業ツリー）。
 
 | 実行 | 結果 |
 |---|---|
 | build-for-testing | 成功 |
 | 関係する 14 クラス（ArchiveWriteProgress・ByteProgressIntegration・ArchiveCreation・ArchiveEdit・ArchivePasswordEditing・ArchiveRewrite・DeferredSaveDocument・SevenZipUpdatePassword・ArchiveImportConflict・SevenZipUpdateEdit・TarUpdateEdit・DeferredSplitSave・LHAUpdateDeferredSave・WordingAcceptance） | 291 件、失敗 0 |
 | 全件（画面ロック中） | 1,687 件、skip 38、失敗 31（予期しないもの 11）。S39 による失敗は、仕様の AC-A11 の表に漏れていた `DragInTests` の 4 件と `ArchiveImportSafetyTests.testNewArchivePanelCancellationStopsSingleFileCompression`（項目数の進捗を期待していた）。ほかは画面ロックと host が前面でないことによる GUI の失敗 |
-| correction 1 の後（試験だけの修正。製品は検証した build と byte 一致） | DragIn・ArchiveImportSafety・QuickLookOpen・ArchiveWriteProgress・ByteProgressIntegration は失敗 0。`ArchivePasswordUITests` の 8 件は画面ロック中に失敗したが、S39 の前の build（786ec4c）でも同じ条件で同じ 8 件が失敗した |
+| correction 1 の後（試験だけの修正。製品は検証した build と byte 一致） | DragIn・ArchiveImportSafety・QuickLookOpen・ArchiveWriteProgress・ByteProgressIntegration は失敗 0。`ArchivePasswordUITests` の 8 件は画面ロック中に失敗したが、S39 の前の build（7494da5）でも同じ条件で同じ 8 件が失敗した |
 
-性能の受入計測（AC-A9・AC-A10）は `many-baseline.patch` を当てた B-P6（b191380）と交互に採り、この節の後に追記する。
+性能の受入計測（AC-A9・AC-A10）は `many-baseline.patch` を当てた B-P6（36b2a93）と交互に採り、この節の後に追記する。
 
 ## 受入計測（AC-A9・AC-A10、オーケストレータ、2026-09-27 02:30–03:40）
 
-B-P6 = KaitoFinder b191380 + `many-baseline.patch`、S39 = 0e770d4。どちらも GyoshukuKit b9da4bc・KaitoKit 823ad46 の `git archive`、`-O`・wholemodule の Debug。
+B-P6 = KaitoFinder 36b2a93 + `many-baseline.patch`、S39 = 7b74bf9。どちらも GyoshukuKit 6586ed5・KaitoKit aca39dc の `git archive`、`-O`・wholemodule の Debug。
 add_many・create_many（`KAITOFINDER_PROBE_ADD_FILES=50000`、zip・tar・tar.gz・7z・lha）を B と S39 を入れ替えながら 1 + 3 回、
 P0b（100k 全形式と本文 256 MiB）を B → S39 → S39 → B の 2 回ずつ。負荷の平均は 4.2〜42.2（S40 の Codex の試験と並走）で、仕様の 4 未満は満たさない。
 生の行は `data/2026-09-27-p6a/acceptance/`。

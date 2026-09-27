@@ -1,6 +1,6 @@
 {
-  "baseline": "KF 6aff545, GK 244a9c2, KK 823ad46",
-  "candidate": "uncommitted S41, GK 244a9c2, KK 823ad46",
+  "baseline": "KF 8bff616, GK 04ccb5d, KK aca39dc",
+  "candidate": "uncommitted S41, GK 04ccb5d, KK aca39dc",
   "comparisons": [
     {
       "file": "add.zip",

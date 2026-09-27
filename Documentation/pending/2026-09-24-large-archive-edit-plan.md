@@ -79,35 +79,35 @@ P3 の仕様の前に、区切りの継ぎの試作を GyoshukuKit の実際の�
 | P2 | 非圧縮 tar の updater（追加・削除・改名を再圧縮なしで）。GyoshukuKit efdb651・da0af7b（FAT32 / exFAT の修正）、KaitoFinder S13 [実装と検証](../verification/2026-09-26-p2-tar-update.md)。受入計測も合格（B-P2 を採り直して比較） | GyoshukuKit, KaitoFinder |
 | P3 | 圧縮 tar の区切り単位の編集。KK d35f2da / GK d5c51b3、KF S16 [実装と検証](../verification/2026-09-26-p3-compressed-tar-update.md)。受入計測も合格（tar.bz2 の 10 万件の open の短縮 0.93 倍は見込み 0.7 倍に届かず、記録） | 3 つとも |
 | P4 | LHA: member ごとの並列圧縮、raw のまま運ぶ編集。KaitoKit d171f27（P4-K）、GyoshukuKit 5faab4b（並列 LH5）・6e7cd9b（LHAUpdater）、KaitoFinder ac5cab9（S21）[実装と検証](../verification/2026-09-26-p4-lha-update.md)。完了。受入計測は payload の `updater_open` が約 5 ms 超過（逸脱として報告）のほかは合格（ce96ec5） | 3 つとも |
-| P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで。KaitoKit ef06e22（P5-K）、GyoshukuKit 52655cb（P5-G。属性の無い書庫への追加は 7zz と同じく属性を付けない）、KaitoFinder 786ec4c（S25）[実装と検証](../verification/2026-09-26-p5-7z-update.md)。完了。KaitoFinder の受入計測も合格（7a77a08。本文 256 MiB のパスワードの変更 11.6 s → 0.49 s） | KaitoKit, GyoshukuKit, KaitoFinder |
-| P6 | 取込み・新規作成・移動の進捗のバイト化。GyoshukuKit b9da4bc（P6-G）・a5cb92c（AC-G7 の記録）、KaitoFinder 0e770d4（P6-A）・6aff545（受入計測）[G の記録](../../../GyoshukuKit/Documentation/verification/2026-09-27-p6g-progress.md)・[A の記録](../verification/2026-09-27-p6a-progress.md)。完了。AC-G7 は `--progress` の tgz small 1.38 倍・headers 1.25 倍（上限 1.25）を報告、S38 だけの lha +4.5 % は S40 で解消 | GyoshukuKit, KaitoFinder |
-| P7 | 小ファイル多数の作成の並列先読み（上限 4 本、Step 0-P7 の門に合格）。GyoshukuKit 244a9c2（P7-G）・8e35eba（修正: ZIP の出力の一括の書込み、空の一括追加は何もしない）・1223a61（AC-G7）、KaitoFinder 9aa3872（P7-A）・a0b0354（受入計測）。完了。5 万件の zip の作成 1.28 s（7zz 1.63 s）、取込み・作成の mutate は zip 0.43 倍・tar.gz 0.46–0.59 倍。7z の mutate 1.05 倍と、txz・7z の batch を recursive と比べる条件（列挙の分を含む）は報告 | GyoshukuKit, KaitoFinder |
+| P5 | 7z: header だけの改名、追記だけの追加、詰めるだけの削除（solid の一部削除はその folder だけ再圧縮）、AES の掛け直しを再圧縮なしで。KaitoKit 6a51d7a（P5-K）、GyoshukuKit 20d8165（P5-G。属性の無い書庫への追加は 7zz と同じく属性を付けない）、KaitoFinder 7494da5（S25）[実装と検証](../verification/2026-09-26-p5-7z-update.md)。完了。KaitoFinder の受入計測も合格（4ba380e。本文 256 MiB のパスワードの変更 11.6 s → 0.49 s） | KaitoKit, GyoshukuKit, KaitoFinder |
+| P6 | 取込み・新規作成・移動の進捗のバイト化。GyoshukuKit 6586ed5（P6-G）・6b0bbc1（AC-G7 の記録）、KaitoFinder 7b74bf9（P6-A）・8bff616（受入計測）[G の記録](../../../GyoshukuKit/Documentation/verification/2026-09-27-p6g-progress.md)・[A の記録](../verification/2026-09-27-p6a-progress.md)。完了。AC-G7 は `--progress` の tgz small 1.38 倍・headers 1.25 倍（上限 1.25）を報告、S38 だけの lha +4.5 % は S40 で解消 | GyoshukuKit, KaitoFinder |
+| P7 | 小ファイル多数の作成の並列先読み（上限 4 本、Step 0-P7 の門に合格）。GyoshukuKit 04ccb5d（P7-G）・94c9e6f（修正: ZIP の出力の一括の書込み、空の一括追加は何もしない）・5b52710（AC-G7）、KaitoFinder f8b4394（P7-A）・1724a49（受入計測）。完了。5 万件の zip の作成 1.28 s（7zz 1.63 s）、取込み・作成の mutate は zip 0.43 倍・tar.gz 0.46–0.59 倍。7z の mutate 1.05 倍と、txz・7z の batch を recursive と比べる条件（列挙の分を含む）は報告 | GyoshukuKit, KaitoFinder |
 | P8 | 検索の絞り込みを MainActor 外で計算。KaitoFinder b450765（S34）[実装と検証](../verification/2026-09-26-p8-search.md)。完了。AC-M は M6 の 1 行（負荷 22–26 の回の 1.32 倍、上限 1.3）のほかは合格 | KaitoFinder |
 | P9 | 圧縮の並列数の設定。S27 [実装と検証](../verification/2026-09-26-p9-threads.md)。完了（500ce7a） | KaitoFinder |
 | P10 | 現在のフォルダへの移動（戻る・進む）と ⌘J の表示オプション。既定は「フォルダに移動」（利用者の判断）。KaitoFinder 4d4be0b（S35 = P10-a）・41d48f0（S36 = P10-b）[実装と検証](../verification/2026-09-26-p10-navigation.md)。完了。実のキー入力（AC-a5）と host を前面にする GUI の試験は、利用者が Mac の空いた状態で `Tools/verify_ui_integration.py` と `Tools/verify_finder_interactions.py --focused` を流す。AC-a7 は合格（50 万件で移動 2.4 ms・戻る 0.5 ms・⌘↑ 0.7 ms） | KaitoFinder |
-| P11 | zstd の復号。KaitoKit 823ad46（Stage 1–3、256 MiB の tar.zst の open 0.56 倍、5 万件の method 93 ZIP の展開 0.39 倍）[検証](../../../KaitoKit/Documentation/verification/2026-09-26-zstd-p11.md)。完了 | KaitoKit |
+| P11 | zstd の復号。KaitoKit aca39dc（Stage 1–3、256 MiB の tar.zst の open 0.56 倍、5 万件の method 93 ZIP の展開 0.39 倍）[検証](../../../KaitoKit/Documentation/verification/2026-09-26-zstd-p11.md)。完了 | KaitoKit |
 | P12 | 分割巻の保存で重複する全体の読み取りを減らす（設計上必要な証明は残す）。完了（71549c2・e48d8ad、反証レビューと受入計測に合格） | KaitoFinder |
 | P13 | tar の `\` を含む名前の展開（tar ではただの文字として扱う）、変換で受け取る名前の規則を出力形式の決定後に適用。完了（54c2b8d） | KaitoFinder |
-| P14 | tar.xz の block の大きさ。[仕様](specs-2026-09-26/P14.md)（利用者の判断: 4 MiB に詰める上限と 16 MiB の片の二つ）。GyoshukuKit b132551・67a22e8（受入計測の記録）。完了。受入計測は全 AC 合格（小さなファイルの多い tar.xz の中央の削除・改名 4.7–5.6 s → 0.9 s、payload の改名 21 ms、作成 small 0.50 倍・payload 0.68 倍、サイズ +3.4〜11.8 %） | GyoshukuKit |
+| P14 | tar.xz の block の大きさ。[仕様](specs-2026-09-26/P14.md)（利用者の判断: 4 MiB に詰める上限と 16 MiB の片の二つ）。GyoshukuKit 0470cb8・85706a2（受入計測の記録）。完了。受入計測は全 AC 合格（小さなファイルの多い tar.xz の中央の削除・改名 4.7–5.6 s → 0.9 s、payload の改名 21 ms、作成 small 0.50 倍・payload 0.68 倍、サイズ +3.4〜11.8 %） | GyoshukuKit |
 
 分割巻の一部の巻だけを書き直す公開は、クラッシュ時の整合性の中核に触れるため、P12 の後に改めて判断する。
 
 
 ## 状態（2026-09-27 08:20）
 
-P0–P14 は全て実装・検証・コミット済み（push・main への merge・release はしていない）。最終の組 KaitoFinder a0b0354（製品は 9aa3872）・
-GyoshukuKit 1223a61（製品は 8e35eba）・KaitoKit 823ad46 で、アプリの全件 1,701 件（予期しない失敗は、host を前面にする必要のある GUI の試験と
+P0–P14 は全て実装・検証・コミット済み（push・main への merge・release はしていない）。最終の組 KaitoFinder 1724a49（製品は f8b4394）・
+GyoshukuKit 5b52710（製品は 94c9e6f）・KaitoKit aca39dc で、アプリの全件 1,701 件（予期しない失敗は、host を前面にする必要のある GUI の試験と
 ネイティブのドラッグなど 8 件だけ）、GyoshukuKit の全件 583 件（失敗 0）。
 利用者の確認（2026-09-27）: `python3 Tools/verify_ui_integration.py` は全ての組が成功（commands 75 件・native-save 5 件・履歴の 4 件）、
 `python3 Tools/verify_finder_interactions.py --focused` は 15 件すべて成功。前面に頼っていた GUI の試験 3 件と、ANSI の位置のキーコードを固定していた
-キー入力の試験を直した（86d92e4・1e58a79）。逸脱の一覧は最終報告（会話）と各検証記録。
+キー入力の試験を直した（21bfada・0c5c074）。逸脱の一覧は最終報告（会話）と各検証記録。
 
 ## 状態（2026-09-27 00:05）
 
 Codex の利用上限の後、利用者がクレジットを足して作業を再開した（2026-09-26 13:37）。利用者の判断（同日）: P10 の既定は「フォルダに移動」、
 P1d の判断 3 は差分の検査に置き換え、P14 は二つの上限、P5-A の新しい注意書きは加える。
-コミット済みの先頭: KaitoKit 823ad46（P11 まで）、GyoshukuKit 67a22e8（P5-G 52655cb、P14 b132551）、KaitoFinder は S21 ac5cab9・ce96ec5、
-S33 96a2bc5、S34 b450765、S35 4d4be0b、S36 41d48f0、S25 786ec4c。最新の三つの組での全件は、96a2bc5 の時点で 1,563 件・失敗 0。
+コミット済みの先頭: KaitoKit aca39dc（P11 まで）、GyoshukuKit 85706a2（P5-G 20d8165、P14 0470cb8）、KaitoFinder は S21 ac5cab9・ce96ec5、
+S33 96a2bc5、S34 b450765、S35 4d4be0b、S36 41d48f0、S25 7494da5。最新の三つの組での全件は、96a2bc5 の時点で 1,563 件・失敗 0。
 残り: S38（P6-G、実行中）→ S39（P6-A）→ Step 0-P7 → S40（P7-G）→ S41（P7-A）、
 利用者の GUI の確認（`Tools/verify_ui_integration.py`、`Tools/verify_finder_interactions.py --focused`）。
 `~/GitHub/KaitoKit-p11` は worktree の登録を外したが、sandbox の制限で directory を消せなかった（中身は不要）。
@@ -127,6 +127,6 @@ S33 96a2bc5、S34 b450765、S35 4d4be0b、S36 41d48f0、S25 786ec4c。最新の�
    掃引・V1–V8・最終の門を続ける。この worktree は中途の状態のままコミットしない。
 3. KaitoFinder: S21（P4-A）→ S33（P1d-A。S21 の後に B-P1d を採り直す）→ S34（P8）→ S35・S36（P10、利用者の了承が要る）→ S25（P5-A）→
    S38–S41（P6・P7）。P14-G（GyoshukuKit）は仕様あり・利用者の判断待ち（S24 の後、S38 の前の案）。
-（確認: 本線の組み合わせ KaitoFinder 31509ff・GyoshukuKit 6e7cd9b・KaitoKit 0cbd809 で、アプリの全件 1,531 件。失敗は画面ロック中の既知の GUI 系 9 試験だけ）
+（確認: 本線の組み合わせ KaitoFinder 31509ff・GyoshukuKit 6e7cd9b・KaitoKit 4eaf915 で、アプリの全件 1,531 件。失敗は画面ロック中の既知の GUI 系 9 試験だけ）
 
 4. 実 disk の試験（hdiutil の FAT32 / exFAT / HFS+）は Codex の sandbox では動かず、オーケストレータの検証でだけ実行される（efdb651 の exFAT の不具合はそこで見つかった）。各段の検証で必ず回す。

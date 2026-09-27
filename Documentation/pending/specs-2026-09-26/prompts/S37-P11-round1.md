@@ -1,6 +1,6 @@
 # S37 = P11-K, round 1 of 3 (KaitoKit worktree)
 
-Repository: ~/GitHub/KaitoKit-p11 (git worktree of KaitoKit, branch feature/2026-09-26-p11-zstd from ef06e22; the start
+Repository: ~/GitHub/KaitoKit-p11 (git worktree of KaitoKit, branch feature/2026-09-26-p11-zstd from 6a51d7a; the start
 gate holds: clean tree, `Codecs/Zstd` and the zstd tests identical to 73c1b9f, inbox/zstd SHA-256 verified). Work only in this worktree.
 Do not commit.
 

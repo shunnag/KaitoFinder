@@ -2,40 +2,40 @@
   "archives": {
     "S41": {
       "KaitoFinder": {
-        "commit": "9aa387235959bf10581437358279b70be0beaa5e",
+        "commit": "f8b439499154955d16a028c8d1aa8359b6997993",
         "archive_command": [
           "git",
           "-C",
           "~/Github/KaitoFinder",
           "archive",
           "--format=tar",
-          "9aa387235959bf10581437358279b70be0beaa5e"
+          "f8b439499154955d16a028c8d1aa8359b6997993"
         ],
         "source_files": 0,
         "mismatches": []
       },
       "GyoshukuKit": {
-        "commit": "8e35eba",
+        "commit": "94c9e6f",
         "archive_command": [
           "git",
           "-C",
           "~/Github/GyoshukuKit",
           "archive",
           "--format=tar",
-          "8e35eba"
+          "94c9e6f"
         ],
         "source_files": 65,
         "mismatches": []
       },
       "KaitoKit": {
-        "commit": "823ad46",
+        "commit": "aca39dc",
         "archive_command": [
           "git",
           "-C",
           "~/Github/KaitoKit",
           "archive",
           "--format=tar",
-          "823ad46"
+          "aca39dc"
         ],
         "source_files": 216,
         "mismatches": []
@@ -43,40 +43,40 @@
     },
     "S39-caller": {
       "KaitoFinder": {
-        "commit": "0e770d4",
+        "commit": "7b74bf9",
         "archive_command": [
           "git",
           "-C",
           "~/Github/KaitoFinder",
           "archive",
           "--format=tar",
-          "0e770d4"
+          "7b74bf9"
         ],
         "source_files": 0,
         "mismatches": []
       },
       "GyoshukuKit": {
-        "commit": "8e35eba",
+        "commit": "94c9e6f",
         "archive_command": [
           "git",
           "-C",
           "~/Github/GyoshukuKit",
           "archive",
           "--format=tar",
-          "8e35eba"
+          "94c9e6f"
         ],
         "source_files": 65,
         "mismatches": []
       },
       "KaitoKit": {
-        "commit": "823ad46",
+        "commit": "aca39dc",
         "archive_command": [
           "git",
           "-C",
           "~/Github/KaitoKit",
           "archive",
           "--format=tar",
-          "823ad46"
+          "aca39dc"
         ],
         "source_files": 216,
         "mismatches": []
@@ -94,7 +94,7 @@
     },
     "s41-p7a-correction-2-items": {
       "compiled_source_mismatches": [],
-      "canonical_product_mismatches": "Control product is archived KF 0e770d4.",
+      "canonical_product_mismatches": "Control product is archived KF 7b74bf9.",
       "library_hashes": {
         "libGyoshukuKit.dylib": "ddf91f91ded45c998776e34c4d9ae03f6507eead0e1415714be0d189d159997f",
         "libKaitoKit.dylib": "82c07854947963dbb38af91d7f9c8cb4b91926b327ca58245e1d97c5b729d0cd"

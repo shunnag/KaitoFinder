@@ -1,11 +1,11 @@
 {
   "GyoshukuKit": {
-    "commit": "52655cbd76f73f97f4715d06baed1478d6b30a47",
+    "commit": "20d81653aa376f0e71b1f90865191e162137395c",
     "files": 295,
     "mismatches": []
   },
   "KaitoKit": {
-    "commit": "823ad460faab055b6b7051da10583480785e8f68",
+    "commit": "aca39dc37df546c5d3d340c940b4ca4d9110c29a",
     "files": 1513,
     "mismatches": []
   },

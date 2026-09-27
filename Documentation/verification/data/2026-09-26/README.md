@@ -12,4 +12,4 @@ scratchpad はセッションの外に残らないので、検証記録が参照
 | `p4-bp4-vs-s21-lha-beginning.txt` | 回 2。LHA だけ、`KAITOFINDER_PROBE_ADDITION_PLACEMENT=beginning` |
 | `p4-bp4-vs-s21-recheck.txt` | 回 3。7z・tar・tar.xz の測り直し |
 | `p1d-bp1d-vs-s33-500k-r{1,2}.txt`、`p1d-bp1d-vs-s33-100k.txt` | S33（P1d-A）の受入計測。B-P1d（KaitoFinder ac5cab9）と S33 を `KAITOFINDER_PROBE_WARM_INDEX=1` で交互に採った比較（zip 500k を 2 回、zip・tar・tar.gz 100k と本文 256 MiB を 1 回） |
-| `p5-bp5-vs-s25-100k-r{1,2}.txt`、`p5-bp5-vs-s25-7z-beginning.txt`、`p5-s25-password-{pw,pwbeg}.tsv`、`p5-s25-acceptance.txt` | S25（P5-A）の受入計測。B-P5 = KaitoFinder 41d48f0（S25 の直前）、S25 = 786ec4c、どちらも GyoshukuKit 52655cb・KaitoKit 823ad46。100k 全形式と本文 256 MiB を交互に 2 回、7z の従来の設定を 1 回ずつ、7z のパスワードの行を S25 の既定と従来の設定で 1 回ずつ。`p5-s25-acceptance.txt` は 2 回の小さい方での判定 |
+| `p5-bp5-vs-s25-100k-r{1,2}.txt`、`p5-bp5-vs-s25-7z-beginning.txt`、`p5-s25-password-{pw,pwbeg}.tsv`、`p5-s25-acceptance.txt` | S25（P5-A）の受入計測。B-P5 = KaitoFinder 41d48f0（S25 の直前）、S25 = 7494da5、どちらも GyoshukuKit 20d8165・KaitoKit aca39dc。100k 全形式と本文 256 MiB を交互に 2 回、7z の従来の設定を 1 回ずつ、7z のパスワードの行を S25 の既定と従来の設定で 1 回ずつ。`p5-s25-acceptance.txt` は 2 回の小さい方での判定 |

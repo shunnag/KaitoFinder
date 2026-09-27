@@ -8,7 +8,7 @@ P4-A の実装と sandbox 内の検証を完了した。未 commit。
 
 - KaitoFinder: `feature/2026-09-24-review`、開始時 HEAD `aed29b6`（実装基底 `7b623b4` と文書 commit）。
 - GyoshukuKit: `6e7cd9b53ebbf2cc9a288216bbddef02f71c2917`（P4-G-b）。
-- KaitoKit: `0cbd809592cad139ea430dd75cc15af37f8ca2c1`（P4-K / P5-K）。
+- KaitoKit: `4eaf9158a78a5b8812c9522e9742688c227c1eaa`（P4-K / P5-K）。
 - 仕様: `SP/specs/final-p45/P4.md` の P4-A、`ORDER-P4-P5.md` §2–§3、
   `SP/specs/final-p613/ORDER-P6-P13.md` §1-3 の並列数の修正。
 - SP: `$SP`。
@@ -18,7 +18,7 @@ P4-A の実装と sandbox 内の検証を完了した。未 commit。
 ```sh
 mkdir -p /private/tmp/kaitofinder-p4a-s21/{KaitoFinder,GyoshukuKit,KaitoKit}
 git -C ../GyoshukuKit archive 6e7cd9b | tar -xf - -C /private/tmp/kaitofinder-p4a-s21/GyoshukuKit
-git -C ../KaitoKit archive 0cbd809 | tar -xf - -C /private/tmp/kaitofinder-p4a-s21/KaitoKit
+git -C ../KaitoKit archive 4eaf915 | tar -xf - -C /private/tmp/kaitofinder-p4a-s21/KaitoKit
 git archive HEAD | tar -xf - -C /private/tmp/kaitofinder-p4a-s21/KaitoFinder
 ```
 
@@ -246,7 +246,7 @@ fallback は updater / rewriter を一回ずつ、先頭設定は rewriter の�
 
 ## S21 correction 1 — test bundle の resource 名の衝突
 
-オーケストレータの通常 host / 固定三つ組（KK `0cbd809`、GK `6e7cd9b`）での
+オーケストレータの通常 host / 固定三つ組（KK `4eaf915`、GK `6e7cd9b`）での
 `xcodebuild build-for-testing` は、test bundle の `Resources/README.md` に対する
 `Multiple commands produce` で失敗した。同期 folder group が resource を平らにコピーするため、
 追加した `Fixtures/LHAUpdate/README.md` が既存の `Fixtures/TarEdit/README.md` と衝突していた。
@@ -285,7 +285,7 @@ LHA の編集では、触らない member の header と圧縮済みデータを
 
 ## オーケストレータの検証（2026-09-26）
 
-隔離した三つ組（KaitoKit 0cbd809、GyoshukuKit 6e7cd9b は `git archive`、KaitoFinder は作業ツリーの rsync）。
+隔離した三つ組（KaitoKit 4eaf915、GyoshukuKit 6e7cd9b は `git archive`、KaitoFinder は作業ツリーの rsync）。
 
 | 実行 | 結果 |
 |---|---|

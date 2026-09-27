@@ -1,7 +1,7 @@
 {
   "base": "41d48f07894f6192128877088ff4a55d860acc80",
-  "GyoshukuKit": "52655cbd76f73f97f4715d06baed1478d6b30a47",
-  "KaitoKit": "823ad460faab055b6b7051da10583480785e8f68",
+  "GyoshukuKit": "20d81653aa376f0e71b1f90865191e162137395c",
+  "KaitoKit": "aca39dc37df546c5d3d340c940b4ca4d9110c29a",
   "builds": [
     {
       "name": "test",

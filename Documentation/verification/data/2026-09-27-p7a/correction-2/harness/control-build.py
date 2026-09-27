@@ -16,9 +16,9 @@ isolated.mkdir(parents=True, exist_ok=True)
 
 if '--prepare' in sys.argv:
     commits = {
-        'KaitoFinder': '0e770d4',
-        'GyoshukuKit': '8e35eba',
-        'KaitoKit': '823ad46',
+        'KaitoFinder': '7b74bf9',
+        'GyoshukuKit': '94c9e6f',
+        'KaitoKit': 'aca39dc',
     }
     checks = {}
     for name, commit in commits.items():

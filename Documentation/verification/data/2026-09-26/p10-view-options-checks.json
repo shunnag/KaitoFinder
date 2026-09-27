@@ -3,8 +3,8 @@
   "target": "arm64-apple-macos26.0",
   "commits": {
     "KaitoFinder": "4d4be0b2738766fcf0d59440567225406041bf35",
-    "GyoshukuKit": "52655cbd76f73f97f4715d06baed1478d6b30a47",
-    "KaitoKit": "823ad460faab055b6b7051da10583480785e8f68"
+    "GyoshukuKit": "20d81653aa376f0e71b1f90865191e162137395c",
+    "KaitoKit": "aca39dc37df546c5d3d340c940b4ca4d9110c29a"
   },
   "archives": {
     "KaitoKit": {

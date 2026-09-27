@@ -1,39 +1,39 @@
 {
   "KaitoFinder": {
-    "commit": "b1913806352b2de057f4fd527bde91fdee39c31e",
+    "commit": "36b2a9376448f34878e0a9e26ed6121b474df348",
     "archive_command": [
       "git",
       "-C",
       "~/Github/KaitoFinder",
       "archive",
       "--format=tar",
-      "b1913806352b2de057f4fd527bde91fdee39c31e"
+      "36b2a9376448f34878e0a9e26ed6121b474df348"
     ],
     "source_files": 0,
     "mismatches": []
   },
   "GyoshukuKit": {
-    "commit": "b9da4bc",
+    "commit": "6586ed5",
     "archive_command": [
       "git",
       "-C",
       "~/Github/GyoshukuKit",
       "archive",
       "--format=tar",
-      "b9da4bc"
+      "6586ed5"
     ],
     "source_files": 64,
     "mismatches": []
   },
   "KaitoKit": {
-    "commit": "823ad46",
+    "commit": "aca39dc",
     "archive_command": [
       "git",
       "-C",
       "~/Github/KaitoKit",
       "archive",
       "--format=tar",
-      "823ad46"
+      "aca39dc"
     ],
     "source_files": 216,
     "mismatches": []
@@ -42,7 +42,7 @@
     "KaitoFinder": [],
     "KaitoFinderTests": []
   },
-  "head": "b1913806352b2de057f4fd527bde91fdee39c31e",
+  "head": "36b2a9376448f34878e0a9e26ed6121b474df348",
   "protected_diff": "",
   "diff_check": 0,
   "siblings_status": {
@@ -53,7 +53,7 @@
   "KaitoFinder/Import/ArchiveSplitWorkProducer.swift_unchanged": true,
   "KaitoFinder/Import/ArchiveReencryptionProgress.swift_unchanged": true,
   "baseline": {
-    "commit": "b191380",
+    "commit": "36b2a93",
     "swift_files": 265,
     "mismatches": []
   }
