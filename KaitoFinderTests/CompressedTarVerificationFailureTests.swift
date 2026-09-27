@@ -1,6 +1,6 @@
 import Darwin
 import Foundation
-@_spi(Testing) import GyoshukuKit
+@_spi(Testing) @testable import GyoshukuKit
 @_spi(TarEditLayout) import KaitoKit
 import Synchronization
 import XCTest
