@@ -711,3 +711,111 @@ AutosaveIsolation・LayoutOverflow・WordingAcceptance の 115 件を 2 回流�
 「⌘J のパネルで Tab が並べ順から順序の popup へ移る」の確認は、macOS のキーボードナビゲーションが有効なときだけ行う形にした
 （この Mac では既定の無効で、popup は key view の輪に入らない）。`AppDelegate` の変更は DEBUG の build だけの main window の注入口で、
 Release の build では従来どおり `NSApp.mainWindow` を読む。
+
+## キー入力の試験を配列に依らない形へ
+
+2026-09-27。利用者が KF `86d92e4` / GK `1223a61` / KK `823ad46` で
+`python3 Tools/verify_finder_interactions.py --focused` を実行し、15件のうち
+`testNavigationKeysRespectSearchRenameAndToolbarFocus` だけが失敗したとの報告を受けた。
+元のlogは [finder.log](../../build/FinderInteractionVerification/c9ae08ee-6120-4f20-a0df-5b349eb0bd67/finder.log)。
+これは利用者の実入力の結果で、今回こちらで実行した試験には数えない。
+JIS物理キーボード＋ABC入力ソースでは固定位置33が `@`、30が `[` なので、
+試験の⌘[が何もせず、その次の⌘]のつもりの入力で「戻る」が動いていた。
+
+変更は `Tools/drive_finder_interactions.swift`、`ArchiveFinderInteractionTests.swift`、
+追加した `Tools/tests/drive_finder_interactions_tests.swift` とそのPython runner、および本節のみ。
+driverは `{"type":"keyDown","character":"[","modifiers":1048576}` の形式を受け付ける。
+テストappが前面になってから `TISCopyCurrentKeyboardLayoutInputSource` と
+`kTISPropertyUnicodeKeyLayoutData` を読み、`LMGetKbdType()` のキーボード種別を使って
+`UCKeyTranslate` で0〜127を修飾なし・dead-key状態なしで走査する。
+同一requestのkey-down/upは同じ配列のsnapshotで、全キーの解決を入力送信前に済ませる。
+配列データがない場合や修飾なしで文字を出せない場合は、配列名等を含むエラーで停止する。
+文字の許可は `[` / `]` だけ、固定コードの許可は36・53・125・126だけとし、
+`key` と `character` の同時指定も拒否する。修飾キーは従来どおりrequestの値を使う。
+
+検索・改名・ツールバーの試験の6入力と、削除確認中の試験の1入力を文字指定へ変更した。
+⌘[＝戻る、⌘]＝進む、検索・改名editorのfocus中は移動しないという検査を維持した。
+ファイル内の既存の `XCTAssert` 全65行は変更前と同一。
+製品・Xcode project・公開済みrelease notes・保留計画書は変更せず、commitもしていない。
+
+### 隔離したビルド
+
+新しい `build/P10KeyboardLayoutVerification/layout/{KaitoFinder,GyoshukuKit,KaitoKit}` へ
+3つとも `git archive --format=tar` で展開し、KFだけ今回の作業内容を反映した。
+
+| 対象 | 固定commit |
+|---|---|
+| KFの基底 | `86d92e4db0d2b400c369feae33aa1090146618b3` |
+| GK | `1223a61f8e3bb4ccf0ebbeaa7e1e001c37eee744` |
+| KK | `823ad460faab055b6b7051da10583480785e8f68` |
+
+環境はmacOS 27.2 (26B5091g)、Apple Swift 6.4、Xcode 27.0 (27A266a)。
+既存の検証build scriptのcompiler引数を新しい隔離先へ差し替え、次を1回実行した。
+
+```sh
+python3 build/P10KeyboardLayoutVerification/build.py --prepare --sync KaitoKit GyoshukuKit app test
+```
+
+直接 `swiftc` によるKK207 / GK63 / 製品108 / テスト162 Swiftファイルの
+コンパイル・リンクは4段とも成功。すべて `arm64-apple-macos26.0`、Swift 6でビルドした。
+Sparkleは既存の取得済みframeworkを隔離先へコピーし、Swift moduleと依存libraryは今回新規に作った。
+変更ファイルと製品のcompiler診断はなく、GKと既存の別テストにはwarningがある。
+live siblingはビルドしていない。GK451 / KK1,513ファイルの固定archiveとの一致を
+展開時・検証後に確認し、製品とprojectの144ファイルもKFの元archiveと一致した。
+コンパイルした製品・テストの全ソースはcanonicalと一致する。
+[archiveの出自](../../build/P10KeyboardLayoutVerification/archive-checks.json)、
+[全compiler引数と結果](../../build/P10KeyboardLayoutVerification/build-runs.json)、
+[ソース照合](../../build/P10KeyboardLayoutVerification/source-checks.json)。
+
+### 実行したToolsの試験
+
+追加したrunnerはdriver本体を通常のentry pointでコンパイルし、さらに同じSwiftファイルを
+`FINDER_INTERACTION_DRIVER_TESTS` 定義でXCTest bundleへコンパイルして直接 `xctest` で実行する。
+appの前面化、入力ソースの切替え、キー・マウスの送信は行わない。
+
+```sh
+python3 Tools/tests/test_drive_finder_interactions.py
+```
+
+このコマンドを**2回**実行し、両回ともPython runner 1件と内側のXCTest **5件が成功、失敗0・skip0**。
+2回目は、配列を前面化後に1回だけ読み、request内で共有する最終変更を反映したもの。
+[初回log](../../build/P10KeyboardLayoutVerification/keyboard-tests-initial.log)、
+[最終log](../../build/P10KeyboardLayoutVerification/keyboard-tests.log)。
+
+| XCTest | 確認した内容 |
+|---|---|
+| `testCurrentLayoutCharacterEventsRoundTrip` | 現在配列の文字指定のkey-down/upを解決し、修飾値を保持。解決コードを `UCKeyTranslate` に戻すと同じ文字になる |
+| `testABCUsesANSIAndJISKeyboardTypes` | ABCにANSI型40を渡すと `[`→33 / `]`→30、JIS型42では `[`→30 / `]`→42。両型とも往復変換成功 |
+| `testLayoutWithoutUnmodifiedBracketsFailsClearly` | German配列では修飾なしの角括弧を解決できず、配列名・対象文字を含むエラーになる |
+| `testFixedKeysAndMouseEventsStillDecode` | 固定コード36・53・125・126のdown/upとmouse形式を維持 |
+| `testRejectsDisallowedAndAmbiguousKeys` | 生の30・33・42等、許可外文字、複数文字、空文字、key/character併記、誤ったevent typeを拒否 |
+
+sandbox内で読めた現在配列は `com.apple.keylayout.ABC`、`LMGetKbdType()` は198で、
+往復結果は `[`→33→`[` / `]`→30→`]` だった。logにはhiservicesのXPC接続エラーもある。
+この値を実機のJIS種別を取得できた証拠とは扱わず、JISの確認は上記の型42を指定した変換試験と区別する。
+
+runnerを整える前のcompiler起動も記録する。最初のdriver・試験各1回はSDK未指定で
+`unable to load standard library`（exit 1）。SDKを明示した次のdriver 1回は成功、
+試験1回はXCTestのSwift support検索パス不足とarm64で公開されないGestalt定数の参照によりexit 1。
+最終runnerではSDK・XCTestの検索パスを明示し、試験の型定数を40/42にした。
+[初回driver](../../build/P10KeyboardLayoutVerification/driver-build-initial-result.json)、
+[初回試験](../../build/P10KeyboardLayoutVerification/keyboard-tests-build-initial-result.json)、
+[SDK指定driver](../../build/P10KeyboardLayoutVerification/driver-build-result.json)、
+[SDK指定試験](../../build/P10KeyboardLayoutVerification/keyboard-tests-build-result.json) に当時の全引数・終了コードがある。
+最後に変更範囲・既存assertionの一致・固定角括弧入力の残存なしと `git diff --check` を確認した。
+
+今回は `xcodebuild`、通常test host、`ArchiveFinderInteractionTests` の実行、実キー入力driverを起動していない。
+利用者側での実入力確認は、指定依存先を参照する以下の隔離済みパスから行う（以下は**未実行**）。
+
+```sh
+python3 build/P10KeyboardLayoutVerification/layout/KaitoFinder/Tools/verify_finder_interactions.py --focused
+```
+
+### オーケストレータの確認（キー入力の配列、2026-09-27）
+
+利用者の `python3 Tools/verify_finder_interactions.py --focused` で、15 件のうち `testNavigationKeysRespectSearchRenameAndToolbarFocus` だけが失敗した。
+この Mac は物理キーボードが日本語（JIS）で入力ソースが ABC。ANSI の位置のキーコード 33・30 は JIS では「@」・「[」を打つので、⌘[ のつもりが ⌘@ に、
+⌘] のつもりが ⌘[ になっていた。検索欄と改名の入力中に移動しないことは、そのずれた状態のままでも保たれていた。製品のメニューは文字で一致を見るので、
+JIS のキーボードでも「[」のキーで ⌘[ が働く。直した後、隔離の配置で `swiftc -parse-as-library Tools/drive_finder_interactions.swift`（成功）、
+`python3 -m unittest Tools/tests/test_drive_finder_interactions.py`（1 件成功）、アプリの build-for-testing（成功）を確かめた。
+実のキー入力の試験は、利用者が Mac を触らない状態でドライバを流して確かめる。

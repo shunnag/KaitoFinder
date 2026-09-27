@@ -240,15 +240,20 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
                 ["type": $0, "key": key, "modifiers": NSEvent.ModifierFlags.command.rawValue]
             })
         }
+        func press(_ character: String) async throws {
+            try await nativeInput(window, events: ["keyDown", "keyUp"].map {
+                ["type": $0, "character": character, "modifiers": NSEvent.ModifierFlags.command.rawValue]
+            })
+        }
         view.selectRowIndexes(IndexSet(integer: try row("folder.ext", in: view)), byExtendingSelection: false)
         try await press(125)
         XCTAssertEqual(controller.currentFolderPath, "folder.ext")
         try await press(126)
         XCTAssertEqual(controller.currentFolderPath, "")
         XCTAssertEqual(controller.selectedNodes.map(\.name), ["folder.ext"])
-        try await press(33)
+        try await press("[")
         XCTAssertEqual(controller.currentFolderPath, "folder.ext")
-        try await press(30)
+        try await press("]")
         XCTAssertEqual(controller.currentFolderPath, "")
 
         controller.setFilterQuery("abc")
@@ -258,8 +263,8 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
         try await press(126)
         XCTAssertEqual(searchEditor.selectedRange().location, 0)
         XCTAssertEqual(controller.currentFolderPath, "")
-        try await press(33)
-        try await press(30)
+        try await press("[")
+        try await press("]")
         try await press(125)
         XCTAssertEqual(controller.currentFolderPath, "")
         XCTAssertEqual(controller.requestedFilterQuery, "abc")
@@ -282,8 +287,8 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
         renameEditor.setSelectedRange(NSRange(location: renameEditor.string.utf16.count, length: 0))
         try await press(126)
         XCTAssertEqual(renameEditor.selectedRange().location, 0)
-        try await press(33)
-        try await press(30)
+        try await press("[")
+        try await press("]")
         try await press(125)
         XCTAssertTrue(view.isRenaming)
         XCTAssertEqual(controller.currentFolderPath, "folder.ext")
@@ -299,9 +304,9 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
         controller.deleteEntries(nil)
         let alert = try XCTUnwrap(controller.deletionConfirmation)
         defer { window.endSheet(alert.window, returnCode: .alertSecondButtonReturn); alert.window.orderOut(nil) }
-        for key in [126, 33] {
+        for key: [String: Any] in [["key": 126], ["character": "["]] {
             try await nativeInput(window, events: ["keyDown", "keyUp"].map {
-                ["type": $0, "key": key, "modifiers": NSEvent.ModifierFlags.command.rawValue]
+                key.merging(["type": $0, "modifiers": NSEvent.ModifierFlags.command.rawValue]) { _, value in value }
             })
             XCTAssertEqual(controller.currentFolderPath, "folder.ext")
             XCTAssertTrue(controller.operationInFlight)
