@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Summarize p14 TSVs into median tables (results/summary-*.tsv) and print markdown."""
-import csv, statistics, sys, collections
-P = '/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/p14/results'
+import csv, statistics, sys, collections, os
+P = os.path.join(os.environ['SP'], 'p14', 'results')
 def rows(name):
     try:
         with open(f'{P}/{name}') as f: return list(csv.DictReader(f, delimiter='\t'))

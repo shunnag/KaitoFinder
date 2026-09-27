@@ -1,6 +1,6 @@
 # P6–P13 と P1d の実装順・接点・受入計測（ORDER-P4-P5 の続き、2026-09-26）
 
-最終の仕様（`SP` = `/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad`）:
+最終の仕様（`SP` = `$SP`）:
 
 - `specs/final-p613/P6-P7.md`（P6-G・P6-A・P7-G・P7-A）
 - `specs/final-p613/P8-P9-P10.md`（P8・P9・P10-a・P10-b）
@@ -143,12 +143,12 @@ S11–S24 がそれらを作り、また変えているので、先に入れる�
 - 下流は上流を build する: KaitoFinder は `../GyoshukuKit`・`../KaitoKit` を relativePath で参照し（project.pbxproj:406-412）、
   GyoshukuKit は兄弟の `../KaitoKit` があればそれを使う（Package.swift:14-18）。
 - **規則**: Codex は、別の Codex が編集中の上流の作業ツリーを build しない。次のどちらかで満たす。
-  - (a) 上流の段を専用の worktree で行う。S31 は `/Users/nagash/GitHub/GyoshukuKit-p1d`（S15 の commit から branch
-    `feature/2026-09-26-p1d-names`）、S37 は `/Users/nagash/GitHub/KaitoKit-p11`（S23 の commit から。P11 §1）。canonical の checkout は commit のまま。
+  - (a) 上流の段を専用の worktree で行う。S31 は `~/GitHub/GyoshukuKit-p1d`（S15 の commit から branch
+    `feature/2026-09-26-p1d-names`）、S37 は `~/GitHub/KaitoKit-p11`（S23 の commit から。P11 §1）。canonical の checkout は commit のまま。
   - (b) 下流の段を三つ組の worktree で行う: `SP/p613/triple-S<nn>/{KaitoKit,GyoshukuKit,KaitoFinder}`。KaitoKit・GyoshukuKit は
     `git worktree add --detach <commit>`、KaitoFinder は `git worktree add -b p613/S<nn> <KaitoFinder の HEAD>`。Codex は
     `--cwd SP/p613/triple-S<nn>/KaitoFinder --prompt-file <仕様>` で起動する（sandbox は cwd の下にだけ書ける）。commit の後、
-    `/Users/nagash/Github/KaitoFinder` で `git merge --ff-only p613/S<nn>` し、三つ組を消す（次の空きの段は merge の後の HEAD から切る）。
+    `~/Github/KaitoFinder` で `git merge --ff-only p613/S<nn>` し、三つ組を消す（次の空きの段は merge の後の HEAD から切る）。
 - 三つ組の固定:
   - **A**（S27–S30）: KaitoKit = S14 の commit（まだ無ければ S12 = 73c1b9f）、GyoshukuKit = S11 の修正 1 の commit（まだ無ければ efdb651）。
     その段の受け入れの検証も同じ組で行う。

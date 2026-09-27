@@ -110,7 +110,7 @@ P1d の判断 3 は差分の検査に置き換え、P14 は二つの上限、P5-
 S33 96a2bc5、S34 b450765、S35 4d4be0b、S36 41d48f0、S25 786ec4c。最新の三つの組での全件は、96a2bc5 の時点で 1,563 件・失敗 0。
 残り: S38（P6-G、実行中）→ S39（P6-A）→ Step 0-P7 → S40（P7-G）→ S41（P7-A）、
 利用者の GUI の確認（`Tools/verify_ui_integration.py`、`Tools/verify_finder_interactions.py --focused`）。
-`/Users/nagash/GitHub/KaitoKit-p11` は worktree の登録を外したが、sandbox の制限で directory を消せなかった（中身は不要）。
+`~/GitHub/KaitoKit-p11` は worktree の登録を外したが、sandbox の制限で directory を消せなかった（中身は不要）。
 
 ## 状態（2026-09-26 10:00）
 

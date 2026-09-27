@@ -4,7 +4,7 @@
     "archive_command": [
       "git",
       "-C",
-      "/Users/nagash/Github/KaitoFinder",
+      "~/Github/KaitoFinder",
       "archive",
       "--format=tar",
       "6aff54551c02dddcdffe393be9f4b740b85524c9"
@@ -17,7 +17,7 @@
     "archive_command": [
       "git",
       "-C",
-      "/Users/nagash/Github/GyoshukuKit",
+      "~/Github/GyoshukuKit",
       "archive",
       "--format=tar",
       "244a9c2"
@@ -30,7 +30,7 @@
     "archive_command": [
       "git",
       "-C",
-      "/Users/nagash/Github/KaitoKit",
+      "~/Github/KaitoKit",
       "archive",
       "--format=tar",
       "823ad46"

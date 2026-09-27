@@ -7,9 +7,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.ReplacementProbeTests/testDocumentReplacementTimeline",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/001-ReplacementProbeTests-testDocumentReplacementTimeline.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/001-ReplacementProbeTests-testDocumentReplacementTimeline.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -17,8 +17,8 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -40,9 +40,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.ReplacementProbeTests/testLHAUpdaterItemsAndBatch",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/002-ReplacementProbeTests-testLHAUpdaterItemsAndBatch.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/002-ReplacementProbeTests-testLHAUpdaterItemsAndBatch.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -50,8 +50,8 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -73,20 +73,20 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.ReplacementProbeTests/testDocumentReplacementTimeline",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/003-ReplacementProbeTests-testDocumentReplacementTimeline.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/003-ReplacementProbeTests-testDocumentReplacementTimeline.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
         "KAITOFINDER_REPLACEMENT_RUNS": "7",
         "KAITOFINDER_REPLACEMENT_P0_OBSERVER": "1",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/GitHub/KaitoFinder/build/s41-p7a-correction-2/p0-observer",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/GitHub/KaitoFinder/build/s41-p7a-correction-2/p0-observer",
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -108,9 +108,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/004-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/004-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -118,10 +118,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/batch-1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/batch-1",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -143,9 +143,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/005-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/005-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -153,10 +153,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/batch-2",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/batch-2",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -178,9 +178,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/006-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/006-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -188,10 +188,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/batch-1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/batch-1",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -213,9 +213,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/007-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/007-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -223,10 +223,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/batch-2",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/batch-2",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -250,9 +250,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/001-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/001-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -260,10 +260,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/items-1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/items-1",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -285,9 +285,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/002-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/002-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -295,10 +295,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/items-2",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/replace-only/items-2",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "0",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -320,9 +320,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/003-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/003-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -330,10 +330,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/items-1",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/items-1",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -355,9 +355,9 @@
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testReplacementForCorrection2",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/004-PerformanceProbeTests-testReplacementForCorrection2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/004-PerformanceProbeTests-testReplacementForCorrection2.log",
       "environment": {
         "KAITOFINDER_PERFORMANCE_PROBES": "1",
         "KAITOFINDER_REPLACEMENT_PROBE": "1",
@@ -365,10 +365,10 @@
         "KAITOFINDER_PROBE_FORMATS": "lha",
         "KAITOFINDER_PROBE_ENTRIES": "100000",
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/items-2",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/all-edits/items-2",
         "KAITOFINDER_REPLACEMENT_ALL_EDITS": "1",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "cases": [
@@ -387,14 +387,14 @@
   "full-sequence": [
     {
       "label": "batch-1",
-      "build": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
+      "build": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
       "command": [
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveOpeningWhenEnabled",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-1.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-1.log",
       "start": 1790464714.25715,
       "end": 1790465012.5106251,
       "load_start": [
@@ -431,9 +431,9 @@
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
         "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
         "KAITOFINDER_CORRECTION2_FULL_TIMELINE": "1",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-1",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "retained_log": {
@@ -443,14 +443,14 @@
     },
     {
       "label": "items-1",
-      "build": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+      "build": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
       "command": [
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveOpeningWhenEnabled",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2-items/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/items-1.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/items-1.log",
       "start": 1790465034.576519,
       "end": 1790465332.0253,
       "load_start": [
@@ -487,9 +487,9 @@
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
         "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
         "KAITOFINDER_CORRECTION2_FULL_TIMELINE": "1",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/items-1",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2-items:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/items-1",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2-items:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "retained_log": {
@@ -499,14 +499,14 @@
     },
     {
       "label": "batch-2",
-      "build": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
+      "build": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
       "command": [
         "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
         "-XCTest",
         "KaitoFinderTests.PerformanceProbeTests/testArchiveEditsWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled,KaitoFinderTests.PerformanceProbeTests/testArchiveOpeningWhenEnabled",
-        "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
+        "~/Github/KaitoFinder/build/s41-p7a-correction-2/P1dAS33Tests.xctest"
       ],
-      "log": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-2.log",
+      "log": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-2.log",
       "start": 1790465361.302033,
       "end": 1790465659.010092,
       "load_start": [
@@ -543,9 +543,9 @@
         "KAITOFINDER_PROBE_PAYLOAD_MIB": "256",
         "KAITOFINDER_PROBE_FORMATS": "zip,tar,tar.gz,tar.bz2,tar.xz,7z,lha",
         "KAITOFINDER_CORRECTION2_FULL_TIMELINE": "1",
-        "KAITOFINDER_REPLACEMENT_OUTPUT": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-2",
-        "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2",
-        "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+        "KAITOFINDER_REPLACEMENT_OUTPUT": "~/Github/KaitoFinder/build/s41-p7a-correction-2/full-sequence/batch-2",
+        "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2",
+        "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-correction-2:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
         "TZ": "Asia/Tokyo"
       },
       "retained_log": {
@@ -559,18 +559,18 @@
       "xcodebuild",
       "test-without-building",
       "-xctestrun",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/native-sequence/Products/KaitoFinder_macosx27.0-arm64.xctestrun",
+      "~/Github/KaitoFinder/build/s41-p7a-correction-2/native-sequence/Products/KaitoFinder_macosx27.0-arm64.xctestrun",
       "-destination",
       "platform=macOS,arch=arm64",
       "-parallel-testing-enabled",
       "NO",
       "-resultBundlePath",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-2/native-sequence/result.xcresult",
+      "~/Github/KaitoFinder/build/s41-p7a-correction-2/native-sequence/result.xcresult",
       "-only-testing:KaitoFinderTests/PerformanceProbeTests/testArchiveEditsWhenEnabled",
       "-only-testing:KaitoFinderTests/PerformanceProbeTests/testArchiveEditorsDirectlyWhenEnabled",
       "-only-testing:KaitoFinderTests/PerformanceProbeTests/testArchiveOpeningWhenEnabled"
     ],
-    "source_products": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp41/dd-opt/Build/Products",
+    "source_products": "$SP/bp41/dd-opt/Build/Products",
     "artifact_checks": {
       "Debug/KaitoFinder.app/Contents/MacOS/KaitoFinder": {
         "source": "6db83ffde145664a532707d4fd860a307fc5b47012bc97af037066022e7a3ab2",

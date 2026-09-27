@@ -1,7 +1,7 @@
 {
   "sources": {
     "B1": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp39/probe-p7p0b-r1.log",
+      "path": "$SP/bp39/probe-p7p0b-r1.log",
       "sha256": "17cfe56aa07715cfd7c509b7f9662e4a9e8d970512cb9213e925d6defba60e9c",
       "start": " 6:53  up 5 days, 51 mins, 4 users, load averages: 4.50 6.31 6.83",
       "end": " 6:59  up 5 days, 56 mins, 4 users, load averages: 3.04 4.53 5.87",
@@ -64,7 +64,7 @@
       ]
     },
     "S1": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp41/probe-p7p0b-r1.log",
+      "path": "$SP/bp41/probe-p7p0b-r1.log",
       "sha256": "71db3634c2f7d0110e7ae155ba8aa2868964063efe8132713089837c677e5664",
       "start": " 6:59  up 5 days, 56 mins, 4 users, load averages: 3.04 4.53 5.87",
       "end": " 7:04  up 5 days,  1:02, 4 users, load averages: 2.98 4.02 5.26",
@@ -127,7 +127,7 @@
       ]
     },
     "S2": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp41/probe-p7p0b-r2.log",
+      "path": "$SP/bp41/probe-p7p0b-r2.log",
       "sha256": "17526bb765ecf09e50e589ac02ae0aa2eb13bdcf67f2b189794be0126b453452",
       "start": " 7:04  up 5 days,  1:02, 4 users, load averages: 2.98 4.02 5.26",
       "end": " 7:10  up 5 days,  1:07, 4 users, load averages: 3.00 3.67 4.74",
@@ -190,7 +190,7 @@
       ]
     },
     "B2": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp39/probe-p7p0b-r2.log",
+      "path": "$SP/bp39/probe-p7p0b-r2.log",
       "sha256": "280766519df6b51c533a5710d37f9b1869be6585b98b78ef85fc5174439c850b",
       "start": " 7:10  up 5 days,  1:07, 4 users, load averages: 3.00 3.67 4.74",
       "end": " 7:15  up 5 days,  1:13, 4 users, load averages: 3.01 3.59 4.42",
@@ -11033,7 +11033,7 @@
   },
   "test_times": {
     "B1": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp39/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_06-53-52-+0900.xcresult",
+      "path": "$SP/bp39/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_06-53-52-+0900.xcresult",
       "tests": [
         {
           "duration": "70.6225860118866",
@@ -11053,7 +11053,7 @@
       ]
     },
     "S1": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp41/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_06-59-20-+0900.xcresult",
+      "path": "$SP/bp41/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_06-59-20-+0900.xcresult",
       "tests": [
         {
           "duration": "69.65532100200653",
@@ -11073,7 +11073,7 @@
       ]
     },
     "S2": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp41/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_07-04-44-+0900.xcresult",
+      "path": "$SP/bp41/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_07-04-44-+0900.xcresult",
       "tests": [
         {
           "duration": "68.06714498996735",
@@ -11093,7 +11093,7 @@
       ]
     },
     "B2": {
-      "path": "/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp39/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_07-10-06-+0900.xcresult",
+      "path": "$SP/bp39/dd-opt/Logs/Test/Test-KaitoFinder-2026.09.27_07-10-06-+0900.xcresult",
       "tests": [
         {
           "duration": "68.46849000453949",

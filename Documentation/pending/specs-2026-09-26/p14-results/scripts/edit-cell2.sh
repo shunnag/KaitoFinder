@@ -1,7 +1,8 @@
 #!/bin/bash
 # edit-cell2.sh <S> <round> <threads> <base-name> <ops> — like edit-cell.sh for an arbitrary base in out/S<n>/<base-name>.tar.xz
 set -euo pipefail
-P=/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/p14
+: "${SP:?Set SP to the scratchpad directory}"
+P="$SP/p14"
 n=$1 round=$2 t=$3 base=$4 ops=$5
 mkdir -p $P/results/raw $P/work/S$n
 raw=$P/results/raw/edit2-$base-r$round-S$n-t$t

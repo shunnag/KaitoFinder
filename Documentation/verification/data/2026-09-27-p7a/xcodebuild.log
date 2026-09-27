@@ -19,7 +19,7 @@ Please file a bug at https://feedbackassistant.apple.com with this warning messa
 2026-09-27 03:57:41.489 xcodebuild[14863:13524215] Logging connecton invalid: <OS_xpc_error: <dictionary: 0x1ff849ba0> { count = 1, transaction: 0, voucher = 0x0, contents =
 	"XPCErrorDescription" => <string: 0x1ff849ce0> { string cache = 0x0, length = 18, contents = "Connection invalid" }
 }>
-2026-09-27 03:57:41.489 xcodebuild[14863:13524205] Error opening log file (/Users/nagash/Library/Logs/CoreSimulator/CoreSimulator.com.apple.dt.xcodebuild.log): Operation not permitted
+2026-09-27 03:57:41.489 xcodebuild[14863:13524205] Error opening log file (~/Library/Logs/CoreSimulator/CoreSimulator.com.apple.dt.xcodebuild.log): Operation not permitted
 [-[SimDiskImageManager _onQueue_checkConnection:]:219] ERROR : simdiskimaged connection is currently unavailable because connection became invalid
 [-[SimServiceContext initWithDeveloperDir:connectionType:error:]:499] WARN  : Unable to discover any Simulator runtimes. Developer Directory is /Applications/Xcode.app/Contents/Developer.
 [-[SimServiceContext initWithDeveloperDir:connectionType:error:]_block_invoke:556] ERROR : Could not get list of trusted mount directories: Error Domain=com.apple.CoreSimulator.SimError Code=409 "Cannot talk to the service used to manage runtime disk images (simdiskimaged) because its launchd job is not registered or was unloaded" UserInfo={NSLocalizedDescription=Cannot talk to the service used to manage runtime disk images (simdiskimaged) because its launchd job is not registered or was unloaded}
@@ -27,12 +27,12 @@ Please file a bug at https://feedbackassistant.apple.com with this warning messa
 [-[SimDiskImageManager _onQueue_checkConnection:]:239] ERROR : simdiskimaged returned error (invalid), marking disconnected.
 [-[SimServiceContext sendRequest:reply:error:]:1982] ERROR : Unable to deliver request ({
     request = "notification_subscription";
-    "set_path" = "/Users/nagash/Library/Developer/CoreSimulator/Devices";
+    "set_path" = "~/Library/Developer/CoreSimulator/Devices";
 }) because we are not connected to CoreSimulatorService.
 2026-09-27 03:57:41.490 xcodebuild[14863:13524209] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
 [-[SimServiceContext sendRequest:reply:error:]:1982] ERROR : Unable to deliver request ({
     request = "notification_subscription";
-    "set_path" = "/Users/nagash/Library/Developer/CoreSimulator/Devices";
+    "set_path" = "~/Library/Developer/CoreSimulator/Devices";
 }) because we are not connected to CoreSimulatorService.
 2026-09-27 03:57:41.490 xcodebuild[14863:13524209]  iOSSimulator: [SimServiceContext defaultDeviceSetWithError:] returned nil (Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedFailureReason=Failed to subscribe to notifications from CoreSimulatorService., NSLocalizedDescription=Failed to initialize simulator device set., NSUnderlyingError=0x7cd6b00420 {Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}}}). Simulator device support disabled.
 2026-09-27 03:57:41.490 xcodebuild[14863:13523983] Error Domain=NSPOSIXErrorDomain Code=61 "Connection refused" UserInfo={NSLocalizedDescription=CoreSimulatorService connection became invalid.  Simulator services will no longer be available.}
@@ -66,15 +66,15 @@ ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeD
 
 ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
 
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/xcstringstool compile --dry-run --output-directory /Users/nagash/Github/KaitoFinder/build/s41-p7a/DerivedData/Build/Intermediates.noindex/KaitoFinder.build/Debug/KaitoFinder.build /Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder/Resources/GoMenu.xcstrings
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/xcstringstool compile --dry-run --output-directory ~/Github/KaitoFinder/build/s41-p7a/DerivedData/Build/Intermediates.noindex/KaitoFinder.build/Debug/KaitoFinder.build ~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder/Resources/GoMenu.xcstrings
 
-ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/xcstringstool compile --dry-run --output-directory /Users/nagash/Github/KaitoFinder/build/s41-p7a/DerivedData/Build/Intermediates.noindex/KaitoFinder.build/Debug/KaitoFinder.build /Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder/Resources/Localizable.xcstrings
+ExecuteExternalTool /Applications/Xcode.app/Contents/Developer/usr/bin/xcstringstool compile --dry-run --output-directory ~/Github/KaitoFinder/build/s41-p7a/DerivedData/Build/Intermediates.noindex/KaitoFinder.build/Debug/KaitoFinder.build ~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder/Resources/Localizable.xcstrings
 
 Build description signature: 67b40e8acbc28701c4b0a9c3726d9184
-Build description path: /Users/nagash/Github/KaitoFinder/build/s41-p7a/DerivedData/Build/Intermediates.noindex/XCBuildData/67b40e8acbc28701c4b0a9c3726d9184.xcbuilddata
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder.xcodeproj: error: Missing package product 'KaitoKit' (in target 'KaitoFinder' from project 'KaitoFinder')
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder.xcodeproj: error: Missing package product 'GyoshukuKit' (in target 'KaitoFinder' from project 'KaitoFinder')
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder.xcodeproj: error: Missing package product 'Sparkle' (in target 'KaitoFinder' from project 'KaitoFinder')
+Build description path: ~/Github/KaitoFinder/build/s41-p7a/DerivedData/Build/Intermediates.noindex/XCBuildData/67b40e8acbc28701c4b0a9c3726d9184.xcbuilddata
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder.xcodeproj: error: Missing package product 'KaitoKit' (in target 'KaitoFinder' from project 'KaitoFinder')
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder.xcodeproj: error: Missing package product 'GyoshukuKit' (in target 'KaitoFinder' from project 'KaitoFinder')
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinder.xcodeproj: error: Missing package product 'Sparkle' (in target 'KaitoFinder' from project 'KaitoFinder')
 ** TEST BUILD FAILED **
 
 

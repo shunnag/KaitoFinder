@@ -2,7 +2,7 @@ Test Suite 'Selected tests' started at 2026-09-27 05:04:22.599.
 Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 05:04:22.600.
 Test Suite 'LHAUpdateDeferredSaveTests' started at 2026-09-27 05:04:22.600.
 Test Case '-[KaitoFinderTests.LHAUpdateDeferredSaveTests testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate]' started.
-/Users/nagash/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/LHAUpdateDeferredSaveTests.swift:64: error: -[KaitoFinderTests.LHAUpdateDeferredSaveTests testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate] : XCTAssertEqual failed: ("[Optional(GyoshukuKit.LHAUpdater.CommitStrategy.splice)]") is not equal to ("[Optional(GyoshukuKit.LHAUpdater.CommitStrategy.inPlacePatch)]")
+~/Github/KaitoFinder/build/s41-p7a-correction-1/KaitoFinder/KaitoFinderTests/LHAUpdateDeferredSaveTests.swift:64: error: -[KaitoFinderTests.LHAUpdateDeferredSaveTests testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate] : XCTAssertEqual failed: ("[Optional(GyoshukuKit.LHAUpdater.CommitStrategy.splice)]") is not equal to ("[Optional(GyoshukuKit.LHAUpdater.CommitStrategy.inPlacePatch)]")
 Test Case '-[KaitoFinderTests.LHAUpdateDeferredSaveTests testFiveChangesAndRenameOnlyPreserveReservedOrderAndFolderDate]' failed (0.050 seconds).
 Test Suite 'LHAUpdateDeferredSaveTests' failed at 2026-09-27 05:04:22.649.
 	 Executed 1 test, with 1 failure (0 unexpected) in 0.050 (0.050) seconds

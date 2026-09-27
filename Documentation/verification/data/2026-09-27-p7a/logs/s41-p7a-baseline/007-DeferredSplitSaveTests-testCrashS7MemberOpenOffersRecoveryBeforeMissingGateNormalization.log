@@ -2,4 +2,4 @@ Test Suite 'Selected tests' started at 2026-09-27 04:17:16.150.
 Test Suite 'P1dAS33Tests.xctest' started at 2026-09-27 04:17:16.151.
 Test Suite 'DeferredSplitSaveTests' started at 2026-09-27 04:17:16.151.
 Test Case '-[KaitoFinderTests.DeferredSplitSaveTests testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization]' started.
-/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/KaitoFinder/KaitoFinderTests/DeferredSplitSaveTests.swift:515: error: -[KaitoFinderTests.DeferredSplitSaveTests testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization] : XCTAssertFalse failed
+~/Github/KaitoFinder/build/s41-p7a-baseline/KaitoFinder/KaitoFinderTests/DeferredSplitSaveTests.swift:515: error: -[KaitoFinderTests.DeferredSplitSaveTests testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization] : XCTAssertFalse failed

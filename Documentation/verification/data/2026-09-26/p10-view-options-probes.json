@@ -4,7 +4,7 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "All",
-      "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/P10S36Probe.xctest"
+      "~/Github/KaitoFinder/build/P10S36Verification/P10S36Probe.xctest"
     ],
     "exit": 1,
     "cases": [
@@ -20,9 +20,9 @@
       ]
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
-      "KAITOFINDER_SNAPSHOT_DIR": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/probe-snapshots",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/P10S36Verification",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/P10S36Verification:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "KAITOFINDER_SNAPSHOT_DIR": "~/Github/KaitoFinder/build/P10S36Verification/probe-snapshots",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -31,7 +31,7 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "All",
-      "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/P10S36Probe.xctest"
+      "~/Github/KaitoFinder/build/P10S36Verification/P10S36Probe.xctest"
     ],
     "exit": 0,
     "cases": [
@@ -47,9 +47,9 @@
       ]
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
-      "KAITOFINDER_SNAPSHOT_DIR": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/probe-snapshots",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/P10S36Verification",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/P10S36Verification:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "KAITOFINDER_SNAPSHOT_DIR": "~/Github/KaitoFinder/build/P10S36Verification/probe-snapshots",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -58,7 +58,7 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "All",
-      "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/P10S36Probe.xctest"
+      "~/Github/KaitoFinder/build/P10S36Verification/P10S36Probe.xctest"
     ],
     "exit": 0,
     "cases": [
@@ -74,9 +74,9 @@
       ]
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
-      "KAITOFINDER_SNAPSHOT_DIR": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/probe-snapshots",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/P10S36Verification",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/P10S36Verification:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "KAITOFINDER_SNAPSHOT_DIR": "~/Github/KaitoFinder/build/P10S36Verification/probe-snapshots",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -85,7 +85,7 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "All",
-      "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/baseline/P10S36Probe.xctest"
+      "~/Github/KaitoFinder/build/P10S36Verification/baseline/P10S36Probe.xctest"
     ],
     "exit": 0,
     "cases": [
@@ -96,9 +96,9 @@
       ]
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
-      "KAITOFINDER_SNAPSHOT_DIR": "/Users/nagash/Github/KaitoFinder/build/P10S36Verification/baseline/probe-snapshots",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/P10S36Verification/baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/P10S36Verification/baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "KAITOFINDER_SNAPSHOT_DIR": "~/Github/KaitoFinder/build/P10S36Verification/baseline/probe-snapshots",
       "TZ": "Asia/Tokyo"
     }
   }

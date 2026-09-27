@@ -3,7 +3,7 @@
 # Appends one row to results/bench.tsv; raw stdout/time/uptime go to results/raw/.
 set -euo pipefail
 export LC_ALL=C
-SP=/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad
+: "${SP:?Set SP to the scratchpad directory}"
 P=$SP/p14; B=$SP/bcorp; V=$SP/p3val
 n=$1 corpus=$2 t=$3 round=$4 phase=$5
 bench=$P/S$n/GyoshukuKit/Benchmarks/.build/release/gyoshuku-bench

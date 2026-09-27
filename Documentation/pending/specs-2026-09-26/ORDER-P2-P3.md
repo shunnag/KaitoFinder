@@ -1,6 +1,6 @@
 # P2・P3 の実装順・接点・受入計測（ORDER-final の続き）
 
-最終の仕様は次のとおり（scratchpad = `/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad`）:
+最終の仕様は次のとおり（scratchpad = `$SP`）:
 
 - `specs/final-p2p3/P2.md`（P2-G と P2-A）
 - `specs/final-p2p3/P3-K.md`

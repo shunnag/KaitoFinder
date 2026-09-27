@@ -18,11 +18,11 @@ Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableCreationUsesIt
 Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' started.
 Test Case '-[KaitoFinderTests.BatchImportTests testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal]' passed (0.036 seconds).
 Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' started.
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/BatchImportTests.swift:223: error: -[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal] : XCTAssertTrue failed
 Test Case '-[KaitoFinderTests.BatchImportTests testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal]' failed (1.268 seconds).
 Test Suite 'BatchImportTests' failed at 2026-09-27 04:06:08.473.
 	 Executed 9 tests, with 5 failures (0 unexpected) in 1.404 (1.404) seconds

@@ -1,4 +1,4 @@
-/Users/nagash/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveDocumentControllerTests.swift:18:17: warning: constant 'systemClass' inferred to have type 'AnyClass?' (aka 'Optional<any AnyObject.Type>'), which may be unexpected
+~/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveDocumentControllerTests.swift:18:17: warning: constant 'systemClass' inferred to have type 'AnyClass?' (aka 'Optional<any AnyObject.Type>'), which may be unexpected
  16 |             let values = try url.resourceValues(forKeys: [.contentTypeKey])
  17 |             let systemType = try XCTUnwrap(values.contentType?.identifier, name)
  18 |             let systemClass = controller.documentClass(forType: systemType)
@@ -7,7 +7,7 @@
  19 |             let type = try controller.typeForContents(of: url)
  20 |             // .z01 は既存の ZIP 型への準拠で開ける。.ZX02 も環境で宣言済みなら置き換えない。
 
-/Users/nagash/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveEditTests.swift:80:32: warning: expression of type 'ArchiveSetIdentity' is unused [#NoUsage]
+~/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveEditTests.swift:80:32: warning: expression of type 'ArchiveSetIdentity' is unused [#NoUsage]
   78 |             gate.release()
   79 |             do {
   80 |                 try await task.value
@@ -15,7 +15,7 @@
   81 |                 XCTAssertFalse(fail)
   82 |                 XCTAssertEqual(try ScenarioFixture.contents(archive)["added.txt"], Data("added".utf8))
 
-/Users/nagash/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveImportSafetyTests.swift:64:35: warning: capture of 'controller' with non-Sendable type 'ArchiveWindowController' in a '@Sendable' closure [#SendableClosureCaptures]
+~/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveImportSafetyTests.swift:64:35: warning: capture of 'controller' with non-Sendable type 'ArchiveWindowController' in a '@Sendable' closure [#SendableClosureCaptures]
  62 |             let cancellationHandled = DispatchSemaphore(value: 0)
  63 |             DispatchQueue.main.sync {
  64 |                 guard let sheet = controller.editProgressSheet else { XCTFail("進捗シートがありません"); return }
@@ -23,7 +23,7 @@
  65 |                 XCTAssertEqual(sheet.progress.completedUnitCount, 0)
  66 |                 let handler = sheet.progress.cancellationHandler
 
-/Users/nagash/Github/KaitoFinder/build/s39-p6a-final/KaitoFinder/KaitoFinder/UI/ArchiveWindowController.swift:40:13: note: class 'ArchiveWindowController' does not conform to the 'Sendable' protocol
+~/Github/KaitoFinder/build/s39-p6a-final/KaitoFinder/KaitoFinder/UI/ArchiveWindowController.swift:40:13: note: class 'ArchiveWindowController' does not conform to the 'Sendable' protocol
   38 | }
   39 | 
   40 | final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
@@ -31,7 +31,7 @@
   41 |     NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
   42 |     QLPreviewPanelDataSource, QLPreviewPanelDelegate {
 
-/Users/nagash/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveImportSafetyTests.swift:64:46: warning: sending 'controller' risks causing data races [#RegionIsolation::SendingRisksDataRace]
+~/Github/KaitoFinder/build/s39-p6a-correction-1/KaitoFinderTests/ArchiveImportSafetyTests.swift:64:46: warning: sending 'controller' risks causing data races [#RegionIsolation::SendingRisksDataRace]
  62 |             let cancellationHandled = DispatchSemaphore(value: 0)
  63 |             DispatchQueue.main.sync {
  64 |                 guard let sheet = controller.editProgressSheet else { XCTFail("進捗シートがありません"); return }

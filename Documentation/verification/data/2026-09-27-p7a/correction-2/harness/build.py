@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tarfile
 
-repo = Path('/Users/nagash/Github/KaitoFinder')
+repo = Path('~/Github/KaitoFinder').expanduser()
 root = repo / 'build/s41-p7a-correction-2'
 previous = repo / 'build/P10S36Verification'
 isolated = root

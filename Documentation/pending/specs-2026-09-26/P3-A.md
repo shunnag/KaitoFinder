@@ -30,8 +30,8 @@ P2・P3-K・P3-G の最終版（`scratchpad/specs/final-p2p3/`）と突き合わ
 
 ## 前提
 
-- 編集対象は `/Users/nagash/Github/KaitoFinder` だけ。`../GyoshukuKit` と `../KaitoKit` は読むだけ。コミットしない。Swift 6、macOS 26。`nonisolated(unsafe)` と `@unchecked Sendable` を新しく使わない。DEBUG の hook は `#if DEBUG` の TaskLocal。文言は `KaitoFinder/Resources/Localizable.xcstrings`（source は ja、各キー 26 言語: cs da de en es fi fr hi id it ja ko ms nb nl pl pt-BR pt-PT ru sv th tr uk vi zh-Hans zh-Hant）。
-- 行番号: 無印は KF HEAD b91c70b。P1-A・P1b・P2-A の後は行がずれるので、関数名で読み替える。`GK` = GyoshukuKit c0df9fb、`KK` = KaitoKit b518014。GK の新しい API は `scratchpad/specs/final-p2p3/P3-G.md`（以下「P3-G」）、KaitoKit の新しい SPI は `scratchpad/specs/final-p2p3/P3-K.md`（以下「P3-K」）、P2 の名前は `scratchpad/specs/final-p2p3/P2.md`（以下「P2」）。コミット済みの名前が本仕様と違えば、実装を止めて報告する。scratchpad = `/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad`。
+- 編集対象は `~/Github/KaitoFinder` だけ。`../GyoshukuKit` と `../KaitoKit` は読むだけ。コミットしない。Swift 6、macOS 26。`nonisolated(unsafe)` と `@unchecked Sendable` を新しく使わない。DEBUG の hook は `#if DEBUG` の TaskLocal。文言は `KaitoFinder/Resources/Localizable.xcstrings`（source は ja、各キー 26 言語: cs da de en es fi fr hi id it ja ko ms nb nl pl pt-BR pt-PT ru sv th tr uk vi zh-Hans zh-Hant）。
+- 行番号: 無印は KF HEAD b91c70b。P1-A・P1b・P2-A の後は行がずれるので、関数名で読み替える。`GK` = GyoshukuKit c0df9fb、`KK` = KaitoKit b518014。GK の新しい API は `scratchpad/specs/final-p2p3/P3-G.md`（以下「P3-G」）、KaitoKit の新しい SPI は `scratchpad/specs/final-p2p3/P3-K.md`（以下「P3-K」）、P2 の名前は `scratchpad/specs/final-p2p3/P2.md`（以下「P2」）。コミット済みの名前が本仕様と違えば、実装を止めて報告する。scratchpad = `$SP`。
 - 依存（すべて受け入れ・コミット済みであること）:
   - P1-A 段階 A（検証した reader の採用、`ArchiveVerifiedFileSource`・`ArchiveVerifiedOutput`・`adoptVerifiedReader`）と段階 B。
   - P1b の KF 部分（`publish(…, commitProgress:)` と `ArchiveUpdater.CommitProgress` → `Progress` の写し）。
@@ -322,8 +322,8 @@ case .update(let format) where format != .tar:   // .tarGzip / .tarBzip2 / .tarX
 ## VERIFICATION COMMANDS
 
 ```sh
-cd /Users/nagash/Github/KaitoFinder
-S=/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad
+cd ~/Github/KaitoFinder
+S=$SP
 git -C ../GyoshukuKit log -1 --oneline; git -C ../GyoshukuKit status --short
 git -C ../KaitoKit log -1 --oneline; git -C ../KaitoKit status --short
 git grep -n "case .inPlace\|case .rewrite\|case .update\|\.rewrite(let\|\.update(let" -- KaitoFinder   # mode の網羅の漏れがないこと

@@ -29,9 +29,9 @@ Test Case '-[KaitoFinderTests.DragInTests testDropTargetFolderFileEmptyAndVirtua
 Test Case '-[KaitoFinderTests.DragInTests testEveryReadOnlyRefusalOffersConversionForFileDrops]' started.
 Test Case '-[KaitoFinderTests.DragInTests testEveryReadOnlyRefusalOffersConversionForFileDrops]' passed (0.004 seconds).
 Test Case '-[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched]' started.
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:236: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertTrue failed
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:237: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertEqual failed: ("Optional(2)") is not equal to ("Optional(1)")
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:237: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertEqual failed: ("10") is not equal to ("5")
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:236: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:237: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertEqual failed: ("Optional(2)") is not equal to ("Optional(1)")
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:237: error: -[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched] : XCTAssertEqual failed: ("10") is not equal to ("5")
 Test Case '-[KaitoFinderTests.DragInTests testFailureAfterFirstItemLeavesOriginalUntouched]' failed (0.051 seconds).
 Test Case '-[KaitoFinderTests.DragInTests testFailureAfterStagedCommitStillLeavesOriginalUntouched]' started.
 Test Case '-[KaitoFinderTests.DragInTests testFailureAfterStagedCommitStillLeavesOriginalUntouched]' passed (0.043 seconds).
@@ -40,7 +40,7 @@ Test Case '-[KaitoFinderTests.DragInTests testLeadingDotExistingEntryCollisionIs
 Test Case '-[KaitoFinderTests.DragInTests testLocalDropOperationCoversMasksParentsSubtreesCapabilitiesAndBusyState]' started.
 Test Case '-[KaitoFinderTests.DragInTests testLocalDropOperationCoversMasksParentsSubtreesCapabilitiesAndBusyState]' passed (0.005 seconds).
 Test Case '-[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter]' started.
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:397: -[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter] : Test skipped - この実行環境では名前付き pasteboard サービスへ書き込めません
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/DragInTests.swift:397: -[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter] : Test skipped - この実行環境では名前付き pasteboard サービスへ書き込めません
 Test Case '-[KaitoFinderTests.DragInTests testNamedPasteboardFileURLAdapter]' skipped (0.103 seconds).
 Test Case '-[KaitoFinderTests.DragInTests testPasteAddsFileURLsToDisplayedFolderWithoutUsingSelection]' started.
 Test Case '-[KaitoFinderTests.DragInTests testPasteAddsFileURLsToDisplayedFolderWithoutUsingSelection]' passed (0.110 seconds).

@@ -1,6 +1,6 @@
 # P4・P5 の実装順・接点・受入計測（ORDER-P2-P3 の続き）
 
-最終の仕様は次のとおり（scratchpad = `/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad`、以下 `SP`）:
+最終の仕様は次のとおり（scratchpad = `$SP`、以下 `SP`）:
 
 - `specs/final-p45/P4.md`（P4-K・P4-G-a・P4-G-b・P4-A）
 - `specs/final-p45/P5.md`（P5-K・P5-G・P5-A）

@@ -13,11 +13,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.BatchImportTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -35,11 +35,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DragInTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -57,11 +57,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSavePlanEquivalenceTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -79,11 +79,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.NameIndexEquivalenceTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -101,11 +101,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveWriteProgressTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -123,11 +123,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveErrorTextTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -145,11 +145,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.WordingAcceptanceTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -167,11 +167,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.BatchImportTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -189,11 +189,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DragInTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -211,11 +211,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveCreationTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -233,11 +233,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ByteProgressIntegrationTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -255,11 +255,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportConflictTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -277,11 +277,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportCorrectionTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -299,11 +299,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveEditTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -321,11 +321,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveAttributeTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -343,11 +343,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveSplitVolumeTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -365,11 +365,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.CompressionCapabilityTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -387,11 +387,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.BatchImportTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -409,11 +409,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.BatchImportCompatibilityTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -431,11 +431,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DragInTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -453,11 +453,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportConflictTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -475,11 +475,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportCorrectionTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -497,11 +497,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testImmediateImportCancelledInsideFileStopsWithoutAlert",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -519,11 +519,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -541,11 +541,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testAppendPropagatesQuarantineFromNestedFilesAndDirectories",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -563,11 +563,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testAppendPreservesOriginalQuarantineAndCancellationDoesNotPublishNewQuarantine",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -585,11 +585,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testCreationPropagatesQuarantineFromNestedEmptyDirectory",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -607,11 +607,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testCreationCannotReplaceAnImportedDescendantOrItsHardLink",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -629,11 +629,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testCreationCanSaveANewArchiveInsideItsSourceDirectory",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -651,11 +651,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveAttributeTests/testReplayPassesSourceOwnersAndReservedDirectoryDatesWithoutTemporaryDirectories",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -673,11 +673,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveAttributeTests/testPendingAndSavedDirectoryFileDatesModesAndXattrsMatchInEveryFormat",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -695,11 +695,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveAttributeTests/testTarOwnerCarrierPreservesLargeIDsAndPAXPaths",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -717,11 +717,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testZIPMixedEncryptionSaveUsesStagedRebuildAndKeepsReaderAdoption",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -739,11 +739,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredEncryptionFallbackResetsReplayAndCommitProgress",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -761,11 +761,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -783,11 +783,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -805,11 +805,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testPreferenceIsImmediateByDefaultAndCapturedOnce",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -827,11 +827,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testAllSingleFileFormatsReserveUndoRedoAndPublishOnce",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -849,11 +849,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testTwoSavesSynchronizeModificationDateAndToken",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -871,11 +871,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testSwapReservationsAreFoldedFromBaseIndices",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -893,11 +893,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testAddThenDeleteSavesWithoutPublishingOrChangingMtime",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -915,11 +915,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testRevertDropsStagingAndUndoWithoutReopeningUnchangedReader",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -937,11 +937,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testExternalChangeSaveFailsAndRevertReloads",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -959,11 +959,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testCloseWithoutSavingIsIdempotentAndCleanupOutlivesDocumentList",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -981,11 +981,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testPendingReplacementUsesStagedConflictSourceAndParentRemovalDropsAddition",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1003,11 +1003,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testPasswordAdoptsNewKeyOnlyAfterSave",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1025,11 +1025,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testLateEditWaitsForSaveAndRemainsPendingAndDirty",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1047,11 +1047,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testCancelledSaveKeepsReservationsAndStaging",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1069,11 +1069,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1091,11 +1091,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testUnchangedBaseCopyUsesExistingExtractionThenStagesBeforeTemporaryInputDisappears",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1113,11 +1113,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testSplitReservationsLeaveEveryVolumeUnchangedUntilSave",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1135,11 +1135,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredFolderEnumerationExcludesApplicationWorkNames",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1157,11 +1157,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testZIPPasswordMixedSavesUseUpdaterAndOnlyNonRelocatableFallsBack",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1179,11 +1179,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testSplitReencryptionFailureKeepsOriginalCapabilityAndPendingChanges",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1201,11 +1201,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testSplitPasswordVerificationRejectsOnePlainFile",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1223,11 +1223,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testZIPPasswordWorkProducerProgressFallbackAndRealFailures",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1245,11 +1245,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1267,11 +1267,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1289,11 +1289,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testOneVolumeReopenRestoresScheduleAndSplitsAgain",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1311,11 +1311,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1333,11 +1333,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testHazardConsentBeforeOneBeginAndOncePerDocument",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1355,11 +1355,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testCoordinationTimeoutUsesDocumentPresenterAndNeverEntersS5",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1377,11 +1377,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testExternalThirdVolumeChangeAfterReservationRefusesSave",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1399,11 +1399,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1421,11 +1421,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testEncryptedSplitRequiresPasswordBeforeReservations",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1443,11 +1443,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1465,11 +1465,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1487,11 +1487,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testMixedNativeXattrsRefuseEditingButRemainReadable",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1509,11 +1509,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testPendingExtractionUsesAssembledSetAndStagedAddition",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1531,11 +1531,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1553,11 +1553,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testFAT32ConsentLeavesNoAppleDoubleAndOneVolumeReopensWithSchedule",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1575,12 +1575,12 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.BatchImportCompatibilityTests/testExportWhenEnabled",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "KAITOFINDER_P7_EXPORT_DIRECTORY": "/Users/nagash/GitHub/KaitoFinder/build/s41-p7a/compatibility-export",
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "KAITOFINDER_P7_EXPORT_DIRECTORY": "~/GitHub/KaitoFinder/build/s41-p7a/compatibility-export",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1598,11 +1598,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.ArchiveImportSafetyTests/testNewArchivePanelCancellationStopsSingleFileCompression",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1620,11 +1620,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveAttributeTests/testDeferredTarPreservesSourceOwnerIDsThroughSaveAndSaveAs",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1642,11 +1642,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsCallerCancellationReachesUnstructuredTask",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1664,11 +1664,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testDeferredSaveAsSheetCancellationReachesWritingTask",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1686,11 +1686,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSaveDocumentTests/testSaveAsReplaysPendingPathsAndSwitchesWithoutChangingOriginal",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1708,11 +1708,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testCommittedCleanupWarningIsSuccessAndHeldVerificationKeepsPending",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1730,11 +1730,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testCrashS7MemberOpenOffersRecoveryBeforeMissingGateNormalization",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1752,11 +1752,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1774,11 +1774,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testGrowAndShrinkUseWrittenLengthWithoutStaleTails",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1796,11 +1796,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testHazardConsentBeforeOneBeginAndOncePerDocument",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1818,11 +1818,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testMixedNativeXattrsRefuseEditingButRemainReadable",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1840,11 +1840,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testOneVolumeReopenRestoresScheduleAndSplitsAgain",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1862,11 +1862,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testProvenRollbackKeepsPendingAndCanRetryWithoutReopening",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1884,11 +1884,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testUnevenChooserAllOptionsAreRememberedAndCancelKeepsPending",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1906,11 +1906,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.DeferredSplitSaveTests/testZIPGatekeeperFallsBackToRewriterAndReportsNotice",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1928,11 +1928,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.WordingAcceptanceTests/testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1950,11 +1950,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.WordingAcceptanceTests/testJapaneseMenuCorrectionsAndNamedProgressTitle",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1972,11 +1972,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.WordingAcceptanceTests/testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -1994,11 +1994,11 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.WordingAcceptanceTests",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   },
@@ -2016,12 +2016,12 @@
       "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
       "-XCTest",
       "KaitoFinderTests.BatchImportCompatibilityTests/testExportWhenEnabled",
-      "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
+      "~/Github/KaitoFinder/build/s41-p7a-baseline/P1dAS33Tests.xctest"
     ],
     "environment": {
-      "KAITOFINDER_P7_EXPORT_DIRECTORY": "/Users/nagash/GitHub/KaitoFinder/build/s41-p7a-baseline/compatibility-export",
-      "DYLD_LIBRARY_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline",
-      "DYLD_FRAMEWORK_PATH": "/Users/nagash/Github/KaitoFinder/build/s41-p7a-baseline:/Users/nagash/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
+      "KAITOFINDER_P7_EXPORT_DIRECTORY": "~/GitHub/KaitoFinder/build/s41-p7a-baseline/compatibility-export",
+      "DYLD_LIBRARY_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline",
+      "DYLD_FRAMEWORK_PATH": "~/Github/KaitoFinder/build/s41-p7a-baseline:~/Github/KaitoFinder/build/Review0924Opt/Build/Products/Debug",
       "TZ": "Asia/Tokyo"
     }
   }

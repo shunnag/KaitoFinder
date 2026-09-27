@@ -11,7 +11,7 @@ P4-A の実装と sandbox 内の検証を完了した。未 commit。
 - KaitoKit: `0cbd809592cad139ea430dd75cc15af37f8ca2c1`（P4-K / P5-K）。
 - 仕様: `SP/specs/final-p45/P4.md` の P4-A、`ORDER-P4-P5.md` §2–§3、
   `SP/specs/final-p613/ORDER-P6-P13.md` §1-3 の並列数の修正。
-- SP: `/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad`。
+- SP: `$SP`。
 
 次の三つ組を作り、編集中の live sibling はビルドに使わなかった。兄弟リポジトリは変更していない。
 
@@ -106,8 +106,8 @@ xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder \
   -derivedDataPath /private/tmp/kaitofinder-p4a-s21/dd build-for-testing
 ```
 
-拒否先は `/Users/nagash/.cache/clang/ModuleCache/Swift-7JL1KBZ3A6V3.swiftmodule` と
-`/Users/nagash/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/gyoshukukit.dia`。
+拒否先は `~/.cache/clang/ModuleCache/Swift-7JL1KBZ3A6V3.swiftmodule` と
+`~/Library/Caches/org.swift.swiftpm/manifests/ManifestLoading/gyoshukukit.dia`。
 [初回ログ](../../build/P4AS21Verification/xcode-build-for-testing-initial.log)・
 [最終ログ](../../build/P4AS21Verification/xcode-build-for-testing-final.log)。
 

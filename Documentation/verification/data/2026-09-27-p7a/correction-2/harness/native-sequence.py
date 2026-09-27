@@ -1,7 +1,7 @@
 from pathlib import Path
 import os,json,subprocess,time,shutil,hashlib
 repo=Path.cwd();root=repo/'build/s41-p7a-correction-2/native-sequence';root.mkdir(exist_ok=True)
-source=Path('/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/bp41/dd-opt/Build/Products')
+source=Path(os.environ['SP'])/'bp41/dd-opt/Build/Products'
 products=root/'Products';products.mkdir(exist_ok=True)
 if not (products/'Debug').exists():
  subprocess.run(['cp','-cR',str(source/'Debug'),str(products/'Debug')],check=True)

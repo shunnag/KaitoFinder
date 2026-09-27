@@ -30,7 +30,7 @@ Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditedOutputVerificatio
 Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations]' started.
 Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations]' passed (0.026 seconds).
 Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations]' started.
-/Users/nagash/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/WordingAcceptanceTests.swift:383: error: -[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations] : XCTAssertTrue failed
+~/Github/KaitoFinder/build/s41-p7a/KaitoFinder/KaitoFinderTests/WordingAcceptanceTests.swift:383: error: -[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations] : XCTAssertTrue failed
 Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishDevelopmentFallbackKeepsAllTwentySixLocalizations]' failed (0.012 seconds).
 Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishStyle]' started.
 Test Case '-[KaitoFinderTests.WordingAcceptanceTests testEnglishStyle]' passed (0.043 seconds).

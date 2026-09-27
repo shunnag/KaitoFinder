@@ -1,7 +1,7 @@
 from pathlib import Path
 from collections import OrderedDict
-import json,hashlib,re
-base=Path('/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad')
+import json,hashlib,re,os
+base=Path(os.environ['SP'])
 root=Path(__file__).resolve().parent
 allrows={}; sources={}
 for label,folder,run in [('B1','bp39',1),('S1','bp41',1),('S2','bp41',2),('B2','bp39',2)]:

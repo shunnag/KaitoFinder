@@ -6,7 +6,7 @@
         "archive_command": [
           "git",
           "-C",
-          "/Users/nagash/Github/KaitoFinder",
+          "~/Github/KaitoFinder",
           "archive",
           "--format=tar",
           "9aa387235959bf10581437358279b70be0beaa5e"
@@ -19,7 +19,7 @@
         "archive_command": [
           "git",
           "-C",
-          "/Users/nagash/Github/GyoshukuKit",
+          "~/Github/GyoshukuKit",
           "archive",
           "--format=tar",
           "8e35eba"
@@ -32,7 +32,7 @@
         "archive_command": [
           "git",
           "-C",
-          "/Users/nagash/Github/KaitoKit",
+          "~/Github/KaitoKit",
           "archive",
           "--format=tar",
           "823ad46"
@@ -47,7 +47,7 @@
         "archive_command": [
           "git",
           "-C",
-          "/Users/nagash/Github/KaitoFinder",
+          "~/Github/KaitoFinder",
           "archive",
           "--format=tar",
           "0e770d4"
@@ -60,7 +60,7 @@
         "archive_command": [
           "git",
           "-C",
-          "/Users/nagash/Github/GyoshukuKit",
+          "~/Github/GyoshukuKit",
           "archive",
           "--format=tar",
           "8e35eba"
@@ -73,7 +73,7 @@
         "archive_command": [
           "git",
           "-C",
-          "/Users/nagash/Github/KaitoKit",
+          "~/Github/KaitoKit",
           "archive",
           "--format=tar",
           "823ad46"

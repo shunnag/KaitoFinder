@@ -1,7 +1,8 @@
 #!/bin/bash
 # edit-cell.sh <S> <round> <threads> [ops]  — runs the harness edit set on out/S<n>/mixed.tar.xz
 set -euo pipefail
-P=/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/p14
+: "${SP:?Set SP to the scratchpad directory}"
+P="$SP/p14"
 n=$1 round=$2 t=$3 ops=${4:-all}
 mkdir -p $P/results/raw $P/work/S$n
 raw=$P/results/raw/edit-r$round-S$n-t$t

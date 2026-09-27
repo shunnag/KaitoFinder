@@ -2,7 +2,8 @@
 # decode-cell.sh <S> <corpus> <method: xz1|xzT0|kk-plain|kk-layout> <round>
 set -euo pipefail
 export LC_ALL=C
-P=/private/tmp/claude-501/-Users-nagash-Github-KaitoFinder/3d80b8d3-15ce-4c2d-bf52-2944c9d6e58c/scratchpad/p14
+: "${SP:?Set SP to the scratchpad directory}"
+P="$SP/p14"
 n=$1 corpus=$2 method=$3 round=$4
 f=$P/out/S$n/$corpus.tar.xz
 raw=$P/results/raw/decode-r$round-S$n-$corpus-$method
