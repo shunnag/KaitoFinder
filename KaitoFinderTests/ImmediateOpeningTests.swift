@@ -362,7 +362,8 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         XCTAssertFalse(controller.isListLoadingVisible)
     }
 
-    // M4-B より前の条件と計数を独立に残す。
+    // EntryNode の占有計算（renameOccupancy・editOccupancy・buildRenameOccupancy）と比べる独立の参照実装。
+    // 全項目の名前が正規化済みで pathComponents が key と一致するときだけ占有を積み、1 件でも外れれば nil（fallback）を返す。
     private func legacyOccupancy(_ entries: [ArchiveEntry], format: GyoshukuKit.ArchiveFormat) -> ArchivePathOccupancy.Overlay? {
         var occupancy: ArchivePathOccupancy? = .init()
         for entry in entries where occupancy != nil {

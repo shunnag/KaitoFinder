@@ -5,8 +5,11 @@ import KaitoKit
 import XCTest
 @testable import KaitoFinder
 
-/// Copy this file alone into the S39 export to produce the other half of AC-A3.
-/// It intentionally uses only APIs available before P7.
+/// Export harness for comparing import results across builds; it runs only when KAITOFINDER_P7_EXPORT_DIRECTORY is set.
+/// For each format it writes the archives this build creates and, where the format can be edited, appends files and then
+/// a folder tree to, each with an `.entries.json` listing (name, kind, size, SHA-256). The same file is copied alone into
+/// an older KaitoFinder tree to produce that build's export, so it uses only APIs that tree also has (hence the literal
+/// /usr/bin/touch below instead of ExternalTool).
 nonisolated final class BatchImportCompatibilityTests: XCTestCase {
     func testExportWhenEnabled() async throws {
         guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_P7_EXPORT_DIRECTORY"] else {

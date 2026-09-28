@@ -228,8 +228,8 @@ nonisolated final class M6CorrectionTests: XCTestCase {
     // B6: metadata must win over a lone short member's inferred size, in editing and Save As.
     @MainActor func testSavedSingleExplicitAndUniformSchedulesSurviveImmediateEditsAndSaveAs() async throws {
         for choice: ArchiveSplitScheduleChoice in [.single, .original, .size(65536)] {
-            // Seed metadata through the already-working M5 chooser, so the pre-fix failure
-            // occurs when immediate mode interprets it, not during new Save As setup.
+            // Seed the saved schedule through the deferred-save split-schedule chooser, so the assertions below
+            // exercise how immediate mode interprets saved metadata, not how Save As sets up a new split.
             let fixture = try DeferredSplitSaveFixture(uneven: true)
             defer { fixture.document.close() }
             let schedule = try choice.schedule(for: XCTUnwrap(fixture.document.session?.volumeLayout))

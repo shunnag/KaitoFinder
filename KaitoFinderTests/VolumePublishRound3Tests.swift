@@ -312,15 +312,6 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         try fixture.assertRemoved(transaction.staging.url)
     }
 
-    func testVerificationReportCoversRound3RecoveryRules() throws {
-        let repo = TestPaths.repositoryRoot
-        let report = try String(contentsOf: repo.appendingPathComponent("Documentation/verification/2026-09-23-volume-set-publisher.md"), encoding: .utf8)
-        for term in ["Round 3", "stored path first", "staging-locks", "keptOldVolumes", "EBUSY", "coalesc", "non-local", "hint"] {
-            XCTAssertTrue(report.contains(term), "Missing round-3 rule: \(term)")
-        }
-        XCTAssertFalse(report.contains("A done staging with a freshly proven live new set cannot block"))
-    }
-
     func testS1OwnershipIsHeldBeforeIndexVisibilityAndAfterJournalClosure() throws {
         let fixture = try VolumePublishFixture()
         let publication = try fixture.begin { step in

@@ -24,8 +24,8 @@ nonisolated final class ExtractionPerformanceProbeTests: XCTestCase {
             XCTAssertTrue(result.failures.isEmpty)
             XCTAssertEqual(result.written.count, 50_021)
             XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
-            print(String(format: "M9 50k ZIP %@: %.3f s (%d workers)", name, elapsed, name == "serial" ? 1 : workers))
+            print(String(format: "50k ZIP %@: %.3f s (%d workers)", name, elapsed, name == "serial" ? 1 : workers))
         }
-        print(String(format: "M9 50k ZIP speedup: %.2fx", durations[0] / durations[1]))
+        print(String(format: "50k ZIP speedup: %.2fx", durations[0] / durations[1]))
     }
 }

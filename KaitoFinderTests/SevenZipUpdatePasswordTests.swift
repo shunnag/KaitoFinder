@@ -100,7 +100,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
             try await trace.observing { _ = try await session.updatePassword(.change, settings: .init(password: "new"), progress: Progress()) }
             XCTFail("Different folder passwords must fail")
         } catch ExtractionFailure.refused(let message) {
-            // P1c は一部だけ成功した wrongPassword を、既存の混在パスワードの診断に写す。
+            // 一部の folder だけがパスワードの検証に通った wrongPassword は、既存の混在パスワードの診断へ写す。
             XCTAssertEqual(message, String(localized: "選択した項目には異なるパスワードが設定されています。同じパスワードの項目ごとに展開してください。"))
         }
         trace.assertRoute([])

@@ -47,7 +47,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
         ])
     }
 
-    // P1-G の clone・snapshot・output と、従来の spool / crypto の処理名も表示しない。
+    // WriterError.io が持つ内部の処理名（clone・snapshot・output、spool・crypto など）。どれも利用者向けの文言には出さない。
     private static let writerIOOperations = [
         "AES CBC finish", "AES CBC update", "AES ECB", "chmod clone",
         "clear output flags", "clear snapshot flags", "clone output", "clone source",
