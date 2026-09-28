@@ -74,9 +74,9 @@ nonisolated struct ArchiveVolumeInput: Sendable {
             try checkCancellation()
             let digest = hash.map { VolumePublishFS.hex($0.finalize()) }
             guard !usesHashes || digest == volume.sha256,
-                  fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
+                  fstat(fd, &after) == 0, VolumeFileStamp(before) == VolumeFileStamp(after),
                   let pathAfter = try parent.info(volume.name),
-                  VolumePublishTransaction.Stamp(after) == VolumePublishTransaction.Stamp(pathAfter),
+                  VolumeFileStamp(after) == VolumeFileStamp(pathAfter),
                   try volume.matches(in: parent, useHash: false) else { throw VolumePublishError.setChanged }
             offset += copied
         }

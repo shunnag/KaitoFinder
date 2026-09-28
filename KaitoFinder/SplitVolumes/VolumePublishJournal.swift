@@ -51,7 +51,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
 
         func matches(in directory: VolumePublishDirectory, useHash: Bool, checkCancellation: () throws -> Void = {}) throws -> Bool {
             try checkCancellation()
-            guard let info = try directory.info(name), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try directory.info(name), info.isRegularFile,
                   info.st_size >= 0, UInt64(info.st_size) == size else { return false }
             if useHash {
                 // FAT の inode と 2 秒単位 mtime は参考値。全 byte を読んでから判断する。
@@ -68,7 +68,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
         let sha256: String
 
         func matches(in directory: VolumePublishDirectory) throws -> Bool {
-            guard let info = try directory.info(name), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try directory.info(name), info.isRegularFile,
                   info.st_size >= 0, UInt64(info.st_size) == length else { return false }
             return try VolumePublishFS.hash(directory, name) == sha256
         }

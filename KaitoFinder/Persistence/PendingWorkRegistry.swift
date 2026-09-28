@@ -43,7 +43,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
         try withExclusiveAccess {
             var info = stat()
             guard lstat(directory.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
-            guard info.st_mode & S_IFMT == S_IFDIR else { throw ExtractionFailure.system(ENOTDIR) }
+            guard info.isDirectory else { throw ExtractionFailure.system(ENOTDIR) }
             var entries = try read()
             if let index = entries.firstIndex(where: { $0.path == directory.path }) {
                 entries[index].device = Int64(info.st_dev)
@@ -98,7 +98,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
                     if errno != ENOENT { retained.append(entry) }
                     continue
                 }
-                guard info.st_mode & S_IFMT == S_IFDIR,
+                guard info.isDirectory,
                       entry.device == nil || entry.device == Int64(info.st_dev),
                       entry.inode == nil || entry.inode == info.st_ino else { continue }
                 // removeItem は子孫の symlink も辿らず、リンク自身だけを削除する。

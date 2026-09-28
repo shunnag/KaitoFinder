@@ -235,7 +235,7 @@ nonisolated final class VolumeSetPublication: Sendable {
         do {
             try checkCancellation(progress)
             let work = try staging.directory("work")
-            guard let info = try work.info(initialRecord.workName), info.st_mode & S_IFMT == S_IFREG, info.st_size > 0 else { throw VolumePublishError.invalidPlan }
+            guard let info = try work.info(initialRecord.workName), info.isRegularFile, info.st_size > 0 else { throw VolumePublishError.invalidPlan }
             try Self.checkWorkLength(UInt64(info.st_size), fileSystem: operations.volumeInfo(parent).fileSystem)
             let plan = try VolumePlan(totalLength: UInt64(info.st_size), schedule: target.schedule, scheme: target.scheme, layout: target.layout)
             try Self.checkOccupancy(plan: plan, oldCount: initialRecord.oldVolumes.count, parent: parent)
@@ -405,7 +405,7 @@ nonisolated final class VolumeSetPublication: Sendable {
             throw VolumePublishError.system(errno)
         }
         for old in target.expected?.volumes ?? [] {
-            guard let info = try parent.info(old.fileName), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try parent.info(old.fileName), info.isRegularFile,
                   faccessat(parent.fd, old.fileName, W_OK, 0) == 0,
                   info.st_flags & UInt32(UF_IMMUTABLE | SF_IMMUTABLE | UF_APPEND | SF_APPEND) == 0,
                   directoryInfo.st_mode & S_ISVTX == 0 || info.st_uid == geteuid() else { throw VolumePublishError.setChanged }

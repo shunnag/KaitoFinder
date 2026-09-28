@@ -277,7 +277,7 @@ nonisolated final class ExtractionDestination {
         guard fstatat(source, target.last!, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
             throw ExtractionFailure.system(errno)
         }
-        guard info.st_mode & S_IFMT == S_IFREG,
+        guard info.isRegularFile,
               let identity = identities[target.joined(separator: "/")],
               info.st_dev == identity.0, info.st_ino == identity.1 else {
             throw ExtractionFailure.refused(String(localized: "hard link targetのinodeが展開時と一致しません。"))

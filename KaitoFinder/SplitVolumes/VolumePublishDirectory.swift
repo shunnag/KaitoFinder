@@ -55,7 +55,7 @@ nonisolated final class VolumePublishDirectory: Sendable {
         let file = openat(fd, name, flags | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, mode)
         guard file >= 0 else { throw VolumePublishError.system(errno) }
         var value = stat()
-        guard fstat(file, &value) == 0, value.st_mode & S_IFMT == S_IFREG else {
+        guard fstat(file, &value) == 0, value.isRegularFile else {
             close(file)
             throw VolumePublishError.unsafePath(name)
         }
@@ -187,10 +187,7 @@ nonisolated enum VolumePublishFS {
     }
 
     static func sameFile(_ lhs: stat, _ rhs: stat) -> Bool {
-        lhs.st_mode & S_IFMT == S_IFREG && rhs.st_mode & S_IFMT == S_IFREG
-            && lhs.st_dev == rhs.st_dev && lhs.st_ino == rhs.st_ino && lhs.st_size == rhs.st_size
-            && lhs.st_mtimespec.tv_sec == rhs.st_mtimespec.tv_sec
-            && lhs.st_mtimespec.tv_nsec == rhs.st_mtimespec.tv_nsec
+        lhs.isRegularFile && rhs.isRegularFile && VolumeFileStamp(lhs) == VolumeFileStamp(rhs)
     }
 
     struct VolumeInfo: Sendable {

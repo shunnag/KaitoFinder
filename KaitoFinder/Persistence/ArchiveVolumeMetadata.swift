@@ -203,7 +203,7 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
         let volume = try VolumePublishFS.volumeInfo(parent), root = try VolumePublishFS.volumeRoot(parent)
         let canonicalGate = parent.url.appendingPathComponent(gate.lastPathComponent)
         guard let path = VolumePublishFS.relativePath(canonicalGate, on: root), let info = try parent.info(gate.lastPathComponent),
-              info.st_mode & S_IFMT == S_IFREG else { throw VolumePublishError.setChanged }
+              info.isRegularFile else { throw VolumePublishError.setChanged }
         let fd = try parent.openFile(gate.lastPathComponent)
         defer { close(fd) }
         var before = stat(), after = stat()
@@ -212,9 +212,9 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
         var hash = SHA256()
         hash.update(data: try VolumePublishFS.read(fd, length: count, offset: 0))
         hash.update(data: try VolumePublishFS.read(fd, length: count, offset: size - UInt64(count)))
-        guard fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
+        guard fstat(fd, &after) == 0, VolumeFileStamp(before) == VolumeFileStamp(after),
               let final = try parent.info(gate.lastPathComponent),
-              VolumePublishTransaction.Stamp(final) == VolumePublishTransaction.Stamp(after) else { throw VolumePublishError.setChanged }
+              VolumeFileStamp(final) == VolumeFileStamp(after) else { throw VolumePublishError.setChanged }
         return (volume.uuid, path, info.st_ino, size, VolumePublishFS.hex(hash.finalize()))
     }
     func entry(for gate: URL) throws -> Entry? {

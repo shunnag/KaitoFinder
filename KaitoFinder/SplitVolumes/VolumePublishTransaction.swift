@@ -19,17 +19,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
     var oldProof: [String: Stamp] = [:]
     var newProof: [String: Stamp] = [:]
 
-    struct Stamp: Sendable, Equatable {
-        let device: Int32
-        let inode: UInt64
-        let size: Int64
-        let seconds: Int64
-        let nanoseconds: Int64
-        init(_ info: stat) {
-            device = info.st_dev; inode = info.st_ino; size = info.st_size
-            seconds = Int64(info.st_mtimespec.tv_sec); nanoseconds = Int64(info.st_mtimespec.tv_nsec)
-        }
-    }
+    typealias Stamp = VolumeFileStamp
     struct Contents: Sendable {
         let oldAtFinal: [Bool]
         let oldRetired: [Bool]
@@ -47,7 +37,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
 
     func optionalDirectory(_ name: String) throws -> VolumePublishDirectory? {
         guard let info = try staging.info(name) else { return nil }
-        guard info.st_mode & S_IFMT == S_IFDIR else { throw VolumePublishError.unsafePath(name) }
+        guard info.isDirectory else { throw VolumePublishError.unsafePath(name) }
         return try staging.directory(name)
     }
     func oldDirectoryEmpty() throws -> Bool {
@@ -160,7 +150,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         }
     }
     mutating func oldMatches(_ volume: VolumePublishJournalRecord.OldVolume, in directory: VolumePublishDirectory) throws -> Bool {
-        guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG else { return false }
+        guard let info = try directory.info(volume.name), info.isRegularFile else { return false }
         if oldProof[volume.name] == Stamp(info) { return true }
         let matches = try volume.matches(in: directory, useHash: record.hashesOldVolumes)
         if record.hashesOldVolumes { operations.didHash(directory.url.appendingPathComponent(volume.name)) }
@@ -168,7 +158,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         return matches
     }
     mutating func newMatches(_ volume: VolumePublishJournalRecord.NewVolume, in directory: VolumePublishDirectory) throws -> Bool {
-        guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG else { return false }
+        guard let info = try directory.info(volume.name), info.isRegularFile else { return false }
         if newProof[volume.name] == Stamp(info) { return true }
         let matches = try volume.matches(in: directory)
         operations.didHash(directory.url.appendingPathComponent(volume.name))
@@ -244,7 +234,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             guard let new, try newMatches(volume, in: new) else { throw VolumePublishError.contentMismatch(volume.name) }
             try renamer.move(volume.name, from: new, to: parent)
         } else if try !newMatches(volume, in: parent) { throw VolumePublishError.nameOccupied(volume.name) }
-        guard let info = try parent.info(volume.name), info.st_mode & S_IFMT == S_IFREG else { throw VolumePublishError.validationFailed }
+        guard let info = try parent.info(volume.name), info.isRegularFile else { throw VolumePublishError.validationFailed }
         inodes[volume.name] = info.st_ino
     }
 
@@ -273,7 +263,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         try directory.requireAbsent(record.nextName)
         for volume in record.newVolumes {
             // hash の最終 path 検査と証拠の stat の間も、mtime 等の変化は全文で照合し直す。
-            guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try directory.info(volume.name), info.isRegularFile,
                   info.st_size == volume.length, beforeProof[volume.name] == newProof[volume.name],
                   newProof[volume.name] == Stamp(info),
                   inodes == nil || inodes?[volume.name] == info.st_ino else {
@@ -468,7 +458,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             }
         }
         if let work = try optionalDirectory("work"), let info = try work.info(record.workName) {
-            guard info.st_mode & S_IFMT == S_IFREG, info.st_size == 0, info.st_nlink == 1 else { throw VolumePublishError.unsafePath(record.workName) }
+            guard info.isRegularFile, info.st_size == 0, info.st_nlink == 1 else { throw VolumePublishError.unsafePath(record.workName) }
         }
         try staging.verifyPath(); try journal.verifyPath(staging)
         try index.authorizeCleanup(indexedURL ?? staging.url)

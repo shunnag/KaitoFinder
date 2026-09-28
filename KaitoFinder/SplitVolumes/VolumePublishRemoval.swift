@@ -13,7 +13,7 @@ nonisolated enum VolumePublishRemoval {
     static func requireIdentity(_ directory: VolumePublishDirectory, in parent: VolumePublishDirectory, name: String) throws {
         var held = stat()
         guard fstat(directory.fd, &held) == 0, let current = try parent.info(name),
-              current.st_mode & S_IFMT == S_IFDIR, held.st_dev == current.st_dev, held.st_ino == current.st_ino else {
+              current.isDirectory, held.st_dev == current.st_dev, held.st_ino == current.st_ino else {
             throw VolumePublishError.setChanged
         }
     }
@@ -52,7 +52,7 @@ nonisolated enum VolumePublishRemoval {
         try VolumePublishFS.checkName(name)
         try operations.willRemove(parent.url.appendingPathComponent(name))
         guard let info = try parent.info(name) else { return }
-        if info.st_mode & S_IFMT == S_IFDIR {
+        if info.isDirectory {
             let child = try parent.directory(name) // openat(O_DIRECTORY | O_NOFOLLOW)
             try requireIdentity(child, in: parent, name: name)
             // Keep the journal until all other entries are gone, even within reserved subtrees.

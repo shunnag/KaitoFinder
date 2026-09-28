@@ -151,7 +151,7 @@ nonisolated final class StagingRegistry: Sendable {
                     return nil
                 }
                 guard Int64(info.st_dev) == record.device, info.st_ino == record.inode,
-                      info.st_mode & S_IFMT == S_IFDIR else { throw ExtractionFailure.system(ESTALE) }
+                      info.isDirectory else { throw ExtractionFailure.system(ESTALE) }
                 let tombstone = root.appendingPathComponent(WorkAreaName.deleted + UUID().uuidString, isDirectory: true)
                 // rename の前に記録し、途中終了でも削除許可済みの領域だけを回収する。
                 entries.append(Entry(path: tombstone.path, device: record.device, inode: record.inode, discardable: true))
@@ -198,7 +198,7 @@ nonisolated final class StagingRegistry: Sendable {
                     if errno != ENOENT { retained.append(entry) }
                     continue
                 }
-                guard info.st_mode & S_IFMT == S_IFDIR, Int64(info.st_dev) == entry.device,
+                guard info.isDirectory, Int64(info.st_dev) == entry.device,
                       info.st_ino == entry.inode else { retained.append(entry); continue }
                 let descriptor = open(directory.appendingPathComponent(WorkAreaName.ownerLock).path,
                                       O_RDWR | O_NOFOLLOW | O_CLOEXEC)

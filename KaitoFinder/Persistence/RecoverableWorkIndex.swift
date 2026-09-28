@@ -89,7 +89,7 @@ nonisolated final class RecoverableWorkIndex: Sendable {
     }
     private func read(_ directory: VolumePublishDirectory) throws -> [Entry] {
         guard let info = try directory.info(fileURL.lastPathComponent) else { return [] }
-        guard info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0 else {
+        guard info.isRegularFile, info.st_size >= 0 else {
             throw VolumePublishError.unsafePath(fileURL.path)
         }
         let fd = try directory.openFile(fileURL.lastPathComponent)

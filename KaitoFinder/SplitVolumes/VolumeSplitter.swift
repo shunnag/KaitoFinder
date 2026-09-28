@@ -15,7 +15,7 @@ nonisolated enum VolumeSplitter {
 
         init(fd: Int32) throws {
             var info = stat()
-            guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { throw VolumePublishError.system(errno) }
+            guard fstat(fd, &info) == 0, info.isRegularFile else { throw VolumePublishError.system(errno) }
             mode = info.st_mode & 0o7777
             // fd は O_NOFOLLOW で開いたもの。fd API の options は 0（NOFOLLOW は EINVAL）。
             let size = flistxattr(fd, nil, 0, 0)
