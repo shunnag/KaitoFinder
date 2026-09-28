@@ -79,6 +79,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var entryFilter: EntryTreeFilter?
     var filterConfiguration: EntryTreeFilter.Configuration { .init(query: requestedFilterQuery, showsHiddenFiles: requestedShowsHiddenFiles) }
     nonisolated static let asyncFilterThreshold = 20_000
+    /// 完成した絞り込みを保留しているあいだ、適用できるかを確かめ直す間隔。
+    private nonisolated static let filterHoldPollInterval: Duration = .milliseconds(100)
     private enum FilterReason { case query, hiddenFiles }
     private enum FilterDecision { case discard, hold, apply }
     private struct FilterRequest {
@@ -674,6 +676,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if indexingRenames, let session { prepareRenameIndex(for: root, session: session, generation: generation) }
     }
 
+    /// 表示範囲の上下に何行ぶん、サムネールを先に作るか。
+    private nonisolated static let thumbnailPrefetchRows = 3
+
     private func rebuildThumbnailProvider() {
         thumbnailProvider?.cancelAll()
         thumbnailProvider = nil
@@ -684,8 +689,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 guard let outline = self?.outlineView else { return false }
                 let row = outline.row(forItem: node)
                 let rows = outline.rows(in: outline.visibleRect)
-                return row >= 0 && rows.length > 0 && row >= max(0, rows.location - 3)
-                    && row < min(outline.numberOfRows, NSMaxRange(rows) + 3)
+                return row >= 0 && rows.length > 0 && row >= max(0, rows.location - Self.thumbnailPrefetchRows)
+                    && row < min(outline.numberOfRows, NSMaxRange(rows) + Self.thumbnailPrefetchRows)
             }
             if (document as? ArchiveDocument)?.saveBehavior == .onSave {
                 provider.canRead = { [weak self] _ in self?.canReadEntries == true }
@@ -1067,7 +1072,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                     switch self?.filterDecision(for: result!, token: token) ?? .discard {
                     case .discard: return
                     case .apply: self?.applyRequestedFilter(&result, token: token); return
-                    case .hold: try? await Task.sleep(for: .milliseconds(100))
+                    case .hold: try? await Task.sleep(for: Self.filterHoldPollInterval)
                     }
                 }
             }
@@ -1873,11 +1878,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
+    /// 衝突の確認シートが閉じ、進捗シートを出し直せるかを確かめる間隔。
+    private nonisolated static let conflictSheetPollInterval: Duration = .milliseconds(80)
+
     private static func resumeProgressAfterConflicts(_ sheet: ExtractionProgressSheet, on window: NSWindow) -> Task<Void, Never> {
         Task {
             // 件数は全回答の後に確定する。複数の確認シートの間で進捗を点滅させない。
             while !Task.isCancelled {
-                do { try await Task.sleep(for: .milliseconds(80)) } catch { return }
+                do { try await Task.sleep(for: Self.conflictSheetPollInterval) } catch { return }
                 if sheet.progress.totalUnitCount > 0, window.attachedSheet == nil || window.attachedSheet === sheet.window {
                     if sheet.window?.sheetParent == nil, !sheet.progress.isCancelled { sheet.begin(on: window) }
                     return
@@ -2352,13 +2360,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         startPreviewMonitoring(panel)
     }
 
+    /// Quick Look パネルの表示項目と開閉を確かめる間隔。
+    private nonisolated static let previewPollInterval: Duration = .milliseconds(50)
+
     private func startPreviewMonitoring(_ panel: QLPreviewPanel) {
         previewMonitor?.cancel()
         // QLPreviewPanel に index 変更の delegate はない。先読み要求の index は採用せず、
         // 公開プロパティを監視する。orderOut による終了も拾い、KVO 通知の有無に依存しない。
         previewMonitor = Task { [weak self, weak panel] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(50))
+                try? await Task.sleep(for: Self.previewPollInterval)
                 guard !Task.isCancelled, let self, let panel, self.previewPanel === panel else { return }
                 if panel.isVisible { self.synchronizePreview(panel) }
                 else {
