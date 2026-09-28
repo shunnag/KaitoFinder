@@ -155,6 +155,20 @@ nonisolated final class ExtractionDestination {
     func file(_ components: [String], entry: ArchiveEntry, stream: EntryStream, buffer: inout [UInt8],
               createParents: Bool = true,
               checkCancellation: () throws -> Void) throws {
+        try createExclusiveFile(components, entry: entry, createParents: createParents, checkCancellation: checkCancellation) { file in
+            try ExtractionService.consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { bytes in
+                try Self.writeAll(file, bytes, checkCancellation: checkCancellation)
+                didWrite?(bytes.count)
+            }
+        }
+    }
+
+    /// O_EXCL で 0600 に作り、quarantine → 本文（fill）→ 属性 → 読み取り専用化 → identity 記録の順を守る。
+    /// 途中で失敗した出力は defer で unlink し、未検証の payload を公開しない。
+    /// `beforeRecordingIdentity` は属性を付けた後、取消し検査と identity 記録の前に呼ぶ（退避物の再照合の位置）。
+    private func createExclusiveFile(_ components: [String], entry: ArchiveEntry, createParents: Bool = true,
+                                     checkCancellation: () throws -> Void, fill: (Int32) throws -> Void,
+                                     beforeRecordingIdentity: () throws -> Void = {}) throws {
         let parent = try parentDescriptor(for: Array(components.dropLast()), create: createParents)
         let leaf = components.last!
         // 同名の既存ファイル、symlink、別 entry は絶対に上書きしない。
@@ -168,28 +182,31 @@ nonisolated final class ExtractionDestination {
         // 0600 のまま quarantine を先に適用し、CRC 検証完了後だけ既定の mode へ広げる。
         // 属性設定失敗時も未検証 payload を公開しない。宣言サイズで read を止めない。
         try ExtractionQuarantine.apply(quarantine, toDescriptor: file)
-        try ExtractionService.consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { bytes in
-            var offset = 0
-            while offset < bytes.count {
-                try checkCancellation()
-                let count = Darwin.write(file, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
-                if count < 0, errno == EINTR { continue }
-                guard count > 0 else { throw ExtractionFailure.system(count == 0 ? EIO : errno) }
-                offset += count
-            }
-            didWrite?(bytes.count)
-        }
+        try fill(file)
         try attributes(entry, descriptor: file)
         // プレビューと外部オープンは所有者の読み取りだけを許す。公開前、同じ fd で適用する。
         if readOnly {
             try ArchiveTemporaryCopy.mark(descriptor: file)
             if fchmod(file, 0o400) != 0 { throw ExtractionFailure.system(errno) }
         }
+        try beforeRecordingIdentity()
         try checkCancellation()
         var info = stat()
         guard fstat(file, &info) == 0 else { throw ExtractionFailure.system(errno) }
         identities[components.joined(separator: "/")] = (info.st_dev, info.st_ino)
         complete = true
+    }
+
+    /// EINTR は再試行し、部分書き込みは続きから書く。0 byte の write は EIO として扱う。
+    private static func writeAll(_ fd: Int32, _ bytes: UnsafeRawBufferPointer, checkCancellation: () throws -> Void) throws {
+        var offset = 0
+        while offset < bytes.count {
+            try checkCancellation()
+            let count = Darwin.write(fd, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
+            if count < 0, errno == EINTR { continue }
+            guard count > 0 else { throw ExtractionFailure.system(count == 0 ? EIO : errno) }
+            offset += count
+        }
     }
 
     func symlink(_ components: [String], target: String, staged: ArchivePendingChanges.PendingAddition? = nil) throws {
@@ -233,41 +250,19 @@ nonisolated final class ExtractionDestination {
         guard input >= 0 else { throw ExtractionFailure.system(errno) }
         defer { close(input) }
         try addition.stagedStamp.verify(descriptor: input)
-        let parent = try parentDescriptor(for: Array(components.dropLast())), leaf = components.last!
-        let file = openat(parent, leaf, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
-        guard file >= 0 else { throw ExtractionFailure.system(errno) }
-        var complete = false
-        defer { close(file); if !complete { unlinkat(parent, leaf, 0) } }
-        try ExtractionQuarantine.apply(quarantine, toDescriptor: file)
-        while true {
-            try checkCancellation()
-            let count = buffer.withUnsafeMutableBytes { read(input, $0.baseAddress, $0.count) }
-            if count < 0, errno == EINTR { continue }
-            guard count >= 0 else { throw ExtractionFailure.system(errno) }
-            if count == 0 { break }
-            try buffer.withUnsafeBytes { bytes in
-                var offset = 0
-                while offset < count {
-                    try checkCancellation()
-                    let written = write(file, bytes.baseAddress!.advanced(by: offset), count - offset)
-                    if written < 0, errno == EINTR { continue }
-                    guard written > 0 else { throw ExtractionFailure.system(written == 0 ? EIO : errno) }
-                    offset += written
+        try createExclusiveFile(components, entry: entry, checkCancellation: checkCancellation, fill: { file in
+            while true {
+                try checkCancellation()
+                let count = buffer.withUnsafeMutableBytes { read(input, $0.baseAddress, $0.count) }
+                if count < 0, errno == EINTR { continue }
+                guard count >= 0 else { throw ExtractionFailure.system(errno) }
+                if count == 0 { break }
+                try buffer.withUnsafeBytes { bytes in
+                    try Self.writeAll(file, UnsafeRawBufferPointer(rebasing: bytes[..<count]), checkCancellation: checkCancellation)
                 }
+                didWrite?(count)
             }
-            didWrite?(count)
-        }
-        try attributes(entry, descriptor: file)
-        if readOnly {
-            try ArchiveTemporaryCopy.mark(descriptor: file)
-            guard fchmod(file, 0o400) == 0 else { throw ExtractionFailure.system(errno) }
-        }
-        try addition.stagedStamp.verify(descriptor: input)
-        try checkCancellation()
-        var info = stat()
-        guard fstat(file, &info) == 0 else { throw ExtractionFailure.system(errno) }
-        identities[components.joined(separator: "/")] = (info.st_dev, info.st_ino)
-        complete = true
+        }, beforeRecordingIdentity: { try addition.stagedStamp.verify(descriptor: input) })
     }
 
     func hardlink(_ components: [String], target: [String]) throws {
