@@ -59,8 +59,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     var conflictPrompt: ArchiveConflictPrompt? { conflictPresenter.prompt }
     var passwordPrompt: ArchivePasswordPrompt? { passwordPresenter.prompt }
     private(set) var unlockTask: Task<Void, Never>?
-    let unlockButton: NSButton
-    let lockedPlaceholder = NSView()
+    let lockedPlaceholder: ArchiveLockedPlaceholderView
+    var unlockButton: NSButton { lockedPlaceholder.unlockButton }
     private var isLocked = false
     let statusBar = NSTextField(wrappingLabelWithString: "")
     private(set) var deletionConfirmation: NSAlert?
@@ -155,7 +155,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         requestedShowsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         keepsFoldersOnTop = preferencesStore.preferences.keepsFoldersOnTop
-        unlockButton = NSButton(title: String(localized: "ロックを解除…", bundle: bundle), target: nil, action: nil)
+        lockedPlaceholder = ArchiveLockedPlaceholderView(bundle: bundle)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
         let window = ArchiveDocumentWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 600),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -256,44 +256,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         scrollView.documentView = outlineView
         unlockButton.target = self
         unlockButton.action = #selector(unlockArchive(_:))
-        unlockButton.bezelStyle = .rounded
-        lockedPlaceholder.identifier = NSUserInterfaceItemIdentifier("archive.locked-placeholder")
-        lockedPlaceholder.isHidden = true
-        let lock = NSImageView()
-        lock.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 56, weight: .regular))
-        lock.contentTintColor = .secondaryLabelColor
-        lock.imageScaling = .scaleProportionallyDown
-        // SF Symbolsの整列余白をスタックの外へ出さず、画像全体をこの領域に収める。
-        let symbolView = NSView(frame: NSRect(x: 0, y: 0, width: 80, height: 80))
-        lock.frame = symbolView.bounds
-        lock.autoresizingMask = [.width, .height]
-        symbolView.addSubview(lock)
-        let title = NSTextField(wrappingLabelWithString: String(localized: "このアーカイブはロックされています", bundle: bundle))
-        title.font = NSFontManager.shared.convert(.preferredFont(forTextStyle: .title2), toHaveTrait: .boldFontMask)
-        title.alignment = .center
-        let subtitle = NSTextField(wrappingLabelWithString: String(localized: "パスワードを入力すると内容を表示できます。", bundle: bundle))
-        subtitle.font = .preferredFont(forTextStyle: .body)
-        subtitle.textColor = .secondaryLabelColor
-        subtitle.alignment = .center
-        let placeholderStack = NSStackView(views: [symbolView, title, subtitle, unlockButton])
-        placeholderStack.orientation = .vertical
-        placeholderStack.alignment = .centerX
-        placeholderStack.spacing = 12
-        placeholderStack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
-        placeholderStack.translatesAutoresizingMaskIntoConstraints = false
-        lockedPlaceholder.addSubview(placeholderStack)
-        for label in [title, subtitle] {
-            label.preferredMaxLayoutWidth = 420
-            label.widthAnchor.constraint(equalToConstant: 420).isActive = true
-        }
-        NSLayoutConstraint.activate([
-            symbolView.widthAnchor.constraint(equalToConstant: 80),
-            symbolView.heightAnchor.constraint(equalToConstant: 80),
-            placeholderStack.widthAnchor.constraint(equalToConstant: 428),
-            placeholderStack.centerXAnchor.constraint(equalTo: lockedPlaceholder.centerXAnchor),
-            placeholderStack.centerYAnchor.constraint(equalTo: lockedPlaceholder.centerYAnchor)
-        ])
         let footer = NSStackView(views: [renameValidationNotice, capabilityNotice])
         footer.identifier = NSUserInterfaceItemIdentifier("archive.footer")
         footer.orientation = .vertical
@@ -344,7 +306,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         pathControl.setContentHuggingPriority(.required, for: .vertical)
         footer.setHuggingPriority(.required, for: .vertical)
         statusBar.translatesAutoresizingMaskIntoConstraints = false
-        lockedPlaceholder.translatesAutoresizingMaskIntoConstraints = false
         pathControl.translatesAutoresizingMaskIntoConstraints = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         footer.translatesAutoresizingMaskIntoConstraints = false
