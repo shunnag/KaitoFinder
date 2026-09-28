@@ -55,12 +55,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
     }
 
-    @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition())
-    }
-
     @MainActor private func interface(_ fixture: Fixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()

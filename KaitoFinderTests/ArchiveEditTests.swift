@@ -166,14 +166,6 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         }
     }
 
-    @MainActor private func waitForGate(_ gate: Gate) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !gate.entered.withLock({ $0 }), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        XCTAssertTrue(gate.entered.withLock { $0 })
-    }
-
     private func records(_ url: URL) throws -> [String: Record] {
         let bytes = try Data(contentsOf: url), reader = try ArchiveReader.open(url: url)
         var result: [String: Record] = [:]
@@ -669,7 +661,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 return try await document.remove([selected], progress: Progress(), willPublish: { gate.wait() })
             }
             defer { gate.release.signal() }
-            try await waitForGate(gate)
+            try await waitUntil { gate.entered.withLock { $0 } }
             do { _ = try await document.remove([other], progress: Progress()); XCTFail("処理中の削除を受理しました") }
             catch { XCTAssertTrue(error is ExtractionFailure) }
             do { _ = try await document.rename(other, to: "second", progress: Progress()); XCTFail("処理中の改名を受理しました") }
@@ -693,7 +685,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let selected = try await node("remove.txt", in: XCTUnwrap(document.session))
         let task = Task { try await document.remove([selected], progress: Progress(), willPublish: { gate.wait() }) }
         defer { gate.release.signal() }
-        try await waitForGate(gate)
+        try await waitUntil { gate.entered.withLock { $0 } }
         document.close()
         gate.release.signal()
         do { _ = try await task.value; XCTFail("close 後に未公開の削除を完了しました") }

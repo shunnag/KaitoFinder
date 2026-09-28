@@ -5,12 +5,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
-    @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition())
-    }
-
     private func declaration() throws -> [String: Any] {
         let root = TestPaths.repositoryRoot
         return try XCTUnwrap(PropertyListSerialization.propertyList(

@@ -69,12 +69,6 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertTrue(actual == expected, "Session password state")
     }
 
-    @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition())
-    }
-
     @MainActor private func interface(_ fixture: Fixture, behavior: ArchivePreferences.SaveBehavior = .immediate) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()

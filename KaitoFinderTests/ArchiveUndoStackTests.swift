@@ -114,14 +114,6 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertNil(document.undoFailure)
     }
 
-    @MainActor private func waitForGate(_ gate: Gate) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !gate.entered.withLock({ $0 }), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        XCTAssertTrue(gate.entered.withLock { $0 })
-    }
-
     @MainActor func testAppendUndoRestoresFullArchiveSHA256() async throws {
         let fixture = try Fixture(), document = try document(fixture)
         let before = try digest(fixture.archive)
@@ -527,7 +519,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         let task = Task {
             try await document.append(urls: [added], to: "", progress: Progress(), willPublish: { gate.wait() })
         }
-        try await waitForGate(gate)
+        try await waitUntil { gate.entered.withLock { $0 } }
         document.close()
         XCTAssertTrue(exists(try XCTUnwrap(directories.withLock { $0.first })))
         gate.release.signal()
@@ -552,7 +544,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         try await append("first.txt", fixture: fixture, document: document)
         let manager = try XCTUnwrap(document.undoManager)
         manager.undo()
-        try await waitForGate(gate)
+        try await waitUntil { gate.entered.withLock { $0 } }
         XCTAssertFalse(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
         manager.undo()

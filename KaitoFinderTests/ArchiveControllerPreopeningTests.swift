@@ -64,12 +64,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         }
     }
 
-    @MainActor private func waitUntil(_ predicate: () -> Bool, timeout: Duration = .seconds(10)) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while !predicate(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(predicate())
-    }
-
     @MainActor func testHundredThousandEntryZIPKeepsMainThreadResponsiveAndParsesOnce() async throws {
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:
@@ -243,10 +237,10 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         let task = Task { await open(controller, fixture.archive) }
         defer { controller.openingSheet(for: fixture.archive)?.cancelExtraction(nil) }
         var staging: Set<UInt64> = []
-        try await waitUntil({
+        try await waitUntil(timeout: .seconds(30)) {
             staging = Self.unlinkedStagingFiles().subtracting(before)
             return !staging.isEmpty
-        }, timeout: .seconds(30))
+        }
         let sheet = try XCTUnwrap(controller.openingSheet(for: fixture.archive))
         sheet.cancelExtraction(nil)
         let (document, wasOpen, error) = await task.value
