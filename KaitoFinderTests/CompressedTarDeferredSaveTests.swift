@@ -82,7 +82,7 @@ nonisolated final class CompressedTarDeferredSaveTests: XCTestCase {
             XCTAssertEqual(progress.completedUnitCount, Int64(saved.entries.count + 2))
             XCTAssertEqual(progress.totalUnitCount, Int64(entries.count + 2))
             XCTAssertEqual(saved.entries.map(\.name), ["keep"])
-            try CompressedTarFixture.assertNoWork(directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 
@@ -102,7 +102,7 @@ nonisolated final class CompressedTarDeferredSaveTests: XCTestCase {
                     }
                 }) { XCTAssertTrue($0 is TarUpdaterError) }
                 XCTAssertEqual(try Data(contentsOf: archive), original)
-                try CompressedTarFixture.assertNoWork(directory.url)
+                try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             }
             XCTAssertEqual(calls.value, 2); XCTAssertEqual(fallbacks.value, 0)
         }

@@ -16,11 +16,6 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
         return url
     }
 
-    private static func assertNoWork(in root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        let names = try FileManager.default.contentsOfDirectory(atPath: root.path)
-        XCTAssertFalse(names.contains { $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".gyoshuku-") }, names.description, file: file, line: line)
-    }
-
     private static func checkWork(_ work: URL, archive: URL, original: Data, identity: ArchiveFileIdentity) throws {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: work.deletingLastPathComponent().path)
             .filter { !$0.hasPrefix("._") }, ["archive.zip"])
@@ -71,7 +66,7 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
             let current = await session.entries(), fresh = try ArchiveReader.open(url: url, options: .kaitoFinder()).entries
             XCTAssertEqual(current, fresh)
             await session.close()
-            try Self.assertNoWork(in: root)
+            try ArchiveOracle.assertNoWorkFiles(in: root)
         }
     }
 
@@ -142,7 +137,7 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
                     }
             }
             XCTAssertEqual(try Data(contentsOf: app), try Data(contentsOf: conventional), "\(kind) operation=\(operation)")
-            try Self.assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 
@@ -174,7 +169,7 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
         catch is CancellationError {} catch { XCTFail("Unexpected error: \(error)") }
         XCTAssertTrue(entered.withLock { $0 })
         XCTAssertEqual(try Data(contentsOf: url), original); XCTAssertEqual(try ArchiveFileIdentity.capture(url: url), identity)
-        try Self.assertNoWork(in: directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
     }
 
     private func injectedFailure(in root: URL) throws {
@@ -188,7 +183,7 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
                 archive: url, mode: .inPlace, progress: Progress())
         }) { XCTAssertTrue($0 is Injected) }
         XCTAssertEqual(try Data(contentsOf: url), original); XCTAssertEqual(try ArchiveFileIdentity.capture(url: url), identity)
-        try Self.assertNoWork(in: root)
+        try ArchiveOracle.assertNoWorkFiles(in: root)
     }
 
     func testCommitHookFailureCleansWork() throws {
@@ -220,7 +215,7 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
             XCTAssertThrowsError(try ArchiveEditTransaction.run(plan: .init(removals: [.init(entries[0])], renames: [], existing: entries),
                 archive: url, mode: .inPlace, progress: Progress())) { XCTAssertEqual($0 as? UpdaterError, expected) }
             XCTAssertEqual(try Data(contentsOf: url), bytes)
-            try Self.assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 }

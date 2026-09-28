@@ -244,7 +244,7 @@ nonisolated final class ByteProgressIntegrationTests: XCTestCase {
             XCTAssertEqual(SHA256.hash(data: try Data(contentsOf: fixture.archive)), digest)
             XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
             XCTAssertFalse(document.undoManager?.canUndo ?? false)
-            try assertNoWork(fixture.directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: fixture.directory.url)
             await document.prepareForTermination()
         }
     }
@@ -258,7 +258,7 @@ nonisolated final class ByteProgressIntegrationTests: XCTestCase {
             try ArchiveCreationTransaction.run(plan: .init(sources: [source], destination: output, format: .tarXZ), progress: progress)
         }) { XCTAssertTrue($0 is CancellationError) }
         XCTAssertFalse(FileManager.default.fileExists(atPath: output.path))
-        try assertNoWork(directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
     }
 
     func testCancellationAfterRenameStillCompletesLedgerAndOperation() async throws {
@@ -278,10 +278,5 @@ nonisolated final class ByteProgressIntegrationTests: XCTestCase {
         XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1)
         XCTAssertTrue(progress.isCancelled)
         await session.close()
-    }
-
-    private func assertNoWork(_ url: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        let names = try FileManager.default.contentsOfDirectory(atPath: url.path)
-        XCTAssertFalse(names.contains { $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".KaitoFinder-new-") }, file: file, line: line)
     }
 }

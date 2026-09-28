@@ -14,7 +14,7 @@ nonisolated final class CompressedTarVerificationFailureTests: XCTestCase {
         let current = await session.entries()
         XCTAssertEqual(current, entries); XCTAssertEqual(session.generation, generation)
         XCTAssertTrue(session.capabilities.canEdit)
-        try CompressedTarFixture.assertNoWork(archive.deletingLastPathComponent())
+        try ArchiveOracle.assertNoWorkFiles(in: archive.deletingLastPathComponent())
     }
 
     func testUpdaterSelfChecksAndIndependentK5FaultsNeverPublish() async throws {

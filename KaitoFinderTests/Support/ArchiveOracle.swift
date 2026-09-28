@@ -53,6 +53,17 @@ nonisolated enum ArchiveOracle {
         return Data(digest.finalize())
     }
 
+    /// `root` の直下に、取り込み・作成の作業領域（`WorkAreaName.add` / `.new`）と GyoshukuKit の作業 file
+    /// （`.gyoshuku-`）が残っていないことを確かめる。
+    static func assertNoWorkFiles(in root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
+        let names = try FileManager.default.contentsOfDirectory(atPath: root.path)
+        XCTAssertFalse(names.contains { name in workFilePrefixes.contains { name.hasPrefix($0) } },
+                       names.description, file: file, line: line)
+    }
+
+    /// GyoshukuKit は作業 file の接頭辞を公開していないので、それだけは文字列で持つ。
+    private static let workFilePrefixes = [WorkAreaName.add, WorkAreaName.new, ".gyoshuku-"]
+
     /// 項目の種類を名前ごとに返す。同じ名前の項目が複数あればテストを失敗にする。
     static func inventory(_ url: URL) throws -> [String: EntryKind] {
         let entries = try ArchiveReader.open(url: url).entries

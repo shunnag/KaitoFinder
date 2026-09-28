@@ -90,7 +90,7 @@ nonisolated final class DeferredSaveDocumentTests: XCTestCase {
             XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
             XCTAssertEqual(try DeferredSaveFixture.contents(url, password: "new"), ["renamed": Data("old contents".utf8)])
             try ArchiveReencryptionTestSupport.assertEncryption(url, settings: pending.outputEncryption!)
-            try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             await session.close()
         }
     }

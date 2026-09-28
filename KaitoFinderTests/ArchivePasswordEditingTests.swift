@@ -325,7 +325,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
                 XCTAssertEqual(try Data(contentsOf: url), original)
             }
             XCTAssertFalse(units.withLock { $0.isEmpty })
-            try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 
@@ -391,7 +391,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         XCTAssertTrue(stages.withLock { $0.contains(.updaterOpen) && $0.contains(.rewriterOpen) })
         XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1); XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         try assertProtected(url, password: "fallback")
-        try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         await session.close()
     }
 
@@ -448,7 +448,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         XCTAssertEqual(password, "old")
         XCTAssertEqual(try Data(contentsOf: url), original)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
-        try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         _ = try await document.updatePassword(.change, settings: .init(password: "retry"))
         try assertProtected(url, password: "retry", rejectedPassword: "old")
     }

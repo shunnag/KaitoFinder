@@ -81,7 +81,7 @@ nonisolated final class CompressedTarPublishTests: XCTestCase {
                     for (name, bytes) in before where expected[name] == originalHashes[name] { XCTAssertEqual(groups[name], bytes, name) }
                     XCTAssertEqual(try XCTUnwrap(saved.tarEditingSnapshot()).image.length % 10240, 0)
                     try CompressedTarFixture.interop(archive, format: format, directory: directory)
-                    try CompressedTarFixture.assertNoWork(directory.url)
+                    try ArchiveOracle.assertNoWorkFiles(in: directory.url)
                     await session.close()
                 }
             }

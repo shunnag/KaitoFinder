@@ -74,9 +74,6 @@ nonisolated enum CompressedTarFixture {
             return (entry.name, try bytes(snapshot.image, range: member.groupRange.lowerBound..<member.headerRange.upperBound))
         })
     }
-    static func assertNoWork(_ root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: root.path).contains { $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".gyoshuku-") }, file: file, line: line)
-    }
     static func interop(_ url: URL, format: Format, directory: ArchiveTestDirectory) throws {
         let tool = format == .tarGzip ? ExternalTool.gzip : format == .tarBzip2 ? ExternalTool.bzip2 : ExternalTool.xz
         try directory.run(tool, ["-t", url.path])

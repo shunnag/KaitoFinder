@@ -85,7 +85,7 @@ nonisolated final class CompressedTarRoutingTests: XCTestCase {
                     expectedOutput: .init(existing: entries, mode: .update(format))) { _ in mutations.increment() }
             }
             XCTAssertEqual(openings.value, 1); XCTAssertEqual(mutations.value, 1); XCTAssertEqual(fallbacks.value, 1)
-            try CompressedTarFixture.assertNoWork(directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 }

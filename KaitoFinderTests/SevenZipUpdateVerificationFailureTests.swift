@@ -66,7 +66,7 @@ nonisolated final class SevenZipUpdateVerificationFailureTests: XCTestCase {
             XCTAssertTrue(trace.adoptions.withLock { $0.isEmpty })
             XCTAssertTrue(trace.fallbacks.withLock { $0.isEmpty })
             XCTAssertFalse(trace.stages.withLock { $0.contains(.reloadOpen) || $0.contains(.publish) })
-            try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             // 同じ reader で次の編集もできる。
             _ = try await session.rename(SevenZipUpdateFixture.selection(entries[0]), to: "retry", progress: Progress())
             XCTAssertEqual(session.generation, generation + 1)

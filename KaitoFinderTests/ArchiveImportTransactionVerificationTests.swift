@@ -40,7 +40,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
                 XCTAssertEqual(try Data(contentsOf: url), original)
                 XCTAssertTrue(session.capabilities.canEdit)
                 XCTAssertFalse(session.hasKnownPassword)
-                try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+                try ArchiveOracle.assertNoWorkFiles(in: directory.url)
                 await session.close()
             }
         }

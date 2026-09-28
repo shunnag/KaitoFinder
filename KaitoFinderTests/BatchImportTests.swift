@@ -28,13 +28,6 @@ nonisolated final class BatchImportTests: XCTestCase {
         }
     }
 
-    private func assertNoWork(in root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        let names = try FileManager.default.contentsOfDirectory(atPath: root.path)
-        XCTAssertFalse(names.contains {
-            $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".KaitoFinder-new-") || $0.hasPrefix(".gyoshuku-")
-        }, names.description, file: file, line: line)
-    }
-
     /// Records the batch boundary even if GyoshukuKit later makes an empty batch a no-op.
     private final class RenameOnlyEditor: ArchiveEditing {
         let base: any ArchiveEditing
@@ -85,7 +78,7 @@ nonisolated final class BatchImportTests: XCTestCase {
                 }
                 XCTAssertEqual(try ArchiveReader.open(url: url).entries.map(\.name), plan.projected.map(\.name))
                 XCTAssertEqual(try DeferredSaveFixture.contents(url)["renamed.txt"], Data("original".utf8))
-                try assertNoWork(in: directory.url)
+                try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             }
         }
     }
@@ -102,7 +95,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, entries.count)
             XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, entries.count)
             XCTAssertEqual(try DeferredSaveFixture.contents(output), try DeferredSaveFixture.contents(original))
-            try assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
         let directory = try ArchiveTestDirectory(), progress = Progress()
         let empty = directory.url.appendingPathComponent("empty.zip")
@@ -111,7 +104,7 @@ nonisolated final class BatchImportTests: XCTestCase {
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
         XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 0)
         XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 0)
-        try assertNoWork(in: directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
     }
 
     func testEmptyImportLeavesArchiveAndProgressUntouched() throws {
@@ -129,7 +122,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(progress.totalUnitCount, 7)
             XCTAssertEqual(progress.completedUnitCount, 3)
             XCTAssertEqual(try ArchiveOracle.digest(url), before)
-            try assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 
@@ -160,7 +153,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 2)
             XCTAssertEqual(try ArchiveOracle.digest(url), before)
             XCTAssertEqual(session.generation, 0)
-            try assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             await session.close()
         }
     }
@@ -185,7 +178,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertTrue(started.withLock { $0.contains(urls[2]) })
             XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 2)
             XCTAssertEqual(try ArchiveOracle.digest(destination), before)
-            try assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
     }
 
@@ -208,7 +201,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(ArchiveErrorText.describe(error), expected)
         }
         XCTAssertEqual(try ArchiveOracle.digest(url), before)
-        try assertNoWork(in: directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
     }
 
     private final class Marker: Error, @unchecked Sendable {}
@@ -288,7 +281,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(started.withLock { $0 }, [urls[0]])
             XCTAssertEqual(progress.completedUnitCount, 0)
             XCTAssertEqual(try ArchiveOracle.digest(url), before)
-            try assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             await session.close()
         }
     }
@@ -335,7 +328,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(try ArchiveOracle.digest(url), before)
             XCTAssertEqual(session.generation, 0)
             XCTAssertEqual(try openFiles(under: directory.url), descriptors)
-            try assertNoWork(in: directory.url)
+            try ArchiveOracle.assertNoWorkFiles(in: directory.url)
             await session.close()
             XCTAssertTrue(try openFiles(under: directory.url).isEmpty)
         }
@@ -350,7 +343,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTFail("Callback failure was published")
         } catch { XCTAssertTrue((error as? Marker) === marker) }
         XCTAssertEqual(try ArchiveOracle.digest(url), before)
-        try assertNoWork(in: directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         await session.close()
     }
 
@@ -375,7 +368,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(ArchiveErrorText.describe(actual.underlying), ArchiveErrorText.describe(failure.underlying))
         }
         XCTAssertEqual(try ArchiveOracle.digest(url), before)
-        try assertNoWork(in: directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         await session.close()
     }
 

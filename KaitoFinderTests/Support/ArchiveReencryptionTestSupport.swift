@@ -84,12 +84,6 @@ nonisolated enum ArchiveReencryptionTestSupport {
         }
     }
 
-    static func assertNoWork(_ root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: root.path).contains {
-            $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".gyoshuku-")
-        }, file: file, line: line)
-    }
-
     @MainActor static func splitPasswordLifecycle(behavior: ArchivePreferences.SaveBehavior, fallback: Bool) async throws {
         let fixture = try DeferredSplitSaveFixture(format: .zip, behavior: behavior), document = fixture.document
         defer { document.close() }

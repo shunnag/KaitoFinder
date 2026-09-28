@@ -25,7 +25,7 @@ nonisolated final class CompressedTarNonAPFSTests: XCTestCase {
         }
         trace.assertAdopted(4); XCTAssertEqual(trace.fullVerifications.value, 0)
         let reader = try ArchiveReader.open(url: archive), result = (reader.entries.map(\.name), try CompressedTarFixture.hashes(reader))
-        try CompressedTarFixture.assertNoWork(root)
+        try ArchiveOracle.assertNoWorkFiles(in: root)
         await session.close()
         return result
     }

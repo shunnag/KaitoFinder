@@ -109,7 +109,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: archive), original)
         XCTAssertEqual(try ArchiveFileIdentity.capture(url: archive), identity)
         XCTAssertEqual(session.generation, 0)
-        try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         await session.close()
     }
 
@@ -129,7 +129,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
         }
         XCTAssertEqual(try Data(contentsOf: archive), original)
         XCTAssertEqual(session.generation, 0); XCTAssertTrue(session.capabilities.canEdit)
-        try ArchiveReencryptionTestSupport.assertNoWork(directory.url)
+        try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         await session.close()
     }
 }
