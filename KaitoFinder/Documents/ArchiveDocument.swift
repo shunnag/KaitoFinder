@@ -15,28 +15,30 @@ import Synchronization
     nonisolated let volumeMetadataStore: ArchiveVolumeMetadataStore
     nonisolated let volumeRecoveryIndex: RecoverableWorkIndex
     nonisolated private let splitPublicationActive = Mutex(false)
-    var splitSaveHooks = ArchiveSplitSaveHooks()
-    var splitScheduleChooser: ((ArchiveVolumeLayout, Bool) async throws -> ArchiveSplitScheduleChoice)?
-    var splitMutationConfirmation: ((NSAlert) async throws -> NSApplication.ModalResponse)?
-    private var suppressSplitMutationConfirmation = false
-    var splitHazardConsent: ((String) async throws -> Bool)?
-    private(set) var splitSchedule: VolumePlan.Schedule?
-    private var splitHazardConsents: Set<ArchiveSplitHazardLocation> = []
-    private(set) var splitSaveNotice: String?
-    private(set) var splitSaveFailure: ArchiveSplitSaveFailure?
-    private(set) var splitSaveResult: PublishedVolumeSet?
+    /// 分割アーカイブの保存に関わる文書側の状態。差し替え口と、直前の保存の結果・通知・同意を持つ。
+    private var splitSave = SplitSaveState()
+    var splitSaveHooks: ArchiveSplitSaveHooks { get { splitSave.hooks } set { splitSave.hooks = newValue } }
+    var splitScheduleChooser: ((ArchiveVolumeLayout, Bool) async throws -> ArchiveSplitScheduleChoice)? {
+        get { splitSave.scheduleChooser } set { splitSave.scheduleChooser = newValue }
+    }
+    var splitMutationConfirmation: ((NSAlert) async throws -> NSApplication.ModalResponse)? {
+        get { splitSave.mutationConfirmation } set { splitSave.mutationConfirmation = newValue }
+    }
+    var splitHazardConsent: ((String) async throws -> Bool)? { get { splitSave.hazardConsent } set { splitSave.hazardConsent = newValue } }
+    private(set) var splitSchedule: VolumePlan.Schedule? { get { splitSave.schedule } set { splitSave.schedule = newValue } }
+    private(set) var splitSaveNotice: String? { get { splitSave.notice } set { splitSave.notice = newValue } }
+    private(set) var splitSaveFailure: ArchiveSplitSaveFailure? { get { splitSave.failure } set { splitSave.failure = newValue } }
+    private(set) var splitSaveResult: PublishedVolumeSet? { get { splitSave.result } set { splitSave.result = newValue } }
     let pendingEditor: ArchivePendingEditor?
-    private(set) var deferredSaveTask: Task<Void, Error>?
+    /// 進行中の保存前モードの保存（別名保存と戻し込みを含む）。finishDeferredSave がまとめて解放する。
+    private var deferredSave: DeferredSaveOperation?
+    var deferredSaveTask: Task<Void, Error>? { deferredSave?.task }
+    var deferredSaveSheet: ExtractionProgressSheet? { deferredSave?.sheet }
+    var isDeferredSaveRunning: Bool { deferredSave != nil }
     private(set) var stagingCleanup: Task<Void, Never>?
-    private var deferredProgress: Progress?
-    private var deferredCancellation: ArchiveProgressCancellation?
-    private(set) var deferredSaveSheet: ExtractionProgressSheet?
-    private var deferredPublication: ArchiveSavePublication?
-    private var deferredCreation: ArchiveCreationController?
     private var reservationInFlight = false
     private var externalChangeAlert: NSAlert?
     private var waitingToClose = false
-    var isDeferredSaveRunning: Bool { deferredSaveTask != nil }
     var pendingChanges: ArchivePendingChanges { pendingEditor?.changes ?? .init() }
     // 保存の公開境界をローカル試験で止める。通常の UI は使わない。
     var deferredWillPublish: (@Sendable () throws -> Void)?
@@ -94,6 +96,42 @@ import Synchronization
         var pending: ArchivePendingChanges?
         init(id: UUID, name: String, pending: ArchivePendingChanges? = nil) {
             self.id = id; self.name = name; self.pending = pending
+        }
+    }
+
+    /// 一回の保存前モードの保存に属する作業。戻し込みは task だけを持ち、他は経路によって無い。
+    private struct DeferredSaveOperation {
+        let task: Task<Void, Error>
+        var progress: Progress?
+        var cancellation: ArchiveProgressCancellation?
+        var sheet: ExtractionProgressSheet?
+        var publication: ArchiveSavePublication?
+        var creation: ArchiveCreationController?
+    }
+
+    /// 分割保存の文書側の状態。差し替え口（hooks と三つの確認）は文書の寿命の間保つ。
+    /// 同意・確認の抑止・巻サイズの選択・直前の結果は同じ書庫と場所に対するものなので、別名保存で書庫が変わると消す。
+    private struct SplitSaveState {
+        var hooks = ArchiveSplitSaveHooks()
+        var scheduleChooser: ((ArchiveVolumeLayout, Bool) async throws -> ArchiveSplitScheduleChoice)?
+        var mutationConfirmation: ((NSAlert) async throws -> NSApplication.ModalResponse)?
+        var hazardConsent: ((String) async throws -> Bool)?
+        var suppressesMutationConfirmation = false
+        var hazardConsents: Set<ArchiveSplitHazardLocation> = []
+        var schedule: VolumePlan.Schedule?
+        var notice: String?
+        var failure: ArchiveSplitSaveFailure?
+        var result: PublishedVolumeSet?
+
+        /// 直前の保存の結果と通知を消す。次の保存が新しい値を置く。
+        mutating func clearOutcome() { failure = nil; result = nil; notice = nil }
+
+        /// 別名保存で書庫と場所が変わった。確認・同意・巻サイズの選択・直前の結果はその書庫のものなので最初からにする。
+        mutating func resetForNewArchive() {
+            hazardConsents.removeAll()
+            suppressesMutationConfirmation = false
+            schedule = nil
+            clearOutcome()
         }
     }
 
@@ -712,11 +750,8 @@ import Synchronization
         undoFailure = nil
         if saveBehavior == .onSave { disposePending() }
         if saveBehavior == .onSave { opened.setPendingReadSnapshot(nil) }
-        // Both prompts describe this archive/location; Save As starts a new consent scope.
-        splitHazardConsents.removeAll()
-        suppressSplitMutationConfirmation = false
-        splitSchedule = nil; splitSaveNotice = nil; splitSaveFailure = nil
-        splitSaveResult = nil
+        // 確認も同意もこの書庫と場所に対するもの。別名保存は同意の範囲を新しく始める。
+        splitSave.resetForNewArchive()
         contentsStorage.withLock { $0 = .open(opened) }
         fileURL = url
         fileModificationDate = newModificationDate
@@ -872,16 +907,16 @@ import Synchronization
     /// 公開待ちの文書があっても、全ての文書へ先に取消しを届ける。
     func cancelForTermination() {
         loadingTask?.cancel()
-        if let deferredSaveTask {
-            if let deferredPublication, let deferredProgress {
-                deferredPublication.cancelBeforePublication(progress: deferredProgress) {
-                    deferredCreation?.savePanel?.cancel()
-                    deferredSaveTask.cancel()
+        if let saving = deferredSave {
+            if let publication = saving.publication, let progress = saving.progress {
+                publication.cancelBeforePublication(progress: progress) {
+                    saving.creation?.savePanel?.cancel()
+                    saving.task.cancel()
                 }
             } else {
-                deferredProgress?.cancel()
-                deferredCreation?.savePanel?.cancel()
-                deferredSaveTask.cancel()
+                saving.progress?.cancel()
+                saving.creation?.savePanel?.cancel()
+                saving.task.cancel()
             }
         }
         pendingEditor?.cancelStaging()
@@ -976,11 +1011,8 @@ import Synchronization
             return
         }
         let progress = Progress(), publication = ArchiveSavePublication()
-        deferredProgress = progress
-        deferredPublication = publication
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         let sheet = ExtractionProgressSheet(progress: progress, title: String(localized: "保存"), detail: displayName)
-        deferredSaveSheet = sheet
         if let window = windowControllers.first?.window { sheet.begin(on: window) }
         let task = Task {
             do {
@@ -1012,8 +1044,9 @@ import Synchronization
                 throw error
             }
         }
-        deferredSaveTask = task
-        deferredCancellation = publication.watchCancellation(progress: progress) { task.cancel() }
+        deferredSave = DeferredSaveOperation(task: task, progress: progress,
+            cancellation: publication.watchCancellation(progress: progress) { task.cancel() },
+            sheet: sheet, publication: publication)
     }
 
     override func revert(toContentsOf url: URL, ofType typeName: String) throws {
@@ -1379,7 +1412,7 @@ extension ArchiveDocument {
         // isImmediateSplitMutation が真なら session はある。
         guard !canUndoNextMutation, isImmediateSplitMutation, let session else { return }
         guard session.capabilities.canEdit else { throw session.capabilities.editRefusal }
-        guard !suppressSplitMutationConfirmation else { return }
+        guard !splitSave.suppressesMutationConfirmation else { return }
         let alert = ArchiveSplitSaveSheet.mutationAlert(schedule: session.volumeLayout?.immediateSchedule)
         let response = try await withSplitPrompt { window in
             if let splitMutationConfirmation { return try await splitMutationConfirmation(alert) }
@@ -1387,16 +1420,16 @@ extension ArchiveDocument {
         }
         try ArchiveImportPlan.checkCancellation(progress)
         guard response == .alertFirstButtonReturn else { throw CancellationError() }
-        suppressSplitMutationConfirmation = alert.suppressionButton?.state == .on
+        splitSave.suppressesMutationConfirmation = alert.suppressionButton?.state == .on
     }
 
     func consentToSplitHazard(_ location: ArchiveSplitHazardLocation) async throws -> Bool {
-        if splitHazardConsents.contains(location) { return true }
+        if splitSave.hazardConsents.contains(location) { return true }
         let consent = try await withSplitPrompt { window in
             if let splitHazardConsent { return try await splitHazardConsent(location.hazard) }
             return try await ArchiveSplitSaveSheet.consent(on: window)
         }
-        if consent { splitHazardConsents.insert(location) }
+        if consent { splitSave.hazardConsents.insert(location) }
         return consent
     }
 
@@ -1472,14 +1505,9 @@ extension ArchiveDocument {
 
     private func finishDeferredSave(sheet: ExtractionProgressSheet? = nil) {
         sheet?.finish()
-        deferredSaveSheet = nil
-        deferredCancellation?.invalidate()
-        deferredCancellation = nil
-        deferredSaveTask = nil
-        deferredProgress = nil
-        deferredPublication?.finish()
-        deferredPublication = nil
-        deferredCreation = nil
+        deferredSave?.cancellation?.invalidate()
+        deferredSave?.publication?.finish()
+        deferredSave = nil
         (undoManager as? ArchiveUndoManager)?.isSuspended = closed || session?.requiresSplitRecovery == true
     }
 
@@ -1488,7 +1516,7 @@ extension ArchiveDocument {
                                      sheet: ExtractionProgressSheet? = nil,
                                      willPublish: (@Sendable () throws -> Void)?) async throws -> ArchiveSplitSaveResult {
         guard let session, let layout = session.volumeLayout else { throw ArchiveEditError.staleSelection }
-        splitSaveFailure = nil; splitSaveResult = nil; splitSaveNotice = nil
+        splitSave.clearOutcome()
         let (schedule, estimatedLength, consent) = try await prepareSplitSave(layout: layout, pending: pending, progress: progress)
         try await session.verifyDeferredIdentity()
         let expected = await session.sourceIdentity
@@ -1527,9 +1555,7 @@ extension ArchiveDocument {
         guard let session, let editor = pendingEditor else { throw CancellationError() }
         try await synchronizeDeferredLocation()
         deferredReloadFailure = nil
-        splitSaveFailure = nil
-        splitSaveResult = nil
-        splitSaveNotice = nil
+        splitSave.clearOutcome()
         var committedDate: Date?
         let snapshot = await session.snapshot()
         try await installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session)
@@ -1597,7 +1623,7 @@ extension ArchiveDocument {
             defer { finishDeferredSave() }
             try await performDeferredRevert(token: token)
         }
-        deferredSaveTask = task
+        deferredSave = DeferredSaveOperation(task: task)
         return task
     }
 
@@ -1650,9 +1676,6 @@ extension ArchiveDocument {
         }
         configureSplitCreation(creator)
         let token = changeCountToken(for: .saveOperation), publication = ArchiveSavePublication()
-        deferredPublication = publication
-        deferredProgress = progress
-        deferredCreation = creator
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         let task = Task {
             defer { finishDeferredSave() }
@@ -1683,8 +1706,9 @@ extension ArchiveDocument {
             fileModificationDate = modificationDate
             refreshPendingNotices()
         }
-        deferredSaveTask = task
-        deferredCancellation = publication.watchCancellation(progress: progress) { task.cancel() }
+        deferredSave = DeferredSaveOperation(task: task, progress: progress,
+            cancellation: publication.watchCancellation(progress: progress) { task.cancel() },
+            publication: publication, creation: creator)
         try await withTaskCancellationHandler {
             try await task.value
         } onCancel: {
