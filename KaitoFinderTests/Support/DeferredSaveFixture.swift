@@ -72,3 +72,28 @@ import XCTest
 
     nonisolated static func inventory(_ url: URL) throws -> [String: EntryKind] { try ArchiveOracle.inventory(url) }
 }
+
+extension XCTestCase {
+    /// フォルダの移動を検査する窓を開く。`a/b/c.txt`・`a/d.txt`・`e.txt`・`.hidden/f.txt` を持つ DeferredSaveFixture を
+    /// 名前順で表示し、teardown では名前の編集を終えてから文書を閉じる。
+    @MainActor func folderNavigationInterface(behavior: ArchivePreferences.SaveBehavior = .immediate,
+                                              opening: ArchivePreferences.FolderOpening = .enter) async throws
+        -> (DeferredSaveFixture, ArchiveWindowController) {
+        _ = NSApplication.shared
+        let fixture = try DeferredSaveFixture(behavior: behavior, files: [
+            ("a/b/c.txt", "C"), ("a/d.txt", "D"), ("e.txt", "E"), (".hidden/f.txt", "F")
+        ])
+        fixture.store.preferences.folderOpening = opening
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        fixture.document.addWindowController(controller)
+        let session = try XCTUnwrap(fixture.document.session)
+        controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
+        controller.outlineView.autosaveTableColumns = false
+        controller.outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
+        closeDocumentAfterTest(fixture.document, controller: controller, retaining: fixture)
+        // teardown は登録と逆の順に動くので、文書を閉じる前に名前の編集を終える。
+        addTeardownBlock { @MainActor in controller.outlineView.cancelRenaming() }
+        return (fixture, controller)
+    }
+}

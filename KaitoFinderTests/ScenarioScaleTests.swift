@@ -26,7 +26,7 @@ nonisolated final class ScenarioScaleTests: XCTestCase {
         XCTAssertEqual(controller.selectedNodes.count, 1)
         XCTAssertEqual(controller.statusBar.stringValue, ArchiveStatusBarText.text(
             totalCount: 100_100, totalSize: 100_000, selectedCount: 1, selectedSize: 1_000))
-        if ProcessInfo.processInfo.environment["CI"] == nil {
+        if !TestEnvironment.isCI {
             XCTAssertLessThan(elapsed, .seconds(1))
         }
     }
@@ -54,7 +54,7 @@ nonisolated final class ScenarioScaleTests: XCTestCase {
         }
         XCTAssertEqual(Set(visible), Set(entries.filter { $0.name.contains("99") }.map(\.name)))
         // CI では時間の主張だけを省き、件数・選択・ディスク上の内容は最後まで検証する。
-        if ProcessInfo.processInfo.environment["CI"] == nil {
+        if !TestEnvironment.isCI {
             XCTAssertLessThan(opened, .seconds(4))
             XCTAssertLessThan(filtered, .milliseconds(400))
         }

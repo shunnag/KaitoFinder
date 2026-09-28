@@ -205,7 +205,7 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
     }
 
     @MainActor private func capture(_ window: NSWindow, name: String, drag: [NSPoint]? = nil) async throws {
-        guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_PREVIEW_CAPTURE_REQUEST"] else { return }
+        guard let path = TestEnvironment.value(.previewCaptureRequest) else { return }
         // QLPreviewView の非同期描画を待つ。キャプチャは外部ツールが検証用ウインドウだけに限定する。
         try await Task.sleep(for: .milliseconds(750))
         let request = URL(fileURLWithPath: path), done = request.deletingPathExtension().appendingPathExtension("done")
@@ -270,7 +270,7 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         let dividerFrame = divider.accessibilityFrame()
         let start = NSPoint(x: dividerFrame.midX, y: dividerFrame.midY)
         let end = NSPoint(x: start.x - 100, y: start.y)
-        if ProcessInfo.processInfo.environment["KAITOFINDER_PREVIEW_CAPTURE_REQUEST"] != nil {
+        if TestEnvironment.value(.previewCaptureRequest) != nil {
             try await capture(window, name: "preview-resized", drag: [start, end])
         } else {
             split.splitView.setPosition(520, ofDividerAt: 0)

@@ -267,7 +267,7 @@ nonisolated final class TarBackslashExtractionTests: XCTestCase {
     }
 
     func testExtractionOntoConfiguredDestination() async throws {
-        guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_P13_DESTINATION"], !path.isEmpty else {
+        guard let path = TestEnvironment.value(.tarBackslashDestination), !path.isEmpty else {
             throw XCTSkip("KAITOFINDER_P13_DESTINATION is not configured")
         }
         try await assertVolumeExtraction(at: URL(fileURLWithPath: path, isDirectory: true))

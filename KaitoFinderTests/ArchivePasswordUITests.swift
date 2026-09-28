@@ -460,7 +460,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
     }
 
     @MainActor private func beginSavePanelCapture(_ save: ArchiveSavePanel, parent: NSWindow?, browserExpanded: Bool) async throws -> URL? {
-        guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_SAVE_PANEL_CAPTURE_DIRECTORY"] else { return nil }
+        guard let path = TestEnvironment.value(.savePanelCaptureDirectory) else { return nil }
         let root = URL(fileURLWithPath: path, isDirectory: true)
         let name = "\(browserExpanded ? "expanded" : "compact")-\(parent == nil ? "panel" : "sheet")"
         let folder = root.appendingPathComponent(name, isDirectory: true)

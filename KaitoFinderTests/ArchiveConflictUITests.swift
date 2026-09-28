@@ -40,7 +40,7 @@ nonisolated final class ArchiveConflictUITests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(preview.loadedURLs[1])), Data("new contents".utf8))
         XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), before)
         try UISnapshot.render(try XCTUnwrap(preview.window), name: "conflict-content-comparison")
-        if let path = ProcessInfo.processInfo.environment["KAITOFINDER_CONFLICT_CAPTURE_DIRECTORY"] {
+        if let path = TestEnvironment.value(.conflictCaptureDirectory) {
             // Quick Look の XPC 描画は cacheDisplay に含まれないため、実画面の検証を別に行う。
             let directory = URL(fileURLWithPath: path, isDirectory: true)
             try await Task.sleep(for: .seconds(1))

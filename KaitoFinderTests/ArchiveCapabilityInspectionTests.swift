@@ -229,7 +229,7 @@ nonisolated final class ArchiveCapabilityInspectionTests: XCTestCase {
     }
 
     func testHundredThousandEntryZIPSessionOpensInAboutOneParse() throws {
-        guard ProcessInfo.processInfo.environment["KAITOFINDER_SCALE_TIMING"] == "1" else {
+        guard TestEnvironment.isEnabled(.scaleTiming) else {
             throw XCTSkip("Set KAITOFINDER_SCALE_TIMING=1 to time a 100,000-entry ZIP session open")
         }
         let fixture = try ScenarioFixture()

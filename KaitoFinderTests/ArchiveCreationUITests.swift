@@ -374,7 +374,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     @MainActor func testPresentedCompressedTarSavePanelAcceptsExactFilenameAndSwitchesFromEncryption() async throws {
-        guard let request = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
+        guard let request = TestEnvironment.value(.nativeSaveRequest) else {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let directory = try ArchiveTestDirectory()
@@ -420,7 +420,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
 
 
     @MainActor func testPresentedSavePanelSwitchesEveryFormatWithoutDuplicatingExtensions() async throws {
-        guard let request = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
+        guard let request = TestEnvironment.value(.nativeSaveRequest) else {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let directory = try ArchiveTestDirectory()
@@ -476,7 +476,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     @MainActor func testPresentedSavePanelPreservesTypedNamesAndConfirmsTheExactOverwrite() async throws {
-        guard let request = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
+        guard let request = TestEnvironment.value(.nativeSaveRequest) else {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         for format in ArchivePreferences.formats {
@@ -510,7 +510,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     @MainActor func testPresentedSavePanelSwitchesFormatsAfterEditingTheName() async throws {
-        guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
+        guard let path = TestEnvironment.value(.nativeSaveRequest) else {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let request = URL(fileURLWithPath: path), completed = request.deletingPathExtension().appendingPathExtension("done")
@@ -596,7 +596,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     @MainActor func testPresentedSavePanelPreservesSettingsAndCancellationAcrossFilenameChanges() async throws {
-        guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_NATIVE_SAVE_REQUEST"] else {
+        guard let path = TestEnvironment.value(.nativeSaveRequest) else {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let request = URL(fileURLWithPath: path), completed = request.deletingPathExtension().appendingPathExtension("done")

@@ -106,6 +106,30 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
     }
     #endif
 
+    // 旧名: ArchiveFolderNavigationTests
+    @MainActor func testNavigationScaleWhenEnabled() async throws {
+        guard TestEnvironment.isEnabled(.performanceProbes) else {
+            throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 for the optimized 500k navigation measurement")
+        }
+        let count = Int(TestEnvironment.value(.probeEntries) ?? "500000") ?? 500_000
+        let (_, controller) = try await folderNavigationInterface()
+        let root = EntryNode.tree(from: (0..<count).map { archiveColumnEntry("d\($0 / 100)/file\($0).txt", index: $0) })
+        controller.display(root)
+        let folder = try XCTUnwrap(root.children.first)
+        func measure(_ name: String, _ action: () -> Void) {
+            let start = ContinuousClock.now
+            action()
+            let duration = start.duration(to: .now).components
+            let ms = Double(duration.seconds) * 1_000 + Double(duration.attoseconds) / 1e15
+            print("PROBE-NAVIGATION\t\(count)\t\(name)\t\(ms)")
+            XCTAssertLessThanOrEqual(ms, 50)
+        }
+        measure("enter") { controller.navigate(to: folder, history: .push) }
+        measure("back") { controller.goBack(nil) }
+        controller.navigate(to: folder, history: .push)
+        measure("enclosing") { controller.goToEnclosingFolder(nil) }
+    }
+
     @MainActor func testArchiveOpeningWhenEnabled() async throws {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()
@@ -501,7 +525,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
             document.addWindowController(controller)
             let session = try XCTUnwrap(document.session)
             XCTAssertTrue(session.capabilities.canEdit, fixture.format.rawValue)
-            let warmIndex = ProcessInfo.processInfo.environment["KAITOFINDER_PROBE_WARM_INDEX"] == "1"
+            let warmIndex = TestEnvironment.isEnabled(.probeWarmIndex)
             controller.display(root, session: session, generation: session.generation, indexingRenames: warmIndex)
             if warmIndex { try await waitForRenameIndex(controller) }
             try await body(document, controller, archive, directory.url)

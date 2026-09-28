@@ -64,7 +64,7 @@ nonisolated final class LargeArchiveTests: XCTestCase {
     }
 
     func testExtractsEntireLargeZIP64EntryWhenEnabled() async throws {
-        guard ProcessInfo.processInfo.environment["KAITOFINDER_LARGE_ENTRY_TESTS"] == "1" else {
+        guard TestEnvironment.isEnabled(.largeEntryTests) else {
             throw XCTSkip("Set KAITOFINDER_LARGE_ENTRY_TESTS=1 to extract the full 4 GiB + 1 byte ZIP64 entry")
         }
         let directory = try ArchiveTestDirectory()

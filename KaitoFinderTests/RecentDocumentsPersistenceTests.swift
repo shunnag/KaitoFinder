@@ -6,18 +6,17 @@ nonisolated final class RecentDocumentsPersistenceTests: XCTestCase {
     /// Tools/verify_ui_integration.py が同じ専用 bundle ID で各段階を別プロセスで起動する。
     /// 通常のテスト実行では、ユーザーの履歴を消去する経路へ入らない。
     @MainActor func testHistoryAcrossLaunches() async throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let phase = environment["KAITOFINDER_RECENTS_PHASE"] else {
+        guard let phase = TestEnvironment.value(.recentsPhase) else {
             throw XCTSkip("再起動と履歴消去は Tools/verify_ui_integration.py の分離したプロセスで検証する")
         }
         let prefix = "com.shunnag.KaitoFinder.UIIntegrationVerification."
-        let identifier = try XCTUnwrap(environment["KAITOFINDER_RECENTS_BUNDLE_ID"])
+        let identifier = try XCTUnwrap(TestEnvironment.value(.recentsBundleID))
         guard Bundle.main.bundleIdentifier == identifier, identifier.hasPrefix(prefix),
               UUID(uuidString: String(identifier.dropFirst(prefix.count))) != nil else {
             XCTFail("専用のランダムなアプリ識別子以外では履歴を変更しない")
             return
         }
-        let archive = URL(fileURLWithPath: try XCTUnwrap(environment["KAITOFINDER_RECENTS_ARCHIVE"]))
+        let archive = URL(fileURLWithPath: try XCTUnwrap(TestEnvironment.value(.recentsArchive)))
         XCTAssertTrue(FileManager.default.fileExists(atPath: archive.path))
         let controller = NSDocumentController.shared
         let clearAction = #selector(NSDocumentController.clearRecentDocuments(_:))

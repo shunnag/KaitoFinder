@@ -76,7 +76,7 @@ nonisolated final class ArchiveEditScaleTests: XCTestCase {
             XCTAssertEqual(plan.renames.count, count)
             XCTAssertEqual(plan.renames.map(\.entry.index), Array(0..<count))
             XCTAssertEqual(plan.renames.map(\.path), (0..<count).map { "renamed/file\($0)" })
-            if ProcessInfo.processInfo.environment["CI"] == nil {
+            if !TestEnvironment.isCI {
                 XCTAssertLessThan(elapsed, .seconds(2))
             }
         }
@@ -90,7 +90,7 @@ nonisolated final class ArchiveEditScaleTests: XCTestCase {
         let elapsed = start.duration(to: .now)
         print("Edit plan benchmark: 5,000 folders, 10,000 entries, deletion, \(elapsed)")
         XCTAssertEqual(plan.removals.map(\.index), Array(0..<10_000))
-        if ProcessInfo.processInfo.environment["CI"] == nil {
+        if !TestEnvironment.isCI {
             XCTAssertLessThan(elapsed, .seconds(2))
         }
     }

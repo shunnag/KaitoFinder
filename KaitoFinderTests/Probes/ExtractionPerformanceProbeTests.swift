@@ -5,7 +5,7 @@ import XCTest
 
 nonisolated final class ExtractionPerformanceProbeTests: XCTestCase {
     func testFiftyThousandFileZIPSerialVersusParallel() throws {
-        guard ProcessInfo.processInfo.environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
+        guard TestEnvironment.isEnabled(.performanceProbes) else {
             throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run extraction throughput probes")
         }
         let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 50_000, size: 256))

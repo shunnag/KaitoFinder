@@ -8,22 +8,7 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
     @MainActor private func interface(behavior: ArchivePreferences.SaveBehavior = .immediate,
                                       opening: ArchivePreferences.FolderOpening = .enter) async throws
         -> (DeferredSaveFixture, ArchiveWindowController) {
-        _ = NSApplication.shared
-        let fixture = try DeferredSaveFixture(behavior: behavior, files: [
-            ("a/b/c.txt", "C"), ("a/d.txt", "D"), ("e.txt", "E"), (".hidden/f.txt", "F")
-        ])
-        fixture.store.preferences.folderOpening = opening
-        let controller = ArchiveWindowController(preferencesStore: fixture.store)
-        fixture.document.addWindowController(controller)
-        let session = try XCTUnwrap(fixture.document.session)
-        controller.display(EntryNode.tree(from: try await fixture.document.projectedEntries()), session: session)
-        controller.outlineView.autosaveTableColumns = false
-        controller.outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
-        controller.window?.contentView?.layoutSubtreeIfNeeded()
-        closeDocumentAfterTest(fixture.document, controller: controller, retaining: fixture)
-        // teardown は登録と逆の順に動くので、文書を閉じる前に名前の編集を終える。
-        addTeardownBlock { @MainActor in controller.outlineView.cancelRenaming() }
-        return (fixture, controller)
+        try await folderNavigationInterface(behavior: behavior, opening: opening)
     }
 
     @MainActor private func paths(_ controller: ArchiveWindowController) -> [String] {
@@ -570,28 +555,5 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
         XCTAssertTrue(controller.outlineView.isItemExpanded(selected))
         let restored = controller.outlineView.rows(in: controller.outlineView.visibleRect)
         XCTAssertEqual((controller.outlineView.item(atRow: restored.location) as? EntryNode)?.path, top?.path)
-    }
-
-    @MainActor func testNavigationScaleWhenEnabled() async throws {
-        guard ProcessInfo.processInfo.environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
-            throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 for the optimized 500k navigation measurement")
-        }
-        let count = Int(ProcessInfo.processInfo.environment["KAITOFINDER_PROBE_ENTRIES"] ?? "500000") ?? 500_000
-        let (_, controller) = try await interface()
-        let root = EntryNode.tree(from: (0..<count).map { archiveColumnEntry("d\($0 / 100)/file\($0).txt", index: $0) })
-        controller.display(root)
-        let folder = try XCTUnwrap(root.children.first)
-        func measure(_ name: String, _ action: () -> Void) {
-            let start = ContinuousClock.now
-            action()
-            let duration = start.duration(to: .now).components
-            let ms = Double(duration.seconds) * 1_000 + Double(duration.attoseconds) / 1e15
-            print("PROBE-NAVIGATION\t\(count)\t\(name)\t\(ms)")
-            XCTAssertLessThanOrEqual(ms, 50)
-        }
-        measure("enter") { controller.navigate(to: folder, history: .push) }
-        measure("back") { controller.goBack(nil) }
-        controller.navigate(to: folder, history: .push)
-        measure("enclosing") { controller.goToEnclosingFolder(nil) }
     }
 }

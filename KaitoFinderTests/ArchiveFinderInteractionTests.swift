@@ -6,7 +6,7 @@ import XCTest
 nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
     @MainActor private func interface(opening: ArchivePreferences.FolderOpening = .enter, disablesUndo: Bool = false) async throws
         -> (ArchiveDocument, ArchiveWindowController, ArchivePreferencesStore) {
-        guard ProcessInfo.processInfo.environment["KAITOFINDER_FINDER_INPUT_REQUEST"] != nil else {
+        guard TestEnvironment.value(.finderInputRequest) != nil else {
             throw XCTSkip("Run Tools/verify_finder_interactions.py for native Finder-style input")
         }
         let fixture = try ScenarioFixture(script: """
@@ -66,7 +66,7 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
     }
 
     @MainActor private func nativeInput(_ window: NSWindow, events: [[String: Any]], capture: String? = nil) async throws {
-        let path = try XCTUnwrap(ProcessInfo.processInfo.environment["KAITOFINDER_FINDER_INPUT_REQUEST"])
+        let path = try XCTUnwrap(TestEnvironment.value(.finderInputRequest))
         let request = URL(fileURLWithPath: path), done = request.deletingPathExtension().appendingPathExtension("done")
         var value: [String: Any] = ["pid": ProcessInfo.processInfo.processIdentifier,
             "bundle": try XCTUnwrap(Bundle.main.bundleIdentifier), "window": window.windowNumber, "events": events]

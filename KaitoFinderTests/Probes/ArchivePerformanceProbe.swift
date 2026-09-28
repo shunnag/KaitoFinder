@@ -45,7 +45,7 @@ nonisolated enum ProbeArchiveEncryption: String, Sendable {
     }
 
     static func configured() throws -> [Self] {
-        guard let value = ProcessInfo.processInfo.environment["KAITOFINDER_PROBE_ENCRYPTION"] else {
+        guard let value = TestEnvironment.value(.probeEncryption) else {
             throw XCTSkip("Set KAITOFINDER_PROBE_ENCRYPTION=aes,zipcrypto,7z to run password probes")
         }
         let names = value.lowercased().split(whereSeparator: { $0 == "," || $0.isWhitespace })
@@ -71,32 +71,32 @@ nonisolated struct ArchiveProbeConfiguration: Sendable {
     let additionPosition: ArchivePreferences.AdditionPosition
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) throws {
-        guard environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
+        guard TestEnvironment.isEnabled(.performanceProbes, in: environment) else {
             throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run performance probes")
         }
-        func positive(_ key: String, default fallback: Int, minimum: Int) throws -> Int {
-            guard let text = environment[key] else { return fallback }
+        func positive(_ key: TestEnvironment.Key, default fallback: Int, minimum: Int) throws -> Int {
+            guard let text = TestEnvironment.value(key, in: environment) else { return fallback }
             guard let value = Int(text), value >= minimum, value <= Int.max / 1_048_576 else {
-                throw ConfigurationError.invalid(key)
+                throw ConfigurationError.invalid(key.rawValue)
             }
             return value
         }
-        entries = try positive("KAITOFINDER_PROBE_ENTRIES", default: 100_000, minimum: 1)
-        addFiles = try positive("KAITOFINDER_PROBE_ADD_FILES", default: 0, minimum: 0)
-        payloadMiB = try positive("KAITOFINDER_PROBE_PAYLOAD_MIB", default: 256, minimum: 1)
-        splitVolumeMiB = try positive("KAITOFINDER_PROBE_SPLIT_VOLUME_MIB", default: 32, minimum: 1)
-        let names = (environment["KAITOFINDER_PROBE_FORMATS"] ?? "zip").lowercased()
+        entries = try positive(.probeEntries, default: 100_000, minimum: 1)
+        addFiles = try positive(.probeAddFiles, default: 0, minimum: 0)
+        payloadMiB = try positive(.probePayloadMiB, default: 256, minimum: 1)
+        splitVolumeMiB = try positive(.probeSplitVolumeMiB, default: 32, minimum: 1)
+        let names = (TestEnvironment.value(.probeFormats, in: environment) ?? "zip").lowercased()
             .split(whereSeparator: { $0 == "," || $0.isWhitespace })
-        guard !names.isEmpty else { throw ConfigurationError.invalid("KAITOFINDER_PROBE_FORMATS") }
+        guard !names.isEmpty else { throw ConfigurationError.invalid(TestEnvironment.Key.probeFormats.rawValue) }
         var formats: [ProbeArchiveFormat] = []
         for name in names {
             guard let format = ProbeArchiveFormat(rawValue: String(name)) else { throw ConfigurationError.invalid(String(name)) }
             if !formats.contains(format) { formats.append(format) }
         }
         self.formats = formats
-        asserts = environment["KAITOFINDER_PROBE_ASSERT"] == "1"
-        guard let placement = ArchivePreferences.AdditionPosition(rawValue: environment["KAITOFINDER_PROBE_ADDITION_PLACEMENT"] ?? "end") else {
-            throw ConfigurationError.invalid("KAITOFINDER_PROBE_ADDITION_PLACEMENT")
+        asserts = TestEnvironment.isEnabled(.probeAssert, in: environment)
+        guard let placement = ArchivePreferences.AdditionPosition(rawValue: TestEnvironment.value(.probeAdditionPlacement, in: environment) ?? "end") else {
+            throw ConfigurationError.invalid(TestEnvironment.Key.probeAdditionPlacement.rawValue)
         }
         additionPosition = placement
     }
