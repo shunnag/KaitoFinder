@@ -17,7 +17,7 @@ nonisolated enum LocalizationAcceptance {
         title.replacingOccurrences(of: "\u{00a0}", with: " ")
     }
     static var root: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        TestPaths.repositoryRoot
     }
 
     struct Catalog: Decodable {

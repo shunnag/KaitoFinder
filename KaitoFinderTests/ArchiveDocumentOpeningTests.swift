@@ -165,8 +165,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     }
 
     @MainActor func testQuickLookForXZAndLegacyZstandardZIPRows() async throws {
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("KaitoKit/Tests/Fixtures/zip-modern")
+        let fixtures = TestPaths.kaitoKitFixtures.appendingPathComponent("zip-modern")
         let expected = Data(String(repeating: "XZ and Zstandard ZIP interoperability 日本語\n", count: 800).utf8)
         for name in ["xz.zip", "xz-aes.zip", "xz-zipcrypto.zip", "zstd20.zip", "zstd-aes20.zip"] {
             let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent(name)

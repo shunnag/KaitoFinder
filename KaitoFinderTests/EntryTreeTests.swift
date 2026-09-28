@@ -214,7 +214,7 @@ nonisolated final class EntryTreeTests: XCTestCase {
     @MainActor
     func testZIPAndTarFixturesThroughArchiveSession() async throws {
         // テスト用書庫もリポジトリ内に作り、外部の checkout は変更しない。
-        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let repository = TestPaths.repositoryRoot
         let fixture = repository.appendingPathComponent("build/Fixtures/\(UUID().uuidString)")
         let source = fixture.appendingPathComponent("src")
         let manager = FileManager.default

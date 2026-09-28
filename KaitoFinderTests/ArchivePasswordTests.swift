@@ -842,7 +842,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
                 XCTAssertEqual(incorrect.alert.informativeText, "パスワードが違います。もう一度入力してください。")
             }
         }
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])

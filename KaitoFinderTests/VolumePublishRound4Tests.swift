@@ -293,7 +293,7 @@ nonisolated final class VolumePublishRound4Tests: XCTestCase {
     }
 
     func testVerificationReportCoversRound4RecoveryRules() throws {
-        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let repo = TestPaths.repositoryRoot
         let report = try String(contentsOf: repo.appendingPathComponent("Documentation/verification/2026-09-23-volume-set-publisher.md"), encoding: .utf8)
         for term in ["Round 4", "FSKit", "incomplete enumeration", "set lock → staging lock", "running job", "stored-path probes", "unlink"] {
             XCTAssertTrue(report.contains(term), "Missing round-4 rule: \(term)")

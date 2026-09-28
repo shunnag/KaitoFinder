@@ -12,7 +12,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
     }
 
     private func declaration() throws -> [String: Any] {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         return try XCTUnwrap(PropertyListSerialization.propertyList(
             from: Data(contentsOf: root.appendingPathComponent("KaitoFinder/Info.plist")), format: nil) as? [String: Any])
     }

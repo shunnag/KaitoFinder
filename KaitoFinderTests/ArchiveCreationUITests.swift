@@ -228,7 +228,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     @MainActor func testFinderServicesDeclarationAndObjectiveCSelector() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         let plist = try XCTUnwrap(PropertyListSerialization.propertyList(
             from: Data(contentsOf: root.appendingPathComponent("KaitoFinder/Info.plist")), format: nil) as? [String: Any])
         let services = try XCTUnwrap(plist["NSServices"] as? [[String: Any]])

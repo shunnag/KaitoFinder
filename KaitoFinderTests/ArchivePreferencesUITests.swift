@@ -372,7 +372,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     func testSettingsStringsHaveAllTwentySixTranslations() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])

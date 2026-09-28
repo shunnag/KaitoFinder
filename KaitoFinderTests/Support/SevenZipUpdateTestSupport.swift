@@ -9,8 +9,7 @@ import XCTest
 nonisolated enum SevenZipUpdateFixture {
     static let date = Date(timeIntervalSince1970: 1_700_000_000)
     static let fallbacks = ["archive_properties", "packpos16"]
-    static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("Fixtures/sevenzip-edit")
+    static let fixtures = TestPaths.fixtures.appendingPathComponent("sevenzip-edit")
 
     static func frozen(_ name: String, at root: URL, filename: String = "original.7z") throws -> URL {
         let url = root.appendingPathComponent(filename)

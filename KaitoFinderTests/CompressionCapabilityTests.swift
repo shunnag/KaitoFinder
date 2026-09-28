@@ -6,8 +6,7 @@ import XCTest
 
 nonisolated final class CompressionCapabilityTests: XCTestCase {
     private var fixtures: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("KaitoKit/Tests/Fixtures")
+        TestPaths.kaitoKitFixtures
     }
 
     private func fixtureData(_ fixture: String) throws -> Data {

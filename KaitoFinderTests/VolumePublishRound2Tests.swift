@@ -444,7 +444,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: victim.appendingPathComponent("keep")), Data("user data".utf8))
     }
     func testVerificationReportDescribesRound2RecoveryRules() throws {
-        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let repo = TestPaths.repositoryRoot
         let report = try String(contentsOf: repo.appendingPathComponent("Documentation/verification/2026-09-23-volume-set-publisher.md"), encoding: .utf8)
         for term in ["Round 2", ".discard", "journal last", "getmntinfo", "NFC", "length + SHA-256", "any volume", "NSCocoaErrorDomain Code=512"] {
             XCTAssertTrue(report.contains(term), "Missing correction evidence: \(term)")

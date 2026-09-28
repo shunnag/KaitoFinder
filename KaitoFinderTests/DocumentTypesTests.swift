@@ -5,7 +5,7 @@ import XCTest
 
 nonisolated final class DocumentTypesTests: XCTestCase {
     private var repository: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        TestPaths.repositoryRoot
     }
 
     private func declaration() throws -> [String: Any] {

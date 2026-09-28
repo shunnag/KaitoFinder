@@ -34,7 +34,7 @@ nonisolated enum CompressedTarFixture {
     }
     static func legacy(_ root: URL, format: Format) throws -> URL {
         let name = format == .tarGzip ? "gz.tgz.b64" : format == .tarBzip2 ? "bz.tbz.b64" : "xz.txz.b64"
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/TarEdit")
+        let fixtures = TestPaths.fixtures.appendingPathComponent("TarEdit")
         let bytes = try XCTUnwrap(Data(base64Encoded: Data(contentsOf: fixtures.appendingPathComponent(name)), options: .ignoreUnknownCharacters))
         let url = root.appendingPathComponent("original." + suffix(format)); try bytes.write(to: url); return url
     }

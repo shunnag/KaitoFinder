@@ -12,8 +12,7 @@ nonisolated enum LHAUpdateFixture {
     static let date = Date(timeIntervalSince1970: 1_700_000_000)
 
     static func frozen(_ name: String, at root: URL, filename: String = "original.lzh") throws -> URL {
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/LHAUpdate")
+        let fixtures = TestPaths.fixtures.appendingPathComponent("LHAUpdate")
         let data = try Data(contentsOf: fixtures.appendingPathComponent(name + ".lzh.b64"))
         let url = root.appendingPathComponent(filename)
         try XCTUnwrap(Data(base64Encoded: data, options: .ignoreUnknownCharacters)).write(to: url)
