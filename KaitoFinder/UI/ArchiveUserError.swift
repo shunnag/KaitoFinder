@@ -1,7 +1,6 @@
 import Foundation
 
-/// UI が利用者へ提示する NSError。ドメイン値は永続化やテスト（ReadOnlyDropConversionUITests）が
-/// 参照するため変更しない。
+/// UI が利用者へ提示する NSError。ドメイン値はテスト（ReadOnlyDropConversionUITests）が照合するため変更しない。
 nonisolated enum ArchiveUserError {
     static let creationDomain = "com.shunnag.KaitoFinder.creation"
     static let passwordDomain = "com.shunnag.KaitoFinder.password"
