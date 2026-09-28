@@ -24,14 +24,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         return controller
     }
 
-    private actor Gate {
-        private var released = false
-        func release() { released = true }
-        func wait() async throws {
-            while !released { try await Task.sleep(for: .milliseconds(5)) }
-        }
-    }
-
     @MainActor private func open(_ controller: NSDocumentController, _ url: URL,
                                  display: Bool = false) async -> (NSDocument?, Bool, NSError?) {
         await withCheckedContinuation { continuation in
@@ -141,7 +133,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testLoadingPanelRevealsAfterDelayAndFinishesWithOpen() async throws {
-        let fixture = try ScenarioFixture(), controller = try makeController(), gate = Gate()
+        let fixture = try ScenarioFixture(), controller = try makeController(), gate = AsyncGate()
         controller.openingRevealDelay = .milliseconds(100)
         controller.preopenWillStart = { try await gate.wait() }
         let task = Task { await open(controller, fixture.archive) }
@@ -164,7 +156,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testFastOpenNeverRevealsLoadingPanel() async throws {
-        let fixture = try ScenarioFixture(), controller = try makeController(), gate = Gate()
+        let fixture = try ScenarioFixture(), controller = try makeController(), gate = AsyncGate()
         controller.openingRevealDelay = .milliseconds(500)
         controller.preopenWillStart = { try await gate.wait() }
         let task = Task { await open(controller, fixture.archive) }
@@ -185,7 +177,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testJoinedCancellationCompletesEveryRequestWithSameError() async throws {
-        let fixture = try ScenarioFixture(), controller = try makeController(), gate = Gate()
+        let fixture = try ScenarioFixture(), controller = try makeController(), gate = AsyncGate()
         controller.preopenWillStart = { try await gate.wait() }
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
         let failures: [NSError?] = await withCheckedContinuation { continuation in

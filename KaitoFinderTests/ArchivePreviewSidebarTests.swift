@@ -6,13 +6,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
-    private actor Gate {
-        private var continuation: CheckedContinuation<Void, Never>?
-        private var released = false
-        func wait() async { if !released { await withCheckedContinuation { continuation = $0 } } }
-        func release() { released = true; continuation?.resume(); continuation = nil }
-    }
-
     @MainActor private func fixture() async throws -> (ScenarioFixture, ArchiveDocument, ArchiveWindowController) {
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:
@@ -132,14 +125,14 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         let (fixture, _, controller) = try await fixture()
         let session = try XCTUnwrap((controller.document as? ArchiveDocument)?.session)
         let started = expectation(description: "first extraction started")
-        let gate = Gate(), calls = Mutex<[String]>([])
+        let gate = AsyncGate(), calls = Mutex<[String]>([])
         let stale = try fixture.file("stale/first.txt")
         let second = try fixture.file("fresh/second.txt")
         let owner = ArchiveMaterializationController { payload, _ in
             calls.withLock { $0.append(payload.path) }
             if payload.path == "first.txt" {
                 started.fulfill()
-                await gate.wait() // 意図的に取消しを無視して成功を返す。
+                await gate.waitIgnoringCancellation() // 意図的に取消しを無視して成功を返す。
                 return stale
             }
             return second
@@ -189,11 +182,11 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         let item = try XCTUnwrap(controller.previewSidebar.selectedItem)
         controller.togglePreviewSidebar(nil)
         let started = expectation(description: "independent writer started")
-        let gate = Gate(), disposed = Mutex(false)
+        let gate = AsyncGate(), disposed = Mutex(false)
         let late = try fixture.file("independent/late.txt")
         let owner = ArchiveMaterializationController(dispose: { disposed.withLock { $0 = true } }) { _, _ in
             started.fulfill()
-            await gate.wait()
+            await gate.waitIgnoringCancellation()
             return late
         }
         var child: ArchiveMaterializationController? = owner.makeIndependentController()
@@ -418,11 +411,11 @@ extension ArchivePreviewSidebarTests {
         let session = try ArchiveSession(url: archive)
         let calls = Mutex(0), output = directory.url.appendingPathComponent("preview.txt")
         try Data("preview".utf8).write(to: output)
-        let gate = Gate(), started = expectation(description: "Explicit solid-member materialization")
+        let gate = AsyncGate(), started = expectation(description: "Explicit solid-member materialization")
         let owner = ArchiveMaterializationController { _, _ in
             calls.withLock { $0 += 1 }
             started.fulfill()
-            await gate.wait()
+            await gate.waitIgnoringCancellation()
             return output
         }
         let sidebar = ArchivePreviewSidebar()

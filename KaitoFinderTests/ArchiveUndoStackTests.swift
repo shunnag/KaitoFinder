@@ -52,16 +52,6 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         deinit { try? FileManager.default.removeItem(at: root) }
     }
 
-    private final class Gate: Sendable {
-        let entered = Mutex(false)
-        let release = DispatchSemaphore(value: 0)
-        func wait() {
-            XCTAssertFalse(Thread.isMainThread)
-            entered.withLock { $0 = true }
-            XCTAssertEqual(release.wait(timeout: .now() + 10), .success)
-        }
-    }
-
     private func digest(_ url: URL) throws -> Data {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
@@ -509,7 +499,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     }
 
     @MainActor func testCloseWaitsForPendingPublicationBeforeDeletingItsSlot() async throws {
-        let fixture = try Fixture(), directories = Mutex<[URL]>([]), gate = Gate()
+        let fixture = try Fixture(), directories = Mutex<[URL]>([]), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             directories.withLock { $0.append(destination.deletingLastPathComponent()) }
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
@@ -517,12 +507,12 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         let document = try document(fixture, stack: stack)
         let original = try digest(fixture.archive), added = try fixture.file("added.txt")
         let task = Task {
-            try await document.append(urls: [added], to: "", progress: Progress(), willPublish: { gate.wait() })
+            try await document.append(urls: [added], to: "", progress: Progress(), willPublish: { gate.pause() })
         }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        try await waitUntil { gate.isEntered }
         document.close()
         XCTAssertTrue(exists(try XCTUnwrap(directories.withLock { $0.first })))
-        gate.release.signal()
+        gate.release()
         do { _ = try await task.value; XCTFail("閉じた文書の未公開の追加を取り消す") }
         catch { XCTAssertTrue(error is CancellationError) }
         await document.undoCleanup?.value
@@ -533,10 +523,10 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     }
 
     @MainActor func testPendingUndoRejectsRepeatedUndoRedoAndAppend() async throws {
-        let fixture = try Fixture(), gate = Gate(), calls = Mutex(0)
+        let fixture = try Fixture(), gate = ScenarioGate(), calls = Mutex(0)
         let stack = ArchiveUndoStack { source, destination in
             let index = calls.withLock { $0 += 1; return $0 }
-            if index == 2 { gate.wait() }
+            if index == 2 { gate.pause() }
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
         }
         let document = try document(fixture, stack: stack)
@@ -544,7 +534,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         try await append("first.txt", fixture: fixture, document: document)
         let manager = try XCTUnwrap(document.undoManager)
         manager.undo()
-        try await waitUntil { gate.entered.withLock { $0 } }
+        try await waitUntil { gate.isEntered }
         XCTAssertFalse(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
         manager.undo()
@@ -553,7 +543,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             _ = try await document.append(urls: [fixture.file("second.txt")], to: "", progress: Progress())
             XCTFail("復元中に別の変更を始めない")
         } catch { }
-        gate.release.signal()
+        gate.release()
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
         XCTAssertEqual(document.generation, 2)

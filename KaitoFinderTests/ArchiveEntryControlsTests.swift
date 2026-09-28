@@ -45,16 +45,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         deinit { try? FileManager.default.removeItem(at: directory) }
     }
 
-    private final class Gate: Sendable {
-        let entered = Mutex(false)
-        let release = DispatchSemaphore(value: 0)
-        func wait() {
-            XCTAssertFalse(Thread.isMainThread)
-            entered.withLock { $0 = true }
-            XCTAssertEqual(release.wait(timeout: .now() + 10), .success)
-        }
-    }
-
     @MainActor private func interface(_ fixture: Fixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()
@@ -597,11 +587,11 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testPendingDeleteDisablesBothActionsAndCancellationPreservesBytesAndUndo() async throws {
-        let fixture = try Fixture(), gate = Gate()
+        let fixture = try Fixture(), gate = ScenarioGate()
         let cancelled = Mutex(false)
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
-            gate.wait()
+            gate.pause()
             cancelled.withLock { $0 = Task.isCancelled }
             return result
         }
@@ -610,8 +600,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         try select(["b.txt"], in: controller)
         controller.deleteEntries(nil)
         let task = try XCTUnwrap(controller.extractionTask)
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         for action in [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))] {
             let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
             XCTAssertFalse(controller.validateMenuItem(item))
@@ -630,7 +620,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         sheet.cancelExtraction(nil)
         XCTAssertTrue(sheet.progress.isCancelled)
         try await waitUntil { task.isCancelled }
-        gate.release.signal()
+        gate.release()
         await task.value
         XCTAssertTrue(cancelled.withLock { $0 })
         XCTAssertNil(controller.failureAlert)
@@ -837,20 +827,20 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDocumentMutationOutsideControllerDisablesBothEditActions() async throws {
-        let fixture = try Fixture(), gate = Gate()
+        let fixture = try Fixture(), gate = ScenarioGate()
         let (document, controller) = try await interface(fixture)
         try select(["a.txt"], in: controller)
         let target = try node("c.txt", in: controller)
         let progress = Progress()
-        let task = Task { try await document.remove([target], progress: progress, willPublish: { gate.wait() }) }
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        let task = Task { try await document.remove([target], progress: progress, willPublish: { gate.pause() }) }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         XCTAssertNil(controller.extractionTask)
         for action in [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))] {
             XCTAssertFalse(controller.validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: "")))
         }
         progress.cancel()
-        gate.release.signal()
+        gate.release()
         do { _ = try await task.value; XCTFail("取消しを公開しない") }
         catch { XCTAssertTrue(error is CancellationError) }
     }
@@ -1529,10 +1519,10 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testPendingMoveDisablesEditsAndDropsAndCancellationPreservesBytes() async throws {
-        let fixture = try Fixture(["a/x.txt", "b/"]), gate = Gate()
+        let fixture = try Fixture(["a/x.txt", "b/"]), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
-            gate.wait()
+            gate.pause()
             return result
         }
         let (document, controller) = try await interface(fixture, stack: stack), before = try digest(fixture)
@@ -1540,8 +1530,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
         XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
         let task = try XCTUnwrap(controller.extractionTask)
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         for action in [#selector(ArchiveWindowController.newFolder(_:)), #selector(ArchiveWindowController.deleteEntries(_:)),
                        #selector(ArchiveWindowController.renameEntry(_:))] {
             let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
@@ -1557,7 +1547,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         do { _ = try await document.move([other], to: "b", progress: Progress()); XCTFail("処理中の移動を受理しました") }
         catch { XCTAssertTrue(error is ExtractionFailure) }
         try XCTUnwrap(controller.editProgressSheet).cancelExtraction(nil)
-        gate.release.signal()
+        gate.release()
         await task.value
         XCTAssertEqual(try digest(fixture), before)
         XCTAssertEqual(document.generation, 0)

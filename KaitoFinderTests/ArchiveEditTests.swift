@@ -156,16 +156,6 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let contents: Data
     }
 
-    private final class Gate: Sendable {
-        let entered = Mutex(false)
-        let release = DispatchSemaphore(value: 0)
-        func wait() {
-            XCTAssertFalse(Thread.isMainThread)
-            entered.withLock { $0 = true }
-            XCTAssertEqual(release.wait(timeout: .now() + 10), .success)
-        }
-    }
-
     private func records(_ url: URL) throws -> [String: Record] {
         let bytes = try Data(contentsOf: url), reader = try ArchiveReader.open(url: url)
         var result: [String: Record] = [:]
@@ -651,17 +641,17 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     @MainActor func testPendingDeleteAndRenameRejectAllOtherDocumentMutations() async throws {
         for rename in [false, true] {
-            let fixture = try Fixture(), document = try document(fixture), gate = Gate()
+            let fixture = try Fixture(), document = try document(fixture), gate = ScenarioGate()
             let session = try XCTUnwrap(document.session), original = try digest(fixture.archive)
             let selected = try await node("remove.txt", in: session), other = try await node("keep.txt", in: session)
             let added = fixture.root.appendingPathComponent("added.txt")
             try Data("added".utf8).write(to: added)
             let task = Task {
-                if rename { return try await document.rename(selected, to: "changed", progress: Progress(), willPublish: { gate.wait() }) }
-                return try await document.remove([selected], progress: Progress(), willPublish: { gate.wait() })
+                if rename { return try await document.rename(selected, to: "changed", progress: Progress(), willPublish: { gate.pause() }) }
+                return try await document.remove([selected], progress: Progress(), willPublish: { gate.pause() })
             }
-            defer { gate.release.signal() }
-            try await waitUntil { gate.entered.withLock { $0 } }
+            defer { gate.release() }
+            try await waitUntil { gate.isEntered }
             do { _ = try await document.remove([other], progress: Progress()); XCTFail("処理中の削除を受理しました") }
             catch { XCTAssertTrue(error is ExtractionFailure) }
             do { _ = try await document.rename(other, to: "second", progress: Progress()); XCTFail("処理中の改名を受理しました") }
@@ -670,7 +660,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             catch { XCTAssertTrue(error is ExtractionFailure) }
             XCTAssertEqual(try digest(fixture.archive), original)
             XCTAssertEqual(document.generation, 0)
-            gate.release.signal()
+            gate.release()
             let result = try await task.value
             XCTAssertTrue(result.published)
             XCTAssertEqual(document.generation, 1)
@@ -681,13 +671,13 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     }
 
     @MainActor func testCloseCancelsPendingDeleteAndWaitsForSlotCleanup() async throws {
-        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive), gate = Gate()
+        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive), gate = ScenarioGate()
         let selected = try await node("remove.txt", in: XCTUnwrap(document.session))
-        let task = Task { try await document.remove([selected], progress: Progress(), willPublish: { gate.wait() }) }
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        let task = Task { try await document.remove([selected], progress: Progress(), willPublish: { gate.pause() }) }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         document.close()
-        gate.release.signal()
+        gate.release()
         do { _ = try await task.value; XCTFail("close 後に未公開の削除を完了しました") }
         catch { XCTAssertTrue(error is CancellationError) }
         await document.undoCleanup?.value
