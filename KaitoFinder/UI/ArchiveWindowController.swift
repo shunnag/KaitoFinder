@@ -135,24 +135,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
     private var restoringSort = false
     private var hasShownWindow = false
-    private let ratioFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .percent
-        formatter.maximumFractionDigits = 0
-        return formatter
-    }()
-    private let byteFormatter: ByteCountFormatter = {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter
-    }()
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        formatter.doesRelativeDateFormatting = true
-        return formatter
-    }()
+    private let formatter: ArchiveEntryFormatter
 
     init(bundle: Bundle = .main, preferencesStore: ArchivePreferencesStore = .shared) {
         self.bundle = bundle
@@ -166,6 +149,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         listTextSize = preferencesStore.preferences.listTextSize
         let kindResolver = ArchiveKindResolver(bundle: bundle)
         self.kindResolver = kindResolver
+        formatter = ArchiveEntryFormatter(bundle: bundle, kindResolver: kindResolver)
         previewSidebar = ArchivePreviewSidebar(bundle: bundle, kindResolver: kindResolver)
         previewSplitItem = NSSplitViewItem(viewController: previewSidebar)
         showsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
@@ -2630,31 +2614,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     private func icon(for node: EntryNode) -> NSImage { kindResolver.icon(for: node) }
 
-    private func formattedSize(_ size: UInt64?) -> String {
-        guard let size, let signed = Int64(exactly: size) else { return "—" }
-        return byteFormatter.string(fromByteCount: signed)
-    }
-
-    private func text(for node: EntryNode, key: String) -> String {
-        switch key {
-        case "name": return node.name
-        case "size": return formattedSize(node.size)
-        case "compressedSize": return formattedSize(node.compressedSize)
-        case "date": return node.entry?.modificationDate.map { dateFormatter.string(from: $0) } ?? "—"
-        case "kind": return kindResolver.kind(for: node).description
-        case "ratio":
-            return ArchiveEntryDisplay.ratio(node).flatMap { ratioFormatter.string(from: NSNumber(value: $0)) } ?? "—"
-        case "crc32": return node.entry?.crc32.map { String(format: "%08X", $0) } ?? "—"
-        case "permissions": return ArchiveEntryDisplay.permissions(node)
-        case "archiveOrder": return ArchiveEntryDisplay.archiveOrder(node).map(String.init) ?? "—"
-        case "method": return node.entry?.methodDescription ?? "—"
-        case "encrypted":
-            guard let entry = node.entry else { return "—" }
-            return entry.isEncrypted ? String(localized: "はい", bundle: bundle) : String(localized: "いいえ", bundle: bundle)
-        default: return ""
-        }
-    }
-
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
         children(of: item).count
     }
@@ -2690,7 +2649,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let cell = outlineView.makeView(withIdentifier: column.identifier, owner: self) as? ArchiveEntryCellView
             ?? ArchiveEntryCellView(column: definition)
         cell.apply(iconSize: listIconSize.pointSize, textSize: listTextSize, generation: displayGeneration)
-        cell.textField?.stringValue = text(for: node, key: key)
+        cell.textField?.stringValue = formatter.text(for: node, column: definition)
         if key == "name" {
             cell.imageView?.image = thumbnailProvider?.thumbnail(for: node) ?? icon(for: node)
         }
