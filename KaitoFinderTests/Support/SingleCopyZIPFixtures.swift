@@ -15,18 +15,18 @@ nonisolated enum SingleCopyZIPFixtures {
                 try Data(name.utf8).write(to: file)
                 try Data("resource".utf8).write(to: URL(fileURLWithPath: file.path + "/..namedfork/rsrc"))
             }
-            try directory.run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", folder.path, url.path])
+            try directory.run(ExternalTool.ditto, ["-c", "-k", "--sequesterRsrc", "--keepParent", folder.path, url.path])
         case .zipCrypto, .aes:
             for name in ["keep", "remove", "other"] { try Data(name.utf8).write(to: directory.url.appendingPathComponent(name)) }
             if kind == .zipCrypto {
-                try directory.run("/usr/bin/zip", ["-q", "-P", "fixture-key", url.path, "keep", "remove", "other"])
+                try directory.run(ExternalTool.zip, ["-q", "-P", "fixture-key", url.path, "keep", "remove", "other"])
                 let data = try Data(contentsOf: url)
                 XCTAssertNotEqual(data[6] & 8, 0, "ZipCrypto fixture must have bit 3")
             } else {
-                try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-tzip", "-mem=AES256", "-pfixture-key", url.path, "keep", "remove", "other"])
+                try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-tzip", "-mem=AES256", "-pfixture-key", url.path, "keep", "remove", "other"])
             }
         default:
-            try directory.run("/usr/bin/python3", ["-c", #"""
+            try directory.run(ExternalTool.python3, ["-c", #"""
             import sys, pathlib, struct, zlib, zipfile
             p, kind = pathlib.Path(sys.argv[1]), sys.argv[2]
             if kind == 'zip64':

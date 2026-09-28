@@ -250,7 +250,7 @@ nonisolated struct ArchiveBatchPlan: Sendable {
         for item in items {
             let url = item.url
             var info = stat()
-            if lstat(url.path, &info) == 0, item.matches(info), info.st_mode & S_IFMT == S_IFDIR,
+            if lstat(url.path, &info) == 0, item.matches(info), info.isDirectory,
                fchmodat(AT_FDCWD, url.path, 0o700, AT_SYMLINK_NOFOLLOW) != 0 {
                 reasons.append(ExtractionFailure.system(errno).description)
             }
@@ -264,7 +264,7 @@ nonisolated struct ArchiveBatchPlan: Sendable {
             }
             // 途中の親が差し替わっていても、展開時と異なる inode は削除しない。
             guard item.matches(info) else { continue }
-            let status = info.st_mode & S_IFMT == S_IFDIR ? rmdir(url.path) : unlink(url.path)
+            let status = info.isDirectory ? rmdir(url.path) : unlink(url.path)
             if status != 0, errno != ENOENT { reasons.append(ExtractionFailure.system(errno).description) }
         }
         guard !reasons.isEmpty else { return nil }

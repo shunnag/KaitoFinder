@@ -119,6 +119,47 @@ cooViewer 側の framework 経路は、その script のコメントどおり「
 > dynamic product would fold a duplicate copy of `KaitoKit` into it and collide at
 > link time. cooViewer's own configuration is left completely untouched.
 
+### 2.3 ソースの配置(2026-09-28)
+
+`KaitoFinder/` の下は責務ごとの directory に分け、file 名は中の主な型の名前に合わせる。
+`.xcodeproj` は synchronized group なので、file の移動に project の編集は要らない。
+一つの directory は一文の規則で言い切れる範囲に収める。
+
+| directory | 規則 |
+|---|---|
+| `App/` | アプリ委譲と Sparkle。メニューの組み立てとサービスの入口 |
+| `Documents/` | `NSDocument` としての文書。開く前処理、undo manager、文書の後始末、アプリの `NSError` domain |
+| `Model/` | 層をまたぐ小さな道具。error の文言、進捗の取消し検査、背景での解放、`ExtractionFailure` |
+| `Model/Session/` | 「何が開いていて、まだ同じ byte か」。reader を抱える actor、capabilities、同一性、巻の配置、パスワード |
+| `Model/Editing/` | 「何が変わり、表現できるか」。保存時モードの変更集合、予約の検証、名前の索引と規則、undo の複製 |
+| `Model/Listing/` | 「利用者に何が見え、何が読めるか」。entry の木、名前の一致、読取可否、path の分割、形式名 |
+| `Model/Preferences/` | 設定の store と機器の値 |
+| `Diagnostics/` | 計測と試験の観測点。区間の時間、予約の event、DEBUG の計数。本番の判断には使わない |
+| `Editing/` | 既存書庫の変更。追加・削除・改名・新規フォルダの計画、取り込みの衝突、公開境界、保存の再生、出力の照合と進捗 |
+| `Creation/` | 新しい書庫の作成 |
+| `Extraction/` | 取り出し。展開先の生成、file promise、一括展開、並列展開、一時領域、隔離属性 |
+| `SplitVolumes/` | 分割書庫の公開部品。staging と journal、臨界区間、回復、巻の計画と分割、分割保存の pipeline と失敗 |
+| `Persistence/` | Application Support に残す台帳と vault。未完了の作業、回復索引、staging の台帳、巻の metadata、パスワード |
+| `UI/` | AppKit。ウインドウとシート、outline、toolbar、履歴、書式、プレビュー、ようこそ画面 |
+
+依存の向きは `UI/`・`Documents/` → `Editing/`・`Extraction/`・`Creation/`・`SplitVolumes/` → `Model/`・`Persistence/` を基本とし、
+`Model/` は AppKit と QuickLookUI を import しない。`Persistence/` は `SplitVolumes/` の fd ベースの
+directory 操作(`VolumePublishDirectory` / `VolumePublishFS`)を借りる。
+
+分割書庫の型は接頭辞で層を示す。`VolumePublish*` は engine の内部(staging・journal・transaction・recovery)、
+`Volume*` は呼出側に見える値型、`ArchiveVolume*` は文書から見た巻 set の model と metadata、
+`ArchiveSplit*` は文書向けの保存 pipeline と結果。二つの台帳は役割が違う:
+`PendingWorkRegistry` は Foundation の path で作業領域の名前だけを記録し、`RecoverableWorkIndex` は
+fd と巻の UUID で unmount 中の巻の手がかりを残す。
+
+試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置く。一つの型に hook が多いときは
+`+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。
+
+`KaitoFinderTests/` も同じ考えで分ける。機能ごとの `App`・`Extraction`・`Editing`・`Updaters`・`DeferredSave`・`Split`・
+`Password`・`UI` に test class を置き、file 名と class 名を一致させる。環境変数で有効にする計測と書き出しの harness は
+`Probes/`、複数の test が使う fixture・oracle・gate・待機・外部ツールの path(`ExternalTool`)・環境変数の一覧
+(`TestEnvironment`)は `Support/` に置く。Tools/verify_*.py はクラス名とテスト名で選ぶ。
+
 ## 3. KaitoKit への変更(追加のみ、3 点)
 
 既存の振る舞いを変えないことを条件に、次の 3 点だけを入れる。いずれも
@@ -858,7 +899,7 @@ Finder / LaunchServices の実ファイルの関連付けは増やさない。�
 `archiveContentTypes()` も全宣言を参照し、パネルの delegate とドロップ判定が分割巻の名前を補う。
 「開く…」と一括展開のパネルは content type による絞り込みを外し、delegate がフォルダへの移動と
 宣言型に準拠するアーカイブ・分割巻を有効にする。選択確定時はそれ以外を標準エラーで拒否する。
-拒否・変換の形式名は `Model/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
+拒否・変換の形式名は `Model/Listing/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
 圧縮 tar の magic による名前と既存の tar / 7z / SFX ZIP の扱いは維持する。
 Finder の登録・ダブルクリックの実機確認は [手動検証 §13](manual-verification.md#13-finder-のこのアプリケーションで開く)を参照。
 

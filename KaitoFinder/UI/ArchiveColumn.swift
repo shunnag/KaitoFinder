@@ -52,35 +52,3 @@ enum ArchiveColumn: String, CaseIterable {
         }
     }
 }
-
-enum ArchiveEntryDisplay {
-    static func ratio(_ node: EntryNode) -> Double? {
-        guard let size = node.size, let compressed = node.compressedSize else { return nil }
-        // 空ファイルには削減できるバイトがない。圧縮ヘッダによる負の率は保持する。
-        return size == 0 ? 0 : 1 - Double(compressed) / Double(size)
-    }
-
-    static func archiveOrder(_ node: EntryNode) -> Int? {
-        guard let index = node.entry?.index, index >= 0, index < Int.max else { return nil }
-        return index + 1
-    }
-
-    static func permissions(_ node: EntryNode) -> String {
-        guard let mode = node.entry?.posixPermissions else { return "—" }
-        var text: String
-        switch node.entry?.kind {
-        case .directory: text = "d"
-        case .symlink: text = "l"
-        case .file, .hardlink: text = "-"
-        default: text = "?"
-        }
-        for (shift, special, lower, upper): (UInt16, UInt16, String, String) in
-            [(6, 0o4000, "s", "S"), (3, 0o2000, "s", "S"), (0, 0o1000, "t", "T")] {
-            text += mode & (4 << shift) != 0 ? "r" : "-"
-            text += mode & (2 << shift) != 0 ? "w" : "-"
-            let executable = mode & (1 << shift) != 0
-            text += mode & special != 0 ? (executable ? lower : upper) : (executable ? "x" : "-")
-        }
-        return text
-    }
-}

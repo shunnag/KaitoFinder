@@ -39,11 +39,6 @@ final class ArchiveViewOptionsController: NSWindowController {
                                  (hiddenFilesCheckbox, #selector(changeHiddenFiles(_:)))] {
             button.target = self
             button.action = action
-            button.cell?.wraps = true
-            button.cell?.lineBreakMode = .byWordWrapping
-            button.widthAnchor.constraint(equalToConstant: 440).isActive = true
-            let size = button.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: 440, height: 1000)) ?? .zero
-            button.heightAnchor.constraint(equalToConstant: ceil(size.height)).isActive = true
         }
         let columns = NSStackView()
         columns.orientation = .vertical
@@ -59,8 +54,8 @@ final class ArchiveViewOptionsController: NSWindowController {
             ArchiveFormRow.make(String(localized: "並べ順:", bundle: bundle), control: sortPopup),
             ArchiveFormRow.make(String(localized: "順序:", bundle: bundle), control: orderPopup),
             ArchiveFormRow.make(String(localized: "列:", bundle: bundle), control: columns),
-            [foldersOnTopCheckbox, NSGridCell.emptyContentView],
-            [hiddenFilesCheckbox, NSGridCell.emptyContentView],
+            ArchiveFormRow.checkbox(foldersOnTopCheckbox, width: 440),
+            ArchiveFormRow.checkbox(hiddenFilesCheckbox, width: 440),
             ArchiveFormRow.make(String(localized: "アイコンのサイズ:", bundle: bundle), control: iconSizePopup),
             ArchiveFormRow.make(String(localized: "文字のサイズ:", bundle: bundle), control: textSizePopup)
         ]

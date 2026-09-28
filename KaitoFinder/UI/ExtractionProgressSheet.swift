@@ -21,12 +21,17 @@ nonisolated enum ArchiveProgressOperation {
     }
 }
 
+/// 短い処理では進捗を出さないための待ち時間。進捗シート・一覧の読み込み・非同期の検索・文書を開く処理で共有する。
+nonisolated enum ArchiveProgressTiming {
+    static let revealDelay: Duration = .milliseconds(500)
+}
+
 final class ExtractionProgressSheet: NSWindowController {
     private final class Panel: NSPanel {
         var isRevealed = false
         override var canBecomeKey: Bool { isRevealed && super.canBecomeKey }
     }
-    static let revealDelay: Duration = .milliseconds(500)
+    static let revealDelay = ArchiveProgressTiming.revealDelay
     private static let pendingSheets = NSMapTable<NSWindow, ExtractionProgressSheet>.weakToWeakObjects()
     let progress: Progress
     private let bundle: Bundle

@@ -4,153 +4,6 @@ import GyoshukuKit
 import QuartzCore
 import UniformTypeIdentifiers
 
-/// 保存形式と圧縮設定を管理する。保存名と拡張子の表示は標準パネルに任せる。
-final class ArchiveSavePanelController {
-    nonisolated enum Level: Int, CaseIterable, Sendable {
-        case none = 0, fast = 1, normal = 6, high = 8, maximum = 9
-
-        static func closest(to value: Int) -> Level {
-            [.fast, .normal, .high, .maximum].min {
-                let left = abs($0.rawValue - value), right = abs($1.rawValue - value)
-                return left == right ? $0.rawValue > $1.rawValue : left < right
-            }!
-        }
-
-        func title(bundle: Bundle = .main) -> String {
-            switch self {
-            case .none: String(localized: "圧縮しない", bundle: bundle)
-            case .fast: String(localized: "速い", bundle: bundle)
-            case .normal: String(localized: "標準", bundle: bundle)
-            case .high: String(localized: "高い", bundle: bundle)
-            case .maximum: String(localized: "最高", bundle: bundle)
-            }
-        }
-
-        func applying(to options: WriterOptions, format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
-            var options = options
-            if format == .zip {
-                options.compressionMethod = self == .none ? .stored : .deflate
-            }
-            if (format == .zip || format == .tarGzip), self != .none { options.deflateLevel = rawValue }
-            if format == .tarBzip2, self != .none { options.bzip2Level = rawValue }
-            return options
-        }
-    }
-
-    static let defaultsKey = ArchivePreferencesStore.Key.defaultFormat
-    static let formats = ArchivePreferences.formats
-    static var panelContentTypes: [UTType] {
-        // 手入力された複合拡張子や別名も標準パネルに受理させる。
-        // 選択形式との一致は validate で検査する。
-        formats.map(contentType(for:)) + [.gzip]
-            + ["public.bzip2-archive", "org.tukaani.xz-archive", "public.lha-archive",
-               "org.gnu.gnu-zip-tar-archive", "com.shunnag.KaitoFinder.save-tbz", "org.tukaani.tar-xz-archive"]
-                .compactMap { UTType($0) }
-    }
-    private let store: ArchivePreferencesStore
-    private(set) var format: GyoshukuKit.ArchiveFormat
-    private(set) var level: Level = .normal
-
-    init(store: ArchivePreferencesStore = .shared) {
-        self.store = store
-        format = store.preferences.defaultFormat
-        resetLevel()
-    }
-
-    convenience init(defaults: UserDefaults) { self.init(store: ArchivePreferencesStore(defaults: defaults)) }
-
-    var selectedIndex: Int { Self.formats.firstIndex(of: format)! }
-    var allowedContentTypes: [UTType] { [Self.contentType(for: format)] }
-    var isLevelEnabled: Bool { format == .zip || format == .tarGzip || format == .tarBzip2 }
-    var levels: [Level] {
-        switch format {
-        case .zip: Level.allCases
-        case .tarGzip, .tarBzip2: [.fast, .normal, .high, .maximum]
-        case .tar, .tarXZ, .sevenZip, .lha: [.normal]
-        }
-    }
-    var selectedLevelIndex: Int { levels.firstIndex(of: level)! }
-
-    func selectLevel(at index: Int) {
-        guard isLevelEnabled, levels.indices.contains(index) else { return }
-        level = levels[index]
-    }
-
-    private func resetLevel() {
-        let preferences = store.preferences
-        switch format {
-        case .zip: level = preferences.zipMethod == .stored ? .none : .closest(to: preferences.zipLevel)
-        case .tarGzip: level = .closest(to: preferences.tarGzipLevel)
-        case .tarBzip2: level = .closest(to: preferences.tarBzip2Level)
-        case .tar, .tarXZ, .sevenZip, .lha: level = .normal
-        }
-    }
-
-    static func title(for format: GyoshukuKit.ArchiveFormat, bundle: Bundle = .main) -> String {
-        switch format {
-        case .zip: String(localized: "ZIP", bundle: bundle)
-        case .tar: String(localized: "tar", bundle: bundle)
-        case .tarGzip: String(localized: "tar.gz", bundle: bundle)
-        case .tarBzip2: String(localized: "tar.bz2", bundle: bundle)
-        case .tarXZ: String(localized: "tar.xz", bundle: bundle)
-        case .sevenZip: String(localized: "7z", bundle: bundle)
-        case .lha: String(localized: "LHA", bundle: bundle)
-        }
-    }
-
-    static func contentType(for format: GyoshukuKit.ArchiveFormat) -> UTType {
-        let identifier: String
-        switch format {
-        case .zip: return .zip
-        case .tar: identifier = "public.tar-archive"
-        // システムの圧縮型は gz / bz2 / xz しか付けないため、保存時の
-        // 優先拡張子が tar.gz / tar.bz2 / tar.xz の型を宣言している。
-        case .tarGzip: identifier = "com.shunnag.KaitoFinder.save-tar-gzip"
-        case .tarBzip2: identifier = "com.shunnag.KaitoFinder.save-tar-bzip2"
-        case .tarXZ: identifier = "com.shunnag.KaitoFinder.save-tar-xz"
-        case .sevenZip: identifier = "org.7-zip.7-zip-archive"
-        case .lha: identifier = "com.shunnag.KaitoFinder.lzh-archive"
-        }
-        // 宣言が未登録なら拡張子から解決する。
-        let suffix = ArchiveCreationPlan.filenameExtension(for: format)
-        return UTType(identifier) ?? UTType(filenameExtension: suffix) ?? .data
-    }
-
-    static func explicitFilenameContentType(for format: GyoshukuKit.ArchiveFormat) -> UTType {
-        // 拡張子を表示する場合、AppKit は最後の一要素で一致を判定する。
-        // .tar.gz などを再度追加させず、手入力済みの完全な名前を受理する。
-        switch format {
-        case .tarGzip: .gzip
-        case .tarBzip2: UTType("public.bzip2-archive")!
-        case .tarXZ: UTType("org.tukaani.xz-archive")!
-        default: contentType(for: format)
-        }
-    }
-
-    static func filenameStem(_ filename: String, format: GyoshukuKit.ArchiveFormat) -> String {
-        let suffix = ArchiveCreationPlan.acceptedExtensions(for: format)
-            .sorted { $0.count > $1.count }
-            .first { filename.lowercased().hasSuffix("." + $0) }
-        return suffix.map { String(filename.dropLast($0.count + 1)) } ?? filename
-    }
-
-    static func filenameByChangingFormat(_ filename: String, to format: GyoshukuKit.ArchiveFormat) -> String {
-        guard !filename.isEmpty else { return filename }
-        let suffix = formats.flatMap { ArchiveCreationPlan.acceptedExtensions(for: $0) }
-            .sorted { $0.count > $1.count }
-            .first { filename.count > $0.count + 1 && filename.lowercased().hasSuffix("." + $0) }
-        let stem = suffix.map { String(filename.dropLast($0.count + 1)) } ?? filename
-        return stem + "." + ArchiveCreationPlan.filenameExtension(for: format)
-    }
-
-    func selectFormat(at index: Int) {
-        guard Self.formats.indices.contains(index) else { return }
-        format = Self.formats[index]
-        resetLevel()
-        store.preferences.defaultFormat = format
-    }
-}
-
 /// 内容を自然な高さで上端に置き、表示範囲の切り取りは保存パネルに任せる。
 /// フォームの下端をパネルに拘束すると、アニメーション中に行が潰れたり引き伸ばされたりする。
 private final class ArchiveSaveAccessoryView: NSView {
@@ -257,6 +110,14 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     private var configuredFilename = ""
     private var suggestedStem = ""
     private static let accessoryHorizontalInset: CGFloat = 2
+    /// 分割保存の先頭巻に付く拡張子。分割中は名前欄に常にこの拡張子付きで表示する。
+    private static let firstVolumeExtension = "001"
+    private static var firstVolumeSuffix: String { "." + firstVolumeExtension }
+    private static func hasFirstVolumeSuffix(_ name: String) -> Bool { name.hasSuffix(firstVolumeSuffix) }
+    private static func strippingFirstVolumeSuffix(_ name: String) -> String {
+        hasFirstVolumeSuffix(name) ? String(name.dropLast(firstVolumeSuffix.count)) : name
+    }
+    private static func appendingFirstVolumeSuffix(_ name: String) -> String { name + firstVolumeSuffix }
     let panel = NSSavePanel()
     let controller: ArchiveSavePanelController
     let splitControls: ArchiveSaveSplitControls?
@@ -287,7 +148,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     var isReconfiguring: Bool { pendingFilenameChange != nil }
 
     #if DEBUG
-    // Replace only native presentation so tests can drive the real completion/async hop.
+    // 標準パネルの表示だけを差し替え、完了コールバックと非同期の受け渡しはテストでも実物を通す。
     var presentationHandlerForTesting: ((@escaping (NSApplication.ModalResponse) -> Void) -> Void)?
 
     func stageFilenameChangeForTesting() {
@@ -362,7 +223,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         splitControls?.didChange = { [weak self] in self?.changeSplitChoice() }
         refreshSplitContentType()
         if splitControls?.isSplitting == true {
-            configuredFilename += ".001"
+            configuredFilename = Self.appendingFirstVolumeSuffix(configuredFilename)
             panel.nameFieldStringValue = configuredFilename
         }
         extensionHiddenObservation = panel.observe(\.isExtensionHidden, options: [.new]) { [weak self] panel, _ in
@@ -418,15 +279,15 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         encryptionRow.column(at: 1).xPlacement = .leading
         encryptionRow.column(at: 1).trailingPadding = 2
         encryptionRow.widthAnchor.constraint(equalToConstant: width).isActive = true
-        let form = ArchivePasswordLayout.stack([rows, fixedLevelNote, separator, encryptionRow, passwordFields.view, encryptionNote],
-                                                     width: width + 2 * accessoryHorizontalInset, detachesHiddenViews: true)
+        let form = ArchiveAccessoryLayout.stack([rows, fixedLevelNote, separator, encryptionRow, passwordFields.view, encryptionNote],
+                                                width: width + 2 * accessoryHorizontalInset, detachesHiddenViews: true)
         form.spacing = 12
         form.edgeInsets = NSEdgeInsets(top: 12, left: accessoryHorizontalInset, bottom: 8, right: accessoryHorizontalInset)
         rows.widthAnchor.constraint(equalToConstant: width).isActive = true
         // パネルの横幅は AppKit に任せ、フォームだけを中央に揃える。
         // accessoryView 自体の幅を固定すると、macOS 26 以降の保存パネルが伸縮できない。
         let accessory = ArchiveSaveAccessoryView(form: form)
-        ArchivePasswordLayout.size(accessory)
+        ArchiveAccessoryLayout.size(accessory)
         return accessory
     }
 
@@ -444,9 +305,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on ? passwordFields.settings : .init()
     }
 
-    /// NSSavePanel presents the first real output name. The transaction takes its stem.
+    /// NSSavePanel には実際の先頭巻の名前を表示する。トランザクションにはその本体（.001 を除いた名前）を渡す。
     func baseDestination(_ url: URL) -> URL {
-        splitControls?.isSplitting == true && url.pathExtension == "001" ? url.deletingPathExtension() : url
+        splitControls?.isSplitting == true && url.pathExtension == Self.firstVolumeExtension ? url.deletingPathExtension() : url
     }
 
     private func refreshSplitContentType() {
@@ -456,8 +317,8 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
 
     private func changeSplitChoice() {
         let entered = panel.nameFieldStringValue
-        let base = entered.hasSuffix(".001") ? String(entered.dropLast(4)) : entered
-        let name = splitControls?.isSplitting == true ? base + ".001" : base
+        let base = Self.strippingFirstVolumeSuffix(entered)
+        let name = splitControls?.isSplitting == true ? Self.appendingFirstVolumeSuffix(base) : base
         refreshSplitContentType()
         guard name != entered else { return }
         if panel.isVisible, completionHandler != nil {
@@ -477,9 +338,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         let url = baseDestination(url)
         guard ArchiveCreationPlan.hasAcceptedExtension(url, for: controller.format) else {
             let list = ArchiveCreationPlan.acceptedExtensions(for: controller.format).map { "." + $0 }.joined(separator: ", ")
-            throw NSError(domain: "com.shunnag.KaitoFinder.creation", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)", bundle: bundle)
-            ])
+            throw ArchiveUserError.creation(String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)", bundle: bundle))
         }
         if let schedule {
             let scheme = KaitoKit.ArchiveVolumeSet.Scheme.numbered(stem: url.lastPathComponent, width: 3)
@@ -487,9 +346,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             let parent = try VolumePublishDirectory(VolumePublishFS.canonicalParent(of: url))
             do { try VolumeSetPublication.checkOccupancy(plan: plan, oldCount: 0, parent: parent) }
             catch VolumePublishError.nameOccupied {
-                throw NSError(domain: "com.shunnag.KaitoFinder.creation", code: 2, userInfo: [
-                    NSLocalizedDescriptionKey: String(localized: "同じ名前の分割ファイルが既にあります。", bundle: bundle)
-                ])
+                throw ArchiveUserError.creation(String(localized: "同じ名前の分割ファイルが既にあります。", bundle: bundle), code: 2)
             }
         }
         if encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on {
@@ -675,7 +532,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
 
     func panel(_ sender: Any, userEnteredFilename filename: String, confirmed okFlag: Bool) -> String? {
         if splitControls?.isSplitting == true {
-            return filename.hasSuffix(".001") ? filename : filename + ".001"
+            return Self.hasFirstVolumeSuffix(filename) ? filename : Self.appendingFirstVolumeSuffix(filename)
         }
         // foo.zip を ZIP に入れる場合、foo.zip.zip の末尾を隠した名前は foo.zip。
         // 未編集の候補だけを補正し、元の書庫名が再び拡張子として消えるのを防ぐ。
@@ -701,10 +558,11 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             return
         }
         if let enteredName {
+            let isSplitting = splitControls?.isSplitting == true
+            let renamed = ArchiveSavePanelController.filenameByChangingFormat(
+                isSplitting ? Self.strippingFirstVolumeSuffix(enteredName) : enteredName, to: controller.format)
             pendingFilenameChange = FilenameChange(
-                name: ArchiveSavePanelController.filenameByChangingFormat(
-                    splitControls?.isSplitting == true && enteredName.hasSuffix(".001") ? String(enteredName.dropLast(4)) : enteredName,
-                    to: controller.format) + (splitControls?.isSplitting == true ? ".001" : ""),
+                name: isSplitting ? Self.appendingFirstVolumeSuffix(renamed) : renamed,
                 directory: panel.directoryURL, tags: panel.tagNames, frame: panel.frame,
                 accessoryHeight: (panel.accessoryView as? ArchiveSaveAccessoryView)?.contentSize.height ?? 0)
             resizeAnimation?.stop()
@@ -716,9 +574,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             return
         }
         if splitControls?.isSplitting == true {
-            let entered = panel.nameFieldStringValue
-            let base = entered.hasSuffix(".001") ? String(entered.dropLast(4)) : entered
-            configuredFilename = ArchiveSavePanelController.filenameByChangingFormat(base, to: controller.format) + ".001"
+            let base = Self.strippingFirstVolumeSuffix(panel.nameFieldStringValue)
+            configuredFilename = Self.appendingFirstVolumeSuffix(
+                ArchiveSavePanelController.filenameByChangingFormat(base, to: controller.format))
             panel.nameFieldStringValue = configuredFilename
         }
         refreshSplitContentType()
@@ -747,34 +605,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
                 // 終了コールバックを抜け、configuration phase に戻ってから設定する。
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.completionHandler != nil, let change = self.pendingFilenameChange else { return }
-                    let accessory = self.panel.accessoryView as? ArchiveSaveAccessoryView
-                    self.panel.accessoryView = nil
-                    self.panel.directoryURL = change.directory
-                    self.panel.tagNames = change.tags
-                    self.suggestedStem = ArchiveSavePanelController.filenameStem(change.name, format: self.controller.format)
-                    if self.splitControls?.isSplitting == true { self.refreshSplitContentType() }
-                    else { self.panel.currentContentType = ArchiveSavePanelController.explicitFilenameContentType(for: self.controller.format) }
-                    self.panel.nameFieldStringValue = change.name
-                    self.panel.isExtensionHidden = false
-                    self.configuredFilename = change.name
-                    self.refreshLevel()
-                    self.refreshEncryption(animateResize: false)
-                    accessory?.viewportHeight = nil
-                    accessory?.viewportHeightInPanel = nil
-                    if let accessory { ArchivePasswordLayout.size(accessory) }
-                    self.panel.accessoryView = accessory
-                    self.pendingFilenameChange = nil
-                    self.formatPopup.isEnabled = true
-                    self.presentPanel()
-                    if let accessory {
-                        let height = max(self.panel.minSize.height,
-                                         change.frame.height + accessory.contentSize.height - change.accessoryHeight)
-                        let anchoredY = self.parentWindow == nil ? change.frame.maxY - height : change.frame.midY - height / 2
-                        let y = self.panel.screen.map {
-                            min(max(anchoredY, $0.visibleFrame.minY), $0.visibleFrame.maxY - height)
-                        } ?? anchoredY
-                        self.panel.setFrame(NSRect(x: change.frame.minX, y: y, width: change.frame.width, height: height), display: false)
-                    }
+                    self.applyPendingFilenameChange(change)
                 }
             } else {
                 self.finishPresentation(response)
@@ -785,6 +616,38 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         #endif
         if let parentWindow { panel.beginSheetModal(for: parentWindow, completionHandler: completed) }
         else { panel.begin(completionHandler: completed) }
+    }
+
+    /// 閉じたパネルへ新しい名前と形式を設定し直し、同じ位置と高さで再表示する。
+    private func applyPendingFilenameChange(_ change: FilenameChange) {
+        let accessory = panel.accessoryView as? ArchiveSaveAccessoryView
+        panel.accessoryView = nil
+        panel.directoryURL = change.directory
+        panel.tagNames = change.tags
+        suggestedStem = ArchiveSavePanelController.filenameStem(change.name, format: controller.format)
+        if splitControls?.isSplitting == true { refreshSplitContentType() }
+        else { panel.currentContentType = ArchiveSavePanelController.explicitFilenameContentType(for: controller.format) }
+        panel.nameFieldStringValue = change.name
+        panel.isExtensionHidden = false
+        configuredFilename = change.name
+        refreshLevel()
+        refreshEncryption(animateResize: false)
+        accessory?.viewportHeight = nil
+        accessory?.viewportHeightInPanel = nil
+        if let accessory { ArchiveAccessoryLayout.size(accessory) }
+        panel.accessoryView = accessory
+        pendingFilenameChange = nil
+        formatPopup.isEnabled = true
+        presentPanel()
+        if let accessory {
+            let height = max(panel.minSize.height,
+                             change.frame.height + accessory.contentSize.height - change.accessoryHeight)
+            let anchoredY = parentWindow == nil ? change.frame.maxY - height : change.frame.midY - height / 2
+            let y = panel.screen.map {
+                min(max(anchoredY, $0.visibleFrame.minY), $0.visibleFrame.maxY - height)
+            } ?? anchoredY
+            panel.setFrame(NSRect(x: change.frame.minX, y: y, width: change.frame.width, height: height), display: false)
+        }
     }
 
     private func finishPresentation(_ response: NSApplication.ModalResponse) {

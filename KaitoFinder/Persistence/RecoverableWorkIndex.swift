@@ -3,6 +3,8 @@ import Foundation
 import Synchronization
 
 /// 発見の手がかりだけを保存する。未マウント・ENOENT・st_dev の変化では項目を落とさない。
+/// 分割セットの公開の staging（`WorkAreaName.volume`）専用の台帳。取り込み・作成・即時編集の作業領域は
+/// `PendingWorkRegistry` が起動時に回収し、この台帳の項目には触れない。
 nonisolated final class RecoverableWorkIndex: Sendable {
     struct Entry: Codable, Sendable, Equatable {
         var stagingPath: String
@@ -89,12 +91,12 @@ nonisolated final class RecoverableWorkIndex: Sendable {
     }
     private func read(_ directory: VolumePublishDirectory) throws -> [Entry] {
         guard let info = try directory.info(fileURL.lastPathComponent) else { return [] }
-        guard info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0 else {
+        guard info.isRegularFile, info.st_size >= 0 else {
             throw VolumePublishError.unsafePath(fileURL.path)
         }
         let fd = try directory.openFile(fileURL.lastPathComponent)
         defer { close(fd) }
-        let bytes = info.st_size < 16 * 1024 * 1024 ? try VolumePublishFS.read(fd, length: Int(info.st_size), offset: 0) : nil
+        let bytes = info.st_size < off_t(VolumePublishFS.maximumLedgerBytes) ? try VolumePublishFS.read(fd, length: Int(info.st_size), offset: 0) : nil
         if let bytes, let entries = try? JSONDecoder().decode([Entry].self, from: bytes),
            entries.allSatisfy({ $0.stagingPath.hasPrefix("/") && URL(fileURLWithPath: $0.stagingPath).lastPathComponent
                 .hasPrefix(VolumePublishFS.stagingPrefix) }) { return entries }

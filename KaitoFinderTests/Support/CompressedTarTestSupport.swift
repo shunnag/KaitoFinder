@@ -34,7 +34,7 @@ nonisolated enum CompressedTarFixture {
     }
     static func legacy(_ root: URL, format: Format) throws -> URL {
         let name = format == .tarGzip ? "gz.tgz.b64" : format == .tarBzip2 ? "bz.tbz.b64" : "xz.txz.b64"
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/TarEdit")
+        let fixtures = TestPaths.fixtures.appendingPathComponent("TarEdit")
         let bytes = try XCTUnwrap(Data(base64Encoded: Data(contentsOf: fixtures.appendingPathComponent(name)), options: .ignoreUnknownCharacters))
         let url = root.appendingPathComponent("original." + suffix(format)); try bytes.write(to: url); return url
     }
@@ -42,7 +42,7 @@ nonisolated enum CompressedTarFixture {
                          arguments: [String] = [], name: String = "external") throws -> URL {
         let raw = directory.url.appendingPathComponent(name + ".tar")
         try bytes.write(to: raw)
-        let tool = format == .tarGzip ? "/usr/bin/gzip" : format == .tarBzip2 ? "/usr/bin/bzip2" : "/opt/homebrew/bin/xz"
+        let tool = format == .tarGzip ? ExternalTool.gzip : format == .tarBzip2 ? ExternalTool.bzip2 : ExternalTool.xz
         try directory.run(tool, ["-k", "-f"] + arguments + [raw.path])
         return raw.appendingPathExtension(format == .tarGzip ? "gz" : format == .tarBzip2 ? "bz2" : "xz")
     }
@@ -74,15 +74,12 @@ nonisolated enum CompressedTarFixture {
             return (entry.name, try bytes(snapshot.image, range: member.groupRange.lowerBound..<member.headerRange.upperBound))
         })
     }
-    static func assertNoWork(_ root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: root.path).contains { $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".gyoshuku-") }, file: file, line: line)
-    }
     static func interop(_ url: URL, format: Format, directory: ArchiveTestDirectory) throws {
-        let tool = format == .tarGzip ? "/usr/bin/gzip" : format == .tarBzip2 ? "/usr/bin/bzip2" : "/opt/homebrew/bin/xz"
+        let tool = format == .tarGzip ? ExternalTool.gzip : format == .tarBzip2 ? ExternalTool.bzip2 : ExternalTool.xz
         try directory.run(tool, ["-t", url.path])
-        try directory.run("/usr/bin/bsdtar", ["-tvf", url.path])
-        try directory.run("/opt/homebrew/bin/7zz", ["t", url.path])
-        try directory.run("/usr/bin/python3", ["-c", "import tarfile,sys\nwith tarfile.open(sys.argv[1]) as t:\n for m in t:\n  if m.isfile(): t.extractfile(m).read()", url.path])
+        try directory.run(ExternalTool.bsdtar, ["-tvf", url.path])
+        try directory.run(ExternalTool.sevenZip, ["t", url.path])
+        try directory.run(ExternalTool.python3, ["-c", "import tarfile,sys\nwith tarfile.open(sys.argv[1]) as t:\n for m in t:\n  if m.isfile(): t.extractfile(m).read()", url.path])
     }
 }
 
@@ -106,7 +103,7 @@ nonisolated final class CompressedTarTrace: Sendable {
                     try await ArchiveStageDiagnostics.observer.withValue({ event in
                         if case .began(_, let stage) = event { self.stages.withLock { $0.append(stage) } }
                     }) {
-                        try await ArchiveSession.readerAdoptionObserver.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
+                        try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
                             try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
                                 // Runs after rename. Reopening must retain the descriptor-backed K5 snapshot.
                                 let reopened = try? output.reader?.reopen()

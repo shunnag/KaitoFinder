@@ -12,7 +12,7 @@ def main():
     repository = pathlib.Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=pathlib.Path,
-                        default=repository / "KaitoFinder/Import/ArchiveImportConflict.swift")
+                        default=repository / "KaitoFinder/Editing/ArchiveImportConflict.swift")
     args = parser.parse_args()
     source = args.source.read_text()
     start = source.index("    static func descendantCount(")
@@ -59,7 +59,7 @@ METHOD
         swift.write_text(driver)
         executable = root / "benchmark"
         subprocess.run(["swiftc", "-O", "-parse-as-library", "-module-cache-path", str(root / "cache"),
-                        str(repository / "KaitoFinder/Model/ArchivePath.swift"), str(swift), "-o", str(executable)], check=True)
+                        str(repository / "KaitoFinder/Model/Listing/ArchivePath.swift"), str(swift), "-o", str(executable)], check=True)
         subprocess.run([str(executable)], check=True)
 
 

@@ -12,8 +12,7 @@ nonisolated enum LHAUpdateFixture {
     static let date = Date(timeIntervalSince1970: 1_700_000_000)
 
     static func frozen(_ name: String, at root: URL, filename: String = "original.lzh") throws -> URL {
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Fixtures/LHAUpdate")
+        let fixtures = TestPaths.fixtures.appendingPathComponent("LHAUpdate")
         let data = try Data(contentsOf: fixtures.appendingPathComponent(name + ".lzh.b64"))
         let url = root.appendingPathComponent(filename)
         try XCTUnwrap(Data(base64Encoded: data, options: .ignoreUnknownCharacters)).write(to: url)
@@ -48,9 +47,6 @@ nonisolated enum LHAUpdateFixture {
         XCTAssertEqual(try ArchiveFileIdentity.capture(url: archive), identity)
     }
 
-    static func contents(_ reader: ArchiveReader) throws -> [String: Data] {
-        try Dictionary(uniqueKeysWithValues: reader.entries.filter { $0.kind != .directory }.map { ($0.name, try reader.read($0)) })
-    }
 }
 
 nonisolated final class LHAUpdateTrace: Sendable {
@@ -63,7 +59,7 @@ nonisolated final class LHAUpdateTrace: Sendable {
         try await ArchiveStageDiagnostics.observer.withValue({ event in
             if case .began(_, let stage) = event { self.stages.withLock { $0.append(stage) } }
         }) {
-            try await ArchiveSession.readerAdoptionObserver.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
+            try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
                 try await ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ reason in self.fallbacks.withLock { $0.append(reason) } }) {
                     try await ArchiveImportTransaction.didCommitLHAUpdaterForTesting.withValue({ updater in
                         self.strategies.withLock { $0.append(updater.lastCommitStrategy) }

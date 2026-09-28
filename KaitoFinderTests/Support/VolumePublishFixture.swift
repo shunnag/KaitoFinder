@@ -14,6 +14,8 @@ nonisolated func volumePublishTestURL(_ url: URL) throws -> URL {
     return URL(fileURLWithPath: String(cString: path), isDirectory: true)
 }
 
+/// hdiutil で作って mount する検査用のボリューム。hdiutil の失敗はアサーションにせず、
+/// ディスク作成が許可されない環境ではテストを XCTSkip にする。
 nonisolated final class VolumePublishTestDisk: Sendable {
     let directory: ArchiveTestDirectory
     let image: URL
@@ -22,13 +24,14 @@ nonisolated final class VolumePublishTestDisk: Sendable {
     let fileSystem: String
     private let attached = Mutex(false)
 
-    init(_ fileSystem: String) throws {
+    /// `size` は hdiutil create -size の値。APFS と HFS+ には各利用者の .Trashes も用意する。
+    init(_ fileSystem: String, size: String = "128m") throws {
         directory = try ArchiveTestDirectory()
         let base = try volumePublishTestURL(directory.url)
         image = base.appendingPathComponent("volume.dmg")
         mountLocation = Mutex(base.appendingPathComponent("mount"))
         self.fileSystem = fileSystem
-        try command(["create", "-size", "128m", "-fs", fileSystem, "-volname", "KFPUBLISH", image.path])
+        try command(["create", "-size", size, "-fs", fileSystem, "-volname", "KFPUBLISH", image.path])
         try attach()
         do {
             if fileSystem == "APFS" || fileSystem == "HFS+" {
@@ -42,7 +45,7 @@ nonisolated final class VolumePublishTestDisk: Sendable {
     }
     private func command(_ arguments: [String]) throws {
         let process = Process(), output = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.executableURL = URL(fileURLWithPath: ExternalTool.hdiutil)
         process.arguments = arguments
         process.standardOutput = output; process.standardError = output
         do { try process.run() } catch { throw XCTSkip("hdiutil を起動できません: \(error)") }
@@ -52,10 +55,10 @@ nonisolated final class VolumePublishTestDisk: Sendable {
             throw XCTSkip("hdiutil \(arguments.first ?? "") を実行できません: \(String(decoding: bytes, as: UTF8.self))")
         }
     }
-    func attach(at location: URL? = nil) throws {
+    func attach(at location: URL? = nil, readOnly: Bool = false) throws {
         try attached.withLock { attached in
             let destination = location ?? mount
-            try command(["attach", "-nobrowse", "-mountpoint", destination.path, image.path])
+            try command(["attach", "-nobrowse", "-mountpoint", destination.path] + (readOnly ? ["-readonly"] : []) + [image.path])
             mountLocation.withLock { $0 = destination }
             attached = true
         }
@@ -73,6 +76,27 @@ nonisolated final class VolumePublishTestDisk: Sendable {
         try Data("Trash deliberately unavailable in this test".utf8).write(to: url)
     }
     deinit { try? detach() }
+}
+
+extension XCTestCase {
+    /// `fileSystem` のボリュームを作って mount し、teardown で detach する。
+    nonisolated func attachedTestDisk(_ fileSystem: String) throws -> VolumePublishTestDisk {
+        let disk = try VolumePublishTestDisk(fileSystem)
+        addTeardownBlock { try disk.detach() }
+        return disk
+    }
+}
+
+/// テストが注入する失敗。値そのものは検査しない。
+nonisolated enum VolumePublishTestFault: Error { case io }
+
+extension VolumePublishOperations {
+    /// Trash への移動を常に `error` で失敗させる操作。
+    nonisolated static func refusingTrash(_ error: any Error = VolumePublishTestFault.io) -> Self {
+        var operations = VolumePublishOperations()
+        operations.trash = { _ in throw error }
+        return operations
+    }
 }
 
 nonisolated final class VolumePublishFixture: Sendable {
@@ -145,6 +169,31 @@ nonisolated final class VolumePublishFixture: Sendable {
                                                         index: index, options: readerOptions, operations: operations, fault: fault)
         try newBytes.write(to: publication.workURL)
         return publication
+    }
+
+    /// coordinator を通さず、実際の分割・検証・改名の primitive で、新しい巻を staging に揃えて検証し prepared を
+    /// 記録した状態（S4）の transaction を作る。`placed` なら続けて旧巻を退避して新巻を置き、S9 で SimulatedCrash を
+    /// 投げる（journal の所有者が巻き戻さずに抜けた状態）。`consent` と `operations` は公開の開始にも渡す。
+    func stagedTransaction(placed: Bool = false, consent: Bool = false,
+                           operations: VolumePublishOperations = .init()) throws -> VolumePublishTransaction {
+        var publication: VolumeSetPublication? = try begin(consent: consent, operations: operations)
+        let url = publication!.stagingURL, work = publication!.workURL
+        publication = nil
+        let parent = try VolumePublishDirectory(root), staging = try parent.directory(url.lastPathComponent)
+        let journal = try VolumePublishJournal(staging: staging, create: false)
+        var record = try journal.read()
+        record.newVolumes = try VolumeSplitter.split(workURL: work, into: staging.directory("new"), plan: plan, oldLayout: layout)
+        record.totalLength = plan.totalLength
+        var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
+            renamer: .init(usesFallback: false), index: index, record: record, operations: operations)
+        try transaction.validateNew(in: staging.directory("new"), options: readerOptions)
+        try transaction.phase(.prepared)
+        if placed {
+            try transaction.proveOldBeforeRetiring()
+            try transaction.retireOld(hook: { _ in })
+            _ = try transaction.placeNew { if $0 == .s9 { throw SimulatedCrash() } }
+        }
+        return transaction
     }
 
     var steps: [VolumePublishStep] {

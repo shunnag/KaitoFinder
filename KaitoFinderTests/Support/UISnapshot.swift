@@ -8,7 +8,7 @@ import XCTest
 
     private static let runDirectory: URL = {
         let url: URL
-        let configuredPath = ProcessInfo.processInfo.environment["KAITOFINDER_SNAPSHOT_DIR"]
+        let configuredPath = TestEnvironment.value(.snapshotDirectory)
         if let path = configuredPath, !path.isEmpty {
             url = URL(fileURLWithPath: path, isDirectory: true)
         } else {

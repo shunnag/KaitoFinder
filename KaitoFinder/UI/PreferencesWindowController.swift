@@ -420,14 +420,7 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     private func checkboxRow(_ button: NSButton) -> [NSView] {
-        let width: CGFloat = 520
-        button.cell?.wraps = true
-        button.cell?.lineBreakMode = .byWordWrapping
-        button.widthAnchor.constraint(equalToConstant: width).isActive = true
-        // チェックの領域を差し引いた幅で、日英どちらの長い文言も折り返す。
-        let size = button.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: width, height: 1000)) ?? .zero
-        button.heightAnchor.constraint(equalToConstant: ceil(size.height)).isActive = true
-        return [button, NSGridCell.emptyContentView]
+        ArchiveFormRow.checkbox(button, width: 520)
     }
 
     private func group(title: String? = nil, rows: [[NSView]], spanningRows: [Int] = []) -> NSView {

@@ -50,7 +50,7 @@ nonisolated enum ArchiveCreationTransaction {
         }
         let ledger: ArchiveWriteProgress?
         if plan.existing?.volumeLayout != nil, imported.items.isEmpty {
-            // The split-input producer owns its existing byte accounting.
+            // 分割入力から作るときは、producer（ArchiveSplitWorkProducer）が自分で byte を計上する。
             ledger = nil
             progress.totalUnitCount = Int64((plan.existing?.entries.count ?? 0) + 1)
             progress.completedUnitCount = 0
@@ -68,7 +68,7 @@ nonisolated enum ArchiveCreationTransaction {
                 countsCarriedItems: plan.existing != nil))
         }
         let directory = plan.destination.deletingLastPathComponent()
-            .appendingPathComponent(".KaitoFinder-new-" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(WorkAreaName.new + UUID().uuidString, isDirectory: true)
         do { try registry.register(directory) }
         catch { NSLog("台帳への記録に失敗しました: %@", String(describing: error)) }
         do {
@@ -102,7 +102,7 @@ nonisolated enum ArchiveCreationTransaction {
                                  archiveBytes: 0, options: plan.options)
                     try ArchiveStageDiagnostics.measure(.mutate) {
                         try existing.pending?.replay(on: rewriter, progress: progress,
-                            preservingOwnerIDs: plan.options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(plan.format), ledger: ledger)
+                            preservingOwnerIDs: plan.options.preserveOwnerIDs && plan.format.isTarFamily, ledger: ledger)
                         try add(imported.items, progress: progress, ledger: ledger, additionBase: existing.pending?.additions.count ?? 0,
                                 batch: rewriter.add(_:events:))
                         try ArchiveImportPlan.checkCancellation(progress)
@@ -166,8 +166,8 @@ nonisolated enum ArchiveCreationTransaction {
             (existing.volumeLayout?.volumes.map(\.url) ?? [existing.url]) + replay.additions.map(\.stagedURL)) {
                 try ArchiveImportPlan.checkCancellation(progress)
             }
-        // Use archive bytes, as M5 does: a highly compressed source can be far larger
-        // when expanded. M2 recalculates the complete plan from W before any member is placed.
+        // M5 と同じく、展開後ではなく書庫の byte 数で見積もる。圧縮率の高い書庫は展開するとはるかに大きくなるため。
+        // M2 は巻を配置する前に W から計画全体を計算し直す。
         let identity = try existing.identity ?? ArchiveSetIdentity.capture(url: existing.url, layout: existing.volumeLayout)
         var estimate = identity.volumes.reduce(UInt64(0)) { $0 + $1.size }
         let additionalWorkBytes: UInt64
@@ -175,7 +175,7 @@ nonisolated enum ArchiveCreationTransaction {
         else { additionalWorkBytes = 0 }
         for addition in replay.additions {
             let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
-            let padded = next.partialValue.addingReportingOverflow(1024)
+            let padded = next.partialValue.addingReportingOverflow(VolumePlan.perEntryOverheadEstimate)
             guard !next.overflow, !padded.overflow else { throw VolumePublishError.invalidPlan }
             estimate = padded.partialValue
         }
@@ -189,7 +189,7 @@ nonisolated enum ArchiveCreationTransaction {
                 try ArchiveSplitWorkProducer.produce(existing: existing, workURL: split.workURL, format: plan.format,
                     options: plan.options, plan: replay, progress: progress, didRead: hooks.didReadInputBytes)
             }
-        // Return the user's spelling, even though the publisher operates on a canonical directory.
+        // 公開部品は正規化したディレクトリで動くが、返すのは利用者が指定した綴りの URL。
         return plan.destination.appendingPathExtension("001")
     }
 
