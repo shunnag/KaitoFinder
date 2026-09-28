@@ -16,6 +16,9 @@ nonisolated struct ArchiveSplitHazardLocation: Hashable, Sendable {
 
 /// A successful M2 commit never becomes a failed save because old-volume cleanup failed.
 /// Only uncertain publication failures require reopening; proven rollbacks remain retryable.
+/// Save-time sibling of `ArchiveVolumeOpenError` (Documents/ArchiveVolumeOpenRecovery.swift): both are
+/// LocalizedError + RecoverableError and point at a staging with 「Finderで表示」. This one reports a failed save;
+/// that one is raised when opening a set whose earlier save was interrupted, and completes it before reopening.
 nonisolated struct ArchiveSplitSaveFailure: LocalizedError, RecoverableError {
     enum Kind: Sendable { case retry, coordination, tooManyVolumes, rolledBack, held, failed }
     enum Context: Sendable { case deferredReplacement, immediateReplacement, newSet }

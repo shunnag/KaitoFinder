@@ -8,7 +8,7 @@ nonisolated enum ArchiveIncomingRepresentation {
 }
 
 /// データの取り出しと型の照会を分離し、サービスなしでも呼出し順を検証する。
-protocol ArchivePasteboardSource {
+nonisolated protocol ArchivePasteboardSource {
     associatedtype Promise
     var hasPromises: Bool { get }
     var hasFileURLs: Bool { get }
@@ -16,7 +16,7 @@ protocol ArchivePasteboardSource {
     func readFileURLs() -> [URL]
 }
 
-struct AppKitArchivePasteboard: ArchivePasteboardSource {
+nonisolated struct AppKitArchivePasteboard: ArchivePasteboardSource {
     let pasteboard: NSPasteboard
     var hasPromises: Bool { pasteboard.canReadObject(forClasses: [NSFilePromiseReceiver.self], options: nil) }
     var hasFileURLs: Bool {
