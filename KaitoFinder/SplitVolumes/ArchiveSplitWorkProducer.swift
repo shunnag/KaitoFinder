@@ -114,7 +114,7 @@ nonisolated enum ArchiveSplitWorkProducer {
         try verifyAssembledInput(rewriter.volumeSet)
         try ArchiveStageDiagnostics.measure(.replay) {
             try plan.replay(on: rewriter, progress: progress,
-                            preservingOwnerIDs: options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format))
+                            preservingOwnerIDs: options.preserveOwnerIDs && format.isTarFamily)
         }
         progress.totalUnitCount += Int64(rewriter.entryNames.count)
         try ArchiveStageDiagnostics.measure(.commit) {

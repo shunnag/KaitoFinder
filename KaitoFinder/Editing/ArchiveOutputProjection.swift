@@ -90,7 +90,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
         switch mode { case .inPlace: format = nil; case .rewrite(let output), .update(let output): format = output }
         let updates: Bool
         if case .update = mode { updates = true } else { updates = false }
-        let isTar = format.map { [.tar, .tarGzip, .tarBzip2, .tarXZ].contains($0) } ?? false
+        let isTar = format?.isTarFamily ?? false
         var dataTargets: [Int: Int] = [:]
         if format != nil {
             // 削除された参照先も含め、rewriter と同じ順で最終データ項目を解決する。

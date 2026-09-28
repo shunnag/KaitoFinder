@@ -102,7 +102,7 @@ nonisolated enum ArchiveCreationTransaction {
                                  archiveBytes: 0, options: plan.options)
                     try ArchiveStageDiagnostics.measure(.mutate) {
                         try existing.pending?.replay(on: rewriter, progress: progress,
-                            preservingOwnerIDs: plan.options.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(plan.format), ledger: ledger)
+                            preservingOwnerIDs: plan.options.preserveOwnerIDs && plan.format.isTarFamily, ledger: ledger)
                         try add(imported.items, progress: progress, ledger: ledger, additionBase: existing.pending?.additions.count ?? 0,
                                 batch: rewriter.add(_:events:))
                         try ArchiveImportPlan.checkCancellation(progress)
