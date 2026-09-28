@@ -29,6 +29,20 @@ nonisolated struct VolumeSetTarget: @unchecked Sendable {
     }
 }
 
+/// 分割セットを書き直して公開する。コメントの手順番号は次の意味で使う（gate は旧 gate を最初に退け、新 gate を最後に置く）。
+/// - S0: begin の読み取りだけの事前検査。権限・次巻名の占有・空き容量・fd の予算・FAT32 の 4 GiB 上限・同じ stem の未解決の公開。
+/// - S1: 回復索引への登録と、staging（`.KaitoFinder-vol-<UUID>`）・journal・work/new/old の作成。
+/// - W: staging/work/<stem> に作る単一の作業書庫。呼び出し側が S2 で作る。
+/// - S2: rewriter が URL から組み立て直した入力セットを、編集を再生する前に照合する（`verifyAssembledInput`）。
+/// - S3: W を末尾から new/ の巻へ切り出す（`VolumeSplitter`）。
+/// - S4: new/ の巻を全文 hash と KaitoKit の reader で検証し、新巻を journal に phase=prepared で記録する。
+/// - S5: 取り消せる最後の点。調整の中で旧巻を再証明し、臨界区間に入る。以後は取消しを観測しない。
+/// - S6・S7: 旧 gate、続いて残りの旧巻を old/ へ退避する。S8・S9: gate 以外の新巻、最後に新 gate を配置する。
+/// - S10: 配置した新セットを検証する。S11: durable な done を書き、旧巻と staging を片付ける。
+/// S5〜S11 の各点には `VolumePublishStep` の同名の hook がある。
+/// M2・M5・M6 は分割編集の実装段階の番号で、M2 がこの公開部品、M5 が保存時モードの分割保存（design.md「分割セットの保存（M5）」）、
+/// M6 が即時編集と別名保存の分割出力（design.md「即時編集と別名で保存の分割出力（M6）」）。
+///
 /// 同期 API。ArchiveSession actor から一度だけ publish する。drop は所有ロックだけを解放する。
 nonisolated final class VolumeSetPublication: Sendable {
     private struct State { var started = false; var finished = false; var cancelled = false }
@@ -198,7 +212,8 @@ nonisolated final class VolumeSetPublication: Sendable {
         }
     }
 
-    /// M2 proves the original bytes before the session adopts synthetic inodes changed by rollback.
+    /// rollback 後の入力セットの identity。rollback の rename は synthetic inode を変えうるので、session が新しい inode を
+    /// 採用する前に journal の旧巻記録で原本の byte を証明し、その前後の identity が同じことを確かめる。
     func restoredInputIdentity() throws -> ArchiveSetIdentity {
         guard let layout = target.layout else { throw VolumePublishError.invalidPlan }
         let identity = try ArchiveSetIdentity.capture(layout: layout)
@@ -215,7 +230,8 @@ nonisolated final class VolumeSetPublication: Sendable {
                                   usesHashes: initialRecord.hashesOldVolumes)
     }
 
-    /// Kept for M2 callers; the same input copier also serves a different-stem Save As.
+    /// 置き換える入力セットの全巻を W へ連結する。コピーは `ArchiveVolumeInput.copy(to:progress:)` で、別 stem の別名保存と同じ。
+    /// 新しいセット（入力なし）では invalidPlan。
     func copyInputToWork(progress: Progress) throws {
         guard let input else { throw VolumePublishError.invalidPlan }
         try input.copy(to: workURL, progress: progress)

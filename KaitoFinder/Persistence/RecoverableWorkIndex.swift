@@ -3,6 +3,8 @@ import Foundation
 import Synchronization
 
 /// 発見の手がかりだけを保存する。未マウント・ENOENT・st_dev の変化では項目を落とさない。
+/// 分割セットの公開の staging（`WorkAreaName.volume`）専用の台帳。取り込み・作成・即時編集の作業領域は
+/// `PendingWorkRegistry` が起動時に回収し、この台帳の項目には触れない。
 nonisolated final class RecoverableWorkIndex: Sendable {
     struct Entry: Codable, Sendable, Equatable {
         var stagingPath: String

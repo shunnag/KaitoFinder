@@ -3,7 +3,8 @@ import Darwin
 import Foundation
 import KaitoKit
 
-/// An input set, independent of the output name, schedule and publication target (also used by M6).
+/// 出力の名前・予定表・公開先に依存しない入力セット。置き換え（`ArchiveSession.savePendingSplit`）では
+/// `VolumeSetPublication.input` が journal の旧巻記録から作り、別名保存と新規作成では `ArchiveSplitWorkProducer.produce(existing:…)` が作る。
 nonisolated struct ArchiveVolumeInput: Sendable {
     let layout: ArchiveVolumeLayout
     let expected: ArchiveSetIdentity

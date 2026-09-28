@@ -3,6 +3,8 @@ import Foundation
 import Synchronization
 
 /// 作成前に記録し、defer が実行されなかった作業領域だけを次回起動時に回収する。
+/// 分割セットの公開の staging は別の台帳 `RecoverableWorkIndex` が扱う。こちらは同じ volume 上の Foundation のパスと
+/// device / inode で足りるが、あちらは未マウントの volume も volume UUID と相対パスで探し、fd/NOFOLLOW で回復する。
 nonisolated final class PendingWorkRegistry: Sendable {
     private static let current = Mutex<PendingWorkRegistry?>(nil)
     static var shared: PendingWorkRegistry {
