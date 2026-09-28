@@ -251,7 +251,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 // rewriter の open と同じく、原本が通常ファイル（symlink でない）であることを確かめてから
                 // 全 entry の表現可能性を検査する。ファイルもディレクトリも作らず、書庫も開き直さない。
                 var info = stat()
-                guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
+                guard lstat(url.path, &info) == 0, info.isRegularFile else {
                     throw RewriterError.invalidArchive("通常ファイルではありません")
                 }
                 let reader = try open()

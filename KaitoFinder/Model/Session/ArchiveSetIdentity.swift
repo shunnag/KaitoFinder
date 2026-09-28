@@ -24,7 +24,7 @@ nonisolated struct ArchiveFileIdentity: Sendable, Equatable, CustomStringConvert
     }
 
     private init(_ info: stat) throws {
-        guard info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0 else { throw ExtractionFailure.system(EINVAL) }
+        guard info.isRegularFile, info.st_size >= 0 else { throw ExtractionFailure.system(EINVAL) }
         device = UInt64(UInt32(bitPattern: info.st_dev)); inode = info.st_ino
         size = UInt64(info.st_size); mode = info.st_mode
         modificationSeconds = Int64(info.st_mtimespec.tv_sec)
@@ -129,7 +129,7 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
 
     private static func captureVolume(_ url: URL) throws -> Volume {
         var info = stat()
-        guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { throw refusal }
+        guard lstat(url.path, &info) == 0, info.isRegularFile else { throw refusal }
         // lastuseddate や Finder タグは内容を変えずに ctime を更新するので比較に含めない。
         return Volume(fileName: url.lastPathComponent,
                       volumeUUID: volumeUUID(for: url, device: UInt64(UInt32(bitPattern: info.st_dev))),

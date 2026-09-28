@@ -224,7 +224,7 @@ nonisolated final class ArchiveUndoStack: Sendable {
     private static func attributes(_ url: URL) throws -> stat {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
-        guard info.st_mode & S_IFMT == S_IFREG, info.st_size >= 0 else { throw Failure.sourceChanged }
+        guard info.isRegularFile, info.st_size >= 0 else { throw Failure.sourceChanged }
         return info
     }
 

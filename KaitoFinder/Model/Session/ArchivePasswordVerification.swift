@@ -16,6 +16,9 @@ nonisolated enum ArchivePasswordVerification {
     static let bytesReadForTesting = Mutex<UInt64>(0)
     #endif
 
+    /// 本文を読み捨てる検証用 buffer の byte 数。並列の worker ごとと直列の検証で 1 つずつ確保する。
+    private static let verificationBufferSize = 128 * 1024
+
     private struct State {
         let reader: ArchiveReader
         var outcomes: [Result<Int, any Error>] = []
@@ -88,7 +91,7 @@ nonisolated enum ArchivePasswordVerification {
                 defer { group.leave() }
                 worker.state.withLock { state in
                     assert(state.reader.password != nil)
-                    var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+                    var buffer = [UInt8](repeating: 0, count: Self.verificationBufferSize)
                     #if DEBUG
                     var bytes: UInt64 = 0
                     defer { Self.bytesReadForTesting.withLock { $0 += bytes } }
@@ -152,7 +155,7 @@ nonisolated enum ArchivePasswordVerification {
         #if DEBUG
         observer.get()?(.workers(1))
         #endif
-        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+        var buffer = [UInt8](repeating: 0, count: verificationBufferSize)
         var verified = Set<Int>(), wrongPassword = false
         for entry in entries {
             do {
