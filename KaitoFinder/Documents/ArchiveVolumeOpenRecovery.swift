@@ -22,7 +22,7 @@ nonisolated struct ArchiveVolumeOpenRecovery: Sendable {
                 underlying = error as NSError
                 reason = ""
             }
-            throw NSError(domain: "com.shunnag.KaitoFinder.split-discovery", code: underlying.code, userInfo: [
+            throw NSError(domain: KaitoFinderErrorDomain.splitDiscovery, code: underlying.code, userInfo: [
                 NSLocalizedDescriptionKey: String(localized: "分割アーカイブの状態を確認できませんでした"),
                 NSLocalizedFailureReasonErrorKey: reason,
                 NSUnderlyingErrorKey: underlying
@@ -65,7 +65,7 @@ nonisolated struct ArchiveVolumeOpenRecovery: Sendable {
 }
 
 nonisolated struct ArchiveVolumeOpenError: LocalizedError, RecoverableError, CustomNSError {
-    static let errorDomain = "com.shunnag.KaitoFinder.split-recovery"
+    static let errorDomain = KaitoFinderErrorDomain.splitRecovery
     var errorCode: Int { 1 }
     var errorUserInfo: [String: Any] {
         [NSLocalizedDescriptionKey: errorDescription ?? "",

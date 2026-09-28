@@ -159,7 +159,7 @@ import Synchronization
         hasUndoManager = true
         let manager = ArchiveUndoManager()
         manager.groupsByEvent = false
-        manager.levelsOfUndo = 10
+        manager.levelsOfUndo = ArchiveUndoStack.maximumSupportedCount
         undoManager = manager
     }
 
@@ -712,6 +712,9 @@ import Synchronization
         handedOff = await displayAfterMutation(loading: loading)
     }
 
+    /// 旧 session の後始末が、文書の close を見に行く間隔。
+    private static let closeMonitorInterval: Duration = .milliseconds(50)
+
     func switchBackingFile(to url: URL, password: String? = nil) async throws {
         guard !closed, let oldSession = session else { throw CancellationError() }
         guard mutationTask == nil, undoTask == nil, !switchingBackingFile else {
@@ -765,7 +768,7 @@ import Synchronization
             // 文書の close はこの cleanup を待つため、終了時には保持期間を待たずに解放する。
             let closeMonitor = Task { [weak self] in
                 while self?.closed == false {
-                    do { try await Task.sleep(for: .milliseconds(50)) }
+                    do { try await Task.sleep(for: Self.closeMonitorInterval) }
                     catch { return }
                 }
                 promiseWait.cancel()
@@ -1440,6 +1443,9 @@ extension ArchiveDocument {
         return try choice.schedule(for: layout)
     }
 
+    /// 非 APFS の ZIP 更新が必要とし得る空き容量の倍率: 連結した作業コピー 1 つと、再構築の複製 2 つ。
+    private static let zipRewriteSpaceFactor: UInt64 = 3
+
     private func prepareSplitSave(layout: ArchiveVolumeLayout, pending: ArchivePendingChanges,
                                   progress: Progress) async throws -> (VolumePlan.Schedule, UInt64, Bool) {
         let parent = try VolumePublishFS.canonicalParent(of: layout.gateURL)
@@ -1470,9 +1476,9 @@ extension ArchiveDocument {
             consent = try await consentToSplitHazard(location)
             guard consent else { throw CancellationError() }
         }
-        // Non-APFS ZIP updater rebuilds can need joined W plus two additional copies.
+        // 非 APFS では ZIP updater の再構築に、連結した作業コピーとさらに 2 つの複製が要り得る。
         if session?.format == .zip, info.fileSystem != "apfs" {
-            let needed = estimate.multipliedReportingOverflow(by: 3)
+            let needed = estimate.multipliedReportingOverflow(by: Self.zipRewriteSpaceFactor)
             let required = needed.partialValue.addingReportingOverflow(VolumePublishFS.margin)
             guard !needed.overflow, !required.overflow, info.available >= required.partialValue else {
                 throw VolumePublishError.insufficientSpace(required: needed.overflow || required.overflow ? .max : required.partialValue, available: info.available)
@@ -1599,13 +1605,13 @@ extension ArchiveDocument {
     private static func deferredSaveError(_ error: any Error) -> NSError {
         if error is CancellationError { return CocoaError(.userCancelled) as NSError }
         if let failure = error as? ArchiveSplitSaveFailure { return failure as NSError }
-        return NSError(domain: "com.shunnag.KaitoFinder.deferred", code: 2, userInfo: [
+        return NSError(domain: KaitoFinderErrorDomain.deferred, code: 2, userInfo: [
             NSLocalizedDescriptionKey: ArchiveErrorText.describe(error), NSUnderlyingErrorKey: error as NSError
         ])
     }
 
     private static var deferredExternalChangeError: NSError {
-        NSError(domain: "com.shunnag.KaitoFinder.deferred", code: 1, userInfo: [
+        NSError(domain: KaitoFinderErrorDomain.deferred, code: 1, userInfo: [
             NSLocalizedDescriptionKey: String(localized: "アーカイブが別のアプリで変更されました")
         ])
     }

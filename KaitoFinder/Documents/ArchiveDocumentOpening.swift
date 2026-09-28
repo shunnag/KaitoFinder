@@ -80,7 +80,7 @@ extension ArchiveDocument {
     }
 
     nonisolated static func openingError(_ error: any Error) -> NSError {
-        NSError(domain: "com.shunnag.KaitoFinder.document", code: 1, userInfo: [
+        NSError(domain: KaitoFinderErrorDomain.document, code: 1, userInfo: [
             NSLocalizedDescriptionKey: String(localized: "アーカイブを開けませんでした"),
             NSLocalizedFailureReasonErrorKey: ArchiveAlertText.informativeText(ArchiveErrorText.describe(error)),
             NSUnderlyingErrorKey: error as NSError

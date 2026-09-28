@@ -20,6 +20,8 @@ nonisolated final class ArchiveUndoStack: Sendable {
 
     typealias Clone = @Sendable (URL, URL) -> Int32
     typealias CloneSupportQuery = @Sendable (URL) -> Bool?
+    /// 保持する slot 数の上限。ArchiveDocument が NSUndoManager の levelsOfUndo にも同じ値を使い、履歴の深さを二箇所で食い違わせない。
+    static let maximumSupportedCount = 10
     let maximumCount: Int
     let maximumBytes: UInt64
     private let clone: Clone
@@ -33,10 +35,10 @@ nonisolated final class ArchiveUndoStack: Sendable {
     }
     private let storage = Mutex(State())
 
-    init(maximumCount: Int = 10, maximumBytes: UInt64 = 2 * 1024 * 1024 * 1024,
+    init(maximumCount: Int = ArchiveUndoStack.maximumSupportedCount, maximumBytes: UInt64 = 2 * 1024 * 1024 * 1024,
          clone: @escaping Clone = ArchiveUndoStack.cloneFile,
          cloneSupportQuery: @escaping CloneSupportQuery = ArchiveUndoStack.volumeSupportsCloning) {
-        self.maximumCount = min(10, max(0, maximumCount))
+        self.maximumCount = min(Self.maximumSupportedCount, max(0, maximumCount))
         self.maximumBytes = maximumBytes
         self.clone = clone
         self.cloneSupportQuery = cloneSupportQuery

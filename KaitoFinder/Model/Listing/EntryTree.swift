@@ -30,9 +30,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
     private(set) var isHidden = false
 
     nonisolated static func isHiddenName(_ name: String) -> Bool {
-        let leaf = ArchivePath.components(name).last ?? ""
-        // AppleDouble (._*) もドットで始まる名前として含める。
-        return leaf.utf8.first == 46 || leaf == "__MACOSX"
+        isHiddenComponent(ArchivePath.components(name).last ?? "")
     }
 
     private init(name: String, isDirectory: Bool, entry: ArchiveEntry? = nil) {
@@ -168,6 +166,7 @@ nonisolated final class EntryNode: NSObject, @unchecked Sendable {
         return node
     }
 
+    // AppleDouble (._*) もドットで始まる名前として含める。
     private static func isHiddenComponent(_ name: String) -> Bool { name.utf8.first == 46 || name == "__MACOSX" }
 
     private static func sum<Values: Sequence>(_ values: Values) -> UInt64? where Values.Element == UInt64? {

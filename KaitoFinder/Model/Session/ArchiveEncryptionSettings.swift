@@ -31,6 +31,8 @@ nonisolated struct ArchiveEncryptionSettings: Sendable, Equatable {
 nonisolated enum ArchivePasswordAction: CaseIterable, Sendable {
     case set, change, remove
 
+    /// Undo の操作名。生の日本語はカタログのキーで、ArchiveUndoManager.setActionName が
+    /// String(localized:) で解決するため、ここでは翻訳しない。
     var actionName: String {
         switch self {
         case .set: "パスワードの設定"
