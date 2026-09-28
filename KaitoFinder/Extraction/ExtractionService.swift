@@ -58,18 +58,6 @@ nonisolated struct ExtractionResult: Sendable {
     var cancelled = false
 }
 
-nonisolated enum ExtractionFailure: Error, CustomStringConvertible {
-    case refused(String)
-    case system(Int32)
-
-    var description: String {
-        switch self {
-        case .refused(let reason): reason
-        case .system(let code): String(localized: "POSIX \(code): \(String(cString: strerror(code)))")
-        }
-    }
-}
-
 nonisolated enum ExtractionService {
     /// 出力 root は既存の実ディレクトリ。選択の書庫内相対パスを維持する。
     /// 呼出側は完了まで root を排他的に所有する。既存の葉は上書きしない。
