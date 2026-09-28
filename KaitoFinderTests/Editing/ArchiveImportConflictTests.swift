@@ -253,6 +253,54 @@ nonisolated final class ArchiveImportConflictTests: XCTestCase {
         XCTAssertFalse(document.undoManager?.canUndo == true)
     }
 
+    @MainActor func testDeferredMoveRefusesOwnDirectoryAndSubtree() async throws {
+        let fixture = try ScenarioFixture(), entries = [archiveColumnEntry("dir/sub/child.txt", index: 0)]
+        let state = try await ArchiveReservationState.build(base: entries, generation: 0, changes: .init(),
+            validation: .init(base: entries, format: .tar), staging: nil)
+        let dirSelection = ArchiveEditSelection(try XCTUnwrap(state.tree.nodes(at: "dir").first))
+        var conflicts = 0
+        for folder in ["dir", "dir/sub"] {
+            do {
+                _ = try await ArchiveReservationComputation.move([dirSelection], folder: folder, state: state,
+                    changes: .init(), base: entries, archive: fixture.archive, generation: 0, progress: Progress(), resolver: { _ in
+                        conflicts += 1
+                        return .init(choice: .replace)
+                    })
+                XCTFail("自分自身や子孫への移動を受け入れました")
+            } catch { XCTAssertEqual(error as? ArchiveEditError, .destinationInsideSource("dir")) }
+        }
+        XCTAssertEqual(conflicts, 0)
+    }
+
+    @MainActor func testDeferredMoveSkipsSameLocationButRejectsStaleSelection() async throws {
+        let fixture = try ScenarioFixture(), entries = [archiveColumnEntry("dir/file.txt", index: 0)]
+        let state = try await ArchiveReservationState.build(base: entries, generation: 0, changes: .init(),
+            validation: .init(base: entries, format: .tar), staging: nil)
+        let selection = ArchiveEditSelection(try XCTUnwrap(state.tree.nodes(at: "dir/file.txt").first))
+        var conflicts = 0
+        let (changes, result) = try await ArchiveReservationComputation.move([selection], folder: "dir", state: state,
+            changes: .init(), base: entries, archive: fixture.archive, generation: 0, progress: Progress(), resolver: { _ in
+                conflicts += 1
+                return .init(choice: .replace)
+            })
+        XCTAssertEqual(changes, ArchivePendingChanges())
+        XCTAssertTrue(result.removedPaths.isEmpty)
+        XCTAssertTrue(result.renamedPaths.isEmpty)
+        XCTAssertFalse(result.published)
+        XCTAssertNil(result.reloadFailure)
+        let stale = ArchiveEditSelection(path: selection.path, isDirectory: selection.isDirectory,
+            entries: selection.entries.map { $0.pendingCopy(name: "dir/stale.txt") })
+        do {
+            _ = try await ArchiveReservationComputation.move([stale], folder: "dir", state: state,
+                changes: .init(), base: entries, archive: fixture.archive, generation: 0, progress: Progress(), resolver: { _ in
+                    conflicts += 1
+                    return .init(choice: .replace)
+                })
+            XCTFail("同じ場所への移動で古い選択を受け入れました")
+        } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
+        XCTAssertEqual(conflicts, 0)
+    }
+
     // 旧名: M6bReviewTests
     @MainActor func testDeferredDotPrefixConflictUsesNormalizedGroupForImportAndMove() async throws {
         let fixture = try ScenarioFixture(), date = Date(timeIntervalSince1970: 1_700_000_000)
