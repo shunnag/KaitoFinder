@@ -82,6 +82,23 @@ nonisolated final class ScenarioFixture {
 }
 
 extension XCTestCase {
+    /// teardown で `document` を閉じ、閉じる前に `controller` が持っていた操作とロック解除の Task、文書の undo・実体化・
+    /// session の後片付けの完了を待つ。`owner`（fixture や設定の suite）はそれまで保持する。
+    @MainActor func closeDocumentAfterTest(_ document: ArchiveDocument, controller: ArchiveWindowController?,
+                                           retaining owner: Any?) {
+        addTeardownBlock { @MainActor in
+            // close() は操作を取り消すだけなので、その時点の Task を先に取り出して終わりまで待つ。
+            let extraction = controller?.extractionTask, unlock = controller?.unlockTask
+            document.close()
+            await extraction?.value
+            await unlock?.value
+            await document.undoCleanup?.value
+            await document.materializationCleanup?.value
+            await document.sessionCleanup?.value
+            withExtendedLifetime(owner) {}
+        }
+    }
+
     @MainActor func scenarioDocument(_ fixture: ScenarioFixture, url: URL? = nil,
                                       preferencesStore: ArchivePreferencesStore = .shared) async throws
         -> (ArchiveDocument, ArchiveWindowController) {

@@ -45,13 +45,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
                 temporaryDirectory: ExtractionTemporaryDirectory(root: directory.url.appendingPathComponent("previews"))))
         controller.outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
         controller.window?.contentView?.layoutSubtreeIfNeeded()
-        addTeardownBlock { @MainActor in
-            document.close()
-            await document.materializationCleanup?.value
-            await document.sessionCleanup?.value
-            await document.undoCleanup?.value
-            withExtendedLifetime(directory) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: directory)
         return (document, controller, root)
     }
 

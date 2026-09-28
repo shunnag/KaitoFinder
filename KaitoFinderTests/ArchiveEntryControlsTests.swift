@@ -21,13 +21,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         controller.outlineView.expandItem(nil, expandChildren: true)
         controller.window?.contentView?.layoutSubtreeIfNeeded()
         controller.window?.makeFirstResponder(controller.outlineView)
-        addTeardownBlock { @MainActor in
-            document.close()
-            await controller.extractionTask?.value
-            await document.undoCleanup?.value
-            await document.materializationCleanup?.value
-            withExtendedLifetime(fixture) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: fixture)
         return (document, controller)
     }
 
@@ -188,14 +182,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
         window.contentView?.layoutSubtreeIfNeeded()
         XCTAssertTrue(window.makeFirstResponder(controller.outlineView))
-        addTeardownBlock { @MainActor in
-            document.close()
-            await controller.extractionTask?.value
-            await document.undoCleanup?.value
-            await document.materializationCleanup?.value
-            await document.sessionCleanup?.value
-            withExtendedLifetime(fixture) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: fixture)
         return (document, controller, window)
     }
 

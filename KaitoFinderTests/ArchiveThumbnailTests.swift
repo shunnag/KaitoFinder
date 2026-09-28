@@ -89,13 +89,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let materialization = try XCTUnwrap(document.materializationController(temporaryDirectory: fixture.temporary))
         controller.display(root, session: session, generation: snapshot.generation, materializationController: materialization)
         session.setPasswordPrompt(PasswordPrompts.refusing("サムネイルはパスワード入力を要求しない"))
-        addTeardownBlock { @MainActor in
-            document.close()
-            await document.materializationCleanup?.value
-            await document.sessionCleanup?.value
-            await document.undoCleanup?.value
-            withExtendedLifetime(fixture) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: fixture)
         return (document, controller, session, root, materialization)
     }
 

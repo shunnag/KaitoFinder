@@ -19,14 +19,11 @@ nonisolated final class ArchiveViewOptionsTests: XCTestCase {
             controller.outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
             controller.window?.layoutIfNeeded()
         }
+        closeDocumentAfterTest(fixture.document, controller: first, retaining: fixture)
+        // teardown は登録と逆の順に動くので、文書を閉じる前に名前の編集を終える。
         addTeardownBlock { @MainActor in
             first.outlineView.cancelRenaming()
             second.outlineView.cancelRenaming()
-            fixture.document.close()
-            await fixture.document.undoCleanup?.value
-            await fixture.document.materializationCleanup?.value
-            await fixture.document.sessionCleanup?.value
-            withExtendedLifetime(fixture) {}
         }
         return (fixture, first, second)
     }

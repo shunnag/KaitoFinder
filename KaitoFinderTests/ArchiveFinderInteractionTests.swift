@@ -39,14 +39,7 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
         window.makeFirstResponder(controller.outlineView)
         try await scenarioWait { window.isKeyWindow && NSApp.isActive }
         window.layoutIfNeeded()
-        addTeardownBlock { @MainActor in
-            document.close()
-            await controller.extractionTask?.value
-            await document.undoCleanup?.value
-            await document.materializationCleanup?.value
-            await document.sessionCleanup?.value
-            withExtendedLifetime((fixture, suite)) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: (fixture, suite))
         return (document, controller, store)
     }
 

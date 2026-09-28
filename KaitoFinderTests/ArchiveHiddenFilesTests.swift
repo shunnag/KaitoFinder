@@ -24,13 +24,7 @@ nonisolated final class ArchiveHiddenFilesTests: XCTestCase {
         let snapshot = await session.snapshot()
         let root = EntryNode.tree(from: snapshot.entries)
         controller.display(root, session: session, materializationController: document.materializationController())
-        addTeardownBlock { @MainActor in
-            document.close()
-            await document.sessionCleanup?.value
-            await document.materializationCleanup?.value
-            await document.undoCleanup?.value
-            withExtendedLifetime(directory) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: directory)
         return (directory, document, controller, root)
     }
 

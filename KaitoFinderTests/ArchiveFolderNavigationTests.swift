@@ -20,15 +20,9 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
         controller.outlineView.autosaveTableColumns = false
         controller.outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
         controller.window?.contentView?.layoutSubtreeIfNeeded()
-        addTeardownBlock { @MainActor in
-            controller.outlineView.cancelRenaming()
-            fixture.document.close()
-            await controller.extractionTask?.value
-            await fixture.document.undoCleanup?.value
-            await fixture.document.materializationCleanup?.value
-            await fixture.document.sessionCleanup?.value
-            withExtendedLifetime(fixture) {}
-        }
+        closeDocumentAfterTest(fixture.document, controller: controller, retaining: fixture)
+        // teardown は登録と逆の順に動くので、文書を閉じる前に名前の編集を終える。
+        addTeardownBlock { @MainActor in controller.outlineView.cancelRenaming() }
         return (fixture, controller)
     }
 

@@ -86,13 +86,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let snapshot = await session.snapshot()
         controller.display(EntryNode.tree(from: snapshot.entries), session: session,
                            materializationController: document.materializationController())
-        addTeardownBlock { @MainActor in
-            document.close()
-            await document.sessionCleanup?.value
-            await document.materializationCleanup?.value
-            await document.undoCleanup?.value
-            withExtendedLifetime((suite, directory)) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: (suite, directory))
         return (directory, document, controller, store)
     }
 

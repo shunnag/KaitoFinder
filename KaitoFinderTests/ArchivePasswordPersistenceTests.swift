@@ -41,16 +41,7 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
         document.makeWindowControllers()
         let controller = try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
         if !document.isPasswordLocked { try await waitUntil { controller.outlineView.numberOfRows > 0 } }
-        addTeardownBlock { @MainActor in
-            let extraction = controller.extractionTask, unlock = controller.unlockTask
-            document.close()
-            await extraction?.value
-            await unlock?.value
-            await document.sessionCleanup?.value
-            await document.materializationCleanup?.value
-            await document.undoCleanup?.value
-            withExtendedLifetime(fixture) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: fixture)
         return (document, controller)
     }
 
