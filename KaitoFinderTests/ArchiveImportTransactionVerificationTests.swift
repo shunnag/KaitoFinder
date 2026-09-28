@@ -292,10 +292,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
 
     func testSharedProjectionUsesNFCMultisetsKindsSizesAndOnlyOmitsDirectoryRoot() throws {
         func entry(_ name: String, kind: EntryKind = .file, size: UInt64 = 1) -> ArchiveEntry {
-            ArchiveEntry(index: 0, rawName: .init(bytes: Array(name.utf8)), name: name,
-                pathComponents: ArchivePath.components(name), kind: kind, uncompressedSize: size, compressedSize: nil,
-                modificationDate: nil, posixPermissions: nil, isEncrypted: false, solidGroup: -1, crc32: nil,
-                methodDescription: "", formatSpecific: [:])
+            archiveColumnEntry(name, kind: kind, size: size, compressed: nil, method: "", pathComponents: ArchivePath.components(name))
         }
         let a = entry("./cafe\u{301}"), b = entry("b", kind: .symlink), sidecar = entry("__MACOSX/._b", size: 80)
         let projection = ArchiveOutputProjection(projected: [entry("./", kind: .directory, size: 0), a, b, sidecar], mode: .rewrite(.zip))

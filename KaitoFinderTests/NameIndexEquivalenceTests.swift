@@ -7,10 +7,8 @@ import XCTest
 
 nonisolated final class NameIndexEquivalenceTests: XCTestCase {
     private func entry(_ index: Int, _ name: String, kind: EntryKind = .file) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: .init(bytes: Array(name.utf8)), name: name,
-            pathComponents: ArchivePath.components(name), kind: kind, uncompressedSize: kind == .directory ? 0 : 1,
-            compressedSize: nil, modificationDate: nil, posixPermissions: nil, isEncrypted: false,
-            solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:])
+        archiveColumnEntry(name, index: index, kind: kind, size: kind == .directory ? 0 : 1, compressed: nil, method: "stored",
+                           pathComponents: ArchivePath.components(name))
     }
 
     private func reference(_ entry: ArchiveEntry, generation: UInt64) -> ArchivePendingChanges.BaseReference {

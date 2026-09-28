@@ -181,10 +181,8 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
 
     private func entry(_ path: String, kind: EntryKind = .file, size: UInt64? = 1,
                        encrypted: Bool = false, incomplete: Bool = false, solidGroup: Int = -1) -> ArchiveEntry {
-        ArchiveEntry(index: 0, rawName: RawName(bytes: Array(path.utf8)), name: path,
-            pathComponents: path.split(separator: "/").map(String.init), kind: kind, uncompressedSize: size,
-            compressedSize: 1, modificationDate: nil, posixPermissions: nil, isEncrypted: encrypted,
-            solidGroup: solidGroup, crc32: nil, methodDescription: "stored", formatSpecific: [:], isIncomplete: incomplete)
+        archiveColumnEntry(path, kind: kind, size: size, compressed: 1, solidGroup: solidGroup, encrypted: encrypted,
+                           method: "stored", incomplete: incomplete)
     }
 
     @MainActor func testSolidMemberNeverStartsThumbnailProduction() async throws {

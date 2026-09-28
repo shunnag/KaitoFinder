@@ -7,10 +7,8 @@ import XCTest
 
 nonisolated final class DeferredSaveModelTests: XCTestCase {
     private func entry(_ index: Int, _ name: String, directory: Bool = false) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: .init(bytes: Array(name.utf8)), name: name,
-            pathComponents: ArchivePath.components(name), kind: directory ? .directory : .file,
-            uncompressedSize: 1, compressedSize: nil, modificationDate: nil, posixPermissions: nil,
-            isEncrypted: false, solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:])
+        archiveColumnEntry(name, index: index, kind: directory ? .directory : .file, size: 1, compressed: nil,
+                           method: "stored", pathComponents: ArchivePath.components(name))
     }
 
     func testProjectionAndSaveRefuseOldGenerationRatherThanRetargetIndex() throws {

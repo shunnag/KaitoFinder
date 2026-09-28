@@ -283,9 +283,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
     }
 
     private func entry(encrypted: Bool) -> ArchiveEntry {
-        ArchiveEntry(index: 0, rawName: RawName(bytes: Array("file.txt".utf8)), name: "file.txt", pathComponents: ["file.txt"],
-                     kind: .file, uncompressedSize: 1, compressedSize: 1, modificationDate: nil, posixPermissions: nil,
-                     isEncrypted: encrypted, solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:])
+        archiveColumnEntry("file.txt", size: 1, compressed: 1, encrypted: encrypted, method: "stored")
     }
 
     @MainActor func testConversionNoticeIncludesFormatAndEncryptionParagraphOnlyWhenNeeded() throws {

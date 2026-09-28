@@ -8,10 +8,8 @@ import XCTest
 nonisolated final class DeferredReservationTests: XCTestCase {
     private func entry(_ index: Int, _ path: String, kind: EntryKind = .file,
                        metadata: [String: String] = [:]) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: .init(bytes: Array(path.utf8)), name: path,
-            pathComponents: ArchivePath.components(path), kind: kind, uncompressedSize: 1, compressedSize: nil,
-            modificationDate: Date(timeIntervalSince1970: 1_700_000_000), posixPermissions: nil,
-            isEncrypted: false, solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: metadata)
+        archiveColumnEntry(path, index: index, kind: kind, size: 1, compressed: nil, date: Date(timeIntervalSince1970: 1_700_000_000),
+                           method: "stored", pathComponents: ArchivePath.components(path), formatSpecific: metadata)
     }
 
     @MainActor func testRandomizedEditsMatchFullValidationAndUndo() throws {

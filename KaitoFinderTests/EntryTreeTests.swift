@@ -53,11 +53,7 @@ nonisolated final class EntryTreeTests: XCTestCase {
     @MainActor
     private func entry(_ path: String, index: Int = 0, kind: EntryKind = .file,
                        size: UInt64? = 2, compressed: UInt64? = 1) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: RawName(bytes: Array(path.utf8)), name: path,
-                     pathComponents: path.split(separator: "/").map(String.init), kind: kind,
-                     uncompressedSize: size, compressedSize: compressed, modificationDate: nil,
-                     posixPermissions: nil, isEncrypted: false, solidGroup: -1, crc32: nil,
-                     methodDescription: "stored", formatSpecific: [:])
+        archiveColumnEntry(path, index: index, kind: kind, size: size, compressed: compressed, method: "stored")
     }
 
     @MainActor

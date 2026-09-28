@@ -426,10 +426,7 @@ nonisolated final class ExtractionTests: XCTestCase {
 
     func testUnknownOrOverflowingSizesKeepItemProgress() {
         func entry(_ index: Int, _ size: UInt64?) -> ArchiveEntry {
-            ArchiveEntry(index: index, rawName: .init(bytes: [97]), name: "a", pathComponents: ["a"],
-                kind: .file, uncompressedSize: size, compressedSize: nil, modificationDate: nil,
-                posixPermissions: nil, isEncrypted: false, solidGroup: -1, crc32: nil,
-                methodDescription: "stored", formatSpecific: [:])
+            archiveColumnEntry("a", index: index, size: size, compressed: nil, method: "stored")
         }
         for entries in [[entry(0, nil)], [entry(0, UInt64.max)], [entry(0, UInt64(Int64.max)), entry(1, 1)]] {
             let progress = Progress()
