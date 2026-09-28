@@ -4,6 +4,9 @@ import KaitoKit
 import XCTest
 @testable import KaitoFinder
 
+/// フォルダを開くと中へ移動する表示（ArchiveWindowController の戻る・進む・内包フォルダ・パスバー・ツールバー）が、
+/// 検索・名前の変更・移動・削除・再読み込みのあとも位置と履歴を保つことを確かめる。窓は folderNavigationInterface
+/// （Support/DeferredSaveFixture.swift）で開く。観測点は EntryTreeFilter.computeWillStartForTesting・addFilesPanelForTesting ほか。
 nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
     @MainActor private func interface(behavior: ArchivePreferences.SaveBehavior = .immediate,
                                       opening: ArchivePreferences.FolderOpening = .enter) async throws

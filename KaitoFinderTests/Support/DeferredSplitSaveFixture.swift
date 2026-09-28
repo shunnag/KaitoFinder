@@ -49,7 +49,7 @@ nonisolated final class DeferredSplitWorkCapture: Sendable {
         try external(whole, local)
         var bytes = try Data(contentsOf: whole)
         if fullLastZIP {
-            // A legitimate EOCD comment makes totalLength exactly divisible by the chosen count.
+            // 正当な EOCD の comment を足し、totalLength を選んだ巻数でちょうど割り切れる長さにする。
             let extra = (count - bytes.count % count) % count
             bytes[bytes.count - 2] = UInt8(extra); bytes[bytes.count - 1] = 0
             bytes.append(Data(repeating: 0x61, count: extra))

@@ -94,7 +94,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
             XCTAssertEqual((entry["inode"] as? NSNumber)?.uint64Value, info.st_ino)
             work.append(directory)
         }
-        // A fresh instance sees the on-disk ledger left by a process that never ran defer.
+        // defer を実行せずに終わったプロセスがディスクに残した台帳を、新しいインスタンスが読む。
         try Self.simulateLegacyProcessExit(in: file)
         let removed = try PendingWorkRegistry(fileURL: file).sweep()
         XCTAssertEqual(Set(removed.map(\.path)), Set(work.map(\.path)))
@@ -143,7 +143,7 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         for directory in [ordinary, link, regular, replaced, wrongDevice, missing] { try registry.register(directory) }
         try registry.recordIdentity(replaced)
         try registry.recordIdentity(wrongDevice)
-        // Keep the original inode allocated, so the replacement cannot reuse it.
+        // 元の inode を割り当てたままにし、置き換えた directory がそれを再利用できないようにする。
         try FileManager.default.moveItem(at: replaced, to: moved)
         try FileManager.default.createDirectory(at: replaced, withIntermediateDirectories: false)
         try bytes.write(to: replaced.appendingPathComponent("keep.txt"))

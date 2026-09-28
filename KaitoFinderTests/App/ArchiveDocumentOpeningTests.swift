@@ -221,8 +221,8 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     }
 
     @MainActor func testDocumentCreationDisablesConcurrentReading() {
-        // Concurrent reading makes AppKit invoke the @MainActor initializer on its
-        // "NSDocumentController Opening" queue, causing the measured EXC_BREAKPOINT/SIGTRAP.
+        // 並行読み込みでは AppKit が @MainActor の initializer を "NSDocumentController Opening" queue で呼び、
+        // 計測した EXC_BREAKPOINT/SIGTRAP になる。
         XCTAssertFalse(ArchiveDocument.canConcurrentlyReadDocuments(ofType: "public.zip-archive"))
     }
 

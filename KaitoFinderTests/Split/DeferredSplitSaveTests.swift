@@ -169,7 +169,7 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
             let after = await document.session!.sourceIdentity
             XCTAssertEqual(after, identity)
             XCTAssertEqual(count.withLock { $0 }, 1)
-            // Fetch a node from the new generation before making another reservation.
+            // 次の予約をする前に、新しい generation の node を取り直す。
             _ = try await document.rename(fixture.node("renamed.txt"), to: "again.txt", progress: Progress())
             try await fixture.save()
             expected["again.txt"] = expected.removeValue(forKey: "renamed.txt")
@@ -279,7 +279,7 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
         let fixture = try DeferredSplitSaveFixture(), document = fixture.document
         defer { document.close() }
         document.splitSaveHooks.coordinationTimeout = 0.02
-        document.splitSaveHooks.operations.coordinate = { _, _, _, _ in } // deliberately never completes
+        document.splitSaveHooks.operations.coordinate = { _, _, _, _ in } // わざと完了させない
         let presenterID = ObjectIdentifier(document)
         document.splitSaveHooks.willBegin = { target in XCTAssertEqual(target.filePresenter.map(ObjectIdentifier.init), presenterID) }
         document.splitSaveHooks.fault = { step in if step == .s5 { XCTFail("Must fail closed before S5") } }

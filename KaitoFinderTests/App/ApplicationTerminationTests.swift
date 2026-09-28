@@ -5,6 +5,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 終了の要求（AppDelegate.applicationShouldTerminate）が、進行中の保存・展開・file promise・分割セットの公開
+/// （VolumePublishCriticalSection）を取り消すか待つかし、期限までに一度だけ応答することを確かめる。
+/// 文書は ScenarioFixture と scenarioDocument で開き、処理は ScenarioGate で止める。
 nonisolated final class ApplicationTerminationTests: XCTestCase {
     @MainActor func testQuitCancelsEveryDocumentBeforeWaitingForPublishedSave() async throws {
         let first = try DeferredSaveFixture(), gate = ScenarioGate(), cancelled = Mutex(false)

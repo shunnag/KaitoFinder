@@ -7,6 +7,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 形式ごとの編集の経路（ArchiveCapabilities の update・in-place・rewrite と拒否）、tar 系・7z・LHA の再圧縮による編集と
+/// 取り消しで SHA-256 が元に戻ること、書き込みの設定（圧縮レベル・owner ID）と取り消し時の後始末を確かめる。書庫は private な
+/// Fixture（ArchiveTestDirectory・ExternalTool）で作る。観測点は ArchiveVerificationFailure.observer と didCreditForTesting。
 nonisolated final class ArchiveRewriteTests: XCTestCase {
     private enum Format: CaseIterable {
         case tar, tgz, tbz2, txz, sevenZip, lha
@@ -647,7 +650,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             let before = try Data(contentsOf: fixture.archive), progress = Progress()
             let carried = Mutex(false), published = Mutex(false)
             let commitStart = Mutex<Int64?>(nil)
-            // The first commit notification marks the carry slot before any of its bytes advance.
+            // 最初の commit の通知が、carry の slot の bytes が進む前の位置を示す。
             do {
                 try await ArchiveWriteProgress.didCreditForTesting.withValue({ slot, completed, _ in
                     if slot == .commit, commitStart.withLock({ value in

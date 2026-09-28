@@ -5,6 +5,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 暗号化された書庫を開く・展開する・コピーする・クイックルック・file promise でパスワードを求める流れ（誤り・取り消し・再試行・
+/// close の後始末）を ArchiveSession・ArchiveWindowController・ExtractionService・ArchivePasswordPrompt で確かめる。
+/// 書庫は ExternalTool（zip・7zz）で ArchiveTestDirectory に作り、応答は PasswordPrompts で与える。観測点は didPublishForTesting。
 nonisolated final class ArchivePasswordTests: XCTestCase {
     private enum Format { case pkware, aes, sevenZip, encryptedHeaders }
 

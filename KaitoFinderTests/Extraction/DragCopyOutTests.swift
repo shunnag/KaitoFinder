@@ -6,6 +6,9 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import KaitoFinder
 
+/// ドラッグの file promise（ArchiveFilePromise・FilePromiseRegistry・ArchivePromiseExtractionQueue）とコピー（ArchiveCopyOut）が
+/// ちょうど一度だけ完了し、solid 書庫の reader を共有し、登録を掃除することを確かめる。書庫は ScenarioFixture で作り、
+/// 書き込みは ScenarioGate で止める。観測点は setPromiseSourceForTesting。
 nonisolated final class DragCopyOutTests: XCTestCase {
     @MainActor func testFolderProviderUsesFolderUTI() throws {
         guard UTType.folder.conforms(to: .directory) else {

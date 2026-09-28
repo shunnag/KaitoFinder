@@ -5,6 +5,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// KAITOFINDER_PERFORMANCE_PROBES=1 のときだけ動く性能計測。検索・フォルダの移動・書庫を開く・編集・多数の file の追加・分割保存・
+/// パスワード編集の時間を ArchiveStageDiagnostics.observer で段階ごとに測り、`PROBE-*` の行として出す。書庫は ArchiveProbeFixture、
+/// 設定は ArchiveProbeConfiguration（Probes/ArchivePerformanceProbe.swift）。観測点は willAdoptReaderForTesting・didCreditForTesting ほか。
 nonisolated final class PerformanceProbeTests: XCTestCase {
     override class func tearDown() {
         #if DEBUG
@@ -189,7 +192,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let directory = try ArchiveTestDirectory()
         let source = try await Self.makeManyFiles(in: directory.url, count: configuration.addFiles)
         for format in configuration.formats {
-            // A single existing member is independent of the normal entries/payload probe sizes.
+            // 既存の項目が 1 つだけの書庫を使い、通常の entries・payload の probe の大きさとは切り離す。
             let url = directory.url.appendingPathComponent("one." + format.rawValue)
             let writer = try ArchiveWriter.create(url: url, format: format.writerFormat)
             try writer.add(data: Data([42]), as: "seed.txt"); try writer.finish()
@@ -247,7 +250,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let directories = try FileManager.default.subpathsOfDirectory(atPath: root.path).map { root.appendingPathComponent($0) }
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         paths += directories + [root]
-        // Set both timestamps together: GK's source identity guard requires atime >= mtime.
+        // GyoshukuKit の入力の同一性の検査は atime >= mtime を求めるので、2 つの時刻を一緒に設定する。
         for offset in stride(from: 0, to: paths.count, by: 500) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: ExternalTool.touch)
@@ -289,7 +292,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                         try await Self.traced(trace, output: archive) {
                             try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
                                 if let snapshot = output.reader?.tarEditingSnapshot() {
-                                    // K5 exposes the resulting ByteSource, including materialized images after its leaf/fragment limit.
+                                    // tar 編集の snapshot は結果の ByteSource を公開する。leaf・fragment の上限を超えて実体化した image もここに現れる。
                                     let storage = String(reflecting: type(of: snapshot.image))
                                     ArchiveProbeTrace.line("PROBE-SPLICE-IMAGE\t\(format.rawValue)\t\(kind.rawValue)\t\(index)\t\(storage)\t\(snapshot.image.length)")
                                 }
@@ -782,7 +785,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
                 var preferences = ArchivePreferences()
                 preferences.additionPosition = try ArchiveProbeConfiguration().additionPosition
                 let options = preferences.writerOptions(for: fixture.format.writerFormat)
-                // Session opening is measured separately. Keep the independent reader out of a nested measurement closure.
+                // session を開く時間は別に測る。独立した reader は、入れ子になった計測の closure の外で開く。
                 let compressedReader = try [.tarGzip, .tarBzip2, .tarXZ].contains(fixture.format) && preferences.additionPosition == .end
                     ? ArchiveReader.open(url: input, options: .kaitoFinder()) : nil
                 let total = ArchiveStageDiagnostics.begin(.total)

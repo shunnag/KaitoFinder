@@ -7,6 +7,9 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import KaitoFinder
 
+/// 一覧の項目の操作（削除・名前の変更・新規フォルダ・ドラッグでの移動・メニューとツールバーの検証・進行中の入力の抑止・取り消し）を
+/// ArchiveWindowController・ArchiveDocument・ArchiveUndoStack を通して確かめる。書庫は ScenarioFixture と scenarioDocument で開き、
+/// 進行中の操作は ScenarioGate で止め、書庫の内容は ArchiveOracle で比べる。
 nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor private func interface(_ fixture: ScenarioFixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
         -> (ArchiveDocument, ArchiveWindowController) {

@@ -6,6 +6,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 書庫のパスワードの設定・変更・解除（ZIP・7z・7z の header 保護）と、既知のパスワードでの追加・変換を ArchiveSession・
+/// ArchivePasswordVerification・ArchiveImportTransaction で確かめる（取り消し・やり直しを含む）。書庫は ExternalTool と
+/// ArchiveReencryptionTestSupport で作る。観測点は bytesReadForTesting・willCommitUpdaterForTesting ほか。
 nonisolated final class ArchivePasswordEditingTests: XCTestCase {
     private let entryName = "distinctive-password-entry-4591.txt"
     private let payload = Data("Contents carried through every password rewrite.".utf8)

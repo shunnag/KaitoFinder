@@ -5,6 +5,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 複数の書庫の一括展開（ArchiveBatchExtractor・ArchiveBatchPlan）の展開先フォルダの規則、パスワードの問い合わせと記憶、
+/// 失敗の切り離し、展開後のゴミ箱と Finder での表示、取り消しを確かめる。書庫は ExternalTool と SplitArchiveFixture で
+/// ArchiveTestDirectory に作り、進行中の処理は ScenarioGate で止める。
 nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
     private final class Fixture {
         let directory: ArchiveTestDirectory

@@ -3,6 +3,9 @@ import GyoshukuKit
 import XCTest
 @testable import KaitoFinder
 
+/// パスワード欄を持つ保存パネル（ArchiveSavePanel・ArchiveSavePanelController）と、設定・変更・解除のシート
+/// （ArchivePasswordEditor）の検証・表示・大きさの変化の animation を確かめる。表示の崩れは UISnapshot で検査し、
+/// 実際のパネルの記録は KAITOFINDER_SAVE_PANEL_CAPTURE_DIRECTORY があるときだけ行う。
 nonisolated final class ArchivePasswordUITests: XCTestCase {
     @MainActor func testSavePanelDelegateValidatesEmptyMismatchAndMatchingPasswords() throws {
         let suite = try ArchivePreferencesTestDefaults()

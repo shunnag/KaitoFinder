@@ -4,6 +4,9 @@ import KaitoKit
 import XCTest
 @testable import KaitoFinder
 
+/// KaitoKit が読める圧縮方式と形式（Zstandard・XZ・PPMd の ZIP、LZ4、DMG・UDF・WIM・CHM・ARJ・MacBinary など）の項目を
+/// プレビューして開けること、読めない項目は理由つきで断ることを EntryReadCapability・ArchiveCapabilities・EntryMaterializer で
+/// 確かめる。書庫は KaitoKit の Fixtures（TestPaths.kaitoKitFixtures）と、ArchiveTestDirectory・ScenarioFixture で作る。
 nonisolated final class CompressionCapabilityTests: XCTestCase {
     private var fixtures: URL {
         TestPaths.kaitoKitFixtures
@@ -273,7 +276,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("archive.tar.zst")
         let encoded = try Data(contentsOf: fixtures.appendingPathComponent("zstd/bundle.tar.zst.b64"))
-        // RFC 8878: empty skippable frame followed by the ordinary frame.
+        // RFC 8878: 空の skippable frame のあとに通常の frame が続く。
         let bytes = Data([0x50, 0x2a, 0x4d, 0x18, 0, 0, 0, 0])
             + (try XCTUnwrap(Data(base64Encoded: encoded, options: .ignoreUnknownCharacters)))
         try bytes.write(to: archive)

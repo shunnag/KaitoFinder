@@ -7,6 +7,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 即時保存の取り消し（ArchiveUndoStack）の slot が書庫の bytes・mode・quarantine を戻し、件数と容量の上限、clone の可否、
+/// 失敗や取り消しのときに登録しないこと、close での後始末を ArchiveDocument を通して確かめる。書庫は private な Fixture
+/// （ArchiveTestDirectory 上の ArchiveWriter）で作り、SHA-256 は ArchiveOracle で比べる。
 nonisolated final class ArchiveUndoStackTests: XCTestCase {
     private final class Fixture {
         let directory: ArchiveTestDirectory

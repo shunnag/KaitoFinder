@@ -5,7 +5,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
-/// 入力は標準 Python の ZIP/tar writer で毎回生成し、既存書庫を流用しない。
+/// 展開（ExtractionService・ExtractionPath・ExtractionTemporaryDirectory・ExtractionQuarantine）の安全性と進捗を確かめる。
+/// 親の外への書き込みの拒否、symlink・hardlink、重複した名前、quarantine と権限、取り消し、失敗の報告の上限を見る。
+/// 入力は標準 Python の ZIP/tar writer で毎回生成し（ScenarioFixture・ArchiveTestDirectory）、既存書庫を流用しない。
 nonisolated final class ExtractionTests: XCTestCase {
     /// `ScenarioFixture` の書庫と、その隣の展開先 `out/`。
     private final class Fixture {

@@ -7,6 +7,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 削除・名前の変更・新規フォルダ・移動を ArchiveSession と ArchiveDocument（ArchiveEditPlan・ArchiveEditTransaction）で行い、
+/// 公開した書庫のレコード・SHA-256 と ArchiveUndoStack の取り消し・やり直し、updater を開く前の拒否を確かめる。
+/// 書庫は private な Fixture（ArchiveTestDirectory 上で python3 が作る ZIP・tar）で作り、内容は ArchiveOracle で比べる。
 nonisolated final class ArchiveEditTests: XCTestCase {
     private final class Fixture {
         let directory: ArchiveTestDirectory

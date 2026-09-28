@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 import XCTest
 @testable import KaitoFinder
 
+/// 新規作成と変換の保存パネル（ArchiveSavePanelController・ArchiveSavePanel）の形式・圧縮レベル・拡張子、Finder のサービスからの
+/// 圧縮、変換の通知、独立した進捗パネルを確かめる。設定は ArchivePreferencesTestDefaults に分ける。Presented… のテストは
+/// KAITOFINDER_NATIVE_SAVE_REQUEST があるときだけ実際のパネルを操作する。観測点は presentationHandlerForTesting ほか。
 nonisolated final class ArchiveCreationUITests: XCTestCase {
     @MainActor func testCompressionLevelMappingRoundTripsEveryChoice() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
@@ -424,8 +427,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let directory = try ArchiveTestDirectory()
-        // A source archive compressed as a file retains its complete name;
-        // converting an opened archive replaces only its archive extension.
+        // file として圧縮した書庫は名前をそのまま残し、開いている書庫を変換するときは書庫の拡張子だけを置き換える。
         for (initial, conversion) in ArchivePreferences.formats.flatMap({ [($0, true), ($0, false)] }) {
             let originalName = initial == .tarXZ ? "review.TXZ" : initial == .tarBzip2 ? "review.TBZ"
                 : "review." + ArchiveCreationPlan.filenameExtension(for: initial)
@@ -514,8 +516,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             throw XCTSkip("Run Tools/verify_ui_integration.py for native Save confirmation")
         }
         let request = URL(fileURLWithPath: path), completed = request.deletingPathExtension().appendingPathExtension("done")
-        // Check the actual visible name and the confirmed URL, including the
-        // native overwrite confirmation, after replacing the complete suffix.
+        // 拡張子全体を置き換えたあとに実際に見える名前と確定した URL を、ネイティブの上書き確認も含めて確かめる。
         for initial in ArchivePreferences.formats {
             for target in ArchivePreferences.formats where target != initial {
                 let outputExtension = ArchiveCreationPlan.filenameExtension(for: target)
@@ -619,8 +620,8 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             else { defaults.removeObject(forKey: expandedKey) }
             defaults.synchronize()
         }
-        // Standalone and sheet cancellation after a round trip; task cancellation
-        // and closing the parent while the old panel is ending for reconfiguration.
+        // 一往復したあとの単独パネルとシートの取り消し、および再構成のために古いパネルを閉じている間の
+        // Task の取り消しと親の close。
         for ending in 0..<6 {
             defaults.set(ending == 2 || ending == 3, forKey: expandedKey)
             defaults.synchronize()
@@ -667,8 +668,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
                 XCTAssertEqual(save.panel.tagNames, ["Archive verification"])
                 XCTAssertEqual(save.panel.isExpanded, expanded)
                 XCTAssertEqual(save.panel.frame.width, initialFrame.width, accuracy: 1)
-                // AppKit can raise the browser's minimum height when reopening.
-                // Preserve the requested size while respecting that native limit.
+                // 開き直すと AppKit がブラウザの最小の高さを上げることがある。その下限を守りつつ、求めた大きさを保つ。
                 XCTAssertEqual(save.panel.frame.height, max(initialFrame.height, save.panel.minSize.height), accuracy: 1)
                 XCTAssertTrue(UISnapshot.overflowViolations(in: try XCTUnwrap(save.panel.accessoryView)).isEmpty)
                 XCTAssertEqual(save.panel.frame.minX, initialFrame.minX, accuracy: 1)
@@ -716,7 +716,7 @@ extension ArchiveCreationUITests {
             save.presentationHandlerForTesting = { completed in presentations += 1; ended = completed }
             save.begin { responses.append($0) }
             save.stageFilenameChangeForTesting()
-            ended?(.cancel) // The real completion schedules the main-queue re-presentation.
+            ended?(.cancel) // 実際の完了処理は main queue での再表示を予約する。
             XCTAssertTrue(save.isReconfiguring)
             controller.cancelExtraction()
             XCTAssertFalse(save.isReconfiguring, "cancelExtraction must finish a pending filename change synchronously")

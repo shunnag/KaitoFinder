@@ -191,8 +191,8 @@ nonisolated final class DragInTests: XCTestCase {
         let trace = AdditionProgressTrace()
         do {
             _ = try await ArchiveWriteProgress.didCreditForTesting.withValue(trace.record) {
-                // Batch lookahead can read b before didProcess(0). willStart precedes its
-                // first lstat/open, so this still tests failure after exactly one accepted item.
+                // バッチの先読みは didProcess(0) より前に b を読むことがある。willStart は b の最初の lstat・open より前に
+                // 呼ばれるので、受け付けた項目がちょうど 1 つのあとの失敗をこれでも検査できる。
                 try await ArchiveImportTransaction.willAddFileForTesting.withValue({ url in
                     if url == second {
                         do { try FileManager.default.removeItem(at: second) }

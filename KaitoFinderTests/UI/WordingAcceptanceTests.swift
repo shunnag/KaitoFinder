@@ -3,6 +3,9 @@ import XCTest
 import CryptoKit
 @testable import KaitoFinder
 
+/// Localizable.xcstrings の 26 言語の訳がそろい、書式指定子・引用符・句読点・用語が言語ごとの規則に従うことと、
+/// 組み立てた NSAlert の句読点、ビルドしたアプリの .lproj を確かめる。catalog と言語ごとの bundle は LocalizationAcceptance
+/// （Support/）から読む。AppDelegate が組み立てる実際のメニューは MenuWordingTests が見る。
 nonisolated final class WordingAcceptanceTests: XCTestCase {
     func testSevenZipSolidNoticeHasAllTwentySixTranslations() throws {
         let key = "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します"

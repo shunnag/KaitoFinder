@@ -2,6 +2,9 @@ import AppKit
 import XCTest
 @testable import KaitoFinder
 
+/// 一覧の表示（ArchiveWindowController・EntryNode・EntryTreeFilter）の選択と展開の保持、ツールバー、パスバー、
+/// 状態バー（ArchiveStatusBarText）、コンテキストメニュー、最小の窓の大きさでの見え方を確かめる。
+/// 書庫は ScenarioFixture と scenarioDocument で開き、描画は UISnapshot で検査する。
 nonisolated final class ArchiveDisplayTests: XCTestCase {
     @MainActor private final class CollapseObserver: NSObject {
         let controller: ArchiveWindowController

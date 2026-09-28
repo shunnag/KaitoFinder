@@ -7,6 +7,9 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// 新規作成と変換（ArchiveCreationTransaction・ArchiveCreationPlan）が全形式で往復し、圧縮の設定・既定の名前・quarantine の
+/// 伝播・パスワードを扱い、取り消しや失敗のときに既存の file を置き換えないことを確かめる。入力は private な Fixture
+/// （ArchiveTestDirectory）で作り、出力は ArchiveOracle と ExternalTool（bsdtar・7zz など）で読み直す。
 nonisolated final class ArchiveCreationTests: XCTestCase {
     @MainActor func testPendingRegistryTracksCreationUntilSuccessOrFailure() async throws {
         enum Failure: Error { case injected }
