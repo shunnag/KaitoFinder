@@ -1,6 +1,8 @@
 import AppKit
 
 final class ArchiveNavigationToolbarItemGroup: NSToolbarItemGroup {
+    static let goBackIdentifier = NSToolbarItem.Identifier("goBack")
+    static let goForwardIdentifier = NSToolbarItem.Identifier("goForward")
     private let segments: NSSegmentedControl
     private var lastSelectedIndex = -1
 
@@ -12,13 +14,13 @@ final class ArchiveNavigationToolbarItemGroup: NSToolbarItemGroup {
         segments = NSSegmentedControl(images: images, trackingMode: .momentary, target: controller,
                                       action: #selector(ArchiveWindowController.navigateFromToolbar(_:)))
         // AppKit の groupWith… はサブクラスを返さないため、指定初期化子を使う。
-        super.init(itemIdentifier: .init("navigation"))
-        label = String(localized: "戻る/進む", bundle: bundle)
+        super.init(itemIdentifier: ArchiveToolbarItem.navigation.identifier)
+        label = ArchiveToolbarItem.navigation.label(bundle: bundle)
         paletteLabel = label
         toolTip = label
         isBordered = true
         subitems = labels.enumerated().map { index, label in
-            let item = NSToolbarItem(itemIdentifier: .init(index == 0 ? "goBack" : "goForward"))
+            let item = NSToolbarItem(itemIdentifier: index == 0 ? Self.goBackIdentifier : Self.goForwardIdentifier)
             item.label = label
             item.toolTip = label
             item.image = images[index]

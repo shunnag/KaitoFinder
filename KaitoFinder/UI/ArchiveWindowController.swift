@@ -72,7 +72,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     let capabilityNotice = NSTextField(wrappingLabelWithString: "")
     private let renameValidationNotice = NSTextField(wrappingLabelWithString: "")
     let outlineView = ArchiveOutlineView()
-    private let searchItem = NSSearchToolbarItem(itemIdentifier: NSToolbarItem.Identifier("search"))
+    private let searchItem = NSSearchToolbarItem(itemIdentifier: ArchiveToolbarItem.search.identifier)
     var searchField: NSSearchField { searchItem.searchField }
     let pathControl = NSPathControl()
     private(set) var thumbnailProvider: ArchiveThumbnailProvider?
@@ -307,7 +307,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         renameValidationNotice.textColor = .systemRed
         renameValidationNotice.isHidden = true
         let content = NSView()
-        searchItem.label = String(localized: "検索", bundle: bundle)
+        searchItem.label = ArchiveToolbarItem.search.label(bundle: bundle)
         searchItem.paletteLabel = searchItem.label
         searchItem.toolTip = searchItem.label
         searchItem.isBordered = true
@@ -415,9 +415,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     required init?(coder: NSCoder) { nil }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [NSToolbarItem.Identifier("navigation"), NSToolbarItem.Identifier("extract"), .space,
-         NSToolbarItem.Identifier("addFiles"), NSToolbarItem.Identifier("newFolder"), NSToolbarItem.Identifier("delete"), .space,
-         NSToolbarItem.Identifier("quickLook"), .flexibleSpace, searchItem.itemIdentifier, .init("previewSidebar")]
+        ArchiveToolbarItem.defaultOrder
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
@@ -427,39 +425,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         if itemIdentifier == searchItem.itemIdentifier { return searchItem }
-        if itemIdentifier.rawValue == "navigation" {
+        guard let kind = ArchiveToolbarItem(rawValue: itemIdentifier.rawValue) else { return nil }
+        if kind == .navigation {
             let item = ArchiveNavigationToolbarItemGroup(controller: self, bundle: bundle)
             item.validate()
             return item
         }
-        let label: String, symbol: String, action: Selector
-        switch itemIdentifier.rawValue {
-        case "extract":
-            label = String(localized: "展開", bundle: bundle)
-            symbol = "tray.and.arrow.down"
-            action = #selector(extractFromToolbar(_:))
-        case "addFiles":
-            label = String(localized: "追加…", bundle: bundle)
-            symbol = "plus"
-            action = #selector(addFiles(_:))
-        case "newFolder":
-            label = String(localized: "新規フォルダ", bundle: bundle)
-            symbol = "folder.badge.plus"
-            action = #selector(newFolder(_:))
-        case "delete":
-            label = String(localized: "削除", bundle: bundle)
-            symbol = "trash"
-            action = #selector(deleteEntries(_:))
-        case "quickLook":
-            label = String(localized: "クイックルック", bundle: bundle)
-            symbol = "eye"
-            action = #selector(togglePreviewPanel(_:))
-        case "previewSidebar":
-            label = String(localized: "プレビューを表示", bundle: bundle)
-            symbol = "sidebar.right"
-            action = #selector(togglePreviewSidebar(_:))
-        default: return nil
-        }
+        guard let symbol = kind.symbol, let action = kind.action else { return nil }
+        let label = kind.label(bundle: bundle)
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
         item.label = label
         item.paletteLabel = label
