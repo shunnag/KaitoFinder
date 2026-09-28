@@ -336,6 +336,20 @@ nonisolated enum VolumePublishFS {
         return try directory.url.resourceValues(forKeys: [.volumeURLKey]).volume ?? root
     }
 
+    /// app support の台帳を排他で開く。Mutex がプロセス内、`<name>.lock` の flock が別プロセスとの競合を防ぐ。
+    static func withSupportLock<T>(_ fileURL: URL, mutex: borrowing Mutex<Void>,
+                                   _ body: (VolumePublishDirectory) throws -> T) throws -> T {
+        try mutex.withLock { _ in
+            let directory = try supportDirectory(fileURL.deletingLastPathComponent())
+            let fd = try directory.openFile(fileURL.lastPathComponent + ".lock", flags: O_RDWR | O_CREAT)
+            defer { close(fd) }
+            while flock(fd, LOCK_EX) != 0 {
+                if errno != EINTR { throw VolumePublishError.system(errno) }
+            }
+            return try body(directory)
+        }
+    }
+
     /// app support のみ。作成後にも各成分を NOFOLLOW で開き直す。
     static func supportDirectory(_ url: URL) throws -> VolumePublishDirectory {
         // createDirectory が既存 symlink を通らないよう、既存の先祖から一段ずつ作る。

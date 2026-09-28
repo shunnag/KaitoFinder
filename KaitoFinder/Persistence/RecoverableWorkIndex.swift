@@ -79,15 +79,7 @@ nonisolated final class RecoverableWorkIndex: Sendable {
     }
 
     private func access<T>(_ body: (VolumePublishDirectory) throws -> T) throws -> T {
-        try Self.mutex.withLock { _ in
-            let directory = try VolumePublishFS.supportDirectory(fileURL.deletingLastPathComponent())
-            let fd = try directory.openFile(fileURL.lastPathComponent + ".lock", flags: O_RDWR | O_CREAT)
-            defer { close(fd) }
-            while flock(fd, LOCK_EX) != 0 {
-                if errno != EINTR { throw VolumePublishError.system(errno) }
-            }
-            return try body(directory)
-        }
+        try VolumePublishFS.withSupportLock(fileURL, mutex: Self.mutex, body)
     }
     private func read(_ directory: VolumePublishDirectory) throws -> [Entry] {
         guard let info = try directory.info(fileURL.lastPathComponent) else { return [] }
