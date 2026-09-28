@@ -1,7 +1,6 @@
 import Foundation
 import GyoshukuKit
 import KaitoKit
-import Synchronization
 
 nonisolated struct ArchiveReservationValidation: Sendable {
     let base: [ArchiveEntry]
@@ -134,14 +133,5 @@ nonisolated struct ArchiveReservationState: Sendable {
         return try Self(revision: changes.revision, format: validation.format, projection: projection, occupancy: occupancy,
             reading: .init(base: base, generation: generation, changes: changes, staging: staging, nameSyntax: syntax, projection: projection, subtrees: subtrees),
             tree: tree, filters: filters, changesDiffer: previous.map { comparable != $0 } ?? true)
-    }
-}
-
-nonisolated enum ArchiveBackgroundRelease {
-    // 最後の参照を先に actor から外し、解放 Task との競争で main に破棄を戻さない。
-    static func release<Value: Sendable>(_ value: inout Value?) {
-        let retired = Mutex(value)
-        value = nil
-        Task.detached { retired.withLock { $0 = nil } }
     }
 }

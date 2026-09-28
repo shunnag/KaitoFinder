@@ -149,3 +149,13 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
         .refused(String(localized: "アーカイブの原本を確認できません。"))
     }
 }
+
+nonisolated struct ArchiveEntryVerification: Sendable {
+    let identity: ArchiveSetIdentity
+    // nil は、入力を全検証した公開処理が出力全体を保証するときだけ使う。
+    let indices: Set<Int>?
+
+    func matches(_ current: ArchiveSetIdentity) -> Bool {
+        identity.contentEquals(current) || identity.contentEqualsAfterMove(current)
+    }
+}

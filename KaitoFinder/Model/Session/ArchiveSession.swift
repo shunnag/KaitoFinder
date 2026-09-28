@@ -3,35 +3,6 @@ import GyoshukuKit
 import KaitoKit
 import Synchronization
 
-nonisolated enum ArchivePasswordChallenge: Equatable, Sendable {
-    case required, incorrect
-
-    init?(_ error: any Error) {
-        switch error as? KaitoError {
-        case .passwordRequired: self = .required
-        case .wrongPassword: self = .incorrect
-        default: return nil
-        }
-    }
-
-    func message(bundle: Bundle = .main) -> String {
-        switch self {
-        case .required: String(localized: "アーカイブのパスワードを入力してください。", bundle: bundle)
-        case .incorrect: String(localized: "パスワードが違います。もう一度入力してください。", bundle: bundle)
-        }
-    }
-}
-
-nonisolated struct ArchiveEntryVerification: Sendable {
-    let identity: ArchiveSetIdentity
-    // nil は、入力を全検証した公開処理が出力全体を保証するときだけ使う。
-    let indices: Set<Int>?
-
-    func matches(_ current: ArchiveSetIdentity) -> Bool {
-        identity.contentEquals(current) || identity.contentEqualsAfterMove(current)
-    }
-}
-
 /// スレッドセーフではない reader を所有し、値型の一覧だけを外へ渡す。
 actor ArchiveSession {
     #if DEBUG
