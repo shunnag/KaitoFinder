@@ -95,7 +95,7 @@ nonisolated final class ArchiveVerifiedOutput {
 
     // 新規 reader だけを排他的に移し、session の reader は別 thread と共有しない。
     static func openAfterPublication(url: URL, options: ReaderOptions) throws -> sending ArchiveReader {
-        let transfer = try VolumePublishUncancelled.run {
+        let transfer = try UncancelledThread.run {
             ReaderTransfer(try ArchiveReader.open(url: url, options: options))
         }
         return transfer.reader.withLock { reader in

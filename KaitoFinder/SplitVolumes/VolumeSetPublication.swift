@@ -343,11 +343,11 @@ nonisolated final class VolumeSetPublication: Sendable {
                 }
                 #if DEBUG
                 // TaskLocal は detach した thread へ自動では渡らない。
-                return try VolumePublishUncancelled.run {
+                return try UncancelledThread.run {
                     try ArchiveStageDiagnostics.observer.withValue(observer) { try publishPrepared() }
                 }
                 #else
-                return try VolumePublishUncancelled.run(publishPrepared)
+                return try UncancelledThread.run(publishPrepared)
                 #endif
             }
         } catch is SimulatedCrash { throw SimulatedCrash() }

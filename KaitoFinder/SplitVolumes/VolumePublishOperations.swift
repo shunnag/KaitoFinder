@@ -1,7 +1,6 @@
 import Darwin
 import Foundation
 import KaitoKit
-import Synchronization
 
 nonisolated enum VolumePublishBarrier: Sendable, Equatable {
     case retiredGate, placedSiblings, withdrawnGate, restoredSiblings, restoredOld
@@ -35,17 +34,13 @@ nonisolated struct VolumePublishOperations: Sendable {
     var coordinate: VolumePublishCoordination.Request? = nil
 }
 
-/// DispatchQueue.sync は同じ thread で実行しうる。別 thread で Task の取消状態を切り離す。
-nonisolated enum VolumePublishUncancelled {
-    static func run<T: Sendable>(_ body: @escaping @Sendable () throws -> T) throws -> T {
-        let result = Mutex<Result<T, any Error>?>(nil)
-        let finished = DispatchSemaphore(value: 0)
-        Thread.detachNewThread {
-            let value = Result { try body() }
-            result.withLock { $0 = value }
-            finished.signal()
-        }
-        finished.wait()
-        return try result.withLock { $0! }.get()
-    }
+nonisolated enum VolumePublishStep: Sendable, Hashable {
+    case registered, stagingCreated, journalCreated
+    case s5, s6, s7, s8, s9, s10, s11
+    case committed, oldDisposed, stagingRemoved, indexRemoved
+    case retiredVolume(Int)
+    case placedVolume(Int)
 }
+
+/// 障害注入専用。捕捉時は rollback せず fd を閉じ、実際のクラッシュと同じ残骸を作る。
+nonisolated struct SimulatedCrash: Error, Sendable {}

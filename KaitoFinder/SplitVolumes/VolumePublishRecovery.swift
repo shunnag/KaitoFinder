@@ -316,7 +316,7 @@ nonisolated struct VolumePublishRecovery: Sendable {
                     .map { parent.url.appendingPathComponent($0) }
                 return try coordinator.withAccess(gate: gateURL, additional: liveURLs, timeout: 10) {
                     let prepared = transaction, chosenDirection = direction
-                    return try VolumePublishUncancelled.run {
+                    return try UncancelledThread.run {
                         var transaction = prepared
                         let lease = try VolumePublishCriticalSection.shared.enter()
                         defer { withExtendedLifetime(lease) {} }
