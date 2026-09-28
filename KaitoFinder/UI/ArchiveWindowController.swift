@@ -543,6 +543,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         ArchiveProgressCancellation(progress: progress) { _ in task?.cancel() }
     }
 
+    /// 操作の Task が終わったときに、取消しの監視・進捗・Task を外す。操作ごとの片付けは呼び出し側に残す。
+    private func clearOperation() {
+        extractionCancellation?.invalidate()
+        extractionCancellation = nil
+        extractionProgress = nil
+        extractionTask = nil
+    }
+
     @discardableResult func beginListLoading() -> UUID {
         let token = listLoading.begin()
         renameIndex.cancel()
@@ -1341,10 +1349,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             defer {
                 sheet.finish()
                 self?.editProgressSheet = nil
-                self?.extractionCancellation?.invalidate()
-                self?.extractionCancellation = nil
-                self?.extractionProgress = nil
-                self?.extractionTask = nil
+                self?.clearOperation()
                 if !Task.isCancelled, let createdPath { self?.renameCreatedFolder(at: createdPath) }
             }
             do {
@@ -1469,10 +1474,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             defer {
                 sheet.finish()
                 self?.editProgressSheet = nil
-                self?.extractionCancellation?.invalidate()
-                self?.extractionCancellation = nil
-                self?.extractionProgress = nil
-                self?.extractionTask = nil
+                self?.clearOperation()
             }
             do {
                 let result: ArchiveEditResult
@@ -1525,11 +1527,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             defer {
                 visibility.cancel()
                 sheet.finish()
-                self?.extractionCancellation?.invalidate()
-                self?.extractionCancellation = nil
                 self?.editProgressSheet = nil
-                self?.extractionProgress = nil
-                self?.extractionTask = nil
+                self?.clearOperation()
             }
             do {
                 guard let resolver = self?.conflictResolver(on: window, session: session, sheet: sheet) else { throw CancellationError() }
@@ -1832,10 +1831,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 visibility.cancel()
                 sheet.finish()
                 self?.editProgressSheet = nil
-                self?.extractionCancellation?.invalidate()
-                self?.extractionCancellation = nil
-                self?.extractionTask = nil
-                self?.extractionProgress = nil
+                self?.clearOperation()
             }
             do {
                 let sources: [URL]
@@ -1918,10 +1914,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 // 保存先の入力中も、作成が完了するまで受信済みのファイルを消さない。
                 withExtendedLifetime(incoming) {}
                 self?.creationController = nil
-                self?.extractionTask = nil
-                self?.extractionProgress = nil
-                self?.extractionCancellation?.invalidate()
-                self?.extractionCancellation = nil
+                self?.clearOperation()
             }
             do {
                 // パスワードの入力と全 entry の検証を、保存パネルや圧縮の前に済ませる。
@@ -1973,10 +1966,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                 passwordEditor = nil
                 editProgressSheet?.finish()
                 editProgressSheet = nil
-                extractionProgress = nil
-                extractionTask = nil
-                extractionCancellation?.invalidate()
-                extractionCancellation = nil
+                clearOperation()
             }
             do {
                 // 既知の鍵も CRC / HMAC まで検証してから変更する。
@@ -2106,6 +2096,10 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         sheet?.begin(on: window)
         // シートの表示後に worker を起動する。小さい copy も UI actor で stream を読まない。
         extractionTask = Task { [weak self] in
+            defer {
+                self?.extractionSheet = nil
+                self?.clearOperation()
+            }
             do {
                 if let destination {
                     let result = try await ExtractionService.extract(items, from: session, to: destination,
@@ -2121,11 +2115,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
                     self.reportFailure(ArchiveErrorText.describe(error, bundle: self.bundle))
                 }
             }
-            self?.extractionTask = nil
-            self?.extractionProgress = nil
-            self?.extractionSheet = nil
-            self?.extractionCancellation?.invalidate()
-            self?.extractionCancellation = nil
         }
         extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
