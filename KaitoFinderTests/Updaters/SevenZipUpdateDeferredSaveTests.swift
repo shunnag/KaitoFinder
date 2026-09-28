@@ -115,7 +115,7 @@ nonisolated final class SevenZipUpdateDeferredSaveTests: XCTestCase {
         for legacy in [false, true] {
             let output = directory.url.appendingPathComponent("output-\(legacy).zip")
             let updater = try ArchiveUpdater.open(url: source, output: output, options: .init(password: "new"))
-            try ArchiveUpdater.$testingRandomBytes.withValue({ count in Data(repeating: 7, count: count) }) {
+            try EncryptionPrimitives.$testingRandomBytes.withValue({ count in Data(repeating: 7, count: count) }) {
                 if legacy {
                     try updater.add(contentsOf: added, as: "added")
                     try updater.addDirectory("new/", modificationDate: SevenZipUpdateFixture.date, ownerIDs: nil)

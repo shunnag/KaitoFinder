@@ -426,7 +426,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let session = try XCTUnwrap(document.session), prompts = PasswordPrompts.counting(), damaged = Mutex(false)
         session.setPasswordPrompt(prompts.prompt)
         do {
-            try await ZipReencryption.$observer.withValue({ event in
+            try await ZipReencryption.$testingObserver.withValue({ event in
                 guard event.phase == .v0 else { return }
                 let parent = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: directory.url, includingPropertiesForKeys: nil)
                     .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") })
