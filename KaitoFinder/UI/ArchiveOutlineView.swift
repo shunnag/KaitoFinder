@@ -21,8 +21,11 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
     private var originalName = ""
     private var validateRename: ((String) -> String?)?
     private var commitRename: ((String) -> Void)?
+    private var trackingMenus: Set<ObjectIdentifier> = []
 
     var isRenaming: Bool { renameField != nil }
+    /// 行・空き領域・列見出しのメニュー、またはその下位メニューのどれかが開いているか。
+    var isTrackingMenu: Bool { !trackingMenus.isEmpty }
 
     isolated deinit {
         clickRenameTask?.cancel()
@@ -36,10 +39,10 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
         NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: window)
         NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: window)
         NotificationCenter.default.removeObserver(self, name: NSMenu.didBeginTrackingNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSMenu.didEndTrackingNotification, object: nil)
         if let newWindow {
-            // Observe without overriding mouseDown/mouseUp: overriding those
-            // methods disables NSTableView's native gesture/drag handling on
-            // newer macOS versions. Always return the event unchanged.
+            // mouseDown/mouseUp を override せずに監視する。override すると新しい macOS で
+            // NSTableView 本来のジェスチャとドラッグ処理が無効になる。イベントは常にそのまま返す。
             clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [
                 .leftMouseDown, .leftMouseUp, .rightMouseDown, .otherMouseDown,
                 .leftMouseDragged, .keyDown, .flagsChanged, .scrollWheel
@@ -52,8 +55,29 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
             }
             NotificationCenter.default.addObserver(self, selector: #selector(cancelPendingClickRename),
                                                    name: NSMenu.didBeginTrackingNotification, object: nil)
+            for name in [NSMenu.didBeginTrackingNotification, NSMenu.didEndTrackingNotification] {
+                NotificationCenter.default.addObserver(self, selector: #selector(menuTrackingChanged(_:)), name: name, object: nil)
+            }
         }
         super.viewWillMove(toWindow: newWindow)
+    }
+
+    // 通知したメニュー自身を出し入れする。「このアプリケーションで開く」の下位メニューが閉じても
+    // 親の文脈メニューは開いたままなので、真偽値ではなく集合で数える。
+    @objc private func menuTrackingChanged(_ notification: Notification) {
+        guard let menu = notification.object as? NSMenu else { return }
+        if notification.name == NSMenu.didEndTrackingNotification {
+            trackingMenus.remove(ObjectIdentifier(menu))
+            return
+        }
+        var ancestor: NSMenu? = menu
+        while let candidate = ancestor {
+            if candidate === self.menu || candidate === blankAreaMenu || candidate === headerView?.menu {
+                trackingMenus.insert(ObjectIdentifier(menu))
+                return
+            }
+            ancestor = candidate.supermenu
+        }
     }
 
     override func resignFirstResponder() -> Bool {
@@ -72,8 +96,8 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
         super.reloadItem(item, reloadChildren: reloadChildren)
     }
 
-    // The field fills the name column. Only its rendered filename, not the icon,
-    // disclosure triangle, or unused column space, starts a rename.
+    // 入力欄は名前列いっぱいに広がる。改名を始めるのは描画されたファイル名の上だけで、
+    // アイコン・開閉三角・列の余白は含めない。
     private func filenameRect(at row: Int) -> NSRect? {
         guard let column = outlineTableColumn, let index = tableColumns.firstIndex(of: column),
               let cell = view(atColumn: index, row: row, makeIfNecessary: false) as? NSTableCellView,

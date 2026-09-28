@@ -139,10 +139,8 @@ final class ArchiveCreationController {
 
     static func presentFailure(_ error: any Error) {
         // ExtractionFailure / WriterError の具体的な理由も AppKit のエラーパネルへ渡す。
-        NSApp.presentError(NSError(domain: "com.shunnag.KaitoFinder.creation", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: String(localized: "アーカイブを作成できませんでした"),
-            NSLocalizedFailureReasonErrorKey: ArchiveAlertText.informativeText(ArchiveErrorText.describe(error))
-        ]))
+        NSApp.presentError(ArchiveUserError.creation(String(localized: "アーカイブを作成できませんでした"),
+            failureReason: ArchiveAlertText.informativeText(ArchiveErrorText.describe(error))))
     }
 }
 

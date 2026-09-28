@@ -1,24 +1,6 @@
 import AppKit
 import GyoshukuKit
 
-/// NSAlert は初期フレームからアクセサリの領域を決める。解除・設定・保存で同じ規則を使う。
-enum ArchivePasswordLayout {
-    static func stack(_ views: [NSView], width: CGFloat? = nil, detachesHiddenViews: Bool = false) -> NSStackView {
-        let stack = NSStackView(views: views)
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.detachesHiddenViews = detachesHiddenViews
-        if let width { stack.widthAnchor.constraint(equalToConstant: width).isActive = true }
-        return stack
-    }
-
-    static func size(_ view: NSView) {
-        view.setFrameSize(view.fittingSize)
-        view.layoutSubtreeIfNeeded()
-    }
-}
-
 /// 保存パネルと設定・変更シートで入力・検証・はみ出し対策を共有する。
 final class ArchivePasswordFields: NSObject, NSTextFieldDelegate {
     let passwordField = NSSecureTextField()
@@ -85,7 +67,7 @@ final class ArchivePasswordFields: NSObject, NSTextFieldDelegate {
         notice.trailingAnchor.constraint(equalTo: noticeContainer.trailingAnchor, constant: -2).isActive = true
         notice.centerYAnchor.constraint(equalTo: noticeContainer.centerYAnchor).isActive = true
         noticeContainer.heightAnchor.constraint(equalTo: notice.heightAnchor).isActive = true
-        view = ArchivePasswordLayout.stack([grid, formatControl, noticeContainer], width: width)
+        view = ArchiveAccessoryLayout.stack([grid, formatControl, noticeContainer], width: width)
         super.init()
         for control in [grid as NSView, formatControl, noticeContainer] {
             control.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
@@ -113,7 +95,7 @@ final class ArchivePasswordFields: NSObject, NSTextFieldDelegate {
         notice.heightAnchor.constraint(equalToConstant: max(20, height)).isActive = true
         notice.stringValue = ""
         selectFormat(format)
-        ArchivePasswordLayout.size(view)
+        ArchiveAccessoryLayout.size(view)
     }
 
     func selectFormat(_ format: GyoshukuKit.ArchiveFormat) {
@@ -151,10 +133,7 @@ final class ArchivePasswordFields: NSObject, NSTextFieldDelegate {
     }
 
     func validate() throws {
-        if let message = validationMessage {
-            throw NSError(domain: "com.shunnag.KaitoFinder.password", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: message])
-        }
+        if let message = validationMessage { throw ArchiveUserError.password(message) }
     }
 
     func controlTextDidChange(_ notification: Notification) { didChange?() }

@@ -19,9 +19,9 @@ import AppKit
         units.selectItem(at: 1)
         number.widthAnchor.constraint(equalToConstant: 120).isActive = true
         let row = NSStackView(views: [number, units]); row.spacing = 8
-        let view = ArchivePasswordLayout.stack([choices, row,
+        let view = ArchiveAccessoryLayout.stack([choices, row,
             NSTextField(labelWithString: String(localized: "64 KB以上のサイズを指定してください。", bundle: bundle))])
-        ArchivePasswordLayout.size(view)
+        ArchiveAccessoryLayout.size(view)
         alert.accessoryView = view
         alert.addButton(withTitle: String(localized: "保存", bundle: bundle))
         alert.addButton(withTitle: String(localized: "キャンセル", bundle: bundle))
