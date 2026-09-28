@@ -20,8 +20,5 @@ nonisolated enum ArchiveTestCounters {
     static let mainThreadFilters = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
     static let splitInputHashes = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
     static let asciiNameMatches = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
-
-    @available(*, deprecated, renamed: "editPlanKeys")
-    static var keys: TaskLocal<ArchiveTestCounter?> { editPlanKeys }
 }
 #endif

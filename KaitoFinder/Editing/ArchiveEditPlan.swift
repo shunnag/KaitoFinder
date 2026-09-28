@@ -290,7 +290,7 @@ nonisolated struct ArchiveEditPlan: Sendable {
 
     static func key(_ path: String) -> String {
         #if DEBUG
-        ArchiveTestCounters.keys.get()?.increment()
+        ArchiveTestCounters.editPlanKeys.get()?.increment()
         #endif
         let displayed = displayPath(path)
         return (displayed.hasSuffix("/") ? String(displayed.dropLast()) : displayed).precomposedStringWithCanonicalMapping
