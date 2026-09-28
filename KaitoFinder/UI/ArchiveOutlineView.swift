@@ -37,9 +37,8 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
         NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: window)
         NotificationCenter.default.removeObserver(self, name: NSMenu.didBeginTrackingNotification, object: nil)
         if let newWindow {
-            // Observe without overriding mouseDown/mouseUp: overriding those
-            // methods disables NSTableView's native gesture/drag handling on
-            // newer macOS versions. Always return the event unchanged.
+            // mouseDown/mouseUp を override せずに監視する。override すると新しい macOS で
+            // NSTableView 本来のジェスチャとドラッグ処理が無効になる。イベントは常にそのまま返す。
             clickMonitor = NSEvent.addLocalMonitorForEvents(matching: [
                 .leftMouseDown, .leftMouseUp, .rightMouseDown, .otherMouseDown,
                 .leftMouseDragged, .keyDown, .flagsChanged, .scrollWheel
@@ -72,8 +71,8 @@ final class ArchiveOutlineView: NSOutlineView, NSTextFieldDelegate {
         super.reloadItem(item, reloadChildren: reloadChildren)
     }
 
-    // The field fills the name column. Only its rendered filename, not the icon,
-    // disclosure triangle, or unused column space, starts a rename.
+    // 入力欄は名前列いっぱいに広がる。改名を始めるのは描画されたファイル名の上だけで、
+    // アイコン・開閉三角・列の余白は含めない。
     private func filenameRect(at row: Int) -> NSRect? {
         guard let column = outlineTableColumn, let index = tableColumns.firstIndex(of: column),
               let cell = view(atColumn: index, row: row, makeIfNecessary: false) as? NSTableCellView,

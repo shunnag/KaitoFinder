@@ -100,6 +100,7 @@ final class ArchiveConflictPrompt: NSObject {
         let size = item.kind == .directory || item.entryCount > 1
             ? String(format: String(localized: "%lld項目、%@", bundle: bundle), Int64(item.entryCount), bytes) : bytes
         let date = DateFormatter()
+        // テストが .lproj bundle を渡すときだけ、その言語のロケールで日付を整形する。
         date.locale = bundle.bundleURL.pathExtension == "lproj"
             ? Locale(identifier: bundle.bundleURL.deletingPathExtension().lastPathComponent) : .current
         date.dateStyle = .medium

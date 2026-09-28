@@ -1,6 +1,6 @@
 import AppKit
 
-/// A fixed-height field, using the same grid column and natural row sizing as the other options.
+/// 高さ固定の入力欄。ほかの項目と同じグリッド列と自然な行の高さを使う。
 @MainActor final class ArchiveSaveSplitControls: NSObject {
     let choices = NSPopUpButton(frame: .zero, pullsDown: false)
     let number = NSTextField(string: "10")
@@ -18,7 +18,7 @@ import AppKit
         self.bundle = bundle
         let sizeRow = NSStackView(views: [number, units])
         sizeRow.spacing = 8
-        view = ArchivePasswordLayout.stack([choices, sizeRow])
+        view = ArchiveAccessoryLayout.stack([choices, sizeRow])
         super.init()
         choices.addItem(withTitle: String(localized: "しない", bundle: bundle))
         if let originalSchedule {
@@ -49,13 +49,11 @@ import AppKit
         didChange?()
     }
 
-    /// nil means one ordinary archive, with no .001 suffix or volume metadata.
+    /// nil は通常の単一アーカイブ（.001 の接尾辞も巻のメタデータも付けない）。
     func schedule() throws -> VolumePlan.Schedule? {
         if choices.indexOfSelectedItem == 0 { return nil }
         if choices.indexOfSelectedItem == 1, let originalSchedule { return originalSchedule }
         do { return .uniform(size: try ArchiveSplitSaveSheet.volumeSize(number: number.stringValue, unit: units.indexOfSelectedItem)) }
-        catch { throw NSError(domain: "com.shunnag.KaitoFinder.creation", code: 1, userInfo: [
-            NSLocalizedDescriptionKey: String(localized: "64 KB以上のサイズを指定してください。", bundle: bundle)
-        ]) }
+        catch { throw ArchiveUserError.creation(String(localized: "64 KB以上のサイズを指定してください。", bundle: bundle)) }
     }
 }

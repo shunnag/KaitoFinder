@@ -13,6 +13,17 @@ nonisolated struct ArchiveViewState: Sendable {
     var scrollX: CGFloat = 0
     var collapsedPaths: Set<String> = []
 
+    /// 四つのパス欄を同じ変換で置き換えた複製を返す。改名・移動の後に選択と展開を追従させる。
+    /// selectedPaths への代入で didSet が働き、レコード番号と pendingID による選択は引き継がない。
+    func mappingPaths(_ transform: (String) -> String) -> ArchiveViewState {
+        var copy = self
+        copy.selectedPaths = Set(selectedPaths.map(transform))
+        copy.expandedPaths = Set(expandedPaths.map(transform))
+        copy.collapsedPaths = Set(collapsedPaths.map(transform))
+        copy.topPath = topPath.map(transform)
+        return copy
+    }
+
     @MainActor func resolve(in root: EntryNode, currentGeneration: UInt64? = nil)
         -> (selected: [EntryNode], expanded: [EntryNode], collapsed: [EntryNode], top: EntryNode?) {
         let indices = currentGeneration != nil && generation == currentGeneration ? selectedEntryIndices : nil

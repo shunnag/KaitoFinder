@@ -1055,13 +1055,9 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         var states: [String: ArchiveViewState] = [:]
         var order: [String] = []
         for key in folderViewStateOrder {
-            guard var state = folderViewStates[key] else { continue }
-            state.selectedPaths = Set(state.selectedPaths.map(moved))
-            state.expandedPaths = Set(state.expandedPaths.map(moved))
-            state.collapsedPaths = Set(state.collapsedPaths.map(moved))
-            state.topPath = state.topPath.map(moved)
+            guard let state = folderViewStates[key] else { continue }
             let next = moved(key)
-            states[next] = state
+            states[next] = state.mappingPaths(moved)
             order.removeAll { $0 == next }
             order.append(next)
         }
@@ -1421,12 +1417,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return false
         }
         if (document as? ArchiveDocument)?.saveBehavior == .onSave {
-            let selectedActions = [#selector(copy(_:)), #selector(extractSelected(_:)), #selector(openEntry(_:)),
-                                   #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:))]
-            if selectedActions.contains(where: { $0 == menuItem.action }), !canReadEntries { return false }
-            if menuItem.action == #selector(extractAll(_:)), !canReadEntries { return false }
-            if menuItem.action == #selector(extractFromToolbar(_:)),
-               !canReadEntries { return false }
+            // 項目を読む操作は、保存後の読み直しが終わるまで止める。
+            let readingActions = [#selector(copy(_:)), #selector(extractSelected(_:)), #selector(openEntry(_:)),
+                                  #selector(openWithEntry(_:)), #selector(togglePreviewPanel(_:)),
+                                  #selector(extractAll(_:)), #selector(extractFromToolbar(_:))]
+            if readingActions.contains(where: { $0 == menuItem.action }), !canReadEntries { return false }
         }
         switch menuItem.action {
         case #selector(goBack(_:)), #selector(goForward(_:)), #selector(goToEnclosingFolder(_:)):
@@ -1842,36 +1837,22 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func viewStateAfterRenaming(_ original: ArchiveViewState, node: EntryNode, to name: String) -> ArchiveViewState {
-        var state = original
         let parent = ArchivePath.components(node.path).dropLast().joined(separator: "/")
         let path = (parent.isEmpty ? name : parent + "/" + name).precomposedStringWithCanonicalMapping
-        func renamed(_ old: String) -> String {
-            ArchivePath.replacingPrefix(of: old, from: node.path, to: path) ?? old
-        }
-        state.selectedPaths = Set(state.selectedPaths.map(renamed))
-        state.expandedPaths = Set(state.expandedPaths.map(renamed))
-        state.collapsedPaths = Set(state.collapsedPaths.map(renamed))
-        state.topPath = state.topPath.map(renamed)
-        return state
+        return original.mappingPaths { ArchivePath.replacingPrefix(of: $0, from: node.path, to: path) ?? $0 }
     }
 
     private func viewStateAfterMoving(_ original: ArchiveViewState, nodes: [EntryNode], to folder: String) -> ArchiveViewState {
-        var state = original
         let moves = nodes.map { node in
             (source: node.path, destination: (folder.isEmpty ? node.name : folder + "/" + node.name)
                 .precomposedStringWithCanonicalMapping)
         }
-        func moved(_ old: String) -> String {
+        return original.mappingPaths { old in
             for move in moves {
                 if let path = ArchivePath.replacingPrefix(of: old, from: move.source, to: move.destination) { return path }
             }
             return old
         }
-        state.selectedPaths = Set(state.selectedPaths.map(moved))
-        state.expandedPaths = Set(state.expandedPaths.map(moved))
-        state.collapsedPaths = Set(state.collapsedPaths.map(moved))
-        state.topPath = state.topPath.map(moved)
-        return state
     }
 
     private func captureViewState() -> ArchiveViewState {
@@ -2296,12 +2277,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if let extractionDestinationHandler { extractionDestinationHandler(nodes); return }
         let items = payloads(for: nodes, session: session)
         let entryCount = ExtractionSelection(nodes: nodes).entries.count
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = String(localized: "展開", bundle: bundle)
+        let panel = ArchiveBatchExtractionController.makeDestinationPanel(bundle: bundle)
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let destination = panel.url else { return }
             self?.startExtraction(items, session: session, destination: destination, showProgress: true, entryCount: entryCount)
@@ -2664,6 +2640,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         (document as? ArchiveDocument)?.checkDeferredIdentityWhenKey()
     }
 
+    // QLPreviewPanelDelegate は NSWindowDelegate を継承するため、文書ウインドウと QL パネルの両方の通知がここへ届く。
     func windowWillClose(_ notification: Notification) {
         if let closingWindow = notification.object as? NSWindow, closingWindow === window {
             cancelListWork()

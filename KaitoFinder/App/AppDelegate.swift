@@ -6,6 +6,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     private var documentController: NSDocumentController!
     private let passwordVault: ArchivePasswordVault
     private var columnsMenu: NSMenu?
+    // bundle を注入するのはメニューの文言だけ（WordingAcceptanceTests が言語ごとに検証する）。
+    // このファイルのアラートとエラー文は .main のままでよい。
     private var columnsMenuBundle: Bundle = .main
     private let preferencesStore: ArchivePreferencesStore
     private let softwareUpdater: any SoftwareUpdating
@@ -20,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         if let mainWindowForTesting { return mainWindowForTesting() }
         #endif
         return NSApp.mainWindow
+    }
+    private var mainArchiveController: ArchiveWindowController? {
+        archiveMenuMainWindow?.windowController as? ArchiveWindowController
     }
     private(set) var welcomeWindowController: WelcomeWindowController?
     private(set) var forgetPasswordsTask: Task<Void, Never>?
@@ -101,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     @objc func toggleFoldersOnTop(_ sender: Any?) { preferencesStore.preferences.keepsFoldersOnTop.toggle() }
 
     @objc func toggleViewOptions(_ sender: Any?) {
-        guard (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false else { return }
+        guard mainArchiveController?.canChangeViewOptions != false else { return }
         if let controller = viewOptionsController, controller.window?.isVisible == true {
             controller.window?.orderOut(sender)
         } else {
@@ -121,13 +126,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
     }
 
     @objc func toggleArchiveColumn(_ sender: NSMenuItem) {
-        (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.toggleColumn(sender)
+        mainArchiveController?.toggleColumn(sender)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu === columnsMenu else { return }
-        let controller = archiveMenuMainWindow?.windowController as? ArchiveWindowController
-        ArchiveColumn.populate(menu, bundle: columnsMenuBundle, table: controller?.outlineView,
+        ArchiveColumn.populate(menu, bundle: columnsMenuBundle, table: mainArchiveController?.outlineView,
                                target: self, action: #selector(toggleArchiveColumn(_:)))
     }
 
@@ -139,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
             menuItem.title = viewOptionsController?.window?.isVisible == true
                 ? String(localized: "表示オプションを隠す", bundle: columnsMenuBundle)
                 : String(localized: "表示オプションを表示", bundle: columnsMenuBundle)
-            return (archiveMenuMainWindow?.windowController as? ArchiveWindowController)?.canChangeViewOptions != false
+            return mainArchiveController?.canChangeViewOptions != false
         case #selector(checkForUpdates(_:)):
             return softwareUpdater.canCheckForUpdates
         case #selector(newArchive(_:)):
@@ -149,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         case #selector(forgetArchivePasswords(_:)):
             return forgetPasswordsTask == nil
         case #selector(toggleArchiveColumn(_:)):
-            guard let controller = archiveMenuMainWindow?.windowController as? ArchiveWindowController else {
+            guard let controller = mainArchiveController else {
                 menuItem.state = .off
                 return false
             }
