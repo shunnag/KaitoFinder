@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 import Foundation
 import KaitoKit
 import XCTest
@@ -42,20 +41,10 @@ nonisolated final class ScenarioFixture {
         return url
     }
 
-    static func digest(_ url: URL) throws -> Data {
-        Data(SHA256.hash(data: try Data(contentsOf: url)))
-    }
+    static func digest(_ url: URL) throws -> Data { try ArchiveOracle.digest(url) }
 
-    static func contents(_ url: URL) throws -> [String: Data] {
-        let reader = try ArchiveReader.open(url: url)
-        var result: [String: Data] = [:]
-        for entry in reader.entries where entry.kind == .file {
-            var bytes = Data()
-            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { bytes.append(contentsOf: $0) }
-            result[entry.name] = bytes
-        }
-        return result
-    }
+    /// KaitoKit の既定の ReaderOptions で開いた、通常ファイルの内容。
+    static func contents(_ url: URL) throws -> [String: Data] { try ArchiveOracle.contents(url) }
 
     static func files(under root: URL) throws -> [URL] {
         let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]))

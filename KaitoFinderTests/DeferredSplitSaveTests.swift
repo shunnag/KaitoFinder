@@ -19,8 +19,8 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
             defer { document.close() }
             document.splitSaveHooks.operations.coordinate = { _, _, queue, acquired in queue.addOperation { acquired(nil) } }
             document.splitMutationConfirmation = { _ in .alertFirstButtonReturn }
-            let session = try XCTUnwrap(document.session), prompts = Mutex(0), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
-            session.setPasswordPrompt { _ in prompts.withLock { $0 += 1 }; throw CancellationError() }
+            let session = try XCTUnwrap(document.session), prompts = PasswordPrompts.counting(), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
+            session.setPasswordPrompt(prompts.prompt)
             do {
                 try await ArchiveStageDiagnostics.observer.withValue({ event in
                     if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
@@ -38,7 +38,7 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
             XCTAssertTrue(session.capabilities.canEdit)
             XCTAssertFalse(session.requiresSplitRecovery)
             XCTAssertFalse(stages.withLock { $0.contains(.rewriterOpen) })
-            XCTAssertEqual(prompts.withLock { $0 }, 0)
+            XCTAssertEqual(prompts.count, 0)
             XCTAssertEqual(try fixture.parts(), fixture.original)
             XCTAssertEqual(document.pendingChanges.outputEncryption != nil, behavior == .onSave)
         }

@@ -183,7 +183,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
             expectedTopLevelPaths: [name])
         if let password {
             let document = try XCTUnwrap(controller.document as? ArchiveDocument)
-            document.session?.setPasswordPrompt { _ in password }
+            document.session?.setPasswordPrompt(PasswordPrompts.fixed(password))
         }
         let window = try XCTUnwrap(controller.window)
         window.makeKeyAndOrderFront(nil)

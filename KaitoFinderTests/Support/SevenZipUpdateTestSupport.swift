@@ -37,10 +37,6 @@ nonisolated enum SevenZipUpdateFixture {
         .init(path: ArchiveEditPlan.key(entry.name), isDirectory: entry.kind == .directory, entries: [entry])
     }
 
-    static func contents(_ reader: ArchiveReader) throws -> [String: Data] {
-        try Dictionary(uniqueKeysWithValues: reader.entries.filter { $0.kind != .directory }.map { ($0.name, try reader.read($0)) })
-    }
-
     static func assertWork(_ work: URL, archive: URL, bytes: Data, identity: ArchiveFileIdentity) throws {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: work.deletingLastPathComponent().path), ["archive.7z"])
         XCTAssertEqual(try Data(contentsOf: archive), bytes)

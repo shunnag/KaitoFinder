@@ -171,8 +171,6 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         return result
     }
 
-    private func digest(_ url: URL) throws -> Data { Data(SHA256.hash(data: try Data(contentsOf: url))) }
-
     private func assertCarried(_ before: [String: Record], to url: URL, removed: Set<String> = [],
                                renamed: [String: String] = [:]) throws {
         let after = try records(url)
@@ -249,7 +247,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     func testIndexIdentityDoesNotFoldCanonicallyEquivalentNames() throws {
         let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('café.txt', b'original')")
-        let entries = try ArchiveReader.open(url: fixture.archive).entries, original = try digest(fixture.archive)
+        let entries = try ArchiveReader.open(url: fixture.archive).entries, original = try ArchiveOracle.digest(fixture.archive)
         let entry = try XCTUnwrap(entries.first)
         let nfc = entry.name.precomposedStringWithCanonicalMapping
         let expected = entry.name.utf8.elementsEqual(nfc.utf8) ? entry.name.decomposedStringWithCanonicalMapping : nfc
@@ -260,7 +258,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertThrowsError(try ArchiveEditTransaction.run(plan: plan, archive: fixture.archive, mode: .inPlace, progress: Progress())) {
             XCTAssertEqual($0 as? ArchiveEditError, .indexMismatch(entry.index))
         }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
     }
 
     @MainActor func testArchiveReplacementBeforeEditRefusesStaleSessionDeleteAndRenameWithoutUndo() async throws {
@@ -270,14 +268,14 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('keep.txt', b'keep')\n z.writestr('other.txt', b'other')")
                 let document = try document(fixture), session = try XCTUnwrap(document.session)
                 let existing = await session.entries(), selected = try await node("keep.txt", in: session)
-                let entry = try XCTUnwrap(selected.entry), original = try digest(fixture.archive)
+                let entry = try XCTUnwrap(selected.entry), original = try ArchiveOracle.digest(fixture.archive)
                 XCTAssertEqual(existing.map(\.name), ["keep.txt", "other.txt"])
 
                 let replacement = fixture.root.appendingPathComponent("replacement.zip")
                 let writer = try ArchiveWriter.create(url: replacement)
                 for name in names { try writer.add(data: Data("replacement \(name)".utf8), as: name) }
                 try writer.finish()
-                let expected = try digest(replacement)
+                let expected = try ArchiveOracle.digest(replacement)
                 XCTAssertNotEqual(expected, original)
                 // 原本の inode を書き換えずに置換し、session の reader には旧一覧を保持させる。
                 guard Darwin.rename(replacement.path, fixture.archive.path) == 0 else { throw ExtractionFailure.system(errno) }
@@ -287,7 +285,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 XCTAssertEqual(current[entry.index].index, entry.index)
                 XCTAssertTrue(current[entry.index].name.utf8.elementsEqual(entry.name.utf8))
                 XCTAssertEqual(current[entry.index].kind, entry.kind)
-                XCTAssertEqual(try digest(fixture.archive), expected)
+                XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), expected)
 
                 let published = Mutex(0)
                 // document 経由で同じ session を使い、公開と undo 登録まで拒否されることを確かめる。
@@ -301,7 +299,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                     }
                     XCTFail("置換前の一覧で書庫を変更しました")
                 } catch { XCTAssertEqual(error as? ArchiveEditError, .archiveChanged) }
-                XCTAssertEqual(try digest(fixture.archive), expected)
+                XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), expected)
                 XCTAssertEqual(session.generation, 0)
                 XCTAssertEqual(published.withLock { $0 }, 0)
                 XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -405,14 +403,14 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     @MainActor private func assertInvalidName(_ name: String, expected: ArchiveEditError) async throws {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
-        let original = try digest(fixture.archive), opened = Mutex(0), published = Mutex(0)
+        let original = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0), published = Mutex(0)
         let file = try await node("remove.txt", in: session)
         do {
             _ = try await session.edit(renaming: [.init(selection: ArchiveEditSelection(file), name: name)], progress: Progress(),
                 willOpenUpdater: { opened.withLock { $0 += 1 } }, willPublish: { published.withLock { $0 += 1 } })
             XCTFail("不正な名称を受理しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, expected) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(session.generation, 0)
         XCTAssertEqual(opened.withLock { $0 }, 0)
         XCTAssertEqual(published.withLock { $0 }, 0)
@@ -451,7 +449,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             for name in ['café.txt', 'real/', 'virtual/child', 'source']:
                 z.writestr(name, b'')
         """#)
-        let session = try ArchiveSession(url: fixture.archive), original = try digest(fixture.archive), opened = Mutex(0)
+        let session = try ArchiveSession(url: fixture.archive), original = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         let file = try await node("source", in: session)
         for name in ["cafe\u{301}.txt", "real", "virtual"] {
             do {
@@ -459,27 +457,27 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                                            willOpenUpdater: { opened.withLock { $0 += 1 } })
                 XCTFail("同名の兄弟を受理しました")
             } catch { guard case .collision = error as? ArchiveEditError else { return XCTFail("\(error)") } }
-            XCTAssertEqual(try digest(fixture.archive), original)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         }
         XCTAssertEqual(opened.withLock { $0 }, 0)
     }
 
     @MainActor func testInvalidDescendantPathRefusesWholeDirectoryRenameBeforeOpeningUpdater() async throws {
         let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('dir/good', b'good')\n z.writestr('dir/../bad', b'bad')")
-        let session = try ArchiveSession(url: fixture.archive), original = try digest(fixture.archive), opened = Mutex(0)
+        let session = try ArchiveSession(url: fixture.archive), original = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         let folder = try await node("dir", in: session)
         do {
             _ = try await session.edit(renaming: [.init(selection: ArchiveEditSelection(folder), name: "new")], progress: Progress(),
                                        willOpenUpdater: { opened.withLock { $0 += 1 } })
             XCTFail("不正な子孫を改名しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .invalidName("new/../bad")) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(opened.withLock { $0 }, 0)
     }
 
     @MainActor func testInvalidMixedRequestQueuesNothing() async throws {
         let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
-        let original = try digest(fixture.archive), opened = Mutex(0)
+        let original = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         let removing = try await node("remove.txt", in: session), renaming = try await node("folder", in: session)
         do {
             _ = try await session.edit(removing: [ArchiveEditSelection(removing)],
@@ -487,14 +485,14 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 willOpenUpdater: { opened.withLock { $0 += 1 } })
             XCTFail("一部だけ有効な変更を受理しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .collision("virtual")) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(session.generation, 0)
         XCTAssertEqual(opened.withLock { $0 }, 0)
     }
 
     @MainActor func testRenamingTwoVirtualFoldersToSameNameRefusesBeforeOpeningUpdater() async throws {
         let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('one/a', b'a')\n z.writestr('two/b', b'b')")
-        let session = try ArchiveSession(url: fixture.archive), original = try digest(fixture.archive), opened = Mutex(0)
+        let session = try ArchiveSession(url: fixture.archive), original = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         let one = try await node("one", in: session), two = try await node("two", in: session)
         XCTAssertTrue(one.isVirtual)
         XCTAssertTrue(two.isVirtual)
@@ -503,37 +501,37 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                                        progress: Progress(), willOpenUpdater: { opened.withLock { $0 += 1 } })
             XCTFail("仮想フォルダ同士を暗黙に併合しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .collision("new")) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(opened.withLock { $0 }, 0)
         XCTAssertEqual(session.generation, 0)
     }
 
     @MainActor func testOverlappingDeleteAndRenameRefusesWholeRequest() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive), original = try digest(fixture.archive)
+        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive), original = try ArchiveOracle.digest(fixture.archive)
         let parent = try await node("folder", in: session), child = try await node("folder/a.txt", in: session)
         do {
             _ = try await session.edit(removing: [ArchiveEditSelection(parent)],
                 renaming: [.init(selection: ArchiveEditSelection(child), name: "new")], progress: Progress())
             XCTFail("削除する子を同時に改名しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .conflictingSelection) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
     }
 
     @MainActor private func assertUndoRoundTrip(rename: Bool) async throws {
-        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive)
+        let fixture = try Fixture(), document = try document(fixture), original = try ArchiveOracle.digest(fixture.archive)
         let session = try XCTUnwrap(document.session), selected = try await node("folder", in: session)
         if rename { _ = try await document.rename(selected, to: "changed", progress: Progress()) }
         else { _ = try await document.remove([selected], progress: Progress()) }
-        let changed = try digest(fixture.archive)
+        let changed = try ArchiveOracle.digest(fixture.archive)
         XCTAssertNotEqual(changed, original)
         XCTAssertEqual(document.generation, 1)
         XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
-        XCTAssertEqual(try digest(XCTUnwrap(document.archiveUndoStack.slots.first).url), original)
+        XCTAssertEqual(try ArchiveOracle.digest(XCTUnwrap(document.archiveUndoStack.slots.first).url), original)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
         try await redo(document)
-        XCTAssertEqual(try digest(fixture.archive), changed)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), changed)
         XCTAssertEqual(document.generation, 3)
         if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
     }
@@ -542,7 +540,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     @MainActor func testRenameUndoAndRedoRestoreFullArchiveSHA256() async throws { try await assertUndoRoundTrip(rename: true) }
 
     @MainActor func testMixedDeleteAndRenamePublishOnceWithOneGenerationAndUndoEntry() async throws {
-        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive)
+        let fixture = try Fixture(), document = try document(fixture), original = try ArchiveOracle.digest(fixture.archive)
         let session = try XCTUnwrap(document.session), before = try records(fixture.archive), published = Mutex(0)
         let removing = try await node("remove.txt", in: session), renaming = try await node("keep.txt", in: session)
         let result = try await document.edit(removing: [ArchiveEditSelection(removing)],
@@ -554,12 +552,12 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertEqual(document.generation, 1)
         XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
         try assertCarried(before, to: fixture.archive, removed: ["remove.txt"], renamed: ["keep.txt": "remove.txt"])
-        let changed = try digest(fixture.archive)
+        let changed = try ArchiveOracle.digest(fixture.archive)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
         try await redo(document)
-        XCTAssertEqual(try digest(fixture.archive), changed)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), changed)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canRedo)
     }
 
@@ -571,7 +569,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 directories.withLock { $0.append(destination.deletingLastPathComponent()) }
                 return ArchiveUndoStack.cloneFile(from: source, to: destination)
             }
-            let document = try document(fixture, stack: stack), original = try digest(fixture.archive)
+            let document = try document(fixture, stack: stack), original = try ArchiveOracle.digest(fixture.archive)
             let selected = try await node("remove.txt", in: XCTUnwrap(document.session)), archive = fixture.archive
             var info = stat()
             XCTAssertEqual(lstat(archive.path, &info), 0)
@@ -585,7 +583,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 else { _ = try await document.remove([selected], progress: Progress(), willPublish: failIdentity) }
                 XCTFail("別操作で変わった原本へ公開しました")
             } catch { XCTAssertTrue(error is ExtractionFailure) }
-            XCTAssertEqual(try digest(fixture.archive), original)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
             XCTAssertEqual(document.generation, 0)
             XCTAssertEqual(directories.withLock { $0.count }, 1)
             for directory in directories.withLock({ $0 }) { XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path)) }
@@ -596,7 +594,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     }
 
     @MainActor func testDeletingAllEntriesProducesEmptyZIPAcceptedByUnzipAnd7zzOutput() async throws {
-        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive)
+        let fixture = try Fixture(), document = try document(fixture), original = try ArchiveOracle.digest(fixture.archive)
         let session = try XCTUnwrap(document.session), entries = await session.entries()
         let root = EntryNode.tree(from: entries)
         let result = try await document.remove(root.children, progress: Progress())
@@ -610,7 +608,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertTrue(seven.contains("Everything is Ok"), seven)
         XCTAssertTrue(seven.contains("Files: 0"), seven)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
     }
 
     @MainActor func testReadOnlyCapabilitiesRefuseDeleteRenameAndMixedEditsBeforeOpeningUpdater() async throws {
@@ -619,7 +617,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')")
         ] {
             let fixture = try Fixture(filename: filename, script: script), session = try ArchiveSession(url: fixture.archive)
-            let original = try digest(fixture.archive), opened = Mutex(0)
+            let original = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
             XCTAssertFalse(session.capabilities.canEdit)
             XCTAssertNotNil(session.capabilities.refusal)
             XCTAssertNotNil(session.capabilities.readOnlyReason)
@@ -632,7 +630,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                                                willOpenUpdater: { opened.withLock { $0 += 1 } })
                     XCTFail("読み取り専用の書庫を変更しました")
                 } catch { guard case .refused = error as? ExtractionFailure else { return XCTFail("\(error)") } }
-                XCTAssertEqual(try digest(fixture.archive), original)
+                XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
             }
             XCTAssertEqual(opened.withLock { $0 }, 0)
             XCTAssertEqual(session.generation, 0)
@@ -642,7 +640,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     @MainActor func testPendingDeleteAndRenameRejectAllOtherDocumentMutations() async throws {
         for rename in [false, true] {
             let fixture = try Fixture(), document = try document(fixture), gate = ScenarioGate()
-            let session = try XCTUnwrap(document.session), original = try digest(fixture.archive)
+            let session = try XCTUnwrap(document.session), original = try ArchiveOracle.digest(fixture.archive)
             let selected = try await node("remove.txt", in: session), other = try await node("keep.txt", in: session)
             let added = fixture.root.appendingPathComponent("added.txt")
             try Data("added".utf8).write(to: added)
@@ -658,7 +656,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             catch { XCTAssertTrue(error is ExtractionFailure) }
             do { _ = try await document.append(urls: [added], to: "", progress: Progress()); XCTFail("処理中の追加を受理しました") }
             catch { XCTAssertTrue(error is ExtractionFailure) }
-            XCTAssertEqual(try digest(fixture.archive), original)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
             XCTAssertEqual(document.generation, 0)
             gate.release()
             let result = try await task.value
@@ -666,12 +664,12 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             XCTAssertEqual(document.generation, 1)
             XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
             try await undo(document)
-            XCTAssertEqual(try digest(fixture.archive), original)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         }
     }
 
     @MainActor func testCloseCancelsPendingDeleteAndWaitsForSlotCleanup() async throws {
-        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive), gate = ScenarioGate()
+        let fixture = try Fixture(), document = try document(fixture), original = try ArchiveOracle.digest(fixture.archive), gate = ScenarioGate()
         let selected = try await node("remove.txt", in: XCTUnwrap(document.session))
         let task = Task { try await document.remove([selected], progress: Progress(), willPublish: { gate.pause() }) }
         defer { gate.release() }
@@ -681,19 +679,19 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         do { _ = try await task.value; XCTFail("close 後に未公開の削除を完了しました") }
         catch { XCTAssertTrue(error is CancellationError) }
         await document.undoCleanup?.value
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
     }
 
     @MainActor func testCancellationAfterCloneDoesNotPublishRenameOrRegisterUndo() async throws {
-        let fixture = try Fixture(), document = try document(fixture), original = try digest(fixture.archive), progress = Progress()
+        let fixture = try Fixture(), document = try document(fixture), original = try ArchiveOracle.digest(fixture.archive), progress = Progress()
         let selected = try await node("folder", in: XCTUnwrap(document.session))
         do {
             _ = try await document.rename(selected, to: "new", progress: progress, willPublish: { progress.cancel() })
             XCTFail("取り消した改名を公開しました")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
@@ -705,10 +703,10 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let added = fixture.root.appendingPathComponent("new.txt")
         try Data("new child".utf8).write(to: added)
         _ = try await session.append(urls: [added], to: "folder", progress: Progress())
-        let original = try digest(fixture.archive)
+        let original = try ArchiveOracle.digest(fixture.archive)
         do { _ = try await session.remove([selected], progress: Progress()); XCTFail("古い部分木だけを削除しました") }
         catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(session.generation, 1)
     }
 
@@ -716,13 +714,13 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let fixture = try Fixture(), document = try document(fixture), session = try XCTUnwrap(document.session)
         let removed = try await node("remove.txt", in: session)
         _ = try await document.remove([removed], progress: Progress())
-        let original = try digest(fixture.archive), selected = try await node("keep.txt", in: session), published = Mutex(0)
+        let original = try ArchiveOracle.digest(fixture.archive), selected = try await node("keep.txt", in: session), published = Mutex(0)
         let rename = try await document.rename(selected, to: "keep.txt", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
         let remove = try await document.remove([], progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
         XCTAssertFalse(rename.published)
         XCTAssertFalse(remove.published)
         XCTAssertEqual(published.withLock { $0 }, 0)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(document.generation, 1)
         XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
         XCTAssertTrue(try XCTUnwrap(document.undoManager).canUndo)
@@ -776,7 +774,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
     }
 
     @MainActor func testNewFolderCapturesAtPublishAndHasOneUndoRedoEntryWithFullSHA256() async throws {
-        let fixture = try Fixture(), before = try digest(fixture.archive), archive = fixture.archive
+        let fixture = try Fixture(), before = try ArchiveOracle.digest(fixture.archive), archive = fixture.archive
         let captures = Mutex(0), publications = Mutex(0)
         let stack = ArchiveUndoStack { source, destination in
             captures.withLock { $0 += 1 }
@@ -785,39 +783,39 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let document = try document(fixture, stack: stack)
         _ = try await document.createFolder(in: "", progress: Progress(), willPublish: {
             XCTAssertEqual(captures.withLock { $0 }, 1)
-            XCTAssertEqual(Data(SHA256.hash(data: try Data(contentsOf: archive))), before)
+            XCTAssertEqual(try ArchiveOracle.digest(archive), before)
             publications.withLock { $0 += 1 }
         })
         XCTAssertEqual(publications.withLock { $0 }, 1)
         XCTAssertEqual(captures.withLock { $0 }, 1)
         XCTAssertEqual(stack.slots.count, 1)
-        XCTAssertEqual(try digest(XCTUnwrap(stack.slots.first).url), before)
+        XCTAssertEqual(try ArchiveOracle.digest(XCTUnwrap(stack.slots.first).url), before)
         XCTAssertEqual(document.undoManager?.undoActionName, String(localized: "新規フォルダ"))
-        let after = try digest(fixture.archive)
+        let after = try ArchiveOracle.digest(fixture.archive)
         XCTAssertNotEqual(after, before)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
         try await redo(document)
-        XCTAssertEqual(try digest(fixture.archive), after)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), after)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canRedo)
     }
 
     @MainActor func testNewFolderCancellationAtPublishDiscardsUndoAndLeavesBytesUnchanged() async throws {
-        let fixture = try Fixture(), document = try document(fixture), before = try digest(fixture.archive)
+        let fixture = try Fixture(), document = try document(fixture), before = try ArchiveOracle.digest(fixture.archive)
         let progress = Progress()
         do {
             _ = try await document.createFolder(in: "", progress: progress, willPublish: { progress.cancel() })
             XCTFail("取消し後にフォルダを公開しました")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
     }
 
     @MainActor func testNewFolderValidatesNamesAndParentsBeforeOpeningUpdater() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive), before = try digest(fixture.archive)
+        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive), before = try ArchiveOracle.digest(fixture.archive)
         let opened = Mutex(0)
         for name in ["", ".", "..", "a/b", "a\\b", "a:b", "bad\0name", String(repeating: "x", count: 65535)] {
             do {
@@ -834,7 +832,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
         }
         XCTAssertEqual(opened.withLock { $0 }, 0)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         let result = try await session.createFolder(in: "", baseName: "cafe\u{301}", progress: Progress(),
                                                     willOpenUpdater: { opened.withLock { $0 += 1 } })
         XCTAssertEqual(opened.withLock { $0 }, 1)
@@ -851,7 +849,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             let fixture = try Fixture(filename: filename, script: script)
             if readOnlyMode { XCTAssertEqual(chmod(fixture.archive.path, 0o444), 0) }
             let session = try ArchiveSession(url: fixture.archive)
-            let before = try digest(fixture.archive), opened = Mutex(0)
+            let before = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
             let reason = try XCTUnwrap(session.capabilities.readOnlyReason)
             XCTAssertFalse(reason.isEmpty)
             do {
@@ -863,7 +861,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
                 XCTAssertEqual(message, reason)
             }
             XCTAssertEqual(opened.withLock { $0 }, 0)
-            XCTAssertEqual(try digest(fixture.archive), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
             XCTAssertEqual(session.generation, 0)
         }
     }
@@ -873,13 +871,13 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let writer = try ArchiveUpdater.open(url: fixture.archive)
         try writer.addDirectory("externally-added/")
         try writer.commit()
-        let before = try digest(fixture.archive), published = Mutex(0)
+        let before = try ArchiveOracle.digest(fixture.archive), published = Mutex(0)
         do {
             _ = try await document.createFolder(in: "", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
             XCTFail("古い一覧で作成先を決めました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .archiveChanged) }
         XCTAssertEqual(published.withLock { $0 }, 0)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(session.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
     }
@@ -1041,7 +1039,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     @MainActor private func assertDocumentMoveUndoRedo(tar: Bool) async throws {
         let fixture = try moveFixture(realDirectory: true, tar: tar), document = try document(fixture)
-        let session = try XCTUnwrap(document.session), before = try digest(fixture.archive), contents = try moveContents(fixture.archive)
+        let session = try XCTUnwrap(document.session), before = try ArchiveOracle.digest(fixture.archive), contents = try moveContents(fixture.archive)
         XCTAssertEqual(session.capabilities.mode, tar ? .update(.tar) : .inPlace)
         let folder = try await node("a", in: session), file = try await node("root.txt", in: session), published = Mutex(0)
         let result = try await document.move([folder, file], to: "b", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
@@ -1059,14 +1057,14 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let manager = try XCTUnwrap(document.undoManager)
         XCTAssertEqual(manager.undoActionName, String(localized: "移動"))
         XCTAssertTrue(manager.undoMenuItemTitle.contains(String(localized: "移動")))
-        let after = try digest(fixture.archive)
+        let after = try ArchiveOracle.digest(fixture.archive)
         XCTAssertNotEqual(after, before)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(try moveContents(fixture.archive), contents)
         XCTAssertFalse(manager.canUndo)
         try await redo(document)
-        XCTAssertEqual(try digest(fixture.archive), after)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), after)
         XCTAssertEqual(try moveContents(fixture.archive), expected)
         XCTAssertFalse(manager.canRedo)
     }
@@ -1085,14 +1083,14 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let added = fixture.root.appendingPathComponent("new.txt")
         try Data("new child".utf8).write(to: added)
         _ = try await session.append(urls: [added], to: "a", progress: Progress())
-        let before = try digest(fixture.archive), opened = Mutex(0)
+        let before = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         do {
             _ = try await session.edit(moving: [.init(selection: selection, folder: "b")], progress: Progress(),
                                        willOpenUpdater: { opened.withLock { $0 += 1 } })
             XCTFail("古い部分木だけを移動しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .staleSelection) }
         XCTAssertEqual(opened.withLock { $0 }, 0)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(session.generation, 1)
 
         let replaced = try moveFixture(), document = try document(replaced), current = try XCTUnwrap(document.session)
@@ -1100,12 +1098,12 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let updater = try ArchiveUpdater.open(url: replaced.archive)
         try updater.addDirectory("externally-added/")
         try updater.commit()
-        let replacedBytes = try digest(replaced.archive), published = Mutex(0)
+        let replacedBytes = try ArchiveOracle.digest(replaced.archive), published = Mutex(0)
         do {
             _ = try await document.move([node], to: "b", progress: Progress(), willPublish: { published.withLock { $0 += 1 } })
             XCTFail("古い一覧で移動を公開しました")
         } catch { XCTAssertEqual(error as? ArchiveEditError, .archiveChanged) }
-        XCTAssertEqual(try digest(replaced.archive), replacedBytes)
+        XCTAssertEqual(try ArchiveOracle.digest(replaced.archive), replacedBytes)
         XCTAssertEqual(published.withLock { $0 }, 0)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
@@ -1114,13 +1112,13 @@ nonisolated final class ArchiveEditTests: XCTestCase {
 
     @MainActor func testMoveCancellationAtPublishLeavesArchiveAndUndoUnchanged() async throws {
         for tar in [false, true] {
-            let fixture = try moveFixture(tar: tar), document = try document(fixture), before = try digest(fixture.archive)
+            let fixture = try moveFixture(tar: tar), document = try document(fixture), before = try ArchiveOracle.digest(fixture.archive)
             let selected = try await node("a", in: XCTUnwrap(document.session)), progress = Progress()
             do {
                 _ = try await document.move([selected], to: "b", progress: progress, willPublish: { progress.cancel() })
                 XCTFail("取り消した移動を公開しました")
             } catch { XCTAssertTrue(error is CancellationError) }
-            XCTAssertEqual(try digest(fixture.archive), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
             XCTAssertEqual(document.generation, 0)
             XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
             XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
@@ -1133,7 +1131,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             i = tarfile.TarInfo('a/x.txt'); i.size = 1; t.addfile(i, io.BytesIO(b'x'))
         import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
         """)
-        let session = try ArchiveSession(url: fixture.archive), before = try digest(fixture.archive), opened = Mutex(0)
+        let session = try ArchiveSession(url: fixture.archive), before = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         let selected = ArchiveEditSelection(try await node("a/x.txt", in: session))
         do {
             _ = try await session.edit(moving: [.init(selection: selected, folder: "")], progress: Progress(),
@@ -1144,7 +1142,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             XCTAssertEqual(reason, session.capabilities.readOnlyReason)
         }
         XCTAssertEqual(opened.withLock { $0 }, 0)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(session.generation, 0)
     }
 }

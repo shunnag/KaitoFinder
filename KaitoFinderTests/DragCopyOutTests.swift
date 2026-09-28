@@ -332,7 +332,7 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         subprocess.run(['/usr/bin/zip', '-q', '-j', '-P', 'key', p, secret], check=True)
         """)
         let session = try ArchiveSession(url: fixture.archive), queue = ArchivePromiseExtractionQueue()
-        session.setPasswordPrompt { _ in "key" }
+        session.setPasswordPrompt(PasswordPrompts.fixed("key"))
         for (index, name) in [(2, "other.txt"), (3, "secret")] {
             let delegate = ArchiveFilePromise(payload: fixture.payload(name, session: session, index: index), session: session)
             delegate.useExtractionQueue(queue)

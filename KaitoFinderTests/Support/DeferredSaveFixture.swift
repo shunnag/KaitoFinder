@@ -65,20 +65,10 @@ import XCTest
             }
         }
     }
+    /// 本番と同じ ReaderOptions（`.kaitoFinder(password:)`）で開いた、通常ファイルの内容。
     nonisolated static func contents(_ url: URL, password: String? = nil) throws -> [String: Data] {
-        let reader = try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
-        var result: [String: Data] = [:]
-        for entry in reader.entries where entry.kind == .file {
-            var data = Data()
-            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { data.append(contentsOf: $0) }
-            result[entry.name] = data
-        }
-        return result
+        try ArchiveOracle.contents(url, options: .kaitoFinder(password: password))
     }
 
-    nonisolated static func inventory(_ url: URL) throws -> [String: EntryKind] {
-        let entries = try ArchiveReader.open(url: url).entries
-        XCTAssertEqual(Set(entries.map(\.name)).count, entries.count, "Duplicate archive paths")
-        return entries.reduce(into: [:]) { $0[$1.name] = $1.kind }
-    }
+    nonisolated static func inventory(_ url: URL) throws -> [String: EntryKind] { try ArchiveOracle.inventory(url) }
 }

@@ -107,7 +107,7 @@ nonisolated final class SevenZipUpdateEditTests: XCTestCase {
         _ = try await session.createFolder(in: "", baseName: "new", progress: Progress())
         let added = directory.url.appendingPathComponent("added"); try Data("after empty".utf8).write(to: added)
         _ = try await session.append(urls: [added], to: "", progress: Progress())
-        XCTAssertEqual(try SevenZipUpdateFixture.contents(SevenZipUpdateFixture.reader(archive)), ["added": Data("after empty".utf8)])
+        XCTAssertEqual(try ArchiveOracle.contents(SevenZipUpdateFixture.reader(archive), including: .nonDirectories), ["added": Data("after empty".utf8)])
         var actual = stat(); XCTAssertEqual(lstat(archive.path, &actual), 0)
         XCTAssertEqual(actual.st_mode, old.st_mode)
         XCTAssertEqual(actual.st_birthtimespec.tv_sec, old.st_birthtimespec.tv_sec)
@@ -133,7 +133,7 @@ nonisolated final class SevenZipUpdateEditTests: XCTestCase {
         _ = try await session.append(urls: [source], to: "", progress: Progress())
         let output = try SevenZipUpdateFixture.reader(archive)
         XCTAssertEqual(output.entries.map(\.isEncrypted), [false, true, true])
-        XCTAssertEqual(try SevenZipUpdateFixture.contents(output), ["plain": Data("plain".utf8), "encrypted": Data("encrypted".utf8), "added": Data("new".utf8)])
+        XCTAssertEqual(try ArchiveOracle.contents(output, including: .nonDirectories), ["plain": Data("plain".utf8), "encrypted": Data("encrypted".utf8), "added": Data("new".utf8)])
         try SevenZipUpdateFixture.assertCarried(original, bytes: bytes, after: output, output: Data(contentsOf: archive), removed: [])
         await session.close()
     }

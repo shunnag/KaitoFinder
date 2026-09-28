@@ -89,10 +89,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let root = EntryNode.tree(from: snapshot.entries)
         let materialization = try XCTUnwrap(document.materializationController(temporaryDirectory: fixture.temporary))
         controller.display(root, session: session, generation: snapshot.generation, materializationController: materialization)
-        session.setPasswordPrompt { _ in
-            XCTFail("サムネイルはパスワード入力を要求しない")
-            throw CancellationError()
-        }
+        session.setPasswordPrompt(PasswordPrompts.refusing("サムネイルはパスワード入力を要求しない"))
         addTeardownBlock { @MainActor in
             document.close()
             await document.materializationCleanup?.value
@@ -106,10 +103,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
     @MainActor private func provider(_ fixture: Fixture, generate: @escaping ArchiveThumbnailProvider.Generate) async throws
         -> (ArchiveThumbnailProvider, ArchiveSession, EntryNode, EntryMaterializer) {
         let session = try ArchiveSession(url: fixture.archive), snapshot = await session.snapshot()
-        session.setPasswordPrompt { _ in
-            XCTFail("サムネイルはパスワード入力を要求しない")
-            throw CancellationError()
-        }
+        session.setPasswordPrompt(PasswordPrompts.refusing("サムネイルはパスワード入力を要求しない"))
         let worker = EntryMaterializer(session: session, temporaryDirectory: fixture.temporary)
         let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: snapshot.generation, isImage: { $0.hasSuffix(".png") }, generate: generate)
         addTeardownBlock { @MainActor in

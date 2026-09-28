@@ -28,8 +28,6 @@ nonisolated final class BatchImportTests: XCTestCase {
         }
     }
 
-    private func digest(_ url: URL) throws -> Data { Data(SHA256.hash(data: try Data(contentsOf: url))) }
-
     private func assertNoWork(in root: URL, file: StaticString = #filePath, line: UInt = #line) throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: root.path)
         XCTAssertFalse(names.contains {
@@ -119,7 +117,7 @@ nonisolated final class BatchImportTests: XCTestCase {
     func testEmptyImportLeavesArchiveAndProgressUntouched() throws {
         for format in Self.updateFormats {
             let directory = try ArchiveTestDirectory(), url = try archive(in: directory.url, format: format)
-            let before = try digest(url), entries = try ArchiveReader.open(url: url).entries
+            let before = try ArchiveOracle.digest(url), entries = try ArchiveReader.open(url: url).entries
             let plan = try ArchiveImportPlan.build(urls: [], folder: "", existing: entries, progress: Progress(), format: format)
             let progress = Progress(totalUnitCount: 7)
             progress.completedUnitCount = 3
@@ -130,7 +128,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertNil(result.publishedIdentity)
             XCTAssertEqual(progress.totalUnitCount, 7)
             XCTAssertEqual(progress.completedUnitCount, 3)
-            XCTAssertEqual(try digest(url), before)
+            XCTAssertEqual(try ArchiveOracle.digest(url), before)
             try assertNoWork(in: directory.url)
         }
     }
@@ -138,7 +136,7 @@ nonisolated final class BatchImportTests: XCTestCase {
     func testThirdUnreadableImportUsesItsArchivePathAndPreservesOriginal() async throws {
         for format in Self.updateFormats {
             let directory = try ArchiveTestDirectory(), urls = try sources(in: directory.url)
-            let url = try archive(in: directory.url, format: format), before = try digest(url)
+            let url = try archive(in: directory.url, format: format), before = try ArchiveOracle.digest(url)
             let session = try ArchiveSession(url: url, writerOptions: { _ in .init(compressionThreads: 8) })
             let progress = Progress(), started = Mutex<[URL]>([]), finished = Mutex<[Int]>([])
             defer { XCTAssertEqual(chmod(urls[2].path, 0o600), 0) }
@@ -160,7 +158,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertTrue(started.withLock { $0.contains(urls[2]) })
             XCTAssertEqual(finished.withLock { $0 }, [0, 1])
             XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 2)
-            XCTAssertEqual(try digest(url), before)
+            XCTAssertEqual(try ArchiveOracle.digest(url), before)
             XCTAssertEqual(session.generation, 0)
             try assertNoWork(in: directory.url)
             await session.close()
@@ -170,7 +168,7 @@ nonisolated final class BatchImportTests: XCTestCase {
     func testThirdUnreadableCreationUsesItsPathAndPreservesDestination() throws {
         for format in Self.allFormats {
             let directory = try ArchiveTestDirectory(), urls = try sources(in: directory.url)
-            let destination = try archive(in: directory.url, format: format), before = try digest(destination)
+            let destination = try archive(in: directory.url, format: format), before = try ArchiveOracle.digest(destination)
             let progress = Progress(), started = Mutex<[URL]>([])
             defer { XCTAssertEqual(chmod(urls[2].path, 0o600), 0) }
             XCTAssertThrowsError(try ArchiveImportTransaction.willAddFileForTesting.withValue({ source in
@@ -186,14 +184,14 @@ nonisolated final class BatchImportTests: XCTestCase {
             }
             XCTAssertTrue(started.withLock { $0.contains(urls[2]) })
             XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 2)
-            XCTAssertEqual(try digest(destination), before)
+            XCTAssertEqual(try ArchiveOracle.digest(destination), before)
             try assertNoWork(in: directory.url)
         }
     }
 
     func testReplacedStagingCopyKeepsReplayErrorUnwrapped() throws {
         let directory = try ArchiveTestDirectory(), urls = try sources(in: directory.url)
-        let url = try archive(in: directory.url, format: .zip), before = try digest(url)
+        let url = try archive(in: directory.url, format: .zip), before = try ArchiveOracle.digest(url)
         let base = try ArchiveReader.open(url: url).entries
         let stamp = try ArchiveImportSourceStamp(urls[2])
         var pending = ArchivePendingChanges()
@@ -209,7 +207,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertFalse(error is ArchiveAdditionError)
             XCTAssertEqual(ArchiveErrorText.describe(error), expected)
         }
-        XCTAssertEqual(try digest(url), before)
+        XCTAssertEqual(try ArchiveOracle.digest(url), before)
         try assertNoWork(in: directory.url)
     }
 
@@ -270,7 +268,7 @@ nonisolated final class BatchImportTests: XCTestCase {
     func testProgressOnlyCancellationPreventsNextImportAndCreationHook() async throws {
         for creation in [false, true] {
             let directory = try ArchiveTestDirectory(), urls = try sources(in: directory.url)
-            let url = try archive(in: directory.url, format: .zip), before = try digest(url)
+            let url = try archive(in: directory.url, format: .zip), before = try ArchiveOracle.digest(url)
             let progress = Progress(), started = Mutex<[URL]>([])
             let session = try ArchiveSession(url: url, writerOptions: { _ in .init(compressionThreads: 8) })
             do {
@@ -289,7 +287,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertFalse(Task.isCancelled)
             XCTAssertEqual(started.withLock { $0 }, [urls[0]])
             XCTAssertEqual(progress.completedUnitCount, 0)
-            XCTAssertEqual(try digest(url), before)
+            XCTAssertEqual(try ArchiveOracle.digest(url), before)
             try assertNoWork(in: directory.url)
             await session.close()
         }
@@ -310,7 +308,7 @@ nonisolated final class BatchImportTests: XCTestCase {
     func testThousandthCompletionCancellationJoinsReadersAndPreservesOriginal() async throws {
         for format in Self.updateFormats {
             let directory = try ArchiveTestDirectory(), urls = try sources(in: directory.url, count: 1_300)
-            let url = try archive(in: directory.url, format: format), before = try digest(url)
+            let url = try archive(in: directory.url, format: format), before = try ArchiveOracle.digest(url)
             let session = try ArchiveSession(url: url, writerOptions: { _ in .init(compressionThreads: 8) })
             // Readers may mmap and close their descriptors. Check the inventory against a known
             // open source first, so an empty inventory after cancellation cannot pass vacuously.
@@ -334,7 +332,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             catch { XCTAssertTrue(error is CancellationError, "\(error)") }
             XCTAssertEqual(completed.withLock { $0 }, Array(0..<1_000))
             XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 1_000)
-            XCTAssertEqual(try digest(url), before)
+            XCTAssertEqual(try ArchiveOracle.digest(url), before)
             XCTAssertEqual(session.generation, 0)
             XCTAssertEqual(try openFiles(under: directory.url), descriptors)
             try assertNoWork(in: directory.url)
@@ -345,13 +343,13 @@ nonisolated final class BatchImportTests: XCTestCase {
 
     func testDidProcessErrorRetainsIdentityAndPreventsPublication() async throws {
         let directory = try ArchiveTestDirectory(), urls = try sources(in: directory.url)
-        let url = try archive(in: directory.url, format: .zip), before = try digest(url), marker = Marker()
+        let url = try archive(in: directory.url, format: .zip), before = try ArchiveOracle.digest(url), marker = Marker()
         let session = try ArchiveSession(url: url)
         do {
             _ = try await session.append(urls: urls, to: "", progress: Progress(), didProcess: { _ in throw marker })
             XCTFail("Callback failure was published")
         } catch { XCTAssertTrue((error as? Marker) === marker) }
-        XCTAssertEqual(try digest(url), before)
+        XCTAssertEqual(try ArchiveOracle.digest(url), before)
         try assertNoWork(in: directory.url)
         await session.close()
     }
@@ -364,7 +362,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             try writer.add([.init(path: "other-operation/missing", source: .contents(of: directory.url.appendingPathComponent("missing")))], events: nil)
             return XCTFail("Missing file was accepted")
         } catch { failure = try XCTUnwrap(error as? ArchiveAdditionError) }
-        let url = try archive(in: directory.url, format: .zip), before = try digest(url)
+        let url = try archive(in: directory.url, format: .zip), before = try ArchiveOracle.digest(url)
         let session = try ArchiveSession(url: url)
         do {
             _ = try await session.append(urls: urls, to: "", progress: Progress(), didProcess: { _ in throw failure })
@@ -376,7 +374,7 @@ nonisolated final class BatchImportTests: XCTestCase {
             XCTAssertEqual(actual.sourceURL, failure.sourceURL)
             XCTAssertEqual(ArchiveErrorText.describe(actual.underlying), ArchiveErrorText.describe(failure.underlying))
         }
-        XCTAssertEqual(try digest(url), before)
+        XCTAssertEqual(try ArchiveOracle.digest(url), before)
         try assertNoWork(in: directory.url)
         await session.close()
     }

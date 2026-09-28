@@ -102,8 +102,6 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         }
     }
 
-    private func digest(_ url: URL) throws -> Data { Data(SHA256.hash(data: try Data(contentsOf: url))) }
-
     private func assertNoWorkDirectory(_ directory: URL, file: StaticString = #filePath, line: UInt = #line) throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
         XCTAssertFalse(names.contains { $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".gyoshuku-rewrite-") },
@@ -114,7 +112,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let fixture = try Fixture(format)
         let reader = try ArchiveReader.open(url: fixture.archive)
         XCTAssertEqual(reader.format, format.input, file: file, line: line)
-        let before = try digest(fixture.archive)
+        let before = try ArchiveOracle.digest(fixture.archive)
         let files = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted()
         let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: reader.format)
         XCTAssertEqual(capability.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output), file: file, line: line)
@@ -122,7 +120,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         XCTAssertNil(capability.refusal, file: file, line: line)
         XCTAssertNil(capability.readOnlyReason, file: file, line: line)
         XCTAssertEqual(capability.rewriteNotice, [.tar, .lha, .sevenZip].contains(format.input) ? nil : String(localized: "編集するとアーカイブ全体を再圧縮します"), file: file, line: line)
-        XCTAssertEqual(try digest(fixture.archive), before, file: file, line: line)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before, file: file, line: line)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted(), files,
                        file: file, line: line)
     }
@@ -216,14 +214,14 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
     private func assertEncryptedSevenZip(headers: Bool) throws {
         let directory = try ArchiveTestDirectory(), archive = try encryptedSevenZip(in: directory, headers: headers)
-        let original = try digest(archive)
+        let original = try ArchiveOracle.digest(archive)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .sevenZip)
         XCTAssertEqual(capability.refusal, .encrypted)
         XCTAssertNil(capability.mode)
         XCTAssertFalse(capability.canEdit)
         XCTAssertNil(capability.rewriteNotice)
         XCTAssertEqual(capability.readOnlyReason, String(localized: "暗号化されたアーカイブを変更するにはパスワードが必要です。"))
-        XCTAssertEqual(try digest(archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), original)
         try assertNoWorkDirectory(directory.url)
     }
 
@@ -234,7 +232,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         for headers in [false, true] {
             let directory = try ArchiveTestDirectory(), archive = try encryptedSevenZip(in: directory, headers: headers)
             let session = try ArchiveSession(url: archive, password: "rewrite-test-password")
-            session.setPasswordPrompt { _ in XCTFail("The known password must be reused"); throw CancellationError() }
+            session.setPasswordPrompt(PasswordPrompts.refusing("The known password must be reused"))
             XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
             _ = try await session.createFolder(in: "", progress: Progress())
             let added = directory.url.appendingPathComponent("added.txt")
@@ -305,14 +303,14 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("fifo.tar")
         XCTAssertEqual(mkfifo(directory.url.appendingPathComponent("pipe").path, 0o600), 0)
         try directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", "-cf", archive.path, "pipe"])
-        let before = try digest(archive)
+        let before = try ArchiveOracle.digest(archive)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
         let reason = "pipe: この entry 種別は書き込めません"
         XCTAssertEqual(capability.refusal, .unrepresentable(reason))
         XCTAssertNil(capability.mode)
         XCTAssertNil(capability.rewriteNotice)
         XCTAssertEqual(capability.readOnlyReason, String(localized: "このアーカイブには、書き直せない項目があります。\(reason)"))
-        XCTAssertEqual(try digest(archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), before)
         try assertNoWorkDirectory(directory.url)
     }
 
@@ -349,7 +347,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         for format in Format.allCases {
             let fixture = try Fixture(format), document = try document(fixture)
             let session = try XCTUnwrap(document.session)
-            let original = try digest(fixture.archive)
+            let original = try ArchiveOracle.digest(fixture.archive)
             let root = EntryNode.tree(from: await session.entries())
             let result = try await document.remove(root.children, progress: Progress())
             XCTAssertTrue(result.published, format.suffix)
@@ -360,7 +358,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             XCTAssertTrue(session.capabilities.canEdit, format.suffix)
             document.undoManager?.undo()
             await document.undoTask?.value
-            XCTAssertEqual(try digest(fixture.archive), original, format.suffix)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original, format.suffix)
             document.undoManager?.redo()
             await document.undoTask?.value
             XCTAssertTrue(try ArchiveReader.open(url: fixture.archive).entries.isEmpty, format.suffix)
@@ -427,7 +425,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let fixture = try Fixture(format), document = try document(fixture), session = try XCTUnwrap(document.session)
         var expected = Fixture.original
         try assertContents(expected, in: fixture.archive, format: format.input)
-        var states = [try digest(fixture.archive)]
+        var states = [try ArchiveOracle.digest(fixture.archive)]
         let first = Data("first\0file".utf8), second = Data([0, 1, 127, 128, 255]), child = Data("folder child".utf8)
         let firstURL = try fixture.file("first.txt", data: first), secondURL = try fixture.file("second.bin", data: second)
         let folder = try fixture.file("incoming/child.txt", data: child).deletingLastPathComponent()
@@ -443,7 +441,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
                         "incoming/child.txt": .file(child), "incoming/empty": .directory]) { _, new in new }
         try assertContents(expected, in: fixture.archive, format: format.input)
         XCTAssertEqual(session.generation, 1)
-        states.append(try digest(fixture.archive))
+        states.append(try ArchiveOracle.digest(fixture.archive))
 
         let created = try await document.createFolder(in: "existing", baseName: "created", progress: Progress())
         XCTAssertEqual(created.addedPaths, ["existing/created/"])
@@ -451,7 +449,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         expected["existing/created"] = .directory
         try assertContents(expected, in: fixture.archive, format: format.input)
         XCTAssertEqual(session.generation, 2)
-        states.append(try digest(fixture.archive))
+        states.append(try ArchiveOracle.digest(fixture.archive))
 
         let firstNode = try await node("first.txt", in: session)
         let renamed = try await document.rename(firstNode, to: "renamed.txt", progress: Progress())
@@ -460,7 +458,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         expected["renamed.txt"] = expected.removeValue(forKey: "first.txt")
         try assertContents(expected, in: fixture.archive, format: format.input)
         XCTAssertEqual(session.generation, 3)
-        states.append(try digest(fixture.archive))
+        states.append(try ArchiveOracle.digest(fixture.archive))
 
         let secondNode = try await node("second.bin", in: session)
         let removed = try await document.remove([secondNode], progress: Progress())
@@ -480,7 +478,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             manager.undo()
             await document.undoTask?.value
             XCTAssertNil(document.undoFailure)
-            XCTAssertEqual(try digest(fixture.archive), state)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), state)
             XCTAssertEqual(document.generation, UInt64(5 + offset))
             XCTAssertEqual(session.capabilities.mode, [.tar, .lha, .sevenZip].contains(format.input) ? .update(format.output) : .rewrite(format.output))
         }

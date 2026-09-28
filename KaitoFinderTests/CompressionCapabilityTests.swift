@@ -93,7 +93,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 withExtendedLifetime(directory) {}
             }
             let session = try XCTUnwrap(document.session)
-            session.setPasswordPrompt { _ in "KaitoFixture" }
+            session.setPasswordPrompt(PasswordPrompts.fixed("KaitoFixture"))
             _ = try await session.preparedPassword()
             XCTAssertEqual(session.capabilities.mode, .inPlace)
             var states = [try Data(contentsOf: archive)]
@@ -186,7 +186,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 XCTAssertEqual(document.isPasswordLocked, protection == "aes")
                 if document.isPasswordLocked { try await document.unlock(password: "KaitoFixture") }
                 let session = try XCTUnwrap(document.session)
-                session.setPasswordPrompt { _ in "KaitoFixture" }
+                session.setPasswordPrompt(PasswordPrompts.fixed("KaitoFixture"))
                 _ = try await session.preparedPassword()
                 XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
                 let additions = ["added-a.txt", "added-b.txt"].map { directory.url.appendingPathComponent($0) }

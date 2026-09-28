@@ -47,9 +47,6 @@ nonisolated enum LHAUpdateFixture {
         XCTAssertEqual(try ArchiveFileIdentity.capture(url: archive), identity)
     }
 
-    static func contents(_ reader: ArchiveReader) throws -> [String: Data] {
-        try Dictionary(uniqueKeysWithValues: reader.entries.filter { $0.kind != .directory }.map { ($0.name, try reader.read($0)) })
-    }
 }
 
 nonisolated final class LHAUpdateTrace: Sendable {

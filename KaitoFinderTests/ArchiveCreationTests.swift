@@ -95,8 +95,6 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         }
     }
 
-    private func digest(_ url: URL) throws -> Data { Data(SHA256.hash(data: try Data(contentsOf: url))) }
-
     private func assertNoWorkDirectory(_ parent: URL, file: StaticString = #filePath, line: UInt = #line) throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: parent.path)
         XCTAssertFalse(names.contains { $0.hasPrefix(".KaitoFinder-new-") || $0.hasPrefix(".gyoshuku-rewrite-") },
@@ -326,12 +324,12 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: fixture.sources, destination: archive, format: .zip), progress: Progress())
         let quarantine = Data("0081;12345678;OriginalArchive;".utf8)
         try ExtractionQuarantine.apply(quarantine, to: archive)
-        let before = try digest(archive)
+        let before = try ArchiveOracle.digest(archive)
         let existing = ArchiveCreationPlan.Existing(url: archive, password: nil, entries: try ArchiveReader.open(url: archive).entries)
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: [], destination: output, format: .sevenZip, existing: existing), progress: Progress())
         XCTAssertEqual(try ExtractionQuarantine.read(from: output), quarantine)
         XCTAssertEqual(try ExtractionQuarantine.read(from: archive), quarantine)
-        XCTAssertEqual(try digest(archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), before)
         try assertContents(output, Fixture.contents)
         try assertNoWorkDirectory(fixture.directory.url)
     }
@@ -343,14 +341,14 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         try fixture.directory.run("/usr/bin/tar", ["--no-mac-metadata", "--no-xattrs", "-cjf", archive.path, "old.txt"])
         let reader = try ArchiveReader.open(url: archive)
         XCTAssertEqual(reader.format, .tar)
-        let before = try digest(archive), progress = Progress(), output = fixture.output()
+        let before = try ArchiveOracle.digest(archive), progress = Progress(), output = fixture.output()
         let existing = ArchiveCreationPlan.Existing(url: archive, password: nil, entries: reader.entries)
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: Array(fixture.sources.prefix(2)), destination: output,
                                                           format: .zip, existing: existing), progress: progress)
         try assertContents(output, ["old.txt": .file(original), "a.txt": Fixture.contents["a.txt"]!, "b.bin": Fixture.contents["b.bin"]!])
         XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 2 + reader.entries.count)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
-        XCTAssertEqual(try digest(archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), before)
         try assertNoWorkDirectory(fixture.directory.url)
     }
 
@@ -364,20 +362,20 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
 
     func testEncryptedZIPConvertsToUnencryptedSevenZipWithPassword() throws {
         let fixture = try Fixture(), archive = try encryptedZIP(in: fixture.directory), output = fixture.output(.sevenZip)
-        let before = try digest(archive), entries = try ArchiveReader.open(url: archive).entries
+        let before = try ArchiveOracle.digest(archive), entries = try ArchiveReader.open(url: archive).entries
         XCTAssertTrue(entries.allSatisfy(\.isEncrypted))
         let existing = ArchiveCreationPlan.Existing(url: archive, password: "creation-test-password", entries: entries)
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: [fixture.sources[0]], destination: output,
                                                           format: .sevenZip, existing: existing), progress: Progress())
         try assertContents(output, ["first.txt": .file(Data("first secret".utf8)), "second.txt": .file(Data("second secret".utf8)),
                                     "a.txt": Fixture.contents["a.txt"]!])
-        XCTAssertEqual(try digest(archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), before)
         try assertNoWorkDirectory(fixture.directory.url)
     }
 
     private func assertPasswordFailure(_ password: String?, challenge: ArchivePasswordChallenge) throws {
         let fixture = try Fixture(), archive = try encryptedZIP(in: fixture.directory), output = fixture.output(.sevenZip)
-        let before = try digest(archive)
+        let before = try ArchiveOracle.digest(archive)
         let existing = ArchiveCreationPlan.Existing(url: archive, password: password, entries: try ArchiveReader.open(url: archive).entries)
         let plan = ArchiveCreationPlan(sources: [fixture.sources[0]], destination: output, format: .sevenZip, existing: existing)
         for oldOutput in [nil, Data("pre-existing destination".utf8)] as [Data?] {
@@ -387,7 +385,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
             }
             if let oldOutput { XCTAssertEqual(try Data(contentsOf: output), oldOutput) }
             else { XCTAssertFalse(FileManager.default.fileExists(atPath: output.path)) }
-            XCTAssertEqual(try digest(archive), before)
+            XCTAssertEqual(try ArchiveOracle.digest(archive), before)
             try assertNoWorkDirectory(fixture.directory.url)
         }
     }
@@ -412,13 +410,13 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
 
     func testPreparedPasswordCancellationKeepsOriginalUnchanged() async throws {
         let directory = try ArchiveTestDirectory(), archive = try encryptedZIP(in: directory)
-        let before = try digest(archive), session = try ArchiveSession(url: archive)
+        let before = try ArchiveOracle.digest(archive), session = try ArchiveSession(url: archive)
         session.setPasswordPrompt { _ in throw CancellationError() }
         do { _ = try await session.preparedPassword(); XCTFail("Password cancellation was ignored") }
         catch { XCTAssertTrue(error is CancellationError) }
         let retained = await session.password
         XCTAssertNil(retained)
-        XCTAssertEqual(try digest(archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), before)
         try assertNoWorkDirectory(directory.url)
         await session.close()
     }
@@ -443,13 +441,13 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
     func testConversionCancellationAtPublishPreservesBothArchives() throws {
         let fixture = try Fixture(), source = fixture.output(), output = fixture.output(.tarGzip)
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: fixture.sources, destination: source, format: .zip), progress: Progress())
-        let before = try digest(source), oldOutput = Data("destination to preserve".utf8), progress = Progress()
+        let before = try ArchiveOracle.digest(source), oldOutput = Data("destination to preserve".utf8), progress = Progress()
         try oldOutput.write(to: output)
         let existing = ArchiveCreationPlan.Existing(url: source, password: nil, entries: try ArchiveReader.open(url: source).entries)
         XCTAssertThrowsError(try ArchiveCreationTransaction.run(plan: .init(sources: [], destination: output, format: .tarGzip,
                                                                            existing: existing), progress: progress,
                                                                 willPublish: { progress.cancel() })) { XCTAssertTrue($0 is CancellationError) }
-        XCTAssertEqual(try digest(source), before)
+        XCTAssertEqual(try ArchiveOracle.digest(source), before)
         XCTAssertEqual(try Data(contentsOf: output), oldOutput)
         try assertNoWorkDirectory(fixture.directory.url)
     }
@@ -503,7 +501,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
     func testConversionCollisionsAreAllRefusedBeforeAnyWrite() throws {
         let fixture = try Fixture(), archive = fixture.output(), output = fixture.output(.sevenZip)
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: fixture.sources, destination: archive, format: .zip), progress: Progress())
-        let original = try digest(archive), before = Data("existing destination".utf8)
+        let original = try ArchiveOracle.digest(archive), before = Data("existing destination".utf8)
         try before.write(to: output)
         let files = try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted()
         let existing = ArchiveCreationPlan.Existing(url: archive, password: nil, entries: try ArchiveReader.open(url: archive).entries)
@@ -513,7 +511,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
             guard case ExtractionFailure.refused(let reason) = $0 else { return XCTFail("Unexpected error: \($0)") }
             for name in ["a.txt", "b.bin", "Docs"] { XCTAssertTrue(reason.contains(name), reason) }
         }
-        XCTAssertEqual(try digest(archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), original)
         XCTAssertEqual(try Data(contentsOf: output), before)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: fixture.directory.url.path).sorted(), files)
         try assertNoWorkDirectory(fixture.directory.url)
@@ -535,7 +533,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         let hardLink = fixture.directory.url.appendingPathComponent("hard-link.zip")
         try Data("original source contents".utf8).write(to: source)
         try FileManager.default.linkItem(at: source, to: hardLink)
-        let before = try digest(source)
+        let before = try ArchiveOracle.digest(source)
         for destination in [source, hardLink] {
             XCTAssertThrowsError(try ArchiveCreationTransaction.run(
                 plan: .init(sources: [fixture.sources[0], source], destination: destination, format: .zip, existing: nil),
@@ -543,8 +541,8 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
                 guard case ExtractionFailure.refused(let reason) = $0 else { return XCTFail("Unexpected error: \($0)") }
                 XCTAssertEqual(reason, String(localized: "作成元の項目とは別の保存先を選んでください。"))
             }
-            XCTAssertEqual(try digest(source), before)
-            XCTAssertEqual(try digest(hardLink), before)
+            XCTAssertEqual(try ArchiveOracle.digest(source), before)
+            XCTAssertEqual(try ArchiveOracle.digest(hardLink), before)
             try assertNoWorkDirectory(fixture.directory.url)
         }
     }
@@ -555,15 +553,15 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         _ = try ArchiveCreationTransaction.run(plan: .init(sources: fixture.sources, destination: archive, format: .zip), progress: Progress())
         try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: archive)
         try FileManager.default.linkItem(at: archive, to: hardLink)
-        let before = try digest(archive)
+        let before = try ArchiveOracle.digest(archive)
         let existing = ArchiveCreationPlan.Existing(url: archive, password: nil, entries: try ArchiveReader.open(url: archive).entries)
         for output in [archive, alias, hardLink] {
             XCTAssertThrowsError(try ArchiveCreationTransaction.run(plan: .init(sources: [], destination: output, format: .zip, existing: existing), progress: Progress())) {
                 guard case ExtractionFailure.refused = $0 else { return XCTFail("Unexpected error: \($0)") }
             }
         }
-        XCTAssertEqual(try digest(archive), before)
-        XCTAssertEqual(try digest(hardLink), before)
+        XCTAssertEqual(try ArchiveOracle.digest(archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(hardLink), before)
         XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: alias.path), archive.path)
         try assertNoWorkDirectory(fixture.directory.url)
     }

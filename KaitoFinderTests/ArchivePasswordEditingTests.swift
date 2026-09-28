@@ -20,26 +20,15 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         return url
     }
 
-    private func contents(_ url: URL, password: String? = nil) throws -> [String: Data] {
-        let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
-        var result: [String: Data] = [:]
-        for entry in reader.entries where entry.kind == .file {
-            var bytes = Data()
-            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { bytes.append(contentsOf: $0) }
-            result[entry.name] = bytes
-        }
-        return result
-    }
-
     private func assertProtected(_ url: URL, password: String, rejectedPassword: String = "wrong",
                                  headers: Bool = false, file: StaticString = #filePath, line: UInt = #line) throws {
-        XCTAssertEqual(try contents(url, password: password), [entryName: payload], file: file, line: line)
+        XCTAssertEqual(try ArchiveOracle.contents(url, password: password), [entryName: payload], file: file, line: line)
         let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: password))
         XCTAssertTrue(reader.entries.filter { $0.kind == .file }.allSatisfy(\.isEncrypted), file: file, line: line)
-        XCTAssertThrowsError(try contents(url), file: file, line: line) {
+        XCTAssertThrowsError(try ArchiveOracle.contents(url), file: file, line: line) {
             XCTAssertEqual(ArchivePasswordChallenge($0), .required, file: file, line: line)
         }
-        XCTAssertThrowsError(try contents(url, password: rejectedPassword), file: file, line: line) {
+        XCTAssertThrowsError(try ArchiveOracle.contents(url, password: rejectedPassword), file: file, line: line) {
             XCTAssertEqual(ArchivePasswordChallenge($0), .incorrect, file: file, line: line)
         }
         if headers {
@@ -196,7 +185,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         document.fileURL = url
         if let password, document.isPasswordLocked { try await document.unlock(password: password) }
         if let session = document.session, let password {
-            session.setPasswordPrompt { _ in password }
+            session.setPasswordPrompt(PasswordPrompts.fixed(password))
             _ = try await session.preparedPassword()
         }
         let controller = ArchiveWindowController()
@@ -264,7 +253,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
 
         _ = try await document.updatePassword(.remove, settings: .init())
         let removedBytes = try Data(contentsOf: url)
-        XCTAssertEqual(try contents(url), [entryName: payload])
+        XCTAssertEqual(try ArchiveOracle.contents(url), [entryName: payload])
         XCTAssertFalse(session.hasEncryptedEntries)
         XCTAssertEqual(undo.undoMenuItemTitle, String(localized: "パスワードの削除を取り消す"))
         document.undo(nil)
@@ -276,7 +265,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
         XCTAssertEqual(try Data(contentsOf: url), removedBytes)
-        XCTAssertEqual(try contents(url), [entryName: payload])
+        XCTAssertEqual(try ArchiveOracle.contents(url), [entryName: payload])
         let removedPassword = await session.password
         XCTAssertNil(removedPassword)
     }
@@ -325,7 +314,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
                         }
                 }
                 XCTAssertFalse(cancel)
-                XCTAssertEqual(try contents(url, password: "updater-key"), [entryName: body])
+                XCTAssertEqual(try ArchiveOracle.contents(url, password: "updater-key"), [entryName: body])
                 XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
                 XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
                 let values = units.withLock { $0 }
@@ -432,8 +421,8 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let url = try archive(in: directory, format: .zip, settings: .init(password: "old"))
         let original = try Data(contentsOf: url)
         let (document, _) = try await document(at: url, directory: directory, password: "old")
-        let session = try XCTUnwrap(document.session), prompts = Mutex(0), damaged = Mutex(false)
-        session.setPasswordPrompt { _ in prompts.withLock { $0 += 1 }; throw CancellationError() }
+        let session = try XCTUnwrap(document.session), prompts = PasswordPrompts.counting(), damaged = Mutex(false)
+        session.setPasswordPrompt(prompts.prompt)
         do {
             try await ZipReencryption.$observer.withValue({ event in
                 guard event.phase == .v0 else { return }
@@ -454,7 +443,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             guard case UpdaterError.reencryptionFailed = error else { return XCTFail("Unexpected error: \(error)") }
             XCTAssertNil(ArchivePasswordChallenge(error))
         }
-        XCTAssertTrue(damaged.withLock { $0 }); XCTAssertEqual(prompts.withLock { $0 }, 0)
+        XCTAssertTrue(damaged.withLock { $0 }); XCTAssertEqual(prompts.count, 0)
         XCTAssertTrue(session.capabilities.canEdit)
         let password = await session.password
         XCTAssertEqual(password, "old")
@@ -527,7 +516,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             let tree = EntryNode.tree(from: await session.entries())
             let selected = try XCTUnwrap(tree.children.first { $0.path == "added.txt" })
             _ = try await session.rename(ArchiveEditSelection(selected), to: "renamed.txt", progress: Progress())
-            XCTAssertEqual(try contents(url, password: "fixture-key")["renamed.txt"], Data("new encrypted contents".utf8))
+            XCTAssertEqual(try ArchiveOracle.contents(url, password: "fixture-key")["renamed.txt"], Data("new encrypted contents".utf8))
             let renamedTree = EntryNode.tree(from: await session.entries())
             let renamed = try XCTUnwrap(renamedTree.children.first { $0.path == "renamed.txt" })
             _ = try await session.remove([ArchiveEditSelection(renamed)], progress: Progress())
@@ -550,7 +539,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             let reader = try ArchiveReader.open(url: url, options: ReaderOptions(password: "fixture-key"))
             XCTAssertEqual(reader.entries.count, 2)
             XCTAssertTrue(reader.entries.allSatisfy(\.isEncrypted))
-            XCTAssertEqual(try contents(url, password: "fixture-key"), [entryName: payload, "added.txt": payload])
+            XCTAssertEqual(try ArchiveOracle.contents(url, password: "fixture-key"), [entryName: payload, "added.txt": payload])
             if headers {
                 XCTAssertThrowsError(try ArchiveReader.open(url: url))
                 XCTAssertNil(try Data(contentsOf: url).range(of: XCTUnwrap(entryName.data(using: .utf16LittleEndian))))
