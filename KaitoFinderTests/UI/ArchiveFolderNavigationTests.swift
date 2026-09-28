@@ -95,7 +95,7 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
         let item = NSMenuItem(title: "", action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
         XCTAssertFalse(controller.validateMenuItem(item))
         let elapsed = start.duration(to: .now)
-        print("M6b VALIDATION selected=100000 first-refusal duration=\(elapsed)")
+        print("VALIDATION selected=100000 first-refusal duration=\(elapsed)")
         XCTAssertEqual(item.toolTip, EntryReadCapability.Refusal.directory.message())
         XCTAssertLessThan(elapsed, .milliseconds(200))
         XCTAssertNil(controller.selectionOpenRefusal(skippingDirectories: true))

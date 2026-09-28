@@ -152,7 +152,7 @@ directory 操作(`VolumePublishDirectory` / `VolumePublishFS`)を借りる。
 `PendingWorkRegistry` は Foundation の path で作業領域の名前だけを記録し、`RecoverableWorkIndex` は
 fd と巻の UUID で unmount 中の巻の手がかりを残す。
 
-試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置き、TaskLocal の hook は
+試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置く。一つの型に hook が多いときは
 `+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。
 
 `KaitoFinderTests/` も同じ考えで分ける。機能ごとの `App`・`Extraction`・`Editing`・`Updaters`・`DeferredSave`・`Split`・
@@ -899,7 +899,7 @@ Finder / LaunchServices の実ファイルの関連付けは増やさない。�
 `archiveContentTypes()` も全宣言を参照し、パネルの delegate とドロップ判定が分割巻の名前を補う。
 「開く…」と一括展開のパネルは content type による絞り込みを外し、delegate がフォルダへの移動と
 宣言型に準拠するアーカイブ・分割巻を有効にする。選択確定時はそれ以外を標準エラーで拒否する。
-拒否・変換の形式名は `Model/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
+拒否・変換の形式名は `Model/Listing/ArchiveFormatName.swift` の `ArchiveFormat.displayName` で統一し、
 圧縮 tar の magic による名前と既存の tar / 7z / SFX ZIP の扱いは維持する。
 Finder の登録・ダブルクリックの実機確認は [手動検証 §13](manual-verification.md#13-finder-のこのアプリケーションで開く)を参照。
 

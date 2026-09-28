@@ -7,7 +7,7 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumePublishJournalRecoveryTests: XCTestCase {
-    // 旧名: VolumePublishRound2Tests
+    // Former name: VolumePublishRound2Tests
     private func placed(_ fixture: VolumePublishFixture) throws -> URL {
         // A simulated crash unwinds the journal owner without performing rollback.
         XCTAssertThrowsError(try fixture.stagedTransaction(placed: true)) { XCTAssertTrue($0 is SimulatedCrash, "\($0)") }

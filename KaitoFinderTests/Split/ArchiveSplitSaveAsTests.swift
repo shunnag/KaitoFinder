@@ -205,7 +205,7 @@ nonisolated final class ArchiveSplitSaveAsTests: XCTestCase {
         }
     }
 
-    // 旧名: M6bReviewTests
+    // Former name: M6bReviewTests
     @MainActor func testSplitSaveAsReservesJoinedInputBeforeReadingAnySourceBytes() async throws {
         let fixture = try DeferredSplitSaveFixture(format: .tar)
         defer { fixture.document.close() }

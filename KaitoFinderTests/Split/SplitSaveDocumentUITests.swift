@@ -8,7 +8,7 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class SplitSaveDocumentUITests: XCTestCase {
-    // 旧名: M6CorrectionTests
+    // Former name: M6CorrectionTests
     @MainActor private func window(_ fixture: DeferredSplitSaveFixture) -> ArchiveWindowController {
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
         fixture.document.addWindowController(controller)

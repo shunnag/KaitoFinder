@@ -17,7 +17,7 @@ import XCTest
 }
 
 nonisolated final class SplitSaveRecoveryUITests: XCTestCase {
-    // 旧名: SplitSaveCorrectionTests
+    // Former name: SplitSaveCorrectionTests
     private func crash(_ fixture: VolumePublishFixture, at step: VolumePublishStep = .s7) throws -> URL {
         // This fixture tests recovery/presentation, not Foundation coordination availability.
         var operations = VolumePublishOperations()

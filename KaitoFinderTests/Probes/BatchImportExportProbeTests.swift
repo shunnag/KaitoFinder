@@ -13,7 +13,7 @@ import XCTest
 /// It lives in Probes/ with the other environment-gated harnesses: its output is data for a comparison made outside the
 /// test run, and a normal test run skips it.
 nonisolated final class BatchImportExportProbeTests: XCTestCase {
-    // 旧名: BatchImportCompatibilityTests
+    // Former name: BatchImportCompatibilityTests
     func testExportWhenEnabled() async throws {
         guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_P7_EXPORT_DIRECTORY"] else {
             throw XCTSkip("KAITOFINDER_P7_EXPORT_DIRECTORY is not configured")

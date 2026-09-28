@@ -464,12 +464,12 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
             if controller.searchField.sendsSearchStringImmediately {
                 XCTAssertTrue(controller.searchField.sendAction(controller.searchField.action, to: controller.searchField.target))
             }
-            print("M6b SEARCH \(mode) entries=100000 key=\(character) ms=\(milliseconds(start.duration(to: .now))) query=\(controller.filterQuery)")
+            print("SEARCH \(mode) entries=100000 key=\(character) ms=\(milliseconds(start.duration(to: .now))) query=\(controller.filterQuery)")
         }
         let start = ContinuousClock.now
         controller.filterEntries(controller.searchField)
         await controller.filterTaskForTesting?.value
-        print("M6b SEARCH \(mode) entries=100000 final-filter ms=\(milliseconds(start.duration(to: .now)))")
+        print("SEARCH \(mode) entries=100000 final-filter ms=\(milliseconds(start.duration(to: .now)))")
         XCTAssertEqual(controller.filterQuery, "file")
         XCTAssertEqual(controller.outlineView.numberOfRows, 101_000)
         controller.setFilterQuery("file99999")

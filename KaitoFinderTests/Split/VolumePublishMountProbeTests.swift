@@ -6,7 +6,7 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumePublishMountProbeTests: XCTestCase {
-    // 旧名: VolumePublishRound3Tests
+    // Former name: VolumePublishRound3Tests
     func testEmptyIndexNeverEntersBlockingMountProbe() throws {
         let fixture = try VolumePublishFixture()
         let probed = Mutex(false), unblock = DispatchSemaphore(value: 0)
