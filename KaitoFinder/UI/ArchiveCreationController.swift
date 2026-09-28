@@ -53,7 +53,7 @@ final class ArchiveCreationController {
             var estimate = existing.identity?.volumes.reduce(UInt64(0)) { $0 + $1.size } ?? save.estimatedSplitLength
             for addition in existing.pending?.additions ?? [] {
                 let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
-                let padded = next.partialValue.addingReportingOverflow(1024)
+                let padded = next.partialValue.addingReportingOverflow(VolumePlan.perEntryOverheadEstimate)
                 guard !next.overflow, !padded.overflow else { throw VolumePublishError.invalidPlan }
                 estimate = padded.partialValue
             }

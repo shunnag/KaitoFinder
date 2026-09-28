@@ -1478,7 +1478,7 @@ extension ArchiveDocument {
         let info = try await Self.splitVolumeInfo(parent, operations: splitSaveHooks.operations)
         var estimate = layout.volumes.reduce(UInt64(0)) { $0 + $1.length }
         for entry in pending.additions {
-            let next = estimate.addingReportingOverflow(entry.sourceStamp.size + 1024)
+            let next = estimate.addingReportingOverflow(entry.sourceStamp.size + VolumePlan.perEntryOverheadEstimate)
             guard !next.overflow else { throw VolumePublishError.invalidPlan }
             estimate = next.partialValue
         }

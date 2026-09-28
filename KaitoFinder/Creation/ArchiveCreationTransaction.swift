@@ -175,7 +175,7 @@ nonisolated enum ArchiveCreationTransaction {
         else { additionalWorkBytes = 0 }
         for addition in replay.additions {
             let next = estimate.addingReportingOverflow(addition.sourceStamp.size)
-            let padded = next.partialValue.addingReportingOverflow(1024)
+            let padded = next.partialValue.addingReportingOverflow(VolumePlan.perEntryOverheadEstimate)
             guard !next.overflow, !padded.overflow else { throw VolumePublishError.invalidPlan }
             estimate = padded.partialValue
         }

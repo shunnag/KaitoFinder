@@ -10,6 +10,9 @@ import KaitoKit
 
 /// 不揃いな予定表の選択は呼び出し側の仕事。推測して自動採用しない。
 nonisolated struct VolumePlan: Sendable, Equatable {
+    /// 分割保存の出力の大きさを見積もるとき、追加する項目ごとに内容の byte 数へ足す余裕（header などの分）。
+    static let perEntryOverheadEstimate: UInt64 = 1024
+
     enum Schedule: Codable, Sendable, Equatable {
         case uniform(size: UInt64)
         case explicit([UInt64])
