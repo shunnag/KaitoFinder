@@ -27,17 +27,16 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var hasPositionedWindow = false
     private var archiveSession: ArchiveSession?
     private var generation: UInt64 = 0
-    private(set) var renameIndexTask: Task<Void, Never>?
-    private var preparedRenameOccupancy: ArchivePathOccupancy.Overlay?
-    private var didPrepareRenameIndex = false
+    private let renameIndex = ArchiveRenameIndex()
+    var renameIndexTask: Task<Void, Never>? { renameIndex.task }
     #if DEBUG
     private(set) var treeDisplayedAt: ContinuousClock.Instant?
-    private(set) var renameIndexReadyAt: ContinuousClock.Instant?
+    var renameIndexReadyAt: ContinuousClock.Instant? { renameIndex.readyAt }
     #endif
-    var renameIndexIsReady: Bool { didPrepareRenameIndex && archiveSession?.generation == generation }
+    var renameIndexIsReady: Bool { renameIndex.isPrepared && archiveSession?.generation == generation }
     var renameOccupancy: ArchivePathOccupancy.Overlay? {
         guard listLoadingToken == nil, archiveSession?.generation == generation else { return nil }
-        return preparedRenameOccupancy ?? root.editOccupancy
+        return renameIndex.preparedOccupancy ?? root.editOccupancy
     }
     private var listLoadingToken: UUID?
     #if DEBUG
@@ -552,7 +551,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
 
     @discardableResult func beginListLoading() -> UUID {
         cancelListLoading()
-        cancelRenameIndex()
+        renameIndex.cancel()
         #if DEBUG
         treeDisplayedAt = nil
         #endif
@@ -596,42 +595,17 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         else { listLoadingIndicator.stopAnimation(nil) }
     }
 
-    private func cancelRenameIndex() {
-        renameIndexTask?.cancel()
-        renameIndexTask = nil
-        didPrepareRenameIndex = false
-        #if DEBUG
-        renameIndexReadyAt = nil
-        #endif
-        ArchiveBackgroundRelease.release(&preparedRenameOccupancy)
-    }
-
     func cancelListWork() {
         cancelFilterWork()
         cancelListLoading()
-        cancelRenameIndex()
+        renameIndex.cancel()
     }
 
     private func prepareRenameIndex(for root: EntryNode, session: ArchiveSession, generation: UInt64) {
-        let entries = root.archiveEntries, format = session.reservationFormat
-        renameIndexTask = Task { [weak self, weak root] in
-            var occupancy: ArchivePathOccupancy.Overlay?
-            let snapshot = await session.snapshot()
-            if !session.usesPendingReading, snapshot.generation == generation, snapshot.entries.count == entries.count {
-                occupancy = await session.prepareNameIndex(generation: generation)?.overlay
-            } else { occupancy = await EntryNode.buildRenameOccupancy(from: entries, format: format) }
-            defer { ArchiveBackgroundRelease.release(&occupancy) }
-            // 公開済みの木は変更せず、同じ木・セッション・世代にだけ結び付ける。
-            guard !Task.isCancelled, let self, let root, self.root === root,
-                  self.archiveSession === session, self.generation == generation,
-                  session.generation == generation else { return }
-            self.preparedRenameOccupancy = occupancy
-            self.didPrepareRenameIndex = true
-            self.renameIndexTask = nil
-            #if DEBUG
-            self.renameIndexReadyAt = .now
-            #endif
-            ArchiveReservationDiagnostics.record(.renameIndexReady)
+        // 木は弱参照で持ち、退役した木の解放を索引の準備が妨げないようにする。
+        renameIndex.prepare(for: root, session: session, generation: generation) { [weak self, weak root] in
+            guard let self, let root else { return false }
+            return self.root === root && self.archiveSession === session && self.generation == generation
         }
     }
 
@@ -643,7 +617,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let span = ArchiveStageDiagnostics.begin(.display)
         defer { span?.end() }
         #endif
-        if let loadingToken, isCurrentListLoading(loadingToken) { cancelRenameIndex() }
+        if let loadingToken, isCurrentListLoading(loadingToken) { renameIndex.cancel() }
         else { cancelListWork() }
         var state = captureViewState()
         if requestedFilterQuery != filterQuery {
