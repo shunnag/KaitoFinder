@@ -61,4 +61,10 @@ nonisolated enum TarUpdateFixture {
     static func selection(_ entry: ArchiveEntry) -> ArchiveEditSelection {
         .init(path: entry.name, isDirectory: entry.kind == .directory, entries: [entry])
     }
+
+    static func assertWork(_ work: URL, archive: URL, original: Data, identity: ArchiveFileIdentity) throws {
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: work.deletingLastPathComponent().path), ["archive.tar"])
+        XCTAssertEqual(try Data(contentsOf: archive), original)
+        XCTAssertEqual(try ArchiveFileIdentity.capture(url: archive), identity)
+    }
 }
