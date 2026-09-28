@@ -18,8 +18,16 @@ nonisolated struct ArchiveCapabilities: Sendable {
 
         func resolved(with options: WriterOptions) -> Mode {
             guard case .update(let format) = self else { return self }
-            let resetsTar = [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format) && options.carriedTarOwnerIDs == .reset
+            let resetsTar = format.isTarFamily && options.carriedTarOwnerIDs == .reset
             return options.additionPlacement == .beginning || resetsTar ? .rewrite(format) : self
+        }
+
+        /// 圧縮 tar の更新だけは、actor が所有する reader の複製を updater へ渡す。他の mode は自前で開く。
+        var reusesSessionReader: Bool {
+            switch self {
+            case .update(.tarGzip), .update(.tarBzip2), .update(.tarXZ): true
+            default: false
+            }
         }
     }
 
@@ -66,6 +74,10 @@ nonisolated struct ArchiveCapabilities: Sendable {
     }
 
     var canEdit: Bool { refusal == nil }
+    /// canEdit が偽のときに編集入口が投げる拒否。理由の文言は readOnlyReason だけが持つ。
+    var editRefusal: ExtractionFailure {
+        .refused(readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
+    }
     var rewriteNotice: String? {
         guard case .rewrite = mode else { return nil }
         return String(localized: "編集するとアーカイブ全体を再圧縮します")

@@ -1346,12 +1346,11 @@ extension ArchiveDocument {
     }
 
     private func confirmSplitMutation(progress: Progress) async throws {
-        guard !canUndoNextMutation, isImmediateSplitMutation else { return }
-        guard session?.capabilities.canEdit == true else {
-            throw ExtractionFailure.refused(session?.capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
-        }
+        // isImmediateSplitMutation が真なら session はある。
+        guard !canUndoNextMutation, isImmediateSplitMutation, let session else { return }
+        guard session.capabilities.canEdit else { throw session.capabilities.editRefusal }
         guard !suppressSplitMutationConfirmation else { return }
-        let alert = ArchiveSplitSaveSheet.mutationAlert(schedule: session?.volumeLayout?.immediateSchedule)
+        let alert = ArchiveSplitSaveSheet.mutationAlert(schedule: session.volumeLayout?.immediateSchedule)
         let response = try await withSplitPrompt { window in
             if let splitMutationConfirmation { return try await splitMutationConfirmation(alert) }
             return try await ArchiveSplitSaveSheet.present(alert, on: window)

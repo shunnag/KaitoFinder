@@ -351,9 +351,7 @@ actor ArchiveSession {
                 didProcess: (@Sendable (Int) throws -> Void)? = nil,
                 willPublish: (@Sendable () throws -> Void)? = nil) async throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
-        guard capabilities.canEdit else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
-        }
+        guard capabilities.canEdit else { throw capabilities.editRefusal }
         try verifyBeforeEditing(progress: progress)
         let expectedGeneration = generation
         let occupancy = currentNameIndex()?.overlay
@@ -370,17 +368,12 @@ actor ArchiveSession {
                                             progress: progress, options: importOptions(), format: reservationFormat, occupancy: occupancy)
             }
         }
-        let base = capabilities.mode!
-        let options = options(for: base)
-        let mode = base.resolved(with: options)
-        var (result, verified, publishedMode) = try publishing {
-            let verifiedOutput = ArchiveVerifiedOutputSink()
-            let result = try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
-                                                     options: options, password: password, progress: progress,
-                                                     didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                                                     sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
-                                                         ? try reader.reopen() : nil)
-            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
+        let (_, mode, options) = resolvedWriteMode()
+        var (result, verified, publishedMode) = try publishVerified(mode: mode) { verifiedOutput in
+            try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
+                                             options: options, password: password, progress: progress,
+                                             didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                                             sessionReader: mode.reusesSessionReader ? try reader.reopen() : nil)
         }
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
@@ -453,26 +446,19 @@ actor ArchiveSession {
                       willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                       willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
         let reader = try requireCurrentReader()
-        guard capabilities.canEdit else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
-        }
+        guard capabilities.canEdit else { throw capabilities.editRefusal }
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing(progress: progress)
         // 名前決定も同じ actor 内で行い、連続した作成が同じ空き名を予約しないようにする。
         let plan = try ArchiveStageDiagnostics.measure(.planBuild) {
             try ArchiveNewFolderPlan.build(in: folder, baseName: baseName, existing: reader.entries, format: reservationFormat, occupancy: currentNameIndex()?.overlay)
         }
-        let base = capabilities.mode!
-        let options = options(for: base)
-        let mode = base.resolved(with: options)
-        var (result, verified, publishedMode) = try publishing {
-            let verifiedOutput = ArchiveVerifiedOutputSink()
-            let result = try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
-                                                               options: options, password: password, progress: progress,
-                                                               willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                                                               sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
-                                                         ? try reader.reopen() : nil)
-            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
+        let (_, mode, options) = resolvedWriteMode()
+        var (result, verified, publishedMode) = try publishVerified(mode: mode) { verifiedOutput in
+            try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
+                                                      options: options, password: password, progress: progress,
+                                                      willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                                                      sessionReader: mode.reusesSessionReader ? try reader.reopen() : nil)
         }
         do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(appended: [(plan.path, true)], mode: publishedMode)) }
         catch { result.reloadFailure = Self.reloadFailureMessage }
@@ -492,9 +478,7 @@ actor ArchiveSession {
               willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
         let reader = try requireCurrentReader()
         // canEdit は編集の共通門番。拒否理由も追加と揃える。
-        guard capabilities.canEdit else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
-        }
+        guard capabilities.canEdit else { throw capabilities.editRefusal }
         try ArchiveImportPlan.checkCancellation(progress)
         try verifyBeforeEditing(progress: progress)
         let occupancy = (renaming.isEmpty && moving.isEmpty ? availableNameIndex() : currentNameIndex())?.overlay
@@ -502,17 +486,12 @@ actor ArchiveSession {
             try ArchiveEditPlan.build(removing: removing, renaming: renaming, moving: moving,
                                       existing: reader.entries, format: reservationFormat, occupancy: occupancy)
         }
-        let base = capabilities.mode!
-        let options = options(for: base)
-        let mode = base.resolved(with: options)
-        var (result, verified, publishedMode) = try publishing {
-            let verifiedOutput = ArchiveVerifiedOutputSink()
-            let result = try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
-                                                   options: options, password: password, progress: progress,
-                                                   willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                                                   sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
-                                                         ? try reader.reopen() : nil, occupancy: occupancy)
-            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
+        let (_, mode, options) = resolvedWriteMode()
+        var (result, verified, publishedMode) = try publishVerified(mode: mode) { verifiedOutput in
+            try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
+                                           options: options, password: password, progress: progress,
+                                           willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
+                                           sessionReader: mode.reusesSessionReader ? try reader.reopen() : nil, occupancy: occupancy)
         }
         if result.published {
             do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(plan: plan, mode: publishedMode)) }
@@ -543,9 +522,7 @@ actor ArchiveSession {
         try verifyDeferredIdentity()
         let reader = try requireCurrentReader()
         if allowsSplitSave || allowsImmediateSplitSave, volumeLayout != nil { refreshCapabilities() }
-        guard capabilities.canEdit else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
-        }
+        guard capabilities.canEdit else { throw capabilities.editRefusal }
         try verifyBeforeEditing(progress: progress)
         if format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation {
             // probe は終端だけ。CD と local record の照合は open を一世代につき一度通す。
@@ -616,13 +593,13 @@ actor ArchiveSession {
                                             format: reservationFormat, progress: progress,
                                             baseOccupancy: availableNameIndex()?.occupancy)
         guard !plan.isEmpty else { return .init() }
-        let base = capabilities.mode!
-        var output = options(for: base)
-        var mode = base.resolved(with: output)
+        let resolved = resolvedWriteMode()
+        var output = resolved.options
+        var mode = resolved.mode
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
             output = encryption.applying(to: writerOptions(format), format: format)
-            mode = base.resolved(with: output)
+            mode = resolved.base.resolved(with: output)
             if format == .sevenZip, case .update = mode, capabilities.sevenZipAssessment?.canReencrypt != true {
                 mode = .rewrite(.sevenZip)
             }
@@ -649,13 +626,12 @@ actor ArchiveSession {
                         try plan.validate()
                         try willPublish?()
                     }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                    sessionReader: [.update(.tarGzip), .update(.tarBzip2), .update(.tarXZ)].contains(mode)
-                        ? try requireCurrentReader().reopen() : nil,
+                    sessionReader: mode.reusesSessionReader ? try requireCurrentReader().reopen() : nil,
                     additionalQuarantine: quarantine,
                     publication: publication, deferredPlan: plan,
                     expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)) { editor in
                         try plan.replay(on: editor, sourcePassword: sourcePassword, progress: progress,
-                                        preservingOwnerIDs: output.preserveOwnerIDs && [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(outputFormat), ledger: ledger)
+                                        preservingOwnerIDs: output.preserveOwnerIDs && outputFormat.isTarFamily, ledger: ledger)
                     }
             }
             let identity: ArchiveSetIdentity
@@ -686,9 +662,9 @@ actor ArchiveSession {
         let plan = try ArchiveSaveReplayPlan(base: snapshot.entries, generation: baseGeneration, pending: pending,
                                             format: reservationFormat, progress: progress,
                                             baseOccupancy: availableNameIndex()?.occupancy)
-        let base = capabilities.mode!
-        var output = options(for: base)
-        var mode = base.resolved(with: output)
+        let resolved = resolvedWriteMode()
+        var output = resolved.options
+        var mode = resolved.mode
         if let encryption = plan.outputEncryption {
             guard let format = passwordFormat else { throw ArchiveEditError.staleSelection }
             mode = format == .zip ? .inPlace : .rewrite(format)
@@ -735,10 +711,18 @@ actor ArchiveSession {
                 let reason = failure.errorDescription!
                 splitRecoveryReason.withLock { $0 = reason }
                 capabilitiesStorage.withLock { $0 = ArchiveCapabilities(refusal: .unavailable(reason)) }
-                if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
+                notifyCapabilitiesChanged()
             }
             throw failure
         }
+    }
+
+    /// capabilities の mode に現在の暗号化設定と writer の設定を重ね、実際に公開へ渡す mode を決める。
+    /// base は、暗号化の変更で設定を差し替えてから解決し直す呼出側（保存前モードの保存）のために返す。
+    private func resolvedWriteMode() -> (base: ArchiveCapabilities.Mode, mode: ArchiveCapabilities.Mode, options: WriterOptions) {
+        let base = capabilities.mode!
+        let options = options(for: base)
+        return (base, base.resolved(with: options), options)
     }
 
     private func options(for mode: ArchiveCapabilities.Mode) -> WriterOptions {
@@ -770,7 +754,7 @@ actor ArchiveSession {
         let reader = try requireCurrentReader()
         guard let format = passwordFormat, capabilities.canEdit,
               action == .set ? !hasEncryptedEntries : hasEncryptedEntries && hasKnownPassword else {
-            throw ExtractionFailure.refused(capabilities.readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
+            throw capabilities.editRefusal
         }
         try verifyBeforeEditing(progress: progress)
         if action != .remove, settings.password?.isEmpty != false {
@@ -825,17 +809,28 @@ actor ArchiveSession {
         do { return try body() } catch UpdaterError.invalidArchive(let reason) {
             let refusal = ArchiveCapabilities(refusal: .unavailable(reason))
             capabilitiesStorage.withLock { $0 = refusal }
-            if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
+            notifyCapabilitiesChanged()
             throw UpdaterError.invalidArchive(reason)
         } catch ArchiveEditError.splitArchive {
             throw splitArchiveRefusal()
         }
     }
 
+    /// publishing の門番の中で検証済み出力の受け皿を用意し、結果と一緒に実際に公開された mode を返す。
+    /// 公開側が mode を変えなかった（受け皿に記録しなかった）場合は、渡した mode をそのまま返す。
+    private func publishVerified<T>(mode: ArchiveCapabilities.Mode,
+                                    _ body: (ArchiveVerifiedOutputSink) throws -> T) throws -> (T, ArchiveVerifiedOutput?, ArchiveCapabilities.Mode) {
+        try publishing {
+            let verifiedOutput = ArchiveVerifiedOutputSink()
+            let result = try body(verifiedOutput)
+            return (result, verifiedOutput.take(), verifiedOutput.publishedMode ?? mode)
+        }
+    }
+
     private func splitArchiveRefusal() -> ExtractionFailure {
         let refusal = ArchiveCapabilities(refusal: ArchiveCapabilities.splitRefusal(for: sourceURL, scheme: volumeLayout?.scheme))
         capabilitiesStorage.withLock { $0 = refusal }
-        if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
+        notifyCapabilitiesChanged()
         return .refused(refusal.readOnlyReason!)
     }
 
@@ -849,6 +844,11 @@ actor ArchiveSession {
         encryptionStorage.withLock {
             $0 = EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted), hasKnownPassword: password != nil)
         }
+        notifyCapabilitiesChanged()
+    }
+
+    /// capabilities の差し替えを UI へ知らせる。観測側は main actor で読み直すだけなので、actor の外で呼ぶ。
+    private func notifyCapabilitiesChanged() {
         if let observer = capabilitiesObserver.withLock({ $0 }) { Task { @MainActor in observer() } }
     }
 
