@@ -68,7 +68,7 @@ nonisolated enum ArchiveCreationTransaction {
                 countsCarriedItems: plan.existing != nil))
         }
         let directory = plan.destination.deletingLastPathComponent()
-            .appendingPathComponent(".KaitoFinder-new-" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(WorkAreaName.new + UUID().uuidString, isDirectory: true)
         do { try registry.register(directory) }
         catch { NSLog("台帳への記録に失敗しました: %@", String(describing: error)) }
         do {

@@ -143,7 +143,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
                     parked.insert(index)
                     let directory = base[index].kind == .directory
                     var path: String
-                    repeat { path = ".KaitoFinder-rename-" + UUID().uuidString }
+                    repeat { path = WorkAreaName.rename + UUID().uuidString }
                     while occupied.containsSubtree(at: path) || final.containsSubtree(at: path)
                     occupied.remove(current[index] ?? baseKey(index), directory: directory)
                     occupied.insert(path, directory: directory)

@@ -364,7 +364,7 @@ nonisolated final class VolumeSetPublication: Sendable {
     }
 
     static func checkWorkLength(_ length: UInt64, fileSystem: String) throws {
-        if ["msdos", "fat", "fat32"].contains(fileSystem.lowercased()), length >= UInt64(UInt32.max) {
+        if VolumePublishFS.fat32Family.contains(fileSystem.lowercased()), length >= UInt64(UInt32.max) {
             // 別 volume の W の所有権管理は持たない。S0 で明示的に拒否し、巨大な書き込みを始めない。
             throw VolumePublishError.fat32WorkFileTooLarge(length: length)
         }

@@ -128,7 +128,7 @@ nonisolated final class ParallelExtraction: Sendable {
             DispatchQueue.global(qos: .userInitiated).async { [counter, didProcess] in
                 defer { group.leave() }
                 worker.resources.withLock { resources in
-                    var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+                    var buffer = [UInt8](repeating: 0, count: ExtractionService.streamBufferSize)
                     func checkCancellation() throws {
                         if progress.isCancelled || stopped.withLock({ $0 }) { throw CancellationError() }
                     }

@@ -28,7 +28,7 @@ nonisolated extension StagingRegistry {
                 let output = open(target.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
                 guard output >= 0 else { throw ExtractionFailure.system(errno) }
                 defer { close(output) }
-                var buffer = [UInt8](repeating: 0, count: 256 * 1024)
+                var buffer = [UInt8](repeating: 0, count: Self.copyBufferSize)
                 while true {
                     try ArchiveImportPlan.checkCancellation(progress)
                     let count = buffer.withUnsafeMutableBytes { Darwin.read(input, $0.baseAddress, $0.count) }

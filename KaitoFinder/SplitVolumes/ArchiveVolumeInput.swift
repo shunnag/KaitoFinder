@@ -65,14 +65,14 @@ nonisolated struct ArchiveVolumeInput: Sendable {
             #endif
             while copied < volume.size {
                 try checkCancellation()
-                let data = try VolumePublishFS.read(fd, length: Int(min(1024 * 1024, volume.size - copied)), offset: copied)
+                let data = try VolumePublishFS.read(fd, length: Int(min(VolumePublishFS.hashChunkSize, volume.size - copied)), offset: copied)
                 hash?.update(data: data)
                 try VolumePublishFS.write(output, data: data, offset: offset + copied)
                 copied += UInt64(data.count)
                 didRead(data.count)
             }
             try checkCancellation()
-            let digest = hash?.finalize().map { String(format: "%02x", $0) }.joined()
+            let digest = hash.map { VolumePublishFS.hex($0.finalize()) }
             guard !usesHashes || digest == volume.sha256,
                   fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
                   let pathAfter = try parent.info(volume.name),

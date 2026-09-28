@@ -95,8 +95,19 @@ nonisolated final class VolumePublishDirectory: Sendable {
 }
 
 nonisolated enum VolumePublishFS {
-    static let stagingPrefix = ".KaitoFinder-vol-"
+    static let stagingPrefix = WorkAreaName.volume
+    /// 空き容量の検査で要求量に足す余裕。台帳の上限（maximumLedgerBytes）とは別物。
     static let margin: UInt64 = 16 * 1024 * 1024
+    /// 全文 hash と巻のコピーで一度に読む長さ。
+    static let hashChunkSize: UInt64 = 1 << 20
+    /// Application Support の JSON 台帳（volume-publish-index / volume-metadata）を読み書きする上限。
+    static let maximumLedgerBytes = 16 << 20
+    /// FAT 系。inode と 2 秒単位の mtime を信用せず、旧巻の全文 hash を必要とする。
+    static let fatFamily: Set<String> = ["msdos", "exfat", "fat", "fat32"]
+    /// 4 GiB のファイル上限を持つ FAT。exFAT は含めない。
+    static let fat32Family: Set<String> = ["msdos", "fat", "fat32"]
+    /// volume capability を読めないとき、xattr を AppleDouble（._*）で運ぶとみなすファイルシステム。
+    static let appleDoubleFallbackFileSystems: Set<String> = ["msdos", "exfat", "smbfs", "afpfs", "webdav"]
     static let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("KaitoFinder", isDirectory: true)
 
@@ -150,7 +161,12 @@ nonisolated enum VolumePublishFS {
         return data
     }
 
-    static func digest(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+    /// 64 桁の小文字 16 進。journal・xattr・台帳に書く digest の書式はすべてこれ。
+    static func hex(_ digest: some Sequence<UInt8>) -> String { digest.map { String(format: "%02x", $0) }.joined() }
+    static func isSHA256Hex(_ value: String) -> Bool {
+        value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+    }
+    static func digest(_ data: Data) -> String { hex(SHA256.hash(data: data)) }
 
     static func hash(_ directory: VolumePublishDirectory, _ name: String,
                      checkCancellation: () throws -> Void = {}) throws -> String {
@@ -161,13 +177,13 @@ nonisolated enum VolumePublishFS {
         var hash = SHA256(), offset: UInt64 = 0
         while offset < UInt64(before.st_size) {
             try checkCancellation()
-            let data = try read(fd, length: Int(min(1024 * 1024, UInt64(before.st_size) - offset)), offset: offset)
+            let data = try read(fd, length: Int(min(hashChunkSize, UInt64(before.st_size) - offset)), offset: offset)
             hash.update(data: data)
             offset += UInt64(data.count)
         }
         guard fstat(fd, &after) == 0, sameFile(before, after),
               let path = try directory.info(name), sameFile(after, path) else { throw VolumePublishError.setChanged }
-        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+        return hex(hash.finalize())
     }
 
     static func sameFile(_ lhs: stat, _ rhs: stat) -> Bool {
@@ -184,7 +200,7 @@ nonisolated enum VolumePublishFS {
         let available: UInt64
         let hazard: String?
         var isLocal: Bool { hazard != "non-local" }
-        var needsOldHashes: Bool { ["msdos", "exfat", "fat", "fat32"].contains(fileSystem) }
+        var needsOldHashes: Bool { VolumePublishFS.fatFamily.contains(fileSystem) }
     }
 
     static func volumeInfo(_ parent: VolumePublishDirectory) throws -> VolumeInfo {
@@ -202,7 +218,7 @@ nonisolated enum VolumePublishFS {
             parent.url.path == $0 || parent.url.path.hasPrefix($0 + "/")
         }
         let hazard: String?
-        if ["msdos", "exfat", "fat", "fat32"].contains(kind) { hazard = kind }
+        if fatFamily.contains(kind) { hazard = kind }
         else if resources.volumeIsLocal == false || value.f_flags & UInt32(MNT_LOCAL) == 0 { hazard = "non-local" }
         else if cloud || resources.isUbiquitousItem == true { hazard = "file-provider" }
         else { hazard = nil }
@@ -229,7 +245,7 @@ nonisolated enum VolumePublishFS {
            buffer.value.valid.1 & UInt32(VOL_CAP_INT_EXTENDED_ATTR) != 0 {
             return buffer.value.capabilities.1 & UInt32(VOL_CAP_INT_EXTENDED_ATTR) == 0
         }
-        return ["msdos", "exfat", "smbfs", "afpfs", "webdav"].contains(kind)
+        return appleDoubleFallbackFileSystems.contains(kind)
     }
 
     /// Foundation can return a volume-group UUID for both the system root and Data mount.

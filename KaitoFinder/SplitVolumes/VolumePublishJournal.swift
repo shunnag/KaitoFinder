@@ -119,7 +119,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
         for (index, volume) in oldVolumes.enumerated() {
             guard volume.name == scheme.fileName(forVolumeAt: index, count: oldVolumes.count),
                   volume.mode & S_IFMT == S_IFREG,
-                  !hashesOldVolumes || Self.validHash(volume.sha256 ?? "") else {
+                  !hashesOldVolumes || VolumePublishFS.isSHA256Hex(volume.sha256 ?? "") else {
                 throw VolumePublishError.journalUnreadable
             }
         }
@@ -127,7 +127,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
         for (index, volume) in newVolumes.enumerated() {
             let addition = sum.addingReportingOverflow(volume.length)
             guard volume.name == scheme.fileName(forVolumeAt: index, count: newVolumes.count),
-                  volume.length > 0, Self.validHash(volume.sha256), !addition.overflow else {
+                  volume.length > 0, VolumePublishFS.isSHA256Hex(volume.sha256), !addition.overflow else {
                 throw VolumePublishError.journalUnreadable
             }
             sum = addition.partialValue
@@ -136,10 +136,6 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
               !newVolumes.isEmpty || phase == .prepared || phase == .abandoned else {
             throw VolumePublishError.journalUnreadable
         }
-    }
-
-    private static func validHash(_ value: String) -> Bool {
-        value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
     }
 
     private enum CodingKeys: String, CodingKey {

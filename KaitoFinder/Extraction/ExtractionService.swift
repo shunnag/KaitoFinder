@@ -59,6 +59,9 @@ nonisolated struct ExtractionResult: Sendable {
 }
 
 nonisolated enum ExtractionService {
+    /// entry の本文を読む・書く緩衝の長さ。
+    static let streamBufferSize = 128 << 10
+
     /// 出力 root は既存の実ディレクトリ。選択の書庫内相対パスを維持する。
     /// 呼出側は完了まで root を排他的に所有する。既存の葉は上書きしない。
     /// solid group は分断しない。callback は各 worker で同期的に呼ぶ。
@@ -75,9 +78,8 @@ nonisolated enum ExtractionService {
             return try await extract(selection.entries.map { snapshot.payload(for: $0, archive: session.sourceURL) },
                                      from: session, to: destination, progress: progress, didProcess: didProcess)
         }
-        progress.kind = .file
-        progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
-        progress.setUserInfoObject(destination, forKey: .fileURLKey)
+        progress.beginFileCopy(to: destination)
+        // snapshot の取得（パスワード準備を含む）を待つ間も件数を確定表示する。run の ExtractionProgress が上書きする。
         progress.totalUnitCount = Int64(selection.entries.count)
         progress.completedUnitCount = 0
         progress.setUserInfoObject(selection.entries.count, forKey: .fileTotalCountKey)
@@ -109,13 +111,7 @@ nonisolated enum ExtractionService {
                 if let reason = capability.reason { throw ExtractionFailure.refused(reason) }
             }
         }
-        progress.kind = .file
-        progress.totalUnitCount = Int64(snapshot.selection.entries.count)
-        progress.completedUnitCount = 0
-        progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
-        progress.setUserInfoObject(destination, forKey: .fileURLKey)
-        progress.setUserInfoObject(snapshot.selection.entries.count, forKey: .fileTotalCountKey)
-        progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
+        progress.beginFileCopy(to: destination)
         return try extractResolved(snapshot.selection.entries, reader: snapshot.reader, to: destination,
             quarantine: snapshot.quarantine, progress: progress, promisedItem: promisedItem,
             readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
@@ -135,13 +131,7 @@ nonisolated enum ExtractionService {
                                                     format: snapshot.reader.format).reason { throw ExtractionFailure.refused(reason) }
             }
         }
-        progress.kind = .file
-        progress.totalUnitCount = Int64(entries.count)
-        progress.completedUnitCount = 0
-        progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
-        progress.setUserInfoObject(destination, forKey: .fileURLKey)
-        progress.setUserInfoObject(entries.count, forKey: .fileTotalCountKey)
-        progress.setUserInfoObject(0, forKey: .fileCompletedCountKey)
+        progress.beginFileCopy(to: destination)
         if let promisedItem {
             guard payloads.contains(promisedItem), destination.isFileURL else { throw ArchiveEntryPayload.staleSelection }
         }
@@ -220,7 +210,7 @@ nonisolated enum ExtractionService {
             didWrite: didWrite, didProcess: didProcess) : nil
         let orderedFiles = parallel == nil ? Set<Int>() : ParallelExtraction.orderedFiles(entries, mapping: mapping)
         var planned: [ParallelExtraction.File] = []
-        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+        var buffer = [UInt8](repeating: 0, count: streamBufferSize)
         var result = ExtractionResult()
         var claimed = Set<String>()
         var directories: [(ArchiveEntry, [String])] = []
@@ -400,7 +390,7 @@ nonisolated enum ExtractionService {
 
     static func consume(_ stream: EntryStream, checkCancellation: () throws -> Void,
                         body: (UnsafeRawBufferPointer) throws -> Void) throws {
-        var buffer = [UInt8](repeating: 0, count: 128 * 1024)
+        var buffer = [UInt8](repeating: 0, count: streamBufferSize)
         try consume(stream, buffer: &buffer, checkCancellation: checkCancellation, body: body)
     }
 
@@ -417,6 +407,15 @@ nonisolated enum ExtractionService {
 
     private static func drain(_ stream: EntryStream, buffer: inout [UInt8], checkCancellation: () throws -> Void) throws {
         try consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { _ in }
+    }
+}
+
+/// Finder 風のファイルコピーとして表示するための種別と出力先。件数と単位は ExtractionProgress が受け持つ。
+nonisolated extension Progress {
+    func beginFileCopy(to destination: URL) {
+        kind = .file
+        setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
+        setUserInfoObject(destination, forKey: .fileURLKey)
     }
 }
 

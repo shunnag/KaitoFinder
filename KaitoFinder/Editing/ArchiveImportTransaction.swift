@@ -148,7 +148,7 @@ nonisolated enum ArchiveImportTransaction {
         let original = try ArchiveSetIdentity.capture(url: archive)
         let archiveBytes = ArchiveWriteProgress.sum(original.volumes.lazy.map(\.size))
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
-        let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
+        let directory = archive.deletingLastPathComponent().appendingPathComponent(WorkAreaName.add + UUID().uuidString)
         do { try registry.register(directory) }
         catch { NSLog("台帳への記録に失敗しました: %@", String(describing: error)) }
         do {

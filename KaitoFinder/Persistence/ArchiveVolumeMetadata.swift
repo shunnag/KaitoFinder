@@ -38,8 +38,7 @@ nonisolated enum ArchiveVolumeMetadata {
         }
         func validate() throws {
             try layout.validate()
-            guard (1...128).contains(count), generation > 0, totalSHA256.utf8.count == 64,
-                  totalSHA256.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+            guard (1...128).contains(count), generation > 0, VolumePublishFS.isSHA256Hex(totalSHA256),
                   attributes == nil || attributes?.count == count else { throw VolumePublishError.validationFailed }
         }
     }
@@ -68,14 +67,14 @@ nonisolated enum ArchiveVolumeMetadata {
         // 切り出し結果は巻順。旧版は書式だけを検査するため、JSON は保ち digest の意味だけを変える。
         for volume in volumes {
             let hex = Array(volume.sha256.utf8)
-            guard hex.count == 64, hex.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else {
+            guard VolumePublishFS.isSHA256Hex(volume.sha256) else {
                 throw VolumePublishError.validationFailed
             }
             func nibble(_ byte: UInt8) -> UInt8 { byte <= 57 ? byte - 48 : byte - 87 }
             let bytes = stride(from: 0, to: hex.count, by: 2).map { nibble(hex[$0]) * 16 + nibble(hex[$0 + 1]) }
             hash.update(data: Data(bytes))
         }
-        return hash.finalize().map { String(format: "%02x", $0) }.joined()
+        return VolumePublishFS.hex(hash.finalize())
     }
 
     static func read<T: Decodable>(_ type: T.Type, key: String, at url: URL) throws -> T? {
@@ -216,7 +215,7 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
         guard fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
               let final = try parent.info(gate.lastPathComponent),
               VolumePublishTransaction.Stamp(final) == VolumePublishTransaction.Stamp(after) else { throw VolumePublishError.setChanged }
-        return (volume.uuid, path, info.st_ino, size, hash.finalize().map { String(format: "%02x", $0) }.joined())
+        return (volume.uuid, path, info.st_ino, size, VolumePublishFS.hex(hash.finalize()))
     }
     func entry(for gate: URL) throws -> Entry? {
         let key = try location(gate)
@@ -238,11 +237,11 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
             values.append(entry)
             var bytes = try JSONEncoder().encode(values)
             // Keep the newest records within the read limit; legacy/cache corruption never gates publication.
-            while bytes.count >= 16 * 1024 * 1024, values.count > 1 {
+            while bytes.count >= VolumePublishFS.maximumLedgerBytes, values.count > 1 {
                 values.removeFirst()
                 bytes = try JSONEncoder().encode(values)
             }
-            guard bytes.count < 16 * 1024 * 1024 else { throw VolumePublishError.journalTooLarge }
+            guard bytes.count < VolumePublishFS.maximumLedgerBytes else { throw VolumePublishError.journalTooLarge }
             let name = ".volume-metadata-" + UUID().uuidString
             let fd = try directory.openFile(name, flags: O_WRONLY | O_CREAT | O_EXCL)
             defer { close(fd); _ = unlinkat(directory.fd, name, 0) }
@@ -263,7 +262,7 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
     }
     private func read(_ directory: VolumePublishDirectory) throws -> [Entry] {
         guard let info = try directory.info(fileURL.lastPathComponent) else { return [] }
-        guard info.st_size >= 0, info.st_size < 16 * 1024 * 1024 else { throw VolumePublishError.validationFailed }
+        guard info.st_size >= 0, info.st_size < off_t(VolumePublishFS.maximumLedgerBytes) else { throw VolumePublishError.validationFailed }
         let fd = try directory.openFile(fileURL.lastPathComponent)
         defer { close(fd) }
         return try JSONDecoder().decode([Entry].self, from: VolumePublishFS.read(fd, length: Int(info.st_size), offset: 0))
