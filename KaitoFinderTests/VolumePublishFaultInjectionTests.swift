@@ -5,7 +5,8 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
-nonisolated final class VolumePublishCorrectionTests: XCTestCase {
+nonisolated final class VolumePublishFaultInjectionTests: XCTestCase {
+    // 旧名: VolumePublishCorrectionTests
     private enum Injected: Error { case failure, trashUnavailable, readerUnavailable }
     private func crash(_ fixture: VolumePublishFixture, at step: VolumePublishStep,
                        operations: VolumePublishOperations = .init(), consent: Bool = false) throws -> URL {
@@ -19,7 +20,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         }
     }
 
-    // 1 / 4: 実 FAT の AppleDouble と、必ず Trash が失敗する分岐。
+    // 実 FAT の AppleDouble と、必ず Trash が失敗する分岐。
     func testFATAndExFATXattrsForeignEntriesAndForcedRemoval() throws {
         for kind in ["MS-DOS FAT32", "ExFAT"] {
             let disk = try attachedTestDisk(kind)
@@ -60,7 +61,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         try fixture.assertNew(); try fixture.assertRemoved(staging)
     }
 
-    // 2: S11 の内側全境界。done は以後 live 名を触らない。
+    // S11 の内側全境界。done は以後 live 名を触らない。
     func testEveryS11CrashOnlyCleansUpAndPreservesPublishedSet() throws {
         for step in [VolumePublishStep.committed, .oldDisposed, .stagingRemoved, .indexRemoved] {
             let fixture = try VolumePublishFixture(), staging = try crash(fixture, at: step)
@@ -115,7 +116,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         try fixture.assertNew()
     }
 
-    // 3: S1 write-ahead と、原本の外部変更後の pre-S5 cleanup。
+    // S1 write-ahead と、原本の外部変更後の pre-S5 cleanup。
     func testPreS5AbortAndCancelRemoveStagingAfterExternalChange() throws {
         for cancel in [false, true] {
             let fixture = try VolumePublishFixture(), publication = try fixture.begin(operations: .refusingTrash(Injected.trashUnavailable))
@@ -187,7 +188,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         next.cancel(); try fixture.assertOld()
     }
 
-    // 4: no-Trash は成功した rollback と forward recovery の障害にならない。
+    // no-Trash は成功した rollback と forward recovery の障害にならない。
     func testForcedTrashFailureRemovesCommittedAndRolledBackData() throws {
         let operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
         let committed = try VolumePublishFixture(), publication = try committed.begin(operations: operations)
@@ -219,7 +220,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         XCTAssertEqual(try fixture.index.entries().count, 1)
     }
 
-    // 5: 呼び出し Task を S5 直後に実際に cancel する。gzip open は Task cancellation を観測する。
+    // 呼び出し Task を S5 直後に実際に cancel する。gzip open は Task cancellation を観測する。
     func testCallingTaskCancellationAfterS5DoesNotCancelCompressedTarPublication() async throws {
         let fixture = try VolumePublishFixture(compressed: true)
         let reached = XCTestExpectation(description: "S5 reached"), resume = DispatchSemaphore(value: 0)
@@ -234,7 +235,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         try fixture.assertNew(); try fixture.assertRemoved(publication.stagingURL)
     }
 
-    // 6 / 7: reader の環境依存エラーは、全 hash が合う新セットを後退させない。
+    // reader の環境依存エラーは、全 hash が合う新セットを後退させない。
     func testS10ReaderFailureHoldsHashProvenPublishedSet() throws {
         let fixture = try VolumePublishFixture()
         var operations = VolumePublishOperations()
@@ -300,7 +301,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         guard case .recovered(_, .backward, _) = VolumePublishRecovery(index: fixture.index).recover(staging: publication.stagingURL) else { return XCTFail("cleanup retry") }
     }
 
-    // 8: foreign new-only 名を保存し、foreign gate があっても先に自分の新巻を引き戻す。
+    // foreign new-only 名を保存し、foreign gate があっても先に自分の新巻を引き戻す。
     func testForeignNewOnlyNameDoesNotBlockRestoringOldSet() throws {
         let fixture = try VolumePublishFixture(), foreign = fixture.root.appendingPathComponent("archive.tar.005")
         let bytes = Data("unrelated".utf8)
@@ -372,7 +373,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         }
     }
 
-    // 9: hook は実 FULLFSYNC（非対応時 fsync）の完了後にのみ通知される。
+    // hook は実 FULLFSYNC（非対応時 fsync）の完了後にのみ通知される。
     func testDurabilityBarriersPrecedeSiblingMovesGatePublicationAndDisposal() throws {
         let events = Mutex<[String]>([])
         var operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
@@ -405,7 +406,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         try fixture.assertOld(); try fixture.assertRemoved(staging)
     }
 
-    // 10: coordinator の取得失敗は rename 前に HOLD。presenter も staging に連れて行かない。
+    // coordinator の取得失敗は rename 前に HOLD。presenter も staging に連れて行かない。
     func testRecoveryCoordinatesBeforeMovingLiveNames() throws {
         let fixture = try VolumePublishFixture(), staging = try crash(fixture, at: .s7)
         let called = Mutex(false)
@@ -436,7 +437,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         XCTAssertEqual(try VolumePublishFixture.snapshot(fixture.root), before)
     }
 
-    // 11: didMount と同じ index-only 呼び出しを別 mount point から行う。
+    // didMount と同じ index-only 呼び出しを別 mount point から行う。
     func testIndexRecoversByUUIDAfterRemountAtDifferentPath() throws {
         let disk = try attachedTestDisk("APFS")
         defer { try? disk.detach() }
@@ -457,7 +458,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         XCTAssertTrue(try fixture.index.entries().isEmpty, "didMount completed this staging")
     }
 
-    // 12a: intermediate symlink を差し替えても、保持 fd の xattr だけが読み書きされる。
+    // intermediate symlink を差し替えても、保持 fd の xattr だけが読み書きされる。
     func testDescriptorXattrsCannotBeRedirectedByIntermediateSymlink() throws {
         let fixture = try VolumePublishFixture(oldCount: 0)
         let root = try VolumePublishDirectory(fixture.root)

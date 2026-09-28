@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 import GyoshukuKit
@@ -366,6 +367,31 @@ nonisolated final class ArchiveSplitVolumeTests: XCTestCase {
             } else {
                 XCTAssertTrue(unit.value.hasSuffix(ending), language)
             }
+        }
+    }
+
+    // 旧名: M6bReviewTests
+    @MainActor func testSplitDiscoveryFailureUsesOpenWordingAndPreservesErrno() throws {
+        let fixture = try ArchiveTestDirectory(), parent = fixture.url.appendingPathComponent("blocked")
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+        let member = parent.appendingPathComponent("archive.tar.002")
+        try Data([0]).write(to: member)
+        XCTAssertEqual(chmod(parent.path, 0o111), 0)
+        defer { _ = chmod(parent.path, 0o700) }
+        let document = ArchiveDocument()
+        defer { document.close() }
+        for read in [false, true] {
+            XCTAssertThrowsError(try { () -> Void in
+                if read { try document.read(from: member, ofType: ArchiveDocumentController.splitVolumeType) }
+                else { _ = try ArchiveVolumeOpenRecovery.discover(member) }
+            }()) { error in
+                let failure = error as NSError
+                XCTAssertEqual(failure.localizedDescription, String(localized: "分割アーカイブの状態を確認できませんでした"))
+                XCTAssertEqual(failure.code, Int(EACCES))
+                XCTAssertEqual((failure.userInfo[NSUnderlyingErrorKey] as? NSError)?.domain, NSPOSIXErrorDomain)
+                XCTAssertTrue(failure.localizedFailureReason?.contains(String(EACCES)) == true)
+            }
+            XCTAssertNil(document.session)
         }
     }
 }

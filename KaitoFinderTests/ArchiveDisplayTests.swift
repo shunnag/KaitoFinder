@@ -521,4 +521,22 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         }
     }
 
+
+    // 旧名: M6bReviewTests
+    func testVisibleStatusSizeIgnoresHiddenUnknownSizesAndOverflow() {
+        let root = EntryNode.tree(from: [archiveColumnEntry("visible.txt", size: 7),
+            archiveColumnEntry("folder/file.txt", index: 1, size: 11),
+            archiveColumnEntry("folder/.hidden", index: 2, size: .max),
+            archiveColumnEntry(".secret/file", index: 3, size: nil)])
+        for query in ["", "visible"] {
+            let filtered = EntryTreeFilter(root: root, query: query)
+            XCTAssertEqual(filtered.totalCount, 3)
+            XCTAssertEqual(filtered.totalSize, 18)
+            XCTAssertNil(EntryTreeFilter(root: root, query: query, showsHiddenFiles: true).totalSize)
+        }
+        let unknown = EntryNode.tree(from: [archiveColumnEntry("unknown", size: nil)])
+        XCTAssertNil(EntryTreeFilter(root: unknown, query: "").totalSize)
+        let overflow = EntryNode.tree(from: [archiveColumnEntry("a", size: .max), archiveColumnEntry("b", index: 1, size: 1)])
+        XCTAssertNil(EntryTreeFilter(root: overflow, query: "").totalSize)
+    }
 }

@@ -979,6 +979,33 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
     }
 
+    // 旧名: M6bReviewTests
+    @MainActor func testBlankAreaNewFolderUsesRootWhileToolbarUsesSelectedFolder() async throws {
+        let fixture = try DeferredSaveFixture(), document = fixture.document
+        defer { document.close() }
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        document.addWindowController(controller)
+        let root = EntryNode.tree(from: try await document.projectedEntries())
+        controller.display(root, session: try XCTUnwrap(document.session))
+        let folder = try XCTUnwrap(root.nodes(at: "folder").first)
+        controller.outlineView.selectRowIndexes(IndexSet(integer: controller.outlineView.row(forItem: folder)), byExtendingSelection: false)
+        let menu = try XCTUnwrap(controller.outlineView.contextMenu(forRow: -1))
+        let item = try XCTUnwrap(menu.items.first { $0.action == #selector(ArchiveWindowController.newFolder(_:)) })
+        XCTAssertEqual(controller.outlineView.clickedRow, -1)
+        controller.newFolder(item)
+        await controller.extractionTask?.value
+        XCTAssertEqual(document.pendingChanges.createdFolders.count, 1)
+        XCTAssertEqual(ArchivePath.components(document.pendingChanges.createdFolders[0].path).count, 1)
+        controller.outlineView.cancelRenaming()
+        let row = try XCTUnwrap((0..<controller.outlineView.numberOfRows).first {
+            (controller.outlineView.item(atRow: $0) as? EntryNode)?.path == "folder"
+        })
+        controller.outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        controller.newFolder(nil)
+        await controller.extractionTask?.value
+        XCTAssertTrue(document.pendingChanges.createdFolders.last?.path.hasPrefix("folder/") == true)
+    }
+
     @MainActor func testFilterClearRestoresExpansionAndMultipleSelectionAfterQueryChangesAndReload() async throws {
         let fixture = try ScenarioFixture.withEntries(["a/top.txt", "a/deep/leaf.txt", "b/leaf.txt", "c/keep.txt"])
         let (document, controller) = try await interface(fixture), view = controller.outlineView

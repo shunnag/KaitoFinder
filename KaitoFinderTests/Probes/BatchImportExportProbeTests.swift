@@ -10,7 +10,10 @@ import XCTest
 /// a folder tree to, each with an `.entries.json` listing (name, kind, size, SHA-256). The same file is copied alone into
 /// an older KaitoFinder tree to produce that build's export, so it uses only APIs that tree also has (hence the literal
 /// /usr/bin/touch below instead of ExternalTool).
-nonisolated final class BatchImportCompatibilityTests: XCTestCase {
+/// It lives in Probes/ with the other environment-gated harnesses: its output is data for a comparison made outside the
+/// test run, and a normal test run skips it.
+nonisolated final class BatchImportExportProbeTests: XCTestCase {
+    // 旧名: BatchImportCompatibilityTests
     func testExportWhenEnabled() async throws {
         guard let path = ProcessInfo.processInfo.environment["KAITOFINDER_P7_EXPORT_DIRECTORY"] else {
             throw XCTSkip("KAITOFINDER_P7_EXPORT_DIRECTORY is not configured")

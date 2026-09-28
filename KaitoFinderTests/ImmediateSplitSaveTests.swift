@@ -211,4 +211,35 @@ nonisolated final class ImmediateSplitSaveTests: XCTestCase {
         XCTAssertTrue(document.session!.capabilities.canEdit)
         XCTAssertEqual(document.fileModificationDate, try FileManager.default.attributesOfItem(atPath: fixture.gate.path)[.modificationDate] as? Date)
     }
+
+    // 旧名: M6bReviewTests
+    @MainActor func testImmediateSplitStagingUsesDestinationVolumeAndRemovesItsLedger() async throws {
+        let fixture = try DeferredSplitSaveFixture(format: .tar, behavior: .immediate), document = fixture.document
+        defer { document.close() }
+        document.splitMutationConfirmation = { _ in .alertFirstButtonReturn }
+        document.splitSaveHooks.operations.coordinate = { _, _, queue, access in queue.addOperation { access(nil) } }
+        let root = fixture.root, staged = Mutex<[URL]>([])
+        document.splitSaveHooks.didProduceWork = { _ in
+            let directories = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+                .filter { $0.lastPathComponent.hasPrefix(".KaitoFinder-staging-") }
+            XCTAssertEqual(directories.count, 1)
+            for directory in directories {
+                XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("staging.json").path))
+                let files = try ScenarioFixture.files(under: directory)
+                XCTAssertTrue(files.contains { (try? Data(contentsOf: $0)) == Data("same volume".utf8) })
+                var parentInfo = stat(), stagingInfo = stat()
+                XCTAssertEqual(lstat(root.path, &parentInfo), 0)
+                XCTAssertEqual(lstat(directory.path, &stagingInfo), 0)
+                XCTAssertEqual(parentInfo.st_dev, stagingInfo.st_dev)
+            }
+            staged.withLock { $0 = directories }
+        }
+        let file = fixture.directory.url.appendingPathComponent("incoming.txt")
+        try Data("same volume".utf8).write(to: file)
+        _ = try await document.append(urls: [file], to: "", progress: Progress())
+        XCTAssertEqual(staged.withLock { $0.count }, 1)
+        for directory in staged.withLock({ $0 }) { XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path)) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("staging.json").path))
+        XCTAssertEqual(try DeferredSaveFixture.contents(fixture.gate)["incoming.txt"], Data("same volume".utf8))
+    }
 }

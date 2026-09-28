@@ -16,7 +16,8 @@ import XCTest
     }
 }
 
-nonisolated final class SplitSaveCorrectionTests: XCTestCase {
+nonisolated final class SplitSaveRecoveryUITests: XCTestCase {
+    // 旧名: SplitSaveCorrectionTests
     private func crash(_ fixture: VolumePublishFixture, at step: VolumePublishStep = .s7) throws -> URL {
         // This fixture tests recovery/presentation, not Foundation coordination availability.
         var operations = VolumePublishOperations()
@@ -31,7 +32,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 1: exact Foundation equality, including nanoseconds that differ under the epoch-first formula.
+    // Exact Foundation equality, including nanoseconds that differ under the epoch-first formula.
     func testPublishedDateExactlyMatchesFoundationAcrossNanoseconds() throws {
         let fixture = try VolumePublishFixture(), layout = try XCTUnwrap(fixture.layout)
         for nanos in stride(from: 269_568_531, to: 269_568_660, by: 1) {
@@ -45,7 +46,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 2: these are NSObject's real AppKit recovery entry points, not recovery.recover().
+    // These are NSObject's real AppKit recovery entry points, not recovery.recover().
     @MainActor func testAppKitSynchronousAndDelegateRecoveryEntriesRecoverThenReopen() async throws {
         for useDelegate in [false, true] {
             let fixture = try VolumePublishFixture()
@@ -86,7 +87,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 3: a failed publication must not strand the pending plan; Save As uses the same readable base.
+    // A failed publication must not strand the pending plan; Save As uses the same readable base.
     @MainActor func testProvenRollbackRetainsGenerationAndAllowsSaveAsOnFAT() async throws {
         let disk = try attachedTestDisk("MS-DOS FAT32"), fixture = try DeferredSplitSaveFixture(parent: disk.mount), document = fixture.document
         defer { document.close() }
@@ -141,7 +142,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         XCTAssertFalse(controller.validateMenuItem(item))
     }
 
-    // 4: exhaust every publisher error (including preflight errors outside the split pipeline).
+    // Exhaust every publisher error (including preflight errors outside the split pipeline).
     func testAllPublisherErrorsHaveActionableLocalizedDescriptions() throws {
         let url = URL(fileURLWithPath: "/tmp/staging")
         let errors: [VolumePublishError] = [.invalidPlan, .unsupportedScheme, .tooManyVolumes(required: 129),
@@ -183,7 +184,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 5: marker avoidance must never strip security or the old members' unrelated xattrs.
+    // Marker avoidance must never strip security or the old members' unrelated xattrs.
     @MainActor func testAppleDoubleQuarantineSurvivesDeferredImmediateAndSplitSaveAs() async throws {
         for kind in ["MS-DOS FAT32", "ExFAT"] {
             let disk = try attachedTestDisk(kind)
@@ -231,7 +232,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 6: paths are not a component of per-volume set membership.
+    // Paths are not a component of per-volume set membership.
     @MainActor func testRenamedAndDuplicatedNativeSetsRemainEditableIncludingSingletons() async throws {
         for singleton in [false, true] {
             let fixture = try DeferredSplitSaveFixture(volumeSize: singleton ? 100_000 : nil), document = fixture.document
@@ -262,7 +263,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 7: preserve the old inode, size AND coarse mtime: only the content key can reject this stale entry.
+    // Preserve the old inode, size AND coarse mtime: only the content key can reject this stale entry.
     func testMetadataCacheRejectsReusedInodeAndSameSizeDifferentGateBytes() throws {
         let disk = try attachedTestDisk("MS-DOS FAT32"), fixture = try VolumePublishFixture(parent: disk.mount)
         let store = ArchiveVolumeMetadataStore(fileURL: try volumePublishTestURL(fixture.directory.url).appendingPathComponent("cache/metadata.json"))
@@ -286,7 +287,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         XCTAssertTrue(opened.capabilities.canEdit)
     }
 
-    // 8: cache writes fail AFTER proof. Neither normal publish, forward recovery nor rollback may HOLD.
+    // Cache writes fail AFTER proof. Neither normal publish, forward recovery nor rollback may HOLD.
     func testMetadataWriteFailureCannotHoldCommitRecoveryOrRollback() throws {
         let disk = try attachedTestDisk("MS-DOS FAT32")
         for direction in ["commit", "forward", "backward"] {
@@ -365,7 +366,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 9: local/CD flag disagreement is readable by KaitoKit but rejected by ArchiveUpdater.open.
+    // Local/CD flag disagreement is readable by KaitoKit but rejected by ArchiveUpdater.open.
     @MainActor func testZIPStructuralRefusalUsesValidatedRewriteInBothModes() async throws {
         for behavior: ArchivePreferences.SaveBehavior in [.onSave, .immediate] {
             let fixture = try DeferredSplitSaveFixture(format: .zip, behavior: behavior, external: { url, _ in
@@ -385,7 +386,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 10: follow NSDocument's location, reusing the pending plan and preserving its generation.
+    // Follow NSDocument's location, reusing the pending plan and preserving its generation.
     @MainActor func testContainingFolderMoveAllowsSaveRevertAndSaveAs() async throws {
         for action in ["save", "revert", "saveAs", "immediate"] {
             let fixture = try DeferredSplitSaveFixture(behavior: action == "immediate" ? .immediate : .onSave), document = fixture.document
@@ -425,7 +426,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 11: open lookup precedes discovery, including a missing gate during publication.
+    // Open lookup precedes discovery, including a missing gate during publication.
     @MainActor func testAlreadyOpenSavingAndHeldSetsReuseDocumentBeforeDiscovery() async throws {
         for held in [false, true] {
             let fixture = try DeferredSplitSaveFixture(), document = fixture.document
@@ -453,7 +454,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 12: proven live sets stay openable when Trash/removal is temporarily unavailable.
+    // Proven live sets stay openable when Trash/removal is temporarily unavailable.
     func testCleanupOnlyForwardAndBackwardRecoveryDoesNotBlockOpening() throws {
         for forward in [true, false] {
             let fixture = try VolumePublishFixture()
@@ -476,7 +477,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
         }
     }
 
-    // 13: an attributable journal rejected by validation still offers recovery/Finder.
+    // An attributable journal rejected by validation still offers recovery/Finder.
     func testInconsistentSameStemJournalOffersRecoveryInsteadOfRawError() throws {
         let fixture = try VolumePublishFixture(), stage = try crash(fixture)
         let renamed = fixture.root.appendingPathComponent(VolumePublishFS.stagingPrefix + UUID().uuidString)

@@ -1,6 +1,7 @@
 import AppKit
 import GyoshukuKit
 import KaitoKit
+import Synchronization
 import XCTest
 @testable import KaitoFinder
 
@@ -202,5 +203,44 @@ nonisolated final class ArchiveSplitSaveAsTests: XCTestCase {
             XCTAssertEqual(reopened.volumeLayout?.uniformSize, 65536)
             await reopened.close()
         }
+    }
+
+    // 旧名: M6bReviewTests
+    @MainActor func testSplitSaveAsReservesJoinedInputBeforeReadingAnySourceBytes() async throws {
+        let fixture = try DeferredSplitSaveFixture(format: .tar)
+        defer { fixture.document.close() }
+        let existing = try await ArchiveCreationController.existingArchive(from: XCTUnwrap(fixture.document.session), progress: Progress())
+        let output = fixture.root.appendingPathComponent("copy.tar")
+        var plan = ArchiveCreationPlan(sources: [], destination: output, format: .tar, existing: existing)
+        plan.splitSchedule = .uniform(size: UInt64(fixture.size))
+        let sourceBytes = fixture.original.reduce(UInt64(0)) { $0 + UInt64($1.count) }
+        let available = sourceBytes + UInt64(fixture.size) + VolumePublishFS.margin
+        let reads = Mutex(0)
+        var hooks = ArchiveSplitSaveHooks()
+        hooks.operations.volumeInfo = { directory in
+            let info = try VolumePublishFS.volumeInfo(directory)
+            return .init(uuid: info.uuid, cacheIdentity: info.cacheIdentity, fileSystem: info.fileSystem,
+                         available: available, hazard: nil)
+        }
+        hooks.didReadInputBytes = { bytes in reads.withLock { $0 += bytes } }
+        XCTAssertThrowsError(try ArchiveCreationTransaction.run(plan: plan, progress: Progress(),
+            volumeIndex: fixture.index, metadataStore: fixture.metadata, splitHooks: hooks)) { error in
+                XCTAssertEqual((error as? ArchiveSplitSaveFailure)?.diagnostic,
+                    VolumePublishError.insufficientSpace(required: available + sourceBytes, available: available).message())
+            }
+        XCTAssertEqual(reads.withLock { $0 }, 0)
+        XCTAssertEqual(try fixture.parts(), fixture.original)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathExtension("001").path))
+
+        let target = VolumeSetTarget(parent: fixture.root, newSetScheme: .numbered(stem: "small.tar", width: 3),
+                                    schedule: .uniform(size: 1024))
+        hooks.operations.volumeInfo = { directory in
+            let info = try VolumePublishFS.volumeInfo(directory)
+            return .init(uuid: info.uuid, cacheIdentity: info.cacheIdentity, fileSystem: "msdos", available: .max, hazard: nil)
+        }
+        let publication = try VolumeSetPublication.begin(target, estimatedOutputLength: 1000,
+            additionalWorkBytes: UInt64(UInt32.max) + 1, index: fixture.index, operations: hooks.operations)
+        publication.cancel()
+        XCTAssertTrue(try fixture.index.entries().isEmpty)
     }
 }

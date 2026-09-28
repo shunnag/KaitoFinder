@@ -91,6 +91,32 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
         XCTAssertEqual(controller.currentFolderPath, "a")
     }
 
+    // 旧名: M6bReviewTests
+    @MainActor func testOpenValidationStopsAtFirstRefusalInLargeSelection() async throws {
+        let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document
+        defer { document.close() }
+        let controller = ArchiveWindowController(preferencesStore: fixture.store)
+        document.addWindowController(controller)
+        let entries = [archiveColumnEntry("000-directory/", kind: .directory)] + (1..<100_000).map {
+            archiveColumnEntry("file\($0).txt", index: $0, method: "stored")
+        }
+        controller.display(EntryNode.tree(from: entries), session: try XCTUnwrap(document.session))
+        controller.outlineView.selectAll(nil)
+        XCTAssertEqual(controller.outlineView.numberOfSelectedRows, 100_000)
+        let start = ContinuousClock.now
+        let item = NSMenuItem(title: "", action: #selector(ArchiveWindowController.togglePreviewPanel(_:)), keyEquivalent: "")
+        XCTAssertFalse(controller.validateMenuItem(item))
+        let elapsed = start.duration(to: .now)
+        print("M6b VALIDATION selected=100000 first-refusal duration=\(elapsed)")
+        XCTAssertEqual(item.toolTip, EntryReadCapability.Refusal.directory.message())
+        XCTAssertLessThan(elapsed, .milliseconds(200))
+        XCTAssertNil(controller.selectionOpenRefusal(skippingDirectories: true))
+        let open = NSMenuItem(title: "", action: #selector(ArchiveWindowController.openEntry(_:)), keyEquivalent: "")
+        XCTAssertTrue(controller.validateMenuItem(open))
+        let rename = NSMenuItem(title: "", action: #selector(ArchiveWindowController.renameEntry(_:)), keyEquivalent: "")
+        XCTAssertFalse(controller.validateMenuItem(rename))
+    }
+
     @MainActor func testToolbarControlAndTextSubitemsNavigateAndValidate() async throws {
         let (_, controller) = try await interface()
         let toolbar = try XCTUnwrap(controller.window?.toolbar)

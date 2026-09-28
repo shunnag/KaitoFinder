@@ -109,6 +109,34 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
         }
     }
 
+    // 旧名: M6bReviewTests
+    @MainActor func testSplitProgressCountsRemovalsAndOnlyFinalCarryPass() async throws {
+        for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip, .tar, .tarGzip] {
+            for ownerIDs in (format == .tar || format == .tarGzip ? [false, true] : [false]) {
+                let fixture = try DeferredSplitSaveFixture(format: format), session = try XCTUnwrap(fixture.document.session)
+                defer { fixture.document.close() }
+                let base = await session.entries()
+                var pending = ArchivePendingChanges()
+                pending.removals = Set(base.prefix(2).map { .init(index: $0.index, expectedName: $0.name, baseGeneration: 0) })
+                let replay = try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending)
+                let layout = try XCTUnwrap(session.volumeLayout)
+                let input = try ArchiveVolumeInput(layout: layout, expected: ArchiveSetIdentity.capture(layout: layout))
+                let progress = Progress(totalUnitCount: 3)
+                let work = fixture.root.appendingPathComponent("work." + ArchiveCreationPlan.filenameExtension(for: format))
+                var options = WriterOptions()
+                options.preserveOwnerIDs = ownerIDs
+                let produced = try ArchiveSplitWorkProducer.produce(source: input, workURL: work,
+                    mode: format == .zip ? .inPlace : .rewrite(format), password: nil, options: options,
+                    plan: replay, progress: progress, verifyAssembledInput: { try input.verify($0) })
+                let carried = format == .zip ? 0 : Int64(replay.projected.count)
+                XCTAssertEqual(progress.completedUnitCount, 2 + carried, "\(format), owners=\(ownerIDs)")
+                let estimatedCarry = format == .zip ? 0 : base.count
+                XCTAssertEqual(progress.totalUnitCount, 3 + Int64(estimatedCarry))
+                try ArchiveSplitWorkProducer.validate(ArchiveReader.open(url: work), plan: replay, mode: produced.mode)
+            }
+        }
+    }
+
     @MainActor func testEveryWritableNumberedFormatReplaysOnceAndSecondSaveDoesNothing() async throws {
         for format: GyoshukuKit.ArchiveFormat in [.sevenZip, .tar, .tarGzip, .tarBzip2, .tarXZ, .lha, .zip] {
             let fixture = try DeferredSplitSaveFixture(format: format), document = fixture.document

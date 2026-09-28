@@ -252,4 +252,46 @@ nonisolated final class ArchiveImportConflictTests: XCTestCase {
         XCTAssertEqual(document.generation, 0)
         XCTAssertFalse(document.undoManager?.canUndo == true)
     }
+
+    // 旧名: M6bReviewTests
+    @MainActor func testDeferredDotPrefixConflictUsesNormalizedGroupForImportAndMove() async throws {
+        let fixture = try ScenarioFixture(), date = Date(timeIntervalSince1970: 1_700_000_000)
+        let entries = [
+            archiveColumnEntry("./cafe\u{301}.txt", index: 0, size: 5, date: date),
+            archiveColumnEntry("./folder/", index: 1, kind: .directory, date: date),
+            archiveColumnEntry("./folder/child.txt", index: 2),
+            archiveColumnEntry("./source/café.txt", index: 3)
+        ]
+        let state = try await ArchiveReservationState.build(base: entries, generation: 0, changes: .init(),
+            validation: .init(base: entries, format: .tar), staging: nil)
+        let incoming = try fixture.file("café.txt"), folder = try fixture.folder("folder")
+        _ = try fixture.file("folder/new.txt")
+        var names: [String] = []
+        let plan = try await ArchiveReservationComputation.importPlan(urls: [incoming, folder], folder: "", state: state,
+            archive: fixture.archive, progress: Progress(), options: .init(), resolver: { conflict in
+                names.append(conflict.existing.name)
+                XCTAssertEqual(conflict.existing.modificationDate, date)
+                XCTAssertEqual(conflict.existing.entryCount, 1)
+                if conflict.path == "café.txt" {
+                    XCTAssertEqual(conflict.existing.kind, .file)
+                    XCTAssertEqual(conflict.existing.size, 5)
+                    XCTAssertTrue(conflict.allowsBatchChoice)
+                } else { XCTAssertEqual(conflict.existing.kind, .directory) }
+                return .init(choice: .skip)
+            })
+        XCTAssertEqual(Set(names), ["café.txt", "folder"])
+        XCTAssertTrue(plan.items.isEmpty)
+        let source = try XCTUnwrap(state.tree.nodes(at: "source/café.txt").first)
+        var movedConflict = false
+        _ = try await ArchiveReservationComputation.move([ArchiveEditSelection(source)], folder: "", state: state,
+            changes: .init(), base: entries, archive: fixture.archive, generation: 0, progress: Progress(), resolver: { conflict in
+                movedConflict = true
+                XCTAssertEqual(conflict.existing.name, "café.txt")
+                XCTAssertEqual(conflict.existing.kind, .file)
+                XCTAssertEqual(conflict.existing.modificationDate, date)
+                XCTAssertTrue(conflict.allowsBatchChoice)
+                return .init(choice: .skip)
+            })
+        XCTAssertTrue(movedConflict)
+    }
 }

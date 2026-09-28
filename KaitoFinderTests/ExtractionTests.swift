@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import KaitoKit
+import Synchronization
 import XCTest
 @testable import KaitoFinder
 
@@ -881,6 +882,45 @@ nonisolated final class ExtractionTests: XCTestCase {
         }
     }
 
+
+    // 旧名: M6bReviewTests
+    @MainActor func testUnsafeTopLevelSelectionsReportEachEntryAndStillExtractSafeFiles() async throws {
+        let fixture = try ScenarioFixture(script: """
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('..', b'bad file')
+            z.writestr('../escape.txt', b'bad child')
+            z.writestr('ok.txt', b'good')
+        """)
+        let session = try ArchiveSession(url: fixture.archive), base = await session.entries()
+        defer { Task { await session.close() } }
+        for deferred in [false, true] {
+            if deferred {
+                session.setPendingReadSnapshot(try .init(base: base, generation: session.generation, changes: .init(), staging: nil, nameSyntax: .init(session.reservationFormat)))
+            }
+            let tree = EntryNode.tree(from: base)
+            let payloads = ArchiveEntryPayload.payloads(for: tree.children, session: session, generation: session.generation)
+            let output = try fixture.folder(deferred ? "deferred" : "immediate")
+            let result = try await ExtractionService.extract(payloads, from: session, to: output, progress: Progress())
+            XCTAssertEqual(Set(result.failures.compactMap(\.entryIndex)), [0, 1])
+            XCTAssertEqual(try Data(contentsOf: output.appendingPathComponent("ok.txt")), Data("good".utf8))
+            XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.root.appendingPathComponent("escape.txt").path))
+            let copied = Mutex(0)
+            do {
+                _ = try await ArchiveCopyOut.prepare(payloads, from: session, progress: Progress(),
+                    temporaryDirectory: .init(root: fixture.root.appendingPathComponent(deferred ? "copy-deferred" : "copy-immediate")),
+                    didProcess: { _ in copied.withLock { $0 += 1 } })
+                XCTFail("Unsafe entries must be reported")
+            } catch { XCTAssertEqual(copied.withLock { $0 }, 3) }
+        }
+        var preferences = ArchivePreferences()
+        preferences.folderPolicy = .never
+        let batch = ArchiveBatchExtractor(preferences: preferences, passwordPrompt: { _, _ in throw CancellationError() }, reveal: { _ in })
+        let processed = Mutex(0)
+        let report = await batch.run(archives: [fixture.archive], base: try fixture.folder("batch"), progress: Progress(),
+            didProcess: { _ in processed.withLock { $0 += 1 } })
+        XCTAssertEqual(report.failures.count, 1)
+        XCTAssertEqual(processed.withLock { $0 }, 3)
+    }
 }
 
 

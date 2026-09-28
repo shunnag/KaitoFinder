@@ -7,7 +7,8 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
-nonisolated final class M6CorrectionTests: XCTestCase {
+nonisolated final class SplitSaveDocumentUITests: XCTestCase {
+    // 旧名: M6CorrectionTests
     @MainActor private func window(_ fixture: DeferredSplitSaveFixture) -> ArchiveWindowController {
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
         fixture.document.addWindowController(controller)
@@ -33,7 +34,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         }
     }
 
-    // B1: a failed Save As cannot grant consent to the original destination; switching resets both prompts.
+    // A failed Save As cannot grant consent to the original destination; switching resets both prompts.
     @MainActor func testHazardConsentIsScopedToDestinationAndSaveAsResetsSuppression() async throws {
         let fixture = try DeferredSplitSaveFixture(behavior: .immediate), document = fixture.document
         defer { document.close() }
@@ -76,7 +77,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         XCTAssertEqual(prompts, 3)
     }
 
-    // B2: the old path showed confirmation, then a pending-only reload sheet and CancellationError.
+    // An external change is refused before the confirmation, not after it with a pending-only reload sheet and CancellationError.
     @MainActor func testImmediateExternalChangeRefusesBeforeConfirmationWithAWindow() async throws {
         let fixture = try DeferredSplitSaveFixture(behavior: .immediate), document = fixture.document
         defer { document.close() }
@@ -106,7 +107,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         XCTAssertEqual(try fixture.parts(), fixture.original)
     }
 
-    // B3: check the actual footer, including cleanup-only success and ZIP rewrite fallback.
+    // Check the actual footer, including cleanup-only success and ZIP rewrite fallback.
     @MainActor func testImmediateZIPAndCleanupNoticesAreVisible() async throws {
         for outcome in ["ZIP", "cleanup", "kept"] {
             let fixture = try DeferredSplitSaveFixture(format: .zip, trailingZIP: outcome == "ZIP", behavior: .immediate)
@@ -142,7 +143,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         }
     }
 
-    // B4: a new-set hold does not put the source document into recovery or discard pending edits.
+    // A new-set hold does not put the source document into recovery or discard pending edits.
     @MainActor func testSaveAsRollbackAndHoldDescribeNewSetAndKeepSourceEditable() async throws {
         for behavior: ArchivePreferences.SaveBehavior in [.onSave, .immediate] {
             for held in [false, true] {
@@ -185,7 +186,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         }
     }
 
-    // B5/B10: the exact NSError shown by NSSavePanel, its output name and its occupied-name checks.
+    // The exact NSError shown by NSSavePanel, its output name and its occupied-name checks.
     @MainActor func testSavePanelValidatesCustomSizeVolumeLimitAndNumberedNamespace() throws {
         let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
         let destination = directory.url.appendingPathComponent("output.zip")
@@ -225,7 +226,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         XCTAssertFalse(save.panel.allowedContentTypes.isEmpty)
     }
 
-    // B6: metadata must win over a lone short member's inferred size, in editing and Save As.
+    // Metadata must win over a lone short member's inferred size, in editing and Save As.
     @MainActor func testSavedSingleExplicitAndUniformSchedulesSurviveImmediateEditsAndSaveAs() async throws {
         for choice: ArchiveSplitScheduleChoice in [.single, .original, .size(65536)] {
             // Seed the saved schedule through the deferred-save split-schedule chooser, so the assertions below
@@ -265,7 +266,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         }
     }
 
-    // B7: suggest another mode only when that mode can actually edit the set.
+    // Suggest another mode only when that mode can actually edit the set.
     @MainActor func testUnevenEncryptedAndUnwritableSetsKeepTheirActualRefusal() async throws {
         for encrypted in [true, false] {
             let fixture = try DeferredSplitSaveFixture(uneven: true,
@@ -286,7 +287,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         }
     }
 
-    // B8: prove S10 precedes disposal; immediate edits and their recovery never enqueue old sets in Trash.
+    // Prove S10 precedes disposal; immediate edits and their recovery never enqueue old sets in Trash.
     @MainActor func testImmediateRemovesOldVolumesAndDeferredStillUsesTrash() async throws {
         for behavior: ArchivePreferences.SaveBehavior in [.immediate, .onSave] {
             let fixture = try DeferredSplitSaveFixture(behavior: behavior), document = fixture.document
@@ -328,7 +329,7 @@ nonisolated final class M6CorrectionTests: XCTestCase {
         try fixture.assertNew()
     }
 
-    // B9: one streamed snapshot on actual AppleDouble volumes; cancellation interrupts it before S5.
+    // One streamed snapshot on actual AppleDouble volumes; cancellation interrupts it before S5.
     @MainActor func testSaveAsStreamsEachSourceByteOnceAndCancelsBeforePublication() async throws {
         for fileSystem in ["MS-DOS FAT32", "ExFAT"] {
             let disk = try VolumePublishTestDisk(fileSystem)
