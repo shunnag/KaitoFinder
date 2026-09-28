@@ -51,7 +51,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
 
         func matches(in directory: VolumePublishDirectory, useHash: Bool, checkCancellation: () throws -> Void = {}) throws -> Bool {
             try checkCancellation()
-            guard let info = try directory.info(name), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try directory.info(name), info.isRegularFile,
                   info.st_size >= 0, UInt64(info.st_size) == size else { return false }
             if useHash {
                 // FAT の inode と 2 秒単位 mtime は参考値。全 byte を読んでから判断する。
@@ -68,7 +68,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
         let sha256: String
 
         func matches(in directory: VolumePublishDirectory) throws -> Bool {
-            guard let info = try directory.info(name), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try directory.info(name), info.isRegularFile,
                   info.st_size >= 0, UInt64(info.st_size) == length else { return false }
             return try VolumePublishFS.hash(directory, name) == sha256
         }
@@ -119,7 +119,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
         for (index, volume) in oldVolumes.enumerated() {
             guard volume.name == scheme.fileName(forVolumeAt: index, count: oldVolumes.count),
                   volume.mode & S_IFMT == S_IFREG,
-                  !hashesOldVolumes || Self.validHash(volume.sha256 ?? "") else {
+                  !hashesOldVolumes || VolumePublishFS.isSHA256Hex(volume.sha256 ?? "") else {
                 throw VolumePublishError.journalUnreadable
             }
         }
@@ -127,7 +127,7 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
         for (index, volume) in newVolumes.enumerated() {
             let addition = sum.addingReportingOverflow(volume.length)
             guard volume.name == scheme.fileName(forVolumeAt: index, count: newVolumes.count),
-                  volume.length > 0, Self.validHash(volume.sha256), !addition.overflow else {
+                  volume.length > 0, VolumePublishFS.isSHA256Hex(volume.sha256), !addition.overflow else {
                 throw VolumePublishError.journalUnreadable
             }
             sum = addition.partialValue
@@ -136,10 +136,6 @@ nonisolated struct VolumePublishJournalRecord: Codable, Sendable {
               !newVolumes.isEmpty || phase == .prepared || phase == .abandoned else {
             throw VolumePublishError.journalUnreadable
         }
-    }
-
-    private static func validHash(_ value: String) -> Bool {
-        value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
     }
 
     private enum CodingKeys: String, CodingKey {

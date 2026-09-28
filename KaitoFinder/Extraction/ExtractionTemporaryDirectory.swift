@@ -91,7 +91,7 @@ nonisolated struct ExtractionTemporaryDirectory {
                 guard fstatat(current, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
                     throw ExtractionFailure.system(errno)
                 }
-                if info.st_mode & S_IFMT == S_IFDIR {
+                if info.isDirectory {
                     // 展開で復元した読み取り専用属性も掃除できる。リンク自身は辿らない。
                     guard fchmodat(current, name, 0o700, AT_SYMLINK_NOFOLLOW) == 0 else {
                         throw ExtractionFailure.system(errno)

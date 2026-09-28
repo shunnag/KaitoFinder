@@ -155,9 +155,7 @@ nonisolated final class ArchivePromiseExtractionQueue: Sendable {
                     queue.readerReopenCount.withLock { $0 += 1 }
 #endif
                 }
-                job.progress.kind = .file
-                job.progress.setUserInfoObject(Progress.FileOperationKind.copying, forKey: .fileOperationKindKey)
-                job.progress.setUserInfoObject(job.url, forKey: .fileURLKey)
+                job.progress.beginFileCopy(to: job.url)
 #if DEBUG
                 queue.processedIndices.withLock { $0 += snapshot.selection.entries.map(\.index) }
 #endif

@@ -15,7 +15,7 @@ nonisolated enum VolumeSplitter {
 
         init(fd: Int32) throws {
             var info = stat()
-            guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { throw VolumePublishError.system(errno) }
+            guard fstat(fd, &info) == 0, info.isRegularFile else { throw VolumePublishError.system(errno) }
             mode = info.st_mode & 0o7777
             // fd は O_NOFOLLOW で開いたもの。fd API の options は 0（NOFOLLOW は EINVAL）。
             let size = flistxattr(fd, nil, 0, 0)
@@ -85,7 +85,7 @@ nonisolated enum VolumeSplitter {
                 var hash = SHA256(), copied: UInt64 = 0
                 while copied < volume.length {
                     try checkCancellation()
-                    let data = try VolumePublishFS.read(fd, length: Int(min(1024 * 1024, volume.length - copied)),
+                    let data = try VolumePublishFS.read(fd, length: Int(min(VolumePublishFS.hashChunkSize, volume.length - copied)),
                                                         offset: volume.offset + copied)
                     try VolumePublishFS.write(output, data: data, offset: copied)
                     hash.update(data: data)
@@ -95,7 +95,7 @@ nonisolated enum VolumeSplitter {
                                                                         avoidsAppleDouble: avoidsAppleDouble)
                 try VolumePublishFS.sync(output)
                 records.append(.init(name: volume.name, length: volume.length,
-                                     sha256: hash.finalize().map { String(format: "%02x", $0) }.joined()))
+                                     sha256: VolumePublishFS.hex(hash.finalize())))
             } catch { close(output); throw error }
             close(output)
             guard let current = try work.info(workURL.lastPathComponent), current.st_ino == info.st_ino,

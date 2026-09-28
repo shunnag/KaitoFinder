@@ -57,7 +57,7 @@ nonisolated enum ExtractionPath {
                     // 未作成 a/.. の a が後続 entry でリンクになると意味が変わる。
                     var info = stat()
                     guard lstat("/" + resolved.joined(separator: "/"), &info) == 0,
-                          info.st_mode & S_IFMT == S_IFDIR else { return nil }
+                          info.isDirectory else { return nil }
                 }
                 if !resolved.isEmpty { resolved.removeLast() }
                 continue
@@ -80,7 +80,7 @@ nonisolated enum ExtractionPath {
                 pending.append(contentsOf: target.utf8.split(separator: 47)
                     .map { String(decoding: $0, as: UTF8.self) }.reversed())
             } else {
-                guard pending.isEmpty || info.st_mode & S_IFMT == S_IFDIR else { return nil }
+                guard pending.isEmpty || info.isDirectory else { return nil }
                 resolved.append(component)
             }
         }

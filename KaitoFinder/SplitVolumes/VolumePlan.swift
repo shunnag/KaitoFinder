@@ -1,6 +1,13 @@
 import Foundation
 import KaitoKit
 
+// SplitVolumes/ の型名の接頭辞は層を表す。
+// - `VolumePublish*`: 公開エンジンの内部（staging・journal・transaction・回復・fd 相対の I/O）。
+// - `Volume*`: エンジンが呼び出し側に見せる値と入口（VolumePlan・VolumeSetPublication・VolumeSplitter など）。
+// - `ArchiveVolume*`: 文書から見た巻セットの入力・メタデータ・layout（ArchiveVolumeInput・ArchiveVolumeMetadata など）。
+// - `ArchiveSplit*`: 文書側の分割保存の pipeline・結果・失敗（ArchiveSplitSavePipeline・ArchiveSplitWorkProducer など）。
+// Persistence/ の RecoverableWorkIndex・ArchiveVolumeMetadataStore は、ここの fd/NOFOLLOW の部品（VolumePublishDirectory・VolumePublishFS）を使う。
+
 /// 不揃いな予定表の選択は呼び出し側の仕事。推測して自動採用しない。
 nonisolated struct VolumePlan: Sendable, Equatable {
     enum Schedule: Codable, Sendable, Equatable {

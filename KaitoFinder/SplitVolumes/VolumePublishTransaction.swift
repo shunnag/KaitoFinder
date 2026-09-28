@@ -19,17 +19,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
     var oldProof: [String: Stamp] = [:]
     var newProof: [String: Stamp] = [:]
 
-    struct Stamp: Sendable, Equatable {
-        let device: Int32
-        let inode: UInt64
-        let size: Int64
-        let seconds: Int64
-        let nanoseconds: Int64
-        init(_ info: stat) {
-            device = info.st_dev; inode = info.st_ino; size = info.st_size
-            seconds = Int64(info.st_mtimespec.tv_sec); nanoseconds = Int64(info.st_mtimespec.tv_nsec)
-        }
-    }
+    typealias Stamp = VolumeFileStamp
     struct Contents: Sendable {
         let oldAtFinal: [Bool]
         let oldRetired: [Bool]
@@ -47,7 +37,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
 
     func optionalDirectory(_ name: String) throws -> VolumePublishDirectory? {
         guard let info = try staging.info(name) else { return nil }
-        guard info.st_mode & S_IFMT == S_IFDIR else { throw VolumePublishError.unsafePath(name) }
+        guard info.isDirectory else { throw VolumePublishError.unsafePath(name) }
         return try staging.directory(name)
     }
     func oldDirectoryEmpty() throws -> Bool {
@@ -122,13 +112,13 @@ nonisolated struct VolumePublishTransaction: Sendable {
     func persistRestoredMetadata() throws {
         guard let metadata = record.previousMetadata, try VolumePublishFS.usesAppleDouble(parent),
               try record.oldVolumes.allSatisfy({ try $0.matches(in: parent, useHash: record.hashesOldVolumes) }) else { return }
-        // FAT/SMB can change a synthetic inode on rename. Re-key only a proved complete old set.
+        // FAT/SMB は rename で synthetic inode を変えうる。完全な旧セットを証明できたときだけ鍵を付け直す。
         let layout = ArchiveVolumeLayout(scheme: record.scheme, volumes: record.oldVolumes.map {
             .init(url: parent.url.appendingPathComponent($0.name), length: $0.size)
         }, openedVolumeIndex: 0)
         try metadataStore.save(metadata, layout: layout)
     }
-    /// Metadata is optional after a verified commit/rollback; quarantine is already on each volume.
+    /// 検証済みの commit / rollback の後、メタデータの保存は任意。quarantine は既に各巻に付いている。
     func persistMetadataWarning(restored: Bool = false) -> String? {
         do {
             if restored { try persistRestoredMetadata() } else { try persistMetadata() }
@@ -160,7 +150,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         }
     }
     mutating func oldMatches(_ volume: VolumePublishJournalRecord.OldVolume, in directory: VolumePublishDirectory) throws -> Bool {
-        guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG else { return false }
+        guard let info = try directory.info(volume.name), info.isRegularFile else { return false }
         if oldProof[volume.name] == Stamp(info) { return true }
         let matches = try volume.matches(in: directory, useHash: record.hashesOldVolumes)
         if record.hashesOldVolumes { operations.didHash(directory.url.appendingPathComponent(volume.name)) }
@@ -168,7 +158,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         return matches
     }
     mutating func newMatches(_ volume: VolumePublishJournalRecord.NewVolume, in directory: VolumePublishDirectory) throws -> Bool {
-        guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG else { return false }
+        guard let info = try directory.info(volume.name), info.isRegularFile else { return false }
         if newProof[volume.name] == Stamp(info) { return true }
         let matches = try volume.matches(in: directory)
         operations.didHash(directory.url.appendingPathComponent(volume.name))
@@ -244,7 +234,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             guard let new, try newMatches(volume, in: new) else { throw VolumePublishError.contentMismatch(volume.name) }
             try renamer.move(volume.name, from: new, to: parent)
         } else if try !newMatches(volume, in: parent) { throw VolumePublishError.nameOccupied(volume.name) }
-        guard let info = try parent.info(volume.name), info.st_mode & S_IFMT == S_IFREG else { throw VolumePublishError.validationFailed }
+        guard let info = try parent.info(volume.name), info.isRegularFile else { throw VolumePublishError.validationFailed }
         inodes[volume.name] = info.st_ino
     }
 
@@ -260,7 +250,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             operations.didHash(directory.url.appendingPathComponent(volume.name))
             newProof[volume.name] = Stamp(info)
         }
-        try directory.requireAbsent(record.nextName) // A noncooperating writer may have appended during hashing.
+        try directory.requireAbsent(record.nextName) // 非協調の writer が hash の間に次巻を足したかもしれない。
         if identityChanged {
             throw VolumePublishError.publishedVerificationPending(staging: staging.url,
                 diagnostic: "Published and verified by hash; placed inode changed")
@@ -273,7 +263,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         try directory.requireAbsent(record.nextName)
         for volume in record.newVolumes {
             // hash の最終 path 検査と証拠の stat の間も、mtime 等の変化は全文で照合し直す。
-            guard let info = try directory.info(volume.name), info.st_mode & S_IFMT == S_IFREG,
+            guard let info = try directory.info(volume.name), info.isRegularFile,
                   info.st_size == volume.length, beforeProof[volume.name] == newProof[volume.name],
                   newProof[volume.name] == Stamp(info),
                   inodes == nil || inodes?[volume.name] == info.st_ino else {
@@ -363,7 +353,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         if allowLiveMoves { try restoreOld() }
     }
     private mutating func restoreOld() throws {
-        // Nothing retired means no restoration is owed, even if live names changed independently.
+        // 何も退避していなければ戻す義務は無い。公開中の名前が別に変わっていても同じ。
         if try oldDirectoryEmpty() { return }
         let old = try optionalDirectory("old")
         if let gate = record.oldVolumes.first, try gate.matches(in: parent, useHash: record.hashesOldVolumes),
@@ -402,7 +392,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
         try renamer.move(volume.name, from: old, to: parent, verifyPaths: false)
     }
 
-    /// Deferred replacement uses Trash; confirmed irreversible edits remove proved old data directly.
+    /// 保存時モードの置き換えは Trash を使う。取り消せないと確認した編集は、証明済みの旧データを直接除去する。
     func dispose(_ name: String, allowRemoval: Bool = true) throws -> VolumeDisposal {
         guard let directory = try optionalDirectory(name) else { return .none }
         func volumesAreProven() throws -> Bool {
@@ -428,7 +418,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             // Trash が失敗するまでの間にも変更されうるので、unlink の直前に証拠を更新する。
             guard allowRemoval, try volumesAreProven() else { return .kept(directory.url) }
             if name == "old" {
-                // Durable done is not evidence that the live copy still exists now.
+                // durable な done は、公開中の巻が今も残っている証拠にはならない。
                 var proof = self
                 do {
                     try ArchiveStageDiagnostics.measure(.splitDisposeProof) { try proof.validateHashes(in: parent) }
@@ -468,7 +458,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             }
         }
         if let work = try optionalDirectory("work"), let info = try work.info(record.workName) {
-            guard info.st_mode & S_IFMT == S_IFREG, info.st_size == 0, info.st_nlink == 1 else { throw VolumePublishError.unsafePath(record.workName) }
+            guard info.isRegularFile, info.st_size == 0, info.st_nlink == 1 else { throw VolumePublishError.unsafePath(record.workName) }
         }
         try staging.verifyPath(); try journal.verifyPath(staging)
         try index.authorizeCleanup(indexedURL ?? staging.url)
@@ -482,7 +472,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
 
     private func discardStaging() throws {
         try journal.verifyPath(staging)
-        journal.release() // SMB may refuse to rename a directory containing our open journal.
+        journal.release() // SMB は開いている journal を含むディレクトリの rename を拒むことがある。
         try VolumePublishRemoval.discard(staging, parent: parent, operations: operations, isNetworkVolume: isNetworkVolume)
     }
 }

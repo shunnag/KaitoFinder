@@ -1,8 +1,8 @@
 import Foundation
 import Synchronization
 
-/// A stuck syscall cannot be cancelled. Bound the wait and retain at most four outstanding workers;
-/// repeat sweeps reuse a stuck root's worker. An incomplete scan must never authorize pruning.
+/// 止まった syscall は取り消せない。待ち時間に上限を設け、終わっていない worker は最大 4 つまで持つ。
+/// 同じ root を再び調べるときは止まっている worker を使い回す。不完全な走査を、索引の項目を刈り込む根拠にしない。
 nonisolated enum VolumePublishMountProbe {
     private struct Key: Hashable { let root: URL; let valueType: ObjectIdentifier }
     private final class Request: Sendable {
@@ -31,7 +31,7 @@ nonisolated enum VolumePublishMountProbe {
         }
         if request.result.withLock({ $0 == nil }) { _ = request.finished.wait(timeout: .now() + timeout) }
         guard let result = request.result.withLock({ $0 }) else { throw VolumePublishError.system(ETIMEDOUT) }
-        // The type is part of the request key; distinct read-only probe kinds cannot share a result.
+        // 型は要求の鍵の一部。読み取りだけの別種の probe が結果を共有することはない。
         guard let value = try result.get() as? Value else { throw VolumePublishError.validationFailed }
         return value
     }

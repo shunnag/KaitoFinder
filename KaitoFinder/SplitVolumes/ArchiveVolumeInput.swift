@@ -3,7 +3,8 @@ import Darwin
 import Foundation
 import KaitoKit
 
-/// An input set, independent of the output name, schedule and publication target (also used by M6).
+/// 出力の名前・予定表・公開先に依存しない入力セット。置き換え（`ArchiveSession.savePendingSplit`）では
+/// `VolumeSetPublication.input` が journal の旧巻記録から作り、別名保存と新規作成では `ArchiveSplitWorkProducer.produce(existing:…)` が作る。
 nonisolated struct ArchiveVolumeInput: Sendable {
     let layout: ArchiveVolumeLayout
     let expected: ArchiveSetIdentity
@@ -13,7 +14,7 @@ nonisolated struct ArchiveVolumeInput: Sendable {
     init(layout: ArchiveVolumeLayout, expected: ArchiveSetIdentity) throws {
         let layout = try layout.publicationLayout()
         self.layout = layout; self.expected = expected; usesHashes = false
-        // Save As has no rollback baseline to hash: take one immutable, fd-checked streaming snapshot.
+        // 別名保存には hash すべき rollback の基準が無い。fd を照合しながら一度だけ読む、変わらない snapshot を取る。
         oldVolumes = expected.volumes.map { .init($0, sha256: nil) }
         try verify(nil, requiresAssembledSet: false)
     }
@@ -36,7 +37,7 @@ nonisolated struct ArchiveVolumeInput: Sendable {
         }
     }
 
-    /// Stream, with fd and path checks before and after each member. Never follows a substituted symlink.
+    /// 各巻の前後で fd とパスを照合しながら流し込む。差し替えられた symlink は辿らない。
     func copy(to workURL: URL, progress: Progress, didRead: (Int) -> Void = { _ in }) throws {
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.splitInputCopy)
@@ -65,18 +66,18 @@ nonisolated struct ArchiveVolumeInput: Sendable {
             #endif
             while copied < volume.size {
                 try checkCancellation()
-                let data = try VolumePublishFS.read(fd, length: Int(min(1024 * 1024, volume.size - copied)), offset: copied)
+                let data = try VolumePublishFS.read(fd, length: Int(min(VolumePublishFS.hashChunkSize, volume.size - copied)), offset: copied)
                 hash?.update(data: data)
                 try VolumePublishFS.write(output, data: data, offset: offset + copied)
                 copied += UInt64(data.count)
                 didRead(data.count)
             }
             try checkCancellation()
-            let digest = hash?.finalize().map { String(format: "%02x", $0) }.joined()
+            let digest = hash.map { VolumePublishFS.hex($0.finalize()) }
             guard !usesHashes || digest == volume.sha256,
-                  fstat(fd, &after) == 0, VolumePublishTransaction.Stamp(before) == VolumePublishTransaction.Stamp(after),
+                  fstat(fd, &after) == 0, VolumeFileStamp(before) == VolumeFileStamp(after),
                   let pathAfter = try parent.info(volume.name),
-                  VolumePublishTransaction.Stamp(after) == VolumePublishTransaction.Stamp(pathAfter),
+                  VolumeFileStamp(after) == VolumeFileStamp(pathAfter),
                   try volume.matches(in: parent, useHash: false) else { throw VolumePublishError.setChanged }
             offset += copied
         }

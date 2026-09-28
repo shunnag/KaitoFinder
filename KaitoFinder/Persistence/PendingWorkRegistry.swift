@@ -3,6 +3,8 @@ import Foundation
 import Synchronization
 
 /// 作成前に記録し、defer が実行されなかった作業領域だけを次回起動時に回収する。
+/// 分割セットの公開の staging は別の台帳 `RecoverableWorkIndex` が扱う。こちらは同じ volume 上の Foundation のパスと
+/// device / inode で足りるが、あちらは未マウントの volume も volume UUID と相対パスで探し、fd/NOFOLLOW で回復する。
 nonisolated final class PendingWorkRegistry: Sendable {
     private static let current = Mutex<PendingWorkRegistry?>(nil)
     static var shared: PendingWorkRegistry {
@@ -42,12 +44,8 @@ nonisolated final class PendingWorkRegistry: Sendable {
     func recordIdentity(_ directory: URL) throws {
         try withExclusiveAccess {
             var info = stat()
-            guard lstat(directory.path, &info) == 0 else {
-                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
-            }
-            guard info.st_mode & S_IFMT == S_IFDIR else {
-                throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOTDIR))
-            }
+            guard lstat(directory.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
+            guard info.isDirectory else { throw ExtractionFailure.system(ENOTDIR) }
             var entries = try read()
             if let index = entries.firstIndex(where: { $0.path == directory.path }) {
                 entries[index].device = Int64(info.st_dev)
@@ -77,6 +75,9 @@ nonisolated final class PendingWorkRegistry: Sendable {
         }
     }
 
+    /// 起動時の回収。対象は `WorkAreaName.add` / `.new` / `.staging` の接頭辞を持つ登録済みディレクトリだけで、
+    /// 所有プロセスが生きているものと、台帳の device / inode に一致しないものは残す。
+    /// `WorkAreaName.volume`（分割公開の staging）はこの台帳に載らず、`RecoverableWorkIndex` と `VolumePublishRecovery` が回収する。
     func sweep() throws -> [URL] {
         try withExclusiveAccess {
             let entries = try read()
@@ -92,14 +93,14 @@ nonisolated final class PendingWorkRegistry: Sendable {
                 }
                 let directory = URL(fileURLWithPath: entry.path)
                 let name = directory.lastPathComponent
-                guard name.hasPrefix(".KaitoFinder-add-") || name.hasPrefix(".KaitoFinder-new-")
-                        || name.hasPrefix(".KaitoFinder-staging-") else { continue }
+                guard name.hasPrefix(WorkAreaName.add) || name.hasPrefix(WorkAreaName.new)
+                        || name.hasPrefix(WorkAreaName.staging) else { continue }
                 var info = stat()
                 guard lstat(directory.path, &info) == 0 else {
                     if errno != ENOENT { retained.append(entry) }
                     continue
                 }
-                guard info.st_mode & S_IFMT == S_IFDIR,
+                guard info.isDirectory,
                       entry.device == nil || entry.device == Int64(info.st_dev),
                       entry.inode == nil || entry.inode == info.st_ino else { continue }
                 // removeItem は子孫の symlink も辿らず、リンク自身だけを削除する。
@@ -124,7 +125,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
     }
 
     private func removeDirectory(_ directory: URL) throws {
-        if directory.lastPathComponent.hasPrefix(".KaitoFinder-staging-") { try StagingRegistry.removeSnapshot(directory) }
+        if directory.lastPathComponent.hasPrefix(WorkAreaName.staging) { try StagingRegistry.removeSnapshot(directory) }
         else { try FileManager.default.removeItem(at: directory) }
     }
 
@@ -142,10 +143,10 @@ nonisolated final class PendingWorkRegistry: Sendable {
             // atomic 保存で台帳の inode は変わるため、ロックは別の固定ファイルに持つ。
             let descriptor = open(fileURL.appendingPathExtension("lock").path,
                                   O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
-            guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
             defer { close(descriptor) }
             while flock(descriptor, LOCK_EX) != 0 {
-                if errno != EINTR { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+                if errno != EINTR { throw ExtractionFailure.system(errno) }
             }
             defer { _ = flock(descriptor, LOCK_UN) }
             return try body()

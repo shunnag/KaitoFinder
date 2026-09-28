@@ -14,21 +14,6 @@ nonisolated struct ArchiveImportResult: Sendable {
 nonisolated enum ArchiveImportTransaction {
     // 文書・session の公開 API を変えず、append の子 Task にも注入を引き継ぐ。
     static let pendingWorkRegistry = TaskLocal<PendingWorkRegistry>(wrappedValue: .shared)
-    #if DEBUG
-    static let willAddFileForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
-    static let didCommitForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
-    static let didOpenVerificationSourceForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
-    static let didVerifyForTesting = TaskLocal<(@Sendable (URL) throws -> Void)?>(wrappedValue: nil)
-    static let didPublishForTesting = TaskLocal<(@Sendable (URL) -> Void)?>(wrappedValue: nil)
-    static let didCommitUpdaterForTesting = TaskLocal<(@Sendable (ArchiveUpdater) throws -> Void)?>(wrappedValue: nil)
-    static let willCommitUpdaterForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
-    static let didCommitTarUpdaterForTesting = TaskLocal<(@Sendable (TarUpdater) throws -> Void)?>(wrappedValue: nil)
-    static let didCommitLHAUpdaterForTesting = TaskLocal<(@Sendable (LHAUpdater) throws -> Void)?>(wrappedValue: nil)
-    static let didCommitSevenZipUpdaterForTesting = TaskLocal<(@Sendable (SevenZipUpdater) throws -> Void)?>(wrappedValue: nil)
-    static let didCommitCompressedTarUpdaterForTesting = TaskLocal<(@Sendable (CompressedTarUpdater) throws -> Void)?>(wrappedValue: nil)
-    static let didFallBackToRewriteForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
-    static let didFallBackToFullVerificationForTesting = TaskLocal<(@Sendable (String) -> Void)?>(wrappedValue: nil)
-    #endif
 
     static func createFolder(plan: ArchiveNewFolderPlan, archive: URL, mode: ArchiveCapabilities.Mode,
                              options: WriterOptions = WriterOptions(), password: String? = nil, progress: Progress,
@@ -129,6 +114,7 @@ nonisolated enum ArchiveImportTransaction {
     }
 
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
+    // 段階は prepareWorkDirectory → produceWork → verifyWork → publishWork。原本へ触るのは publishWork の rename だけ。
     @discardableResult static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
                         ledger: ArchiveWriteProgress? = nil,
                         commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)? = nil,
@@ -148,7 +134,68 @@ nonisolated enum ArchiveImportTransaction {
         let original = try ArchiveSetIdentity.capture(url: archive)
         let archiveBytes = ArchiveWriteProgress.sum(original.volumes.lazy.map(\.size))
         if let expectedIdentity, original != expectedIdentity { throw ArchiveEditError.archiveChanged }
-        let directory = archive.deletingLastPathComponent().appendingPathComponent(".KaitoFinder-add-" + UUID().uuidString)
+        let directory = try prepareWorkDirectory(beside: archive, registry: registry)
+        defer { registry.removeAndUnregister(directory) }
+        do { try registry.recordIdentity(directory) }
+        catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
+        let outputFormat = mode.outputFormat
+        let context = PublishContext(archive: archive,
+            work: directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: outputFormat)),
+            outputFormat: outputFormat, password: password, options: options, progress: progress, ledger: ledger,
+            archiveBytes: archiveBytes, deferredPlan: deferredPlan, expectedOutput: expectedOutput)
+        let produced = try produceWork(mode: mode, context: context, commitProgress: commitProgress,
+                                       willOpenUpdater: willOpenUpdater, sessionReader: sessionReader, mutate: mutate)
+        if let additionalQuarantine {
+            // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
+            // 公開前の作業コピーだけに付け、取消しや検証失敗で原本の属性を変えない。
+            try ExtractionQuarantine.apply(try ExtractionQuarantine.read(from: context.work) ?? additionalQuarantine, to: context.work)
+        }
+        #if DEBUG
+        try didCommitForTesting.get()?(context.work)
+        #endif
+        let verified = try verifyWork(produced, context: context)
+        #if DEBUG
+        let publishSpan = ArchiveStageDiagnostics.begin(.publish)
+        defer { publishSpan?.end() }
+        #endif
+        try publishWork(verified, produced: produced, context: context, original: original,
+                        willPublish: willPublish, publication: publication, verifiedOutput: verifiedOutput)
+        return verified.identity
+    }
+
+    /// publish 一回分の不変な入力。各段階の private static が共有する。
+    private struct PublishContext {
+        let archive: URL
+        let work: URL
+        let outputFormat: GyoshukuKit.ArchiveFormat
+        let password: String?
+        let options: WriterOptions
+        let progress: Progress
+        let ledger: ArchiveWriteProgress?
+        let archiveBytes: UInt64
+        let deferredPlan: ArchiveSaveReplayPlan?
+        let expectedOutput: ArchiveOutputProjection
+    }
+
+    /// 生成した作業ファイルの由来。fallback で rewrite に切り替わった mode と、splice 検証に要る情報を運ぶ。
+    private struct ProducedWork {
+        var publishedMode: ArchiveCapabilities.Mode
+        var spliceBase: TarEditingSnapshot? = nil
+        var spliced: CompressedTarCommitResult? = nil
+    }
+
+    /// 検証済みの作業ファイル。publish 直前まで同じ実体であることを source の fd と path で再確認する。
+    private struct VerifiedWork {
+        let identity: ArchiveSetIdentity
+        let source: ArchiveVerifiedFileSource
+        let reader: ArchiveReader
+        let hint: URL
+        let adoptable: Bool
+    }
+
+    /// 台帳に記録してから作業ディレクトリを作る。作成に失敗したら記録も取り消す。
+    private static func prepareWorkDirectory(beside archive: URL, registry: PendingWorkRegistry) throws -> URL {
+        let directory = archive.deletingLastPathComponent().appendingPathComponent(WorkAreaName.add + UUID().uuidString)
         do { try registry.register(directory) }
         catch { NSLog("台帳への記録に失敗しました: %@", String(describing: error)) }
         do {
@@ -158,57 +205,66 @@ nonisolated enum ArchiveImportTransaction {
             registry.unregister(directory)
             throw error
         }
-        defer { registry.removeAndUnregister(directory) }
-        do { try registry.recordIdentity(directory) }
-        catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
-        let outputFormat = mode.outputFormat
-        let work = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: outputFormat))
-        var publishedMode = mode
-        var spliceBase: TarEditingSnapshot?
-        var spliced: CompressedTarCommitResult?
-        func updateCommitProgress() -> (ArchiveUpdater.CommitProgress) throws -> Void {
-            if let ledger { return ledger.commit }
-            // Compatibility for ledger-free callers, including the existing transaction test doubles.
-            progress.totalUnitCount += 1_000
-            var completed: Int64 = 0
-            return { value in
-                try ArchiveImportPlan.checkCancellation(progress)
-                let units: Int64 = value.totalBytes == 0 ? 1_000
-                    : Int64(min(1, Double(value.completedBytes) / Double(value.totalBytes)) * 1_000)
-                let next = max(completed, units)
-                progress.completedUnitCount += next - completed
-                completed = next
-            }
-        }
-        func rewriteBranch(format: GyoshukuKit.ArchiveFormat) throws {
-            var info = stat()
-            guard lstat(work.path, &info) != 0 else { throw ExtractionFailure.system(EEXIST) }
-            guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
-            let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
-                try ArchiveRewriter.open(url: archive, password: password, output: work, format: format, options: options)
-            }
-            // 入力の復号鍵と出力の暗号化設定を分離する。
-            guard !rewriter.hasEncryptedEntries || password != nil else {
-                throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
-            }
-            ledger?.begin(.rewriter(format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit), archiveBytes: archiveBytes, options: options)
-            try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
+        return directory
+    }
+
+    /// ledger を渡さない呼び出しでは、commit の進捗を 1,000 単位の擬似 unit として progress に足す。
+    private static func commitProgressCallback(ledger: ArchiveWriteProgress?, progress: Progress) -> (ArchiveUpdater.CommitProgress) throws -> Void {
+        if let ledger { return ledger.commit }
+        progress.totalUnitCount += 1_000
+        var completed: Int64 = 0
+        return { value in
             try ArchiveImportPlan.checkCancellation(progress)
-            if let ledger { try rewriter.finishAdditions(progress: ledger.finishAdditions) }
-            // LHA・7z の fallback は、削除済みの項目と root を carry の予算に含めない。
-            let carryCount = [.lha, .sevenZip].contains(format)
-                ? expectedOutput.resolving(.rewrite(format)).entries.filter { !$0.isAddition }.count
-                : rewriter.entryNames.count
-            if ledger == nil { progress.totalUnitCount += Int64(carryCount) }
-            try ArchiveStageDiagnostics.measure(.commit) {
-                try rewriter.commit(progress: ledger?.commit) { done, total in
-                    if let ledger { ledger.didCarry(done, total) }
-                    else { progress.completedUnitCount += 1 }
-                    try ArchiveImportPlan.checkCancellation(progress)
-                }
-            }
-            try preserveAttributes(from: archive, to: work)
+            let units: Int64 = value.totalBytes == 0 ? 1_000
+                : Int64(min(1, Double(value.completedBytes) / Double(value.totalBytes)) * 1_000)
+            let next = max(completed, units)
+            progress.completedUnitCount += next - completed
+            completed = next
         }
+    }
+
+    /// rewriter 経路。作業ファイルが既にあれば EEXIST として拒否し、最後に原本の属性を写す。
+    private static func rewrite(format: GyoshukuKit.ArchiveFormat, context: PublishContext,
+                                mutate: (any ArchiveEditing) throws -> Void) throws {
+        let archive = context.archive, work = context.work, ledger = context.ledger, progress = context.progress
+        var info = stat()
+        guard lstat(work.path, &info) != 0 else { throw ExtractionFailure.system(EEXIST) }
+        guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
+        let rewriter = try ArchiveStageDiagnostics.measure(.rewriterOpen) {
+            try ArchiveRewriter.open(url: archive, password: context.password, output: work, format: format, options: context.options)
+        }
+        // 入力の復号鍵と出力の暗号化設定を分離する。
+        guard !rewriter.hasEncryptedEntries || context.password != nil else {
+            throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
+        }
+        ledger?.begin(.rewriter(format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit), archiveBytes: context.archiveBytes, options: context.options)
+        try ArchiveStageDiagnostics.measure(context.deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
+        try ArchiveImportPlan.checkCancellation(progress)
+        if let ledger { try rewriter.finishAdditions(progress: ledger.finishAdditions) }
+        // LHA・7z の fallback は、削除済みの項目と root を carry の予算に含めない。
+        let carryCount = [.lha, .sevenZip].contains(format)
+            ? context.expectedOutput.resolving(.rewrite(format)).entries.filter { !$0.isAddition }.count
+            : rewriter.entryNames.count
+        if ledger == nil { progress.totalUnitCount += Int64(carryCount) }
+        try ArchiveStageDiagnostics.measure(.commit) {
+            try rewriter.commit(progress: ledger?.commit) { done, total in
+                if let ledger { ledger.didCarry(done, total) }
+                else { progress.completedUnitCount += 1 }
+                try ArchiveImportPlan.checkCancellation(progress)
+            }
+        }
+        try preserveAttributes(from: archive, to: work)
+    }
+
+    /// mode ごとの updater / rewriter で作業ファイルを作る。updater が requiresRewrite で拒否したら rewrite に切り替える。
+    private static func produceWork(mode: ArchiveCapabilities.Mode, context: PublishContext,
+                                    commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)?,
+                                    willOpenUpdater: (@Sendable () throws -> Void)?,
+                                    sessionReader: sending ArchiveReader?,
+                                    mutate: (any ArchiveEditing) throws -> Void) throws -> ProducedWork {
+        let archive = context.archive, work = context.work, options = context.options, password = context.password
+        let progress = context.progress, ledger = context.ledger, archiveBytes = context.archiveBytes, deferredPlan = context.deferredPlan
+        var produced = ProducedWork(publishedMode: mode)
         switch mode {
         case .inPlace:
             try willOpenUpdater?()
@@ -229,11 +285,11 @@ nonisolated enum ArchiveImportTransaction {
             try preserveAttributes(from: archive, to: work, includingCreationDate: true)
         case .rewrite(let format):
             try willOpenUpdater?()
-            try rewriteBranch(format: format)
+            try rewrite(format: format, context: context, mutate: mutate)
         case .update(let format) where [.tarGzip, .tarBzip2, .tarXZ].contains(format):
             guard let reader = sessionReader else { throw ArchiveEditError.staleSelection }
             // 同じ独立 reader から Sendable な base を採り、reader の所有権は GK へ渡す。
-            spliceBase = reader.tarEditingSnapshot()
+            produced.spliceBase = reader.tarEditingSnapshot()
             try willOpenUpdater?()
             var updater: CompressedTarUpdater?
             do {
@@ -253,9 +309,9 @@ nonisolated enum ArchiveImportTransaction {
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
                 if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = updateCommitProgress()
+                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
                 do {
-                    spliced = try ArchiveStageDiagnostics.measure(.commit) {
+                    produced.spliced = try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
                         try willCommitUpdaterForTesting.get()?()
                         #endif
@@ -270,9 +326,9 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
                 try preserveAttributes(from: archive, to: work, includingCreationDate: true)
             } else {
-                spliceBase = nil
-                publishedMode = .rewrite(format)
-                try rewriteBranch(format: format)
+                produced.spliceBase = nil
+                produced.publishedMode = .rewrite(format)
+                try rewrite(format: format, context: context, mutate: mutate)
             }
         case .update(.tar):
             try willOpenUpdater?()
@@ -291,7 +347,7 @@ nonisolated enum ArchiveImportTransaction {
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
                 if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = updateCommitProgress()
+                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
                 do {
                     try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
@@ -308,8 +364,8 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
                 try preserveAttributes(from: archive, to: work, includingCreationDate: true)
             } else {
-                publishedMode = .rewrite(.tar)
-                try rewriteBranch(format: .tar)
+                produced.publishedMode = .rewrite(.tar)
+                try rewrite(format: .tar, context: context, mutate: mutate)
             }
         case .update(.lha):
             try willOpenUpdater?()
@@ -328,7 +384,7 @@ nonisolated enum ArchiveImportTransaction {
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
                 if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = updateCommitProgress()
+                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
                 do {
                     try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
@@ -345,8 +401,8 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
                 try preserveAttributes(from: archive, to: work, includingCreationDate: true)
             } else {
-                publishedMode = .rewrite(.lha)
-                try rewriteBranch(format: .lha)
+                produced.publishedMode = .rewrite(.lha)
+                try rewrite(format: .lha, context: context, mutate: mutate)
             }
         case .update(.sevenZip):
             try willOpenUpdater?()
@@ -365,7 +421,7 @@ nonisolated enum ArchiveImportTransaction {
                 try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
                 try ArchiveImportPlan.checkCancellation(progress)
                 if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = updateCommitProgress()
+                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
                 do {
                     try ArchiveStageDiagnostics.measure(.commit) {
                         #if DEBUG
@@ -382,19 +438,17 @@ nonisolated enum ArchiveImportTransaction {
                 #endif
                 try preserveAttributes(from: archive, to: work, includingCreationDate: true, copyingExtendedAttributes: false)
             } else {
-                publishedMode = .rewrite(.sevenZip)
-                try rewriteBranch(format: .sevenZip)
+                produced.publishedMode = .rewrite(.sevenZip)
+                try rewrite(format: .sevenZip, context: context, mutate: mutate)
             }
         case .update: throw ArchiveEditError.staleSelection
         }
-        if let additionalQuarantine {
-            // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
-            // 公開前の作業コピーだけに付け、取消しや検証失敗で原本の属性を変えない。
-            try ExtractionQuarantine.apply(try ExtractionQuarantine.read(from: work) ?? additionalQuarantine, to: work)
-        }
-        #if DEBUG
-        try didCommitForTesting.get()?(work)
-        #endif
+        return produced
+    }
+
+    /// 作業ファイルを reader で開き直し、ZIP の件数と投影（expectedOutput）で検証する。原本にはまだ触れない。
+    private static func verifyWork(_ produced: ProducedWork, context: PublishContext) throws -> VerifiedWork {
+        let archive = context.archive, work = context.work, options = context.options, outputFormat = context.outputFormat
         // 検証前の実体を記録し、公開直前までの差し替え・書き換えを拒否する。
         let identity: ArchiveSetIdentity
         let source: ArchiveVerifiedFileSource
@@ -408,7 +462,7 @@ nonisolated enum ArchiveImportTransaction {
         #endif
         try verifyWorkIdentity(source: source, work: work, phase: .beforeVerification, archive: archive)
         identity = source.identity
-        if let spliced {
+        if let spliced = produced.spliced {
             let actual = source.fileIdentity, expected = spliced.output
             guard actual.device == expected.device, actual.inode == expected.inode, actual.size == expected.size,
                   actual.modificationSeconds == expected.modificationSeconds,
@@ -420,7 +474,7 @@ nonisolated enum ArchiveImportTransaction {
         do {
             let verificationOptions = ReaderOptions.kaitoFinderVerification(password: options.password)
             verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
-                guard let spliced, let spliceBase else {
+                guard let spliced = produced.spliced, let spliceBase = produced.spliceBase else {
                     return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
                 }
                 do {
@@ -447,17 +501,21 @@ nonisolated enum ArchiveImportTransaction {
             }
         }
         try ArchiveStageDiagnostics.measure(.entryComparison) {
-            if let failure = expectedOutput.resolving(publishedMode).validationFailure(verified, format: outputFormat) {
+            if let failure = context.expectedOutput.resolving(produced.publishedMode).validationFailure(verified, format: outputFormat) {
                 throw failure.reported(file: archive)
             }
         }
         #if DEBUG
         try didVerifyForTesting.get()?(work)
         #endif
-        #if DEBUG
-        let publishSpan = ArchiveStageDiagnostics.begin(.publish)
-        defer { publishSpan?.end() }
-        #endif
+        return VerifiedWork(identity: identity, source: source, reader: verified, hint: hint, adoptable: adoptable)
+    }
+
+    /// 公開境界。原本が変わっていないことを確かめ、rename 一回で作業ファイルを原本に差し替える。
+    private static func publishWork(_ verified: VerifiedWork, produced: ProducedWork, context: PublishContext,
+                                    original: ArchiveSetIdentity, willPublish: (@Sendable () throws -> Void)?,
+                                    publication: ArchiveSavePublication?, verifiedOutput: ArchiveVerifiedOutputSink?) throws {
+        let archive = context.archive, work = context.work, progress = context.progress
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         guard try ArchiveSetIdentity.capture(url: archive) == original else {
@@ -467,20 +525,19 @@ nonisolated enum ArchiveImportTransaction {
         if ArchiveSplitVolume.isSplitVolumeMember(archive) { throw ArchiveEditError.splitArchive }
         // 作業ファイルへ復元した属性も含め、同一ボリュームで一括公開する。
         // ここが取消しの境界。成功後に取消しとして返してはならない。
-        try verifyWorkIdentity(source: source, work: work, phase: .beforePublication, archive: archive)
+        try verifyWorkIdentity(source: verified.source, work: work, phase: .beforePublication, archive: archive)
         try (publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(work.path, archive.path) == 0 else { throw ExtractionFailure.system(errno) }
         #if DEBUG
         didPublishForTesting.get()?(archive)
         #endif
-        verifiedOutput?.publishedMode = publishedMode
-        if adoptable {
-            verifiedOutput?.output = ArchiveVerifiedOutput(identity: identity, reader: verified, source: source,
-                hint: hint, verificationPassword: options.password, format: outputFormat)
+        verifiedOutput?.publishedMode = produced.publishedMode
+        if verified.adoptable {
+            verifiedOutput?.output = ArchiveVerifiedOutput(identity: verified.identity, reader: verified.reader, source: verified.source,
+                hint: verified.hint, verificationPassword: context.options.password, format: context.outputFormat)
         }
-        if let ledger { ledger.didPublish() }
+        if let ledger = context.ledger { ledger.didPublish() }
         else { progress.completedUnitCount += 1 }
-        return identity
     }
 
     private static func kaitoKitSegment(_ segment: CompressedTarOutputSegment) -> CompressedTarSplice.Segment {

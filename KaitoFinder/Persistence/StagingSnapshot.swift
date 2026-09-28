@@ -28,7 +28,7 @@ nonisolated extension StagingRegistry {
                 let output = open(target.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
                 guard output >= 0 else { throw ExtractionFailure.system(errno) }
                 defer { close(output) }
-                var buffer = [UInt8](repeating: 0, count: 256 * 1024)
+                var buffer = [UInt8](repeating: 0, count: Self.copyBufferSize)
                 while true {
                     try ArchiveImportPlan.checkCancellation(progress)
                     let count = buffer.withUnsafeMutableBytes { Darwin.read(input, $0.baseAddress, $0.count) }
@@ -108,7 +108,7 @@ nonisolated extension StagingRegistry {
                 var info = stat()
                 guard lstat(item.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
                 try clearRemovalRestrictions(item)
-                if info.st_mode & S_IFMT == S_IFDIR {
+                if info.isDirectory {
                     guard chmod(item.path, (info.st_mode & 0o777) | 0o700) == 0 else { throw ExtractionFailure.system(errno) }
                     for child in try FileManager.default.contentsOfDirectory(at: item, includingPropertiesForKeys: nil) { try clear(child) }
                 }

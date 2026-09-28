@@ -13,6 +13,8 @@ nonisolated final class StagingRegistry: Sendable {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("KaitoFinder/Staging", isDirectory: true))
     private static let lock = Mutex(())
+    /// 退避物の複製で一度に読み書きする長さ。
+    static let copyBufferSize = 256 << 10
     let root: URL
     private let fileURL: URL
     private struct Entry: Codable {
@@ -35,7 +37,7 @@ nonisolated final class StagingRegistry: Sendable {
 
     static func temporary(beside archive: URL, pendingWork: PendingWorkRegistry = .shared) throws -> Temporary {
         let directory = archive.deletingLastPathComponent()
-            .appendingPathComponent(".KaitoFinder-staging-" + UUID().uuidString, isDirectory: true)
+            .appendingPathComponent(WorkAreaName.staging + UUID().uuidString, isDirectory: true)
         try pendingWork.register(directory)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
@@ -118,7 +120,7 @@ nonisolated final class StagingRegistry: Sendable {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
                                                    attributes: [.posixPermissions: 0o700])
             do {
-                let descriptor = open(directory.appendingPathComponent(".KaitoFinder-owner.lock").path,
+                let descriptor = open(directory.appendingPathComponent(WorkAreaName.ownerLock).path,
                                       O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
                 guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
                 let lease = Lease(directory: directory, descriptor: descriptor, registry: self)
@@ -149,8 +151,8 @@ nonisolated final class StagingRegistry: Sendable {
                     return nil
                 }
                 guard Int64(info.st_dev) == record.device, info.st_ino == record.inode,
-                      info.st_mode & S_IFMT == S_IFDIR else { throw ExtractionFailure.system(ESTALE) }
-                let tombstone = root.appendingPathComponent(".KaitoFinder-deleted-" + UUID().uuidString, isDirectory: true)
+                      info.isDirectory else { throw ExtractionFailure.system(ESTALE) }
+                let tombstone = root.appendingPathComponent(WorkAreaName.deleted + UUID().uuidString, isDirectory: true)
                 // rename の前に記録し、途中終了でも削除許可済みの領域だけを回収する。
                 entries.append(Entry(path: tombstone.path, device: record.device, inode: record.inode, discardable: true))
                 try save(entries)
@@ -188,17 +190,17 @@ nonisolated final class StagingRegistry: Sendable {
                 let directory = URL(fileURLWithPath: entry.path)
                 guard directory.deletingLastPathComponent().standardizedFileURL.path == root.standardizedFileURL.path,
                       UUID(uuidString: directory.lastPathComponent) != nil ||
-                        (entry.discardable == true && directory.lastPathComponent.hasPrefix(".KaitoFinder-deleted-") &&
-                         UUID(uuidString: String(directory.lastPathComponent.dropFirst(".KaitoFinder-deleted-".count))) != nil)
+                        (entry.discardable == true && directory.lastPathComponent.hasPrefix(WorkAreaName.deleted) &&
+                         UUID(uuidString: String(directory.lastPathComponent.dropFirst(WorkAreaName.deleted.count))) != nil)
                 else { retained.append(entry); continue }
                 var info = stat()
                 guard lstat(directory.path, &info) == 0 else {
                     if errno != ENOENT { retained.append(entry) }
                     continue
                 }
-                guard info.st_mode & S_IFMT == S_IFDIR, Int64(info.st_dev) == entry.device,
+                guard info.isDirectory, Int64(info.st_dev) == entry.device,
                       info.st_ino == entry.inode else { retained.append(entry); continue }
-                let descriptor = open(directory.appendingPathComponent(".KaitoFinder-owner.lock").path,
+                let descriptor = open(directory.appendingPathComponent(WorkAreaName.ownerLock).path,
                                       O_RDWR | O_NOFOLLOW | O_CLOEXEC)
                 if descriptor < 0 {
                     // 台帳と inode が一致する退避領域で、所有者の lock だけがなければ孤立している。
