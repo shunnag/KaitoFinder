@@ -19,6 +19,26 @@ nonisolated final class ScenarioFixture {
         try Self.python(directory, archive: archive, script: script, arguments: arguments)
     }
 
+    /// `names` の項目を入れた ZIP。file の内容はそれぞれの名前で、`/` で終わる名前は directory にする。
+    /// `tar` なら同じ名前の file を入れた tar を LZMA_Alone で包んだ archive.tar.lzma（読み取り専用の形式）にする。
+    nonisolated static func withEntries(_ names: [String] = ["a.txt", "b.txt", "c.txt"], tar: Bool = false) throws -> ScenarioFixture {
+        try ScenarioFixture(script: """
+        names = sys.argv[2:]
+        if p.endswith('.tar.lzma'):
+            with tarfile.open(p, 'w') as a:
+                for name in names:
+                    item = tarfile.TarInfo(name)
+                    data = name.encode()
+                    item.size = len(data)
+                    a.addfile(item, io.BytesIO(data))
+            import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
+        else:
+            with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as a:
+                for name in names:
+                    a.writestr(name, b'' if name.endswith('/') else name.encode())
+        """, suffix: tar ? "tar.lzma" : "zip", arguments: names)
+    }
+
     private static func python(_ directory: ArchiveTestDirectory, archive: URL, script: String, arguments: [String]) throws {
         try directory.run(ExternalTool.python3, ["-c",
             "import sys, zipfile, tarfile, io, stat, struct, os\np = sys.argv[1]\n" + script, archive.path] + arguments)
@@ -82,6 +102,29 @@ nonisolated final class ScenarioFixture {
 }
 
 extension XCTestCase {
+    /// 一覧を名前順に全展開し、入力可能な文書を teardown まで保持する。
+    @MainActor func interface(_ fixture: ScenarioFixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
+        -> (ArchiveDocument, ArchiveWindowController) {
+        let document = ArchiveDocument(undoStack: stack)
+        try document.read(from: fixture.archive, ofType: "archive")
+        let controller = ArchiveWindowController()
+        document.addWindowController(controller)
+        let session = try XCTUnwrap(document.session)
+        let snapshot = await session.snapshot()
+        controller.display(EntryNode.tree(from: snapshot.entries), session: session, generation: snapshot.generation)
+        controller.outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        controller.outlineView.expandItem(nil, expandChildren: true)
+        controller.window?.contentView?.layoutSubtreeIfNeeded()
+        controller.window?.makeFirstResponder(controller.outlineView)
+        closeDocumentAfterTest(document, controller: controller, retaining: fixture)
+        return (document, controller)
+    }
+
+    /// 書庫に保存された全項目の名前を返す。
+    nonisolated func names(_ fixture: ScenarioFixture) throws -> Set<String> {
+        Set(try ArchiveReader.open(url: fixture.archive).entries.map(\.name))
+    }
+
     /// teardown で `document` を閉じ、閉じる前に `controller` が持っていた操作とロック解除の Task、文書の undo・実体化・
     /// session の後片付けの完了を待つ。`owner`（fixture や設定の suite）はそれまで保持する。
     @MainActor func closeDocumentAfterTest(_ document: ArchiveDocument, controller: ArchiveWindowController?,
