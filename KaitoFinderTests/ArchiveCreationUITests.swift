@@ -702,7 +702,6 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
 
 extension ArchiveCreationUITests {
     @MainActor func testCancelExtractionFinishesReconfiguringSavePanelExactlyOnce() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try ArchiveTestDirectory(), archive = fixture.url.appendingPathComponent("source.zip")
         try ReleaseReviewFixtures.zip([("a.txt", Data("a".utf8))]).write(to: archive)
         let document = ArchiveDocument()

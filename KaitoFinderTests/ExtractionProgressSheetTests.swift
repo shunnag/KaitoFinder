@@ -7,7 +7,6 @@ nonisolated final class ExtractionProgressSheetTests: XCTestCase {
     @MainActor func testFastDeferredEditFinishesWithoutAttachingOrRevealingItsSheet() async throws {
         let fixture = try DeferredSaveFixture(), document = fixture.document
         defer { document.close() }
-        preserveArchiveWindowFrame()
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
         document.addWindowController(controller)
         let session = try XCTUnwrap(document.session)

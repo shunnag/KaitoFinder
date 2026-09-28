@@ -93,7 +93,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testConcurrentRequestsJoinOneParseAndPreserveAlreadyOpenFlag() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try ScenarioFixture(), controller = try makeController()
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
         let results = await openTogether(controller, [(fixture.archive, false), (fixture.archive, true)])
@@ -322,7 +321,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testLockedControllerOpenKeepsUnlockUI() async throws {
-        preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory(), controller = try makeController()
         let archive = directory.url.appendingPathComponent("locked.7z")
         try Data("secret".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
@@ -388,7 +386,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testDeferredInitialDisplayInstallsPendingSnapshotAndTree() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try ScenarioFixture(), suite = try ArchivePreferencesTestDefaults()
         let store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.saveBehavior = .onSave

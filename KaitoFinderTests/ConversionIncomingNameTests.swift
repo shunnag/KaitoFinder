@@ -29,7 +29,6 @@ nonisolated final class ConversionIncomingNameTests: XCTestCase {
     }
 
     @MainActor private func assertConversion(format: GyoshukuKit.ArchiveFormat) async throws {
-        preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory(), defaults = try ArchivePreferencesTestDefaults()
         let creator = ArchiveCreationController(store: ArchivePreferencesStore(defaults: defaults.defaults))
         let tarBzip2 = directory.url.appendingPathComponent("original.tar.bz2")

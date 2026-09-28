@@ -115,7 +115,6 @@ nonisolated final class ArchiveImportCorrectionTests: XCTestCase {
     }
 
     @MainActor func testMacBinaryAndUnsupportedLHAAreReadOnlyAndShowTheProbeReason() async throws {
-        preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory(), controller = ArchiveWindowController()
         defer { controller.close() }
         for (bytes, reason, entriesAccepted) in [

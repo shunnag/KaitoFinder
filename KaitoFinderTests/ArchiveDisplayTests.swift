@@ -28,7 +28,6 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     }
 
     @MainActor private func interface() async throws -> (ArchiveDocument, ArchiveWindowController, EntryNode) {
-        preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("paths.zip")
         try FileManager.default.createDirectory(at: directory.url.appendingPathComponent("a/b"), withIntermediateDirectories: true)
@@ -61,7 +60,6 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     }
 
     @MainActor func testDisplayingSmallerTreeReplacesExpandedRowsAndPreservesSurvivingSelection() throws {
-        preserveArchiveWindowFrame()
         let defaults = try ArchivePreferencesTestDefaults()
         let store = ArchivePreferencesStore(defaults: defaults.defaults)
         for query in ["", "txt"] {
@@ -370,8 +368,8 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     }
 
     @MainActor func testToolbarWithoutSessionKeepsOnlySearchEnabled() throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let controller = ArchiveWindowController()
         defer { controller.close() }
         let toolbar = try XCTUnwrap(controller.window?.toolbar)
@@ -436,8 +434,8 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     }
 
     @MainActor func testPathBarLayoutAndArchiveFallbackWithoutDocumentURL() throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let controller = ArchiveWindowController()
         defer { controller.close() }
         controller.display(EntryNode.tree(from: []))
@@ -459,8 +457,8 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     }
 
     @MainActor func testArchiveWindowUsesAutomaticTabbing() throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let controller = ArchiveWindowController()
         defer { controller.close() }
         let window = try XCTUnwrap(controller.window)

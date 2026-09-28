@@ -9,7 +9,6 @@ nonisolated final class ArchiveFinderInteractionTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["KAITOFINDER_FINDER_INPUT_REQUEST"] != nil else {
             throw XCTSkip("Run Tools/verify_finder_interactions.py for native Finder-style input")
         }
-        preserveArchiveWindowFrame()
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:
             z.writestr('first.txt', b'First')

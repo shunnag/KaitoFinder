@@ -9,7 +9,6 @@ import XCTest
 
 nonisolated final class DeferredPostSaveTests: XCTestCase {
     @MainActor private func controller(_ fixture: DeferredSaveFixture) async throws -> ArchiveWindowController {
-        preserveArchiveWindowFrame()
         fixture.document.makeWindowControllers()
         await fixture.document.waitForDeferredPreparationForTesting()
         return try XCTUnwrap(fixture.document.windowControllers.first as? ArchiveWindowController)
@@ -70,7 +69,6 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
     }
 
     @MainActor func testSplitSaveInstallsReloadedBaseAndQueuedEditWaitsForPreparation() async throws {
-        preserveArchiveWindowFrame()
         for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip, .tarGzip] {
             let fixture = try DeferredSplitSaveFixture(format: format), document = fixture.document, gate = ScenarioGate()
             defer { gate.release(); document.close() }

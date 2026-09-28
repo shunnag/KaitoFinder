@@ -175,7 +175,6 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
 
     @MainActor private func document(at url: URL, directory: ArchiveTestDirectory, password: String? = nil) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
-        preserveArchiveWindowFrame()
         let stack = ArchiveUndoStack(clone: { source, destination in
             do { try FileManager.default.copyItem(at: source, to: destination); return 0 }
             catch { return EIO }

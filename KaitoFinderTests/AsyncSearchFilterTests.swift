@@ -39,7 +39,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testRequestKeepsAppliedRowsAndStatusUntilOneSwap() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let oldPaths = paths(controller), oldStatus = controller.statusBar.stringValue
@@ -63,7 +62,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testOnlyNewestRequestAppliesWhenOlderComputeFinishesLast() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let first = try request("a", on: controller, gate: gate)
@@ -79,7 +77,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testDisplayAdoptsRequestAndDiscardsOldTreeResult() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let task = try request("a", on: controller, gate: gate)
@@ -99,7 +96,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testPreparedFiltersRequireBothRootAndRequestedConfiguration() throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller
         defer { controller.close() }
         controller.setFilterQuery("a")
@@ -119,7 +115,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testHiddenSettingCancelsOldConfigurationDuringQuery() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(entries: [archiveColumnEntry("a.txt"), archiveColumnEntry(".git/a.txt", index: 1)])
         let controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
@@ -136,7 +131,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testSelectionMadeDuringComputeSurvivesSwap() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let task = try request("a", on: controller, gate: gate)
@@ -151,7 +145,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testClearingQueryCancelsComputeAndRestoresUnfilteredStateSynchronously() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let folder = fixture.root.children[0]
@@ -172,7 +165,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testReturningToAppliedEmptyQueryDoesNotReload() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let applies = controller.filterApplyCountForTesting
@@ -187,7 +179,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testHiddenExpansionMemoryMatchesSynchronousToggles() async throws {
-        preserveArchiveWindowFrame()
         let entries = [archiveColumnEntry(".git/x.txt"), archiveColumnEntry("folder/x.txt", index: 1)]
         var expansions: [Set<String>] = []
         for execution in [ArchiveWindowController.FilterExecution.synchronous, .asynchronous] {
@@ -211,7 +202,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testClosingOrLockingOrSwitchingCancelsPendingSwap() async throws {
-        preserveArchiveWindowFrame()
         for action in 0..<3 {
             let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
             defer { gate.release(); controller.close() }
@@ -229,7 +219,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testDelayedStatusAndLoadingPriorityShareIndicator() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Interface(), controller = fixture.controller, gate = ScenarioGate()
         defer { gate.release(); controller.close() }
         let status = controller.statusBar.stringValue
@@ -287,7 +276,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor private func assertInteractionHolds(_ interaction: String) async throws {
-        preserveArchiveWindowFrame()
         if ["preview", "password", "sheet"].contains(interaction), Bundle.main.bundleURL.pathExtension != "app" {
             throw XCTSkip("Quick Look and modal sheets require the Xcode application test host")
         }
@@ -372,7 +360,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testInitialDisplaysPrepareRequestedQueryOffMainInBothSaveModes() async throws {
-        preserveArchiveWindowFrame()
         for behavior in [ArchivePreferences.SaveBehavior.immediate, .onSave] {
             let fixture = try DeferredSaveFixture(behavior: behavior), document = fixture.document
             addTeardownBlock { @MainActor in
@@ -396,7 +383,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
     }
 
     @MainActor func testAutomaticThresholdAndImmediateMutationReloadsNeverFilterOnMain() async throws {
-        preserveArchiveWindowFrame()
         let files = (0..<25_000).map { ("d\($0 / 100)/file\($0).txt", "x") }
         let fixture = try DeferredSaveFixture(behavior: .immediate, files: files), document = fixture.document
         addTeardownBlock { @MainActor in

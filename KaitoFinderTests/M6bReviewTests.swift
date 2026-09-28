@@ -49,7 +49,6 @@ nonisolated final class M6bReviewTests: XCTestCase {
     }
 
     @MainActor func testOpenValidationStopsAtFirstRefusalInLargeSelection() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document
         defer { document.close() }
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
@@ -170,7 +169,6 @@ nonisolated final class M6bReviewTests: XCTestCase {
     }
 
     @MainActor func testBlankAreaNewFolderUsesRootWhileToolbarUsesSelectedFolder() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(), document = fixture.document
         defer { document.close() }
         let controller = ArchiveWindowController(preferencesStore: fixture.store)

@@ -199,7 +199,6 @@ nonisolated final class DeferredReservationTests: XCTestCase {
     }
 
     @MainActor func testRenameCommitMemoizesExactNamesButNotStaleGuards() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(), document = fixture.document
         defer { document.close() }
         let controller = ArchiveWindowController(preferencesStore: fixture.store)

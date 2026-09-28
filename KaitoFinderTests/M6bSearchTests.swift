@@ -5,7 +5,6 @@ import XCTest
 
 nonisolated final class M6bSearchTests: XCTestCase {
     @MainActor func testSearchTypingCostAt100kEntries() async throws {
-        preserveArchiveWindowFrame()
         let defaults = try ArchivePreferencesTestDefaults()
         let controller = ArchiveWindowController(preferencesStore: ArchivePreferencesStore(defaults: defaults.defaults))
         defer { controller.close() }

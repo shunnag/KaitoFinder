@@ -36,7 +36,6 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
 
     @MainActor private func interface(_ fixture: Fixture, vault: ArchivePasswordVault? = nil) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
-        preserveArchiveWindowFrame()
         let document = ArchiveDocument(passwordVault: vault ?? fixture.vault())
         try document.read(from: fixture.archive, ofType: "archive")
         document.makeWindowControllers()

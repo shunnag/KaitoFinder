@@ -7,7 +7,6 @@ import XCTest
 
 nonisolated final class DeferredOpeningTests: XCTestCase {
     @MainActor func testBaseTreeAppearsBeforePreparationAndWaitingEditChecksCollisions() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(), document = fixture.document
         let updater = ScenarioGate(), validation = ScenarioGate()
         let observations = Mutex<[(ArchiveReservationDiagnostics.Event, Bool)]>([])
@@ -63,7 +62,6 @@ nonisolated final class DeferredOpeningTests: XCTestCase {
     }
 
     @MainActor func testEditWaitingForPreparationRevealsProgressAndHonorsCancellation() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(), document = fixture.document, gate = ScenarioGate()
         defer { gate.release(); document.close() }
         ArchiveReservationDiagnostics.observer.withValue({ event, _ in
@@ -92,7 +90,6 @@ nonisolated final class DeferredOpeningTests: XCTestCase {
     }
 
     @MainActor func testBackgroundUpdaterFailureIsReportedOnlyByWaitingEdit() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:
             z.writestr('a.txt', b'first-payload')

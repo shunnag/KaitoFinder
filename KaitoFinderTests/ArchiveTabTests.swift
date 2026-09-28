@@ -5,7 +5,6 @@ import XCTest
 /// NSWindow のフラグだけでなく、実際に表示されたタブ群と文書の同一性を検証する。
 nonisolated final class ArchiveTabTests: XCTestCase {
     @MainActor func testOpeningPreferenceChangesOnlyNewWindowsAndKeepsNativeTabCommands() async throws {
-        preserveArchiveWindowFrame()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let identifier = "KaitoFinder.tabs.test." + UUID().uuidString
         var controllers: [ArchiveWindowController] = []
@@ -63,7 +62,6 @@ nonisolated final class ArchiveTabTests: XCTestCase {
     }
 
     @MainActor func testDocumentControllerOpeningAndReopeningUsesSelectedPolicyWithoutDuplicatingDocuments() async throws {
-        preserveArchiveWindowFrame()
         let key = ArchivePreferencesStore.Key.openingBehavior
         let previous = UserDefaults.standard.object(forKey: key)
         defer {
@@ -121,7 +119,6 @@ nonisolated final class ArchiveTabTests: XCTestCase {
     }
 
     @MainActor func testLaunchServicesOpenEventsFollowPreferenceWithSettingsInFront() async throws {
-        preserveArchiveWindowFrame()
         NSApp.activate(ignoringOtherApps: true)
         let key = ArchivePreferencesStore.Key.openingBehavior
         let previous = UserDefaults.standard.object(forKey: key)

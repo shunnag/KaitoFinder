@@ -5,7 +5,6 @@ import XCTest
 
 nonisolated final class ArchiveColumnsTests: XCTestCase {
     @MainActor private func controller() throws -> ArchiveWindowController {
-        preserveArchiveWindowFrame()
         let suite = try ArchivePreferencesTestDefaults()
         let controller = ArchiveWindowController(preferencesStore: ArchivePreferencesStore(defaults: suite.defaults))
         addTeardownBlock { @MainActor in controller.close(); withExtendedLifetime(suite) {} }

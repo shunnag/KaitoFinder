@@ -16,7 +16,6 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
     @MainActor func testSearchFilterWhenEnabled() async throws {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()
-        preserveArchiveWindowFrame()
         ArchiveProbeTrace.line("PROBE-SEARCH-HEADER\tentries\tnames\ttransition\tstage\tms")
         for japanese in [false, true] {
             let entries = (0..<configuration.entries).map { index in
@@ -111,7 +110,6 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()
         ArchiveProbeTrace.header()
-        preserveArchiveWindowFrame()
         for format in configuration.formats {
             for kind in ArchiveProbeFixture.Kind.allCases {
                 let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
@@ -127,7 +125,6 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         #if DEBUG
         let configuration = try ArchiveProbeConfiguration()
         ArchiveProbeTrace.header()
-        preserveArchiveWindowFrame()
         for format in configuration.formats {
             for kind in ArchiveProbeFixture.Kind.allCases {
                 let fixture = try await ArchiveProbeFixtures.fixture(kind, format: format, configuration: configuration)
@@ -294,7 +291,6 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         let configuration = try ArchiveProbeConfiguration()
         let methods = try ProbeArchiveEncryption.configured()
         ArchiveProbeTrace.header()
-        preserveArchiveWindowFrame()
         for kind in ArchiveProbeFixture.Kind.allCases {
             for method in methods {
                 let plain = try await ArchiveProbeFixtures.fixture(kind, format: method.format, configuration: configuration)

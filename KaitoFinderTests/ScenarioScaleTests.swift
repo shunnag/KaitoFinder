@@ -5,7 +5,6 @@ import XCTest
 
 nonisolated final class ScenarioScaleTests: XCTestCase {
     @MainActor func testRepeatedSelectionsInAHundredThousandEntryTreeStayResponsive() throws {
-        preserveArchiveWindowFrame()
         let entries = (0..<100_000).map { index in
             let path = "folder\(index % 100)/file\(index).txt"
             return ArchiveEntry(index: index, rawName: RawName(bytes: Array(path.utf8)), name: path,

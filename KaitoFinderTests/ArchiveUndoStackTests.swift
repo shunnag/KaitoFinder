@@ -577,7 +577,6 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
     }
 
     @MainActor func testEditMenuShortcutsUseDocumentUndoManager() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try Fixture(), document = try document(fixture)
         document.makeWindowControllers()
         let window = try XCTUnwrap(document.windowControllers.first?.window)
@@ -618,7 +617,6 @@ extension ArchiveUndoStackTests {
     }
 
     @MainActor func testFirstDeleteOnUnsupportedCloneVolumeRequiresConfirmation() async throws {
-        preserveArchiveWindowFrame()
         for support in [false, nil] as [Bool?] {
             let fixture = try Fixture()
             let stack = ArchiveUndoStack(clone: { _, _ in

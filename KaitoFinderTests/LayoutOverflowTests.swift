@@ -6,7 +6,6 @@ import XCTest
 nonisolated final class LayoutOverflowTests: XCTestCase {
     @MainActor func testViewOptionsPanelInEveryLanguageAndPopupSelection() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        preserveArchiveWindowFrame()
         let archive = ArchiveWindowController(preferencesStore: store)
         defer { archive.close() }
         try forEachLanguage { language, bundle in
@@ -77,8 +76,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testLockedPlaceholderInEveryLanguage() throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         try forEachLanguage { language, bundle in
             let controller = ArchiveWindowController(bundle: bundle)
             defer { controller.close() }
@@ -329,8 +328,8 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testStatusBarWithLargeCountsInEveryLanguage() throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         try forEachLanguage { language, bundle in
             let controller = ArchiveWindowController(bundle: bundle)
             defer { controller.close() }

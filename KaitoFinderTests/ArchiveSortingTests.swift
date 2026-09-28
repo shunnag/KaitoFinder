@@ -88,7 +88,6 @@ nonisolated final class ArchiveSortingTests: XCTestCase {
     }
 
     @MainActor func testFoldersPreferencePersistsUpdatesAllWindowsAndPreservesSelectionAndExpansion() throws {
-        preserveArchiveWindowFrame()
         preserveApplicationMenus()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         XCTAssertFalse(store.preferences.keepsFoldersOnTop)

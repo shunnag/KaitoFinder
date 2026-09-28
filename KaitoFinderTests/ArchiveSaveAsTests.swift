@@ -54,7 +54,6 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
 
     @MainActor private func interface(encrypted: Bool = false, gzip: Bool = false, readOnly: Bool = false) async throws
         -> (ArchiveTestDirectory, ArchiveDocument, ArchiveWindowController, ArchivePreferencesStore) {
-        preserveArchiveWindowFrame()
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent(readOnly ? "original.tar.lzma" : (gzip ? "original.tgz" : "original.zip"))

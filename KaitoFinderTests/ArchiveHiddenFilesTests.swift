@@ -7,7 +7,6 @@ import XCTest
 nonisolated final class ArchiveHiddenFilesTests: XCTestCase {
     @MainActor private func interface(store: ArchivePreferencesStore) async throws
         -> (ArchiveTestDirectory, ArchiveDocument, ArchiveWindowController, EntryNode) {
-        preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("hidden.zip")
         let writer = try ArchiveWriter.create(url: archive)

@@ -124,8 +124,8 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         defer { other.close() }
         NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: other)
         XCTAssertEqual(controller.window?.isVisible, true)
-        let autosave = ArchiveWindowFrameAutosave()
-        defer { autosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let archive = ArchiveWindowController()
         defer { archive.close() }
         NotificationCenter.default.post(name: NSWindow.didBecomeMainNotification, object: archive.window)
@@ -151,8 +151,8 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         sheet.begin(on: window)
         XCTAssertNil(window.attachedSheet)
         XCTAssertTrue(ExtractionProgressSheet.hasPendingSheet(on: window))
-        let autosave = ArchiveWindowFrameAutosave()
-        defer { autosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let archive = ArchiveWindowController()
         defer { archive.close() }
 

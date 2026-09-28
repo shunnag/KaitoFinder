@@ -748,8 +748,8 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     }
 
     @MainActor func testWindowRewriteNoticeContainsRecompressionAndZIPDoesNot() async throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let controller = ArchiveWindowController()
         defer { controller.close() }
         controller.displayLocked()

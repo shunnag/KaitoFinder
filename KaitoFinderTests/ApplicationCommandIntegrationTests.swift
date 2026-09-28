@@ -330,7 +330,6 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
     }
 
     @MainActor func testWindowMenuAddsRenamesAndRemovesVisibleArchiveWindows() async throws {
-        preserveArchiveWindowFrame()
         let first = ArchiveWindowController(), second = ArchiveWindowController()
         defer { first.close(); second.close() }
         let firstWindow = try XCTUnwrap(first.window), secondWindow = try XCTUnwrap(second.window)

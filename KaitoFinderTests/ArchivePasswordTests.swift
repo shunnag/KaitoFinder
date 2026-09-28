@@ -71,7 +71,6 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
     @MainActor private func interface(_ fixture: Fixture, behavior: ArchivePreferences.SaveBehavior = .immediate) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
-        preserveArchiveWindowFrame()
         let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),
                                          directory: fixture.directory.url.appendingPathComponent("vault"))
         let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
@@ -604,8 +603,8 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
     }
 
     @MainActor func testTaskCancellationDismissesPromptAndClearsSecureField() async throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let controller = ArchiveWindowController()
         defer { controller.close() }
         let task = Task { try await controller.requestPassword(.required) }
@@ -622,8 +621,8 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
     }
 
     @MainActor func testConcurrentRequestsShareSheetAndCancelOnlyTheirOwnWaiter() async throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         let controller = ArchiveWindowController()
         defer { controller.close() }
         let first = Task { try await controller.requestPassword(.required) }

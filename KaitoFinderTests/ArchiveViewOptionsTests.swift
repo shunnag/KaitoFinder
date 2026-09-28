@@ -5,7 +5,6 @@ import XCTest
 nonisolated final class ArchiveViewOptionsTests: XCTestCase {
     @MainActor private func interface() async throws -> (DeferredSaveFixture, ArchiveWindowController, ArchiveWindowController) {
         _ = NSApplication.shared
-        preserveArchiveWindowFrame()
         let files = [("a.txt", "A"), ("z/child.txt", "C"), (".hidden.txt", "H")]
             + (0..<80).map { (String(format: "row%03d.txt", $0), "row") }
         let fixture = try DeferredSaveFixture(behavior: .immediate, files: files)

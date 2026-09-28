@@ -4,8 +4,8 @@ import XCTest
 
 nonisolated final class ArchiveWindowCascadeTests: XCTestCase {
     @MainActor func testFirstShowCascadesFromFrontmostVisibleArchiveWindow() throws {
-        let frameAutosave = ArchiveWindowFrameAutosave()
-        defer { frameAutosave.restore() }
+        let frameSnapshot = ArchiveWindowFrameSnapshot()
+        defer { frameSnapshot.restore() }
         _ = NSApplication.shared
         guard let screen = NSScreen.main?.visibleFrame else {
             throw XCTSkip("カスケードの検証には利用可能な画面が必要です")

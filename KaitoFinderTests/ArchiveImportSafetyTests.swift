@@ -43,7 +43,6 @@ nonisolated final class ArchiveImportSafetyTests: XCTestCase {
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document
         defer { document.close() }
         let source = try await Self.largeFile(in: fixture.directory.url)
-        preserveArchiveWindowFrame()
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
         let original = try XCTUnwrap(controller.window)
         let window = RecordingWindow(contentRect: original.contentRect(forFrameRect: original.frame),

@@ -9,7 +9,6 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
                                       opening: ArchivePreferences.FolderOpening = .enter) async throws
         -> (DeferredSaveFixture, ArchiveWindowController) {
         _ = NSApplication.shared
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: behavior, files: [
             ("a/b/c.txt", "C"), ("a/d.txt", "D"), ("e.txt", "E"), (".hidden/f.txt", "F")
         ])

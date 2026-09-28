@@ -5,7 +5,6 @@ import XCTest
 
 nonisolated final class RecentDocumentsMenuTests: XCTestCase {
     @MainActor func testOpenedArchiveAppearsInRecentMenuAndCanBeReopened() async throws {
-        preserveArchiveWindowFrame()
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("recent-\(UUID().uuidString).zip")
         let writer = try ArchiveWriter.create(url: archive, format: .zip)

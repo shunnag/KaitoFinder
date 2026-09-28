@@ -94,7 +94,6 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     }
 
     @MainActor func testLaunchArgumentsReportMissingPathAndContinueOpeningFixture() async throws {
-        preserveArchiveWindowFrame()
         let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("launch.zip")
         let missing = directory.url.appendingPathComponent("missing.zip")
         try directory.run(ExternalTool.zip, ["-q", "-D", archive.path, "note.txt"])
@@ -234,7 +233,6 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     @MainActor @discardableResult private func assertOpensThroughDocumentController(
         _ url: URL, in directory: ArchiveTestDirectory, expectedTopLevelPaths: [String] = ["nested", "note.txt"]
     ) async throws -> ArchiveWindowController {
-        preserveArchiveWindowFrame()
         let (openedDocument, error) = await withCheckedContinuation {
             (continuation: CheckedContinuation<(NSDocument?, (any Error)?), Never>) in
             NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { document, _, error in

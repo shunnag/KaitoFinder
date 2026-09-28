@@ -7,7 +7,6 @@ import XCTest
 nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
     @MainActor func testBlankLocalMoveRefusesCurrentFolderWithoutPasteboardFiles() async throws {
         _ = NSApplication.shared
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(files: [("a/original.txt", "original")])
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
         fixture.document.addWindowController(controller)
@@ -35,7 +34,6 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
 
     @MainActor func testBlankDropUsesCurrentFolderAndRejectsSameLocationMoveInBothSaveModes() async throws {
         _ = NSApplication.shared
-        preserveArchiveWindowFrame()
         let probe = NSPasteboard.withUniqueName()
         defer { probe.releaseGlobally() }
         guard probe.writeObjects([URL(fileURLWithPath: "/tmp/probe.txt") as NSURL]) else {

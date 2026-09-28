@@ -28,7 +28,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testTreeDisplaysBeforeIndexAndRenameUsesFallbackThenPreparedOccupancy() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, gate = ScenarioGate()
         let events = Mutex<[(ArchiveReservationDiagnostics.Event, Bool)]>([])
         defer { gate.release(); document.close() }
@@ -61,7 +60,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testCompletedOccupancyFromOlderGenerationIsIgnored() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, gate = ScenarioGate()
         defer { gate.release(); document.close() }
         ArchiveReservationDiagnostics.observer.withValue({ event, _ in
@@ -84,7 +82,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testReplacingTreeInSameGenerationRejectsLateIndex() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, gate = ScenarioGate()
         defer { gate.release(); document.close() }
         ArchiveReservationDiagnostics.observer.withValue({ event, _ in
@@ -103,7 +100,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testPostEditKeepsPreviousRowsThenDisplaysBeforeNewIndex() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document
         let treeGate = ScenarioGate(), indexGate = ScenarioGate()
         defer { treeGate.release(); indexGate.release(); document.close() }
@@ -174,7 +170,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testPostEditReusesAdvancedIndexWithoutExposingOldOccupancy() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, treeGate = ScenarioGate()
         defer { treeGate.release(); document.close() }
         document.makeWindowControllers()
@@ -236,7 +231,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testSlowInitialLoadsRevealAfterDelayAndHideOnDisplayInBothModes() async throws {
-        preserveArchiveWindowFrame()
         for mode in [ArchivePreferences.SaveBehavior.immediate, .onSave] {
             let fixture = try DeferredSaveFixture(behavior: mode), document = fixture.document, gate = ScenarioGate()
             defer { gate.release(); document.close() }
@@ -265,7 +259,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testFastLoadNeverRevealsIndicator() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document
         defer { document.close() }
         document.makeWindowControllers()
@@ -279,7 +272,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testCloseHidesSlowLoadAndLateTreeCannotRedisplay() async throws {
-        preserveArchiveWindowFrame()
         for closesDocument in [true, false] {
             let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, gate = ScenarioGate()
             defer { gate.release(); document.close() }
@@ -299,7 +291,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testReloadFailureHidesIndicatorAndKeepsPreviousRows() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document, gate = ScenarioGate()
         defer { gate.release(); document.close() }
         document.makeWindowControllers()
@@ -321,7 +312,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testExternalChangeRevertKeepsPreviousRowsUntilNewTreeInBothModes() async throws {
-        preserveArchiveWindowFrame()
         for mode in [ArchivePreferences.SaveBehavior.immediate, .onSave] {
             let fixture = try DeferredSaveFixture(behavior: mode), document = fixture.document, gate = ScenarioGate()
             defer { gate.release(); document.close() }
@@ -362,7 +352,6 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
     }
 
     @MainActor func testOldCompletionDoesNotHideNewLoadingIndicator() async throws {
-        preserveArchiveWindowFrame()
         let controller = ArchiveWindowController()
         defer { controller.close() }
         let old = controller.beginListLoading(), current = controller.beginListLoading()

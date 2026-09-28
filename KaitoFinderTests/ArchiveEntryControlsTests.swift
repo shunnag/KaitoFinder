@@ -10,7 +10,6 @@ import XCTest
 nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor private func interface(_ fixture: ScenarioFixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
-        preserveArchiveWindowFrame()
         let document = ArchiveDocument(undoStack: stack)
         try document.read(from: fixture.archive, ofType: "archive")
         let controller = ArchiveWindowController()
@@ -174,7 +173,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor private func scenarioDocument(_ fixture: ScenarioFixture, stack: ArchiveUndoStack) async throws
         -> (ArchiveDocument, ArchiveWindowController, RenameCommitWindow) {
-        preserveArchiveWindowFrame()
         let document = ArchiveDocument(undoStack: stack)
         try document.read(from: fixture.archive, ofType: "public.zip-archive")
         document.fileURL = fixture.archive

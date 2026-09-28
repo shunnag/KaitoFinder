@@ -6,7 +6,6 @@ import XCTest
 
 nonisolated final class DeferredSaveUITests: XCTestCase {
     @MainActor private func interface(_ fixture: DeferredSaveFixture) async throws -> ArchiveWindowController {
-        preserveArchiveWindowFrame()
         let controller = ArchiveWindowController(preferencesStore: fixture.store)
         fixture.document.addWindowController(controller)
         let session = try XCTUnwrap(fixture.document.session)
@@ -291,7 +290,6 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
     }
 
     @MainActor func testPendingSidebarOpenWithMenuAndDragCarryCurrentOriginAndBytes() async throws {
-        preserveArchiveWindowFrame()
         let fixture = try DeferredSaveFixture(), document = fixture.document
         defer { document.close() }
         let source = try fixture.file("added.txt", contents: "staged preview")
