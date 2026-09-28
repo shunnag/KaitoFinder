@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import KaitoKit
 
-/// Read-only discovery is shared by the controller (before gate normalization/type lookup) and read(from:).
+/// 読み取りだけの発見処理。controller（gate への正規化と種類の判定の前）と read(from:) が共有する。
 nonisolated struct ArchiveVolumeOpenRecovery: Sendable {
     let gate: URL
     let stagings: [URL]
@@ -39,7 +39,7 @@ nonisolated struct ArchiveVolumeOpenRecovery: Sendable {
         for name in try parent.names() where VolumePublishRemoval.stagingName(name) == name {
             guard let record = try? VolumePublishJournal.inspect(parent.directory(name)), record.stem == stem else { continue }
             if try VolumePublishLock.stagingIsOwned(name, directory: index.stagingLocksURL) { continue }
-            // Invalid same-stem journals still get the recovery/Finder offer. Never trust their paths.
+            // 不正な同じ stem の journal にも、回復と Finder での表示を提案する。その中のパスは信用しない。
             if (try? record.validate(stagingName: name)) != nil {
                 if try record.phase == .done || restoredOldSet(record, in: parent) { continue }
                 gate = parent.url.appendingPathComponent(record.newGate)
@@ -64,6 +64,9 @@ nonisolated struct ArchiveVolumeOpenRecovery: Sendable {
     }
 }
 
+/// 前回の保存が中断した分割セットを開くときに出すエラー。回復を選ぶと中断した保存を完了し、セットを開き直す。
+/// `ArchiveSplitSaveFailure`（SplitVolumes/ArchiveSplitSaveFailure.swift）と対になる開く時の型。どちらも
+/// LocalizedError + RecoverableError で、「Finderで表示」で staging を示す。あちらは失敗した保存を報告する。
 nonisolated struct ArchiveVolumeOpenError: LocalizedError, RecoverableError, CustomNSError {
     static let errorDomain = KaitoFinderErrorDomain.splitRecovery
     var errorCode: Int { 1 }
@@ -88,8 +91,8 @@ nonisolated struct ArchiveVolumeOpenError: LocalizedError, RecoverableError, Cus
     var errorDescription: String? { String(localized: "分割アーカイブの保存が中断されています") }
     var recoverySuggestion: String? { String(localized: "中断した保存を完了して開く") }
     var recoveryOptions: [String] { [String(localized: "中断した保存を完了して開く"), String(localized: "キャンセル")] }
-    // App-modal errors use this synchronous entry; sheet errors use the result-handler entry below.
-    // Return false immediately and reopen on completion, without claiming recovery has already succeeded.
+    // App-modal のエラーはこの同期の入口を、sheet のエラーは下の result handler の入口を使う。
+    // 回復が済んだとは主張せずにすぐ false を返し、完了したら開き直す。
     func attemptRecovery(optionIndex: Int) -> Bool {
         attemptRecovery(optionIndex: optionIndex, resultHandler: { _ in })
         return false
@@ -133,8 +136,8 @@ nonisolated struct ArchiveVolumeOpenError: LocalizedError, RecoverableError, Cus
     }
 }
 
-/// AppKit receives this object in the actual NSError, including after userInfo copying.
-/// NSObject's informal recovery protocol has both application-modal and sheet entry points.
+/// AppKit は実際の NSError の中でこのオブジェクトを受け取る。userInfo が複製された後も同じ。
+/// NSObject の非形式の回復 protocol には、application-modal と sheet の両方の入口がある。
 nonisolated final class ArchiveVolumeRecoveryAttempter: NSObject, @unchecked Sendable {
     let offer: ArchiveVolumeOpenError
     init(_ offer: ArchiveVolumeOpenError) { self.offer = offer; super.init() }

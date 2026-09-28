@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-/// Consent describes one destination and one class of publication hazard.
+/// 利用者の同意の単位。1 つの保存先と、1 種類の公開上の危険を表す。
 nonisolated struct ArchiveSplitHazardLocation: Hashable, Sendable {
     let parent: URL
     let volume: String
@@ -14,11 +14,11 @@ nonisolated struct ArchiveSplitHazardLocation: Hashable, Sendable {
     }
 }
 
-/// A successful M2 commit never becomes a failed save because old-volume cleanup failed.
-/// Only uncertain publication failures require reopening; proven rollbacks remain retryable.
-/// Save-time sibling of `ArchiveVolumeOpenError` (Documents/ArchiveVolumeOpenRecovery.swift): both are
-/// LocalizedError + RecoverableError and point at a staging with 「Finderで表示」. This one reports a failed save;
-/// that one is raised when opening a set whose earlier save was interrupted, and completes it before reopening.
+/// M2 の commit が成功した保存は、旧巻の片付けに失敗しても保存の失敗にしない。
+/// 開き直しが必要なのは公開の結果が不確かな失敗だけで、rollback を証明できた失敗はそのまま再試行できる。
+/// `ArchiveVolumeOpenError`（Documents/ArchiveVolumeOpenRecovery.swift）と対になる保存時の型。どちらも
+/// LocalizedError + RecoverableError で、「Finderで表示」で staging を示す。こちらは失敗した保存を報告する。
+/// あちらは前回の保存が中断したセットを開くときに出て、中断した保存を完了してから開き直す。
 nonisolated struct ArchiveSplitSaveFailure: LocalizedError, RecoverableError {
     enum Kind: Sendable { case retry, coordination, tooManyVolumes, rolledBack, held, failed }
     enum Context: Sendable { case deferredReplacement, immediateReplacement, newSet }

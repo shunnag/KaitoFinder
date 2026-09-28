@@ -18,7 +18,7 @@ nonisolated final class VolumePublishCriticalSection: Sendable {
     }
     func removeObserver(_ id: UUID) { _ = state.withLock { $0.observers.removeValue(forKey: id) } }
 
-    /// The final quit decision and entry share this mutex, including the no-work terminateNow path.
+    /// 終了の最終判断と enter は同じ mutex で決める。作業が無くすぐ terminateNow する経路も同じ。
     func closeIfIdle() -> Bool {
         state.withLock { state in
             guard state.count == 0 else { return false }

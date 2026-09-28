@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// Only recursively removes entries relative to already-open directories. Never traverses symlinks.
+/// 開いてあるディレクトリからの相対名でだけ再帰的に削除する。symlink はたどらない。
 nonisolated enum VolumePublishRemoval {
     static func stagingName(_ name: String) -> String? {
         let base = name.hasSuffix(".discard") ? String(name.dropLast(8)) : name
@@ -27,22 +27,22 @@ nonisolated enum VolumePublishRemoval {
         try parent.requireAbsent(tombstone)
         var result = operations.renameStaging(parent.fd, name, tombstone, UInt32(RENAME_EXCL))
         if result != 0, errno == ENOTSUP || errno == EOPNOTSUPP {
-            // Same documented noncooperating-writer race as the volume rename fallback.
+            // 巻の rename の代替経路（VolumeExclusiveRename.move）と同じく、非協調 writer との既知の競合が残る。
             try parent.requireAbsent(tombstone)
             result = operations.renameStaging(parent.fd, name, tombstone, 0)
         }
         if result != 0 {
             let failure = errno
             guard isNetworkVolume, failure == EBUSY || failure == EACCES else { throw VolumePublishError.system(failure) }
-            // Caller has proved disposal and holds the independent staging lock. Keep journal last
-            // so an interruption can repeat that proof; after journal removal the reserved regions are empty.
+            // 呼び出し側は処分してよいことを証明済みで、独立した staging lock を持っている。journal を最後まで残し、
+            // 中断しても同じ証明をやり直せるようにする。journal を消す時点で、予約した領域はすでに空になっている。
             try requireIdentity(staging, in: parent, name: name)
             try remove(name, from: parent, operations: operations)
             try parent.sync(full: true)
             return
         }
         try requireIdentity(staging, in: parent, name: tombstone)
-        try parent.sync(full: true) // Durable deletion authorization, independent of the index/journal.
+        try parent.sync(full: true) // 削除の許可（.discard への改名）を、索引や journal とは独立に durable にする。
         try remove(tombstone, from: parent, operations: operations)
         try parent.sync(full: true)
     }
@@ -53,9 +53,9 @@ nonisolated enum VolumePublishRemoval {
         try operations.willRemove(parent.url.appendingPathComponent(name))
         guard let info = try parent.info(name) else { return }
         if info.isDirectory {
-            let child = try parent.directory(name) // openat(O_DIRECTORY | O_NOFOLLOW)
+            let child = try parent.directory(name) // openat(O_DIRECTORY | O_NOFOLLOW) で開く。
             try requireIdentity(child, in: parent, name: name)
-            // Keep the journal until all other entries are gone, even within reserved subtrees.
+            // 予約した部分木の中でも、ほかの項目をすべて消すまで journal は残す。
             let names = try child.names().sorted { lhs, rhs in
                 if lhs == VolumePublishJournal.fileName { return false }
                 if rhs == VolumePublishJournal.fileName { return true }
@@ -66,7 +66,7 @@ nonisolated enum VolumePublishRemoval {
             try requireIdentity(child, in: parent, name: name)
             guard unlinkat(parent.fd, name, AT_REMOVEDIR) == 0 else { throw VolumePublishError.system(errno) }
         } else {
-            // This also unlinks a symlink itself; it never opens its target.
+            // symlink もそれ自体を unlink する。参照先は開かない。
             guard unlinkat(parent.fd, name, 0) == 0 else { throw VolumePublishError.system(errno) }
         }
         try operations.didRemove(parent.url.appendingPathComponent(name))

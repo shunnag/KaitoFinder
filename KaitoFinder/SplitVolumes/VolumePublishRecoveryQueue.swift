@@ -1,7 +1,7 @@
 import Foundation
 import Synchronization
 
-/// Mount I/O never occupies a Swift cooperative-pool thread. Only pending notifications share a job.
+/// mount の I/O で Swift の協調スレッドプールのスレッドを塞がない。同じ job にまとめるのは、まだ始まっていない通知だけ。
 nonisolated final class VolumePublishRecoveryQueue: Sendable {
     static let shared = VolumePublishRecoveryQueue()
     private struct Key: Hashable { let index: URL; let mount: URL? }
@@ -59,7 +59,7 @@ nonisolated final class VolumePublishRecoveryQueue: Sendable {
             state.order.removeFirst()
             return (key, state.jobs.removeValue(forKey: key)!)
         }) {
-            // Removing before perform lets a trigger during the running job queue one more pass.
+            // perform の前に取り除くので、実行中に来た通知はもう一回の走査として積まれる。
             perform(next.1.index, next.0.mount)
             for completion in next.1.completions { completion() }
         }

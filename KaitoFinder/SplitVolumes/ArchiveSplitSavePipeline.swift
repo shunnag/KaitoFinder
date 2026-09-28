@@ -18,7 +18,7 @@ nonisolated struct ArchiveSplitSaveResult: Sendable {
     var modificationDate: Date { published.identity.modificationDate }
 }
 
-/// Owns the M5 begin / produce / validate / publish sequence for replacement and new sets.
+/// 置き換えと新規セットに共通の、M5 の begin → produce → validate → publish の手順を受け持つ。
 nonisolated enum ArchiveSplitSavePipeline {
     static func run(target: VolumeSetTarget, estimatedLength: UInt64, additionalWorkBytes: UInt64 = 0, plan: ArchiveSaveReplayPlan,
                     password: String?, zipEncryption: ArchiveOutputProjection.ExpectedZipEncryption? = nil,

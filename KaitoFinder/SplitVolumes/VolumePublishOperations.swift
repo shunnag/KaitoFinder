@@ -17,7 +17,7 @@ nonisolated struct VolumePublishOperations: Sendable {
     var willRemove: @Sendable (URL) throws -> Void = { _ in }
     var didRemove: @Sendable (URL) throws -> Void = { _ in }
     var openReader: @Sendable (URL, ReaderOptions) throws -> ArchiveReader = { try ArchiveReader.open(url: $0, options: $1) }
-    /// Opt-in, post-commit reader diagnostic; nil means do not open a reader during recovery.
+    /// commit 後に reader で行う診断で、使う側が明示的に有効にする。nil なら回復中に reader を開かない。
     var recoveryReaderDiagnostic: (@Sendable (String?) -> Void)? = nil
     var volumeInfo: @Sendable (VolumePublishDirectory) throws -> VolumePublishFS.VolumeInfo = { try VolumePublishFS.volumeInfo($0) }
     var mountedVolumes: @Sendable (Set<String>) throws -> VolumePublishFS.MountScan = { try VolumePublishFS.mountedVolumes(fileSystems: $0) }
@@ -30,7 +30,7 @@ nonisolated struct VolumePublishOperations: Sendable {
     var allowsStampRecheck = true
     var didBarrier: @Sendable (VolumePublishBarrier) -> Void = { _ in }
     var willCoordinate: @Sendable (URL) throws -> Void = { _ in }
-    /// Nil always uses Foundation. Tests can withhold the callback to exercise the real timeout.
+    /// nil なら常に Foundation を使う。試験は callback を返さずにおき、実際の時間切れを確かめられる。
     var coordinate: VolumePublishCoordination.Request? = nil
 }
 
