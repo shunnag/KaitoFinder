@@ -13,7 +13,7 @@ nonisolated final class VolumePublishLock: Sendable {
             if error == EWOULDBLOCK { throw VolumePublishError.ownerAlive }
             throw VolumePublishError.system(error)
         }
-        // A sweep may unlink an unlocked file after open but before flock. Never own an old inode.
+        // open の後、flock の前に sweep がロックの無いファイルを unlink しうる。古い inode は所有しない。
         var held = stat()
         do {
             guard fstat(fd, &held) == 0, let current = try directory.info(name),
@@ -39,10 +39,10 @@ nonisolated final class VolumePublishLock: Sendable {
         guard let base = VolumePublishRemoval.stagingName(stagingName),
               try parent.info(base) == nil, try parent.info(base + ".discard") == nil,
               try !index.entries().contains(where: { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }) else { return }
-        try remove() // Unlink before releasing flock, after both work and hint have gone.
+        try remove() // 作業領域と索引の手がかりが両方消えた後、flock を解く前に unlink する。
     }
 
-    /// This is a released, read-only ownership probe, never a staging lock held across set acquisition.
+    /// 所有を読み取るだけの probe で、取ったロックはすぐ解放する。set lock の取得をまたいで持つ staging lock ではない。
     static func stagingIsOwned(_ name: String, directory: URL) throws -> Bool {
         guard let base = VolumePublishRemoval.stagingName(name) else { throw VolumePublishError.unsafePath(name) }
         do {
@@ -61,7 +61,7 @@ nonisolated final class VolumePublishLock: Sendable {
             do {
                 let lock = try VolumePublishLock(directory: directory, name: name, create: false)
                 defer { lock.release() }
-                // Registration precedes mkdir. An indexed or live pre-S1 staging must retain its lock.
+                // 登録は mkdir より先。索引にある staging と、S1 を終えていない生きた staging のロックは残す。
                 guard try !index.entries().contains(where: { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }) else { continue }
                 try lock.remove()
             } catch VolumePublishError.ownerAlive { continue }
@@ -69,7 +69,7 @@ nonisolated final class VolumePublishLock: Sendable {
         }
     }
 
-    /// Local support lock survives journal closure, path rebasing, and the entire S1 window.
+    /// Application Support に置くローカルのロック。journal を閉じても、パスを付け替えても、S1 の間ずっと有効。
     static func stagingLock(_ name: String, directory: URL) throws -> VolumePublishLock {
         guard let base = VolumePublishRemoval.stagingName(name) else { throw VolumePublishError.unsafePath(name) }
         return try VolumePublishLock(directory: VolumePublishFS.supportDirectory(directory), name: base + ".lock")

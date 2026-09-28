@@ -14,7 +14,7 @@ nonisolated struct ArchiveVolumeInput: Sendable {
     init(layout: ArchiveVolumeLayout, expected: ArchiveSetIdentity) throws {
         let layout = try layout.publicationLayout()
         self.layout = layout; self.expected = expected; usesHashes = false
-        // Save As has no rollback baseline to hash: take one immutable, fd-checked streaming snapshot.
+        // 別名保存には hash すべき rollback の基準が無い。fd を照合しながら一度だけ読む、変わらない snapshot を取る。
         oldVolumes = expected.volumes.map { .init($0, sha256: nil) }
         try verify(nil, requiresAssembledSet: false)
     }
@@ -37,7 +37,7 @@ nonisolated struct ArchiveVolumeInput: Sendable {
         }
     }
 
-    /// Stream, with fd and path checks before and after each member. Never follows a substituted symlink.
+    /// 各巻の前後で fd とパスを照合しながら流し込む。差し替えられた symlink は辿らない。
     func copy(to workURL: URL, progress: Progress, didRead: (Int) -> Void = { _ in }) throws {
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.splitInputCopy)

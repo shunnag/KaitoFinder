@@ -118,8 +118,8 @@ nonisolated enum VolumePublishFS {
         guard isName(name) else { throw VolumePublishError.unsafePath(name) }
     }
 
-    /// Resolve directory aliases (including macOS /var and /tmp) before choosing the publisher's
-    /// namespace. The member itself is never resolved; all subsequent I/O remains NOFOLLOW.
+    /// 公開の名前空間を決める前に、ディレクトリの別名（macOS の /var や /tmp を含む）を解決する。
+    /// 巻そのものは解決せず、以後の I/O はすべて NOFOLLOW のまま。
     static func canonicalParent(of member: URL) throws -> URL {
         guard let path = realpath(member.deletingLastPathComponent().path, nil) else { throw VolumePublishError.system(errno) }
         defer { free(path) }
@@ -225,7 +225,7 @@ nonisolated enum VolumePublishFS {
                           available: overflow ? .max : bytes, hazard: hazard)
     }
 
-    /// Use the volume interface capability; only known AppleDouble file systems are a fallback.
+    /// volume の capability を使う。既知の AppleDouble のファイルシステムは、capability を読めないときの代わりにだけ使う。
     static func usesAppleDouble(_ directory: VolumePublishDirectory) throws -> Bool {
         var fileSystem = statfs()
         guard fstatfs(directory.fd, &fileSystem) == 0 else { throw VolumePublishError.system(errno) }
@@ -245,8 +245,8 @@ nonisolated enum VolumePublishFS {
         return appleDoubleFallbackFileSystems.contains(kind)
     }
 
-    /// Foundation can return a volume-group UUID for both the system root and Data mount.
-    /// Read the actual filesystem UUID so those are not mistaken for cloned volumes.
+    /// Foundation はシステムの root と Data の mount の両方に volume group の UUID を返すことがある。
+    /// 両者を複製された volume と取り違えないよう、実際のファイルシステムの UUID を読む。
     private static func volumeUUID(_ directory: VolumePublishDirectory) -> String? {
         var attributes = attrlist()
         attributes.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
@@ -273,7 +273,7 @@ nonisolated enum VolumePublishFS {
         let kind = kind.lowercased()
         guard !["autofs", "devfs", "nullfs", "devicefs", "fskit"].contains(kind),
               includeNonLocal || flags & UInt32(MNT_LOCAL) != 0 else { return false }
-        // FAT/exFAT use FSKit too. Recorded types also admit future data filesystem modules.
+        // FAT/exFAT も FSKit を使う。索引に記録した種類は、将来のデータ用ファイルシステムのモジュールでも通す。
         return extendedFlags & UInt32(MNT_EXT_FSKIT) == 0 || fileSystems.contains(kind)
             || ["msdos", "exfat", "fat", "fat32", "apfs", "hfs"].contains(kind)
     }

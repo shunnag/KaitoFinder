@@ -31,7 +31,7 @@ nonisolated enum ArchiveVolumeMetadata {
         let count: Int
         // 巻順の digest の生 byte 列の SHA-256。旧版の W 全体の値も書式が同じなら受理する。
         let totalSHA256: String
-        // Cache only: security and source xattrs also travel on the actual output volumes.
+        // キャッシュにすぎない。セキュリティ属性と元の xattr は実際の出力巻にも付く。
         var attributes: [[String: Data]]? = nil
         func marker(at index: Int) -> Marker {
             Marker(setUUID: setUUID, generation: generation, index: index, count: count, totalSHA256: totalSHA256)
@@ -96,7 +96,7 @@ nonisolated enum ArchiveVolumeMetadata {
               case .numbered = parsed.scheme, parsed.index == 0 else { return result }
         let parent = try VolumePublishDirectory(VolumePublishFS.canonicalParent(of: url))
         let appleDouble = try VolumePublishFS.usesAppleDouble(parent)
-        // An unavailable cache or stale layout is not evidence of mixed physical volumes.
+        // キャッシュが無いことや layout が古いことは、物理的な巻の混在の証拠にしない。
         let saved = appleDouble ? try? store.entry(for: url) : nil
         let storedLayout = appleDouble ? saved?.publication.layout : try? read(Layout.self, key: layoutKey, at: url)
         if let layout = storedLayout, (try? layout.validate()) != nil,
@@ -112,7 +112,7 @@ nonisolated enum ArchiveVolumeMetadata {
         guard let actual = result.layout else { return result }
         if let saved {
             let identity = try ArchiveSetIdentity.capture(layout: actual)
-            // A replaced member on an AppleDouble volume has no per-file marker; compare the stored members.
+            // AppleDouble の volume で置き換えられた巻には巻ごとの印が無い。保存した巻の記録と比べる。
             result.mixed = saved.members.count != identity.volumes.count || saved.publication.count != actual.volumes.count
                 || !zip(saved.members, identity.volumes).allSatisfy { $0.contentEquals($1) }
             result.quarantine = saved.publication.attributes?.lazy.compactMap { $0["com.apple.quarantine"] }.first
@@ -182,7 +182,7 @@ nonisolated enum ArchiveVolumeMetadata {
     }
 }
 
-/// Local, flock-protected cache. FAT can reuse inodes; size and sampled bytes are part of the key.
+/// flock で守るローカルのキャッシュ。FAT は inode を再利用しうるので、サイズと抜き取った byte も鍵に含める。
 nonisolated final class ArchiveVolumeMetadataStore: Sendable {
     struct Entry: Codable, Sendable {
         let volumeUUID: String
@@ -236,7 +236,7 @@ nonisolated final class ArchiveVolumeMetadataStore: Sendable {
             values.removeAll { $0.volumeUUID == key.uuid && $0.relativeGatePath == key.path }
             values.append(entry)
             var bytes = try JSONEncoder().encode(values)
-            // Keep the newest records within the read limit; legacy/cache corruption never gates publication.
+            // 読み取りの上限に収まるよう新しい記録を残す。旧形式やキャッシュの破損で公開を止めない。
             while bytes.count >= VolumePublishFS.maximumLedgerBytes, values.count > 1 {
                 values.removeFirst()
                 bytes = try JSONEncoder().encode(values)

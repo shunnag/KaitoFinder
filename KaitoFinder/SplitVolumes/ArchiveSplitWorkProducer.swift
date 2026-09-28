@@ -9,8 +9,8 @@ nonisolated enum ArchiveSplitWorkProducer {
         let mode: ArchiveCapabilities.Mode
     }
 
-    /// Produces a complete single archive W. The verifier is called BEFORE any pending edit is replayed.
-    /// Overwrite passes publication.verifyAssembledInput; a new-set caller can pass source.verify.
+    /// 完全な単一の書庫 W を作る。verifier は予約中の編集を再生する前に呼ぶ。
+    /// 置き換えでは publication.verifyAssembledInput を渡し、新しいセットの呼び出し元は source.verify を渡せる。
     static func produce(source: ArchiveVolumeInput, workURL: URL, mode: ArchiveCapabilities.Mode,
                         password: String?, options: WriterOptions, plan: ArchiveSaveReplayPlan,
                         progress: Progress, verifyAssembledInput: (ArchiveVolumeSet?) throws -> Void) throws -> Result {

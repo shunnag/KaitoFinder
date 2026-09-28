@@ -117,17 +117,17 @@ nonisolated final class VolumeSetPublication: Sendable {
             let previous = try? VolumePublishJournal.inspect(parent.directory(name))
             let base = VolumePublishRemoval.stagingName(name) ?? name
             let indexedGate = indexedWork.first { URL(fileURLWithPath: $0.stagingPath).lastPathComponent == base }?.gateName
-            // An unreadable, unattributed sibling is not evidence of an unresolved publication of this stem.
+            // 読めず、どの公開のものとも判断できない兄弟は、この stem の未解決の公開の証拠にしない。
             guard previous.map({ $0.stem == stem }) ?? (indexedGate == plan.gateName) else { continue }
             let result = VolumePublishRecovery(index: index, operations: operations, metadataStore: metadataStore).recover(staging: url,
                 alreadyLockedGate: plan.gateName, options: options, presenter: target.filePresenter,
                 volume: volume, volumeRoot: volumeRoot, parent: parent)
             if case .recovered = result { continue }
             if case .owned = result { throw VolumePublishError.ownerAlive }
-            // Re-read after cleanup: only a still-readable, valid done journal exempts this backup.
+            // 片付けの後に読み直す。まだ読めて有効な done の journal だけが、この退避物を不問にする。
             if let completed = try? VolumePublishJournal.inspect(parent.directory(name)), completed.phase == .done {
                 try completed.validate(stagingName: base)
-                continue // A later publication may already have replaced this generation's new set.
+                continue // 後の公開が、この世代の新セットを既に置き換えているかもしれない。
             }
             throw VolumePublishError.unresolvedPublication(url)
         }
