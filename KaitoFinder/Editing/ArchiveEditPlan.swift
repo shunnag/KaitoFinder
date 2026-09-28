@@ -39,6 +39,21 @@ nonisolated struct ArchiveEditResult: Sendable {
     var published: Bool { !removedPaths.isEmpty || !renamedPaths.isEmpty }
 }
 
+/// Both editing modes use the same result and publication boundary.
+nonisolated protocol ArchiveMutationResult: Sendable {
+    var reloadFailure: String? { get set }
+    var didPublishMutation: Bool { get }
+}
+nonisolated extension ArchiveImportResult: ArchiveMutationResult {
+    var didPublishMutation: Bool { !addedPaths.isEmpty }
+}
+nonisolated extension ArchiveEditResult: ArchiveMutationResult {
+    var didPublishMutation: Bool { published }
+}
+nonisolated extension ArchivePasswordEditResult: ArchiveMutationResult {
+    var didPublishMutation: Bool { true }
+}
+
 nonisolated struct ArchiveEditPlan: Sendable {
     struct Entry: Sendable {
         let index: Int

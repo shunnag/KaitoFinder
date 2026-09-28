@@ -7,6 +7,8 @@ nonisolated enum VolumeDisposal: Sendable, Equatable {
     case none
 }
 
+nonisolated enum VolumeOldDisposalPolicy: String, Codable, Sendable { case trash, remove }
+
 nonisolated struct PublishedVolumeSet: Sendable {
     let gateURL: URL
     let layout: ArchiveVolumeLayout
