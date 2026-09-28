@@ -11,6 +11,13 @@ PROBE = r'''
 import Darwin
 import Foundation
 
+// この probe は .new の回収だけを検証する。退避物の削除経路に入ったら失敗させる。
+nonisolated enum StagingRegistry {
+    static func removeSnapshot(_ directory: URL) throws {
+        fatalError("Staging snapshot removal is outside this process probe")
+    }
+}
+
 @main struct RegistryProbe {
     static func main() throws {
         let arguments = CommandLine.arguments
@@ -43,6 +50,10 @@ def main():
         executable = root / "registry-probe"
         subprocess.run(
             ["xcrun", "swiftc", "-swift-version", "6", "-module-cache-path", str(root / "modules"),
+             str(repository / "KaitoFinder/Model/ExtractionFailure.swift"),
+             str(repository / "KaitoFinder/SplitVolumes/VolumeFileStamp.swift"),
+             str(repository / "KaitoFinder/Persistence/WorkAreaName.swift"),
+             str(repository / "KaitoFinder/Persistence/LockedJSONFile.swift"),
              str(repository / "KaitoFinder/Persistence/PendingWorkRegistry.swift"), str(probe),
              "-o", str(executable)],
             check=True,
