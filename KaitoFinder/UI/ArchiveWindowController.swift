@@ -35,16 +35,15 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     #endif
     var renameIndexIsReady: Bool { renameIndex.isPrepared && archiveSession?.generation == generation }
     var renameOccupancy: ArchivePathOccupancy.Overlay? {
-        guard listLoadingToken == nil, archiveSession?.generation == generation else { return nil }
+        guard listLoading.token == nil, archiveSession?.generation == generation else { return nil }
         return renameIndex.preparedOccupancy ?? root.editOccupancy
     }
-    private var listLoadingToken: UUID?
+    private let listLoading: ArchiveListLoadingIndicator
     #if DEBUG
-    var listLoadingTokenForTesting: UUID? { listLoadingToken }
+    var listLoadingTokenForTesting: UUID? { listLoading.token }
     #endif
-    private var listLoadingRevealTask: Task<Void, Never>?
-    let listLoadingIndicator = NSProgressIndicator()
-    private(set) var isListLoadingVisible = false
+    var listLoadingIndicator: NSProgressIndicator { listLoading.view }
+    var isListLoadingVisible: Bool { listLoading.isVisible }
     private let promiseOwner = UUID()
     private(set) var draggedNodes: [EntryNode] = []
     private(set) var extractionTask: Task<Void, Never>?
@@ -92,7 +91,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         var revealTask: Task<Void, Never>?
     }
     private var filterRequest: FilterRequest?
-    private(set) var isFilterPendingVisible = false
+    var isFilterPendingVisible: Bool { listLoading.isFilterPending }
     private var trackingListMenus: Set<ObjectIdentifier> = []
     private var isTrackingListMenu: Bool { !trackingListMenus.isEmpty }
     #if DEBUG
@@ -155,11 +154,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         requestedShowsHiddenFiles = preferencesStore.preferences.showsHiddenFiles
         keepsFoldersOnTop = preferencesStore.preferences.keepsFoldersOnTop
         lockedPlaceholder = ArchiveLockedPlaceholderView(bundle: bundle)
+        listLoading = ArchiveListLoadingIndicator(bundle: bundle)
         openWithMenu = NSMenu(title: String(localized: "このアプリケーションで開く", bundle: bundle))
         let window = ArchiveDocumentWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 600),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         super.init(window: window)
+        listLoading.didChange = { [weak self] in self?.updateStatusBar() }
         outlineView.permitsInteraction = { [weak self] in self?.operationInFlight != true }
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: preferencesStore)
@@ -295,13 +296,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         statusBar.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusBar.textColor = .secondaryLabelColor
         statusBar.setContentHuggingPriority(.required, for: .vertical)
-        listLoadingIndicator.style = .spinning
-        listLoadingIndicator.controlSize = .small
-        listLoadingIndicator.isIndeterminate = true
-        listLoadingIndicator.isDisplayedWhenStopped = false
-        listLoadingIndicator.isHidden = true
-        listLoadingIndicator.translatesAutoresizingMaskIntoConstraints = false
-        listLoadingIndicator.setAccessibilityLabel(String(localized: "項目を読み込んでいます…", bundle: bundle))
         pathControl.setContentHuggingPriority(.required, for: .vertical)
         footer.setHuggingPriority(.required, for: .vertical)
         statusBar.translatesAutoresizingMaskIntoConstraints = false
@@ -550,54 +544,21 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     @discardableResult func beginListLoading() -> UUID {
-        cancelListLoading()
+        let token = listLoading.begin()
         renameIndex.cancel()
         #if DEBUG
         treeDisplayedAt = nil
         #endif
-        let token = UUID()
-        listLoadingToken = token
-        let revealAt = ContinuousClock.now + ExtractionProgressSheet.revealDelay
-        listLoadingRevealTask = Task { [weak self] in
-            do { try await Task.sleep(until: revealAt, clock: .continuous) }
-            catch { return }
-            guard let self, self.isCurrentListLoading(token) else { return }
-            self.isListLoadingVisible = true
-            self.updateListLoadingIndicator()
-            self.updateStatusBar()
-        }
         return token
     }
 
-    func isCurrentListLoading(_ token: UUID) -> Bool { listLoadingToken == token }
+    func isCurrentListLoading(_ token: UUID) -> Bool { listLoading.isCurrent(token) }
 
-    func finishListLoading(_ token: UUID) {
-        guard isCurrentListLoading(token) else { return }
-        cancelListLoading()
-    }
-
-    private func cancelListLoading() {
-        listLoadingToken = nil
-        listLoadingRevealTask?.cancel()
-        listLoadingRevealTask = nil
-        isListLoadingVisible = false
-        updateListLoadingIndicator()
-        updateStatusBar()
-    }
-
-    private func updateListLoadingIndicator() {
-        let visible = isListLoadingVisible || isFilterPendingVisible
-        listLoadingIndicator.isHidden = !visible
-        listLoadingIndicator.setAccessibilityLabel(isListLoadingVisible
-            ? String(localized: "項目を読み込んでいます…", bundle: bundle)
-            : String(localized: "検索しています…", bundle: bundle))
-        if visible { listLoadingIndicator.startAnimation(nil) }
-        else { listLoadingIndicator.stopAnimation(nil) }
-    }
+    func finishListLoading(_ token: UUID) { listLoading.finish(token) }
 
     func cancelListWork() {
         cancelFilterWork()
-        cancelListLoading()
+        listLoading.cancel()
         renameIndex.cancel()
     }
 
@@ -1059,9 +1020,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if let token, filterRequest?.token != token { return }
         filterRequest?.revealTask?.cancel()
         filterRequest = nil
-        isFilterPendingVisible = false
-        updateListLoadingIndicator()
-        updateStatusBar()
+        listLoading.update(filterPending: false)
     }
 
     private func requestFilter(reason: FilterReason) {
@@ -1083,14 +1042,12 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             let token = UUID()
             filterRequest = FilterRequest(token: token, root: root, generation: generation, configuration: configuration, reason: reason)
             closePreview()
-            let revealAt = ContinuousClock.now + ExtractionProgressSheet.revealDelay
+            let revealAt = ContinuousClock.now + ArchiveProgressTiming.revealDelay
             filterRequest?.revealTask = Task { [weak self] in
                 do { try await Task.sleep(until: revealAt, clock: .continuous) }
                 catch { return }
                 guard let self, self.filterRequest?.token == token else { return }
-                self.isFilterPendingVisible = true
-                self.updateListLoadingIndicator()
-                self.updateStatusBar()
+                self.listLoading.update(filterPending: true)
             }
             let task = Task(priority: .userInitiated) { [weak self, root, configuration, token] in
                 var result = await EntryTreeFilter.build(root: root, configuration: configuration)
