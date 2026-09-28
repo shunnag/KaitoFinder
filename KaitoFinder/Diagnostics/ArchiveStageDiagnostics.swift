@@ -1,5 +1,8 @@
 import Foundation
 
+/// 処理段階の所要時間を、開始と終了の組（span）として observer に知らせる。observer がなければ時計も読まない。
+/// 同じ Diagnostics/ の ArchiveReservationDiagnostics は予約の出来事と実行スレッドを、
+/// ArchiveTestCounters は経路を通った回数を知らせ、時間は測らない。
 nonisolated enum ArchiveStageDiagnostics {
     enum Stage: String, Sendable {
         case workCopy = "work_copy", updaterOpen = "updater_open", rewriterOpen = "rewriter_open"
