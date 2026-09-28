@@ -4,6 +4,8 @@ import KaitoKit
 import Synchronization
 
 @MainActor final class ArchiveDocument: NSDocument {
+    // MARK: - 状態
+
     // NSDocument の読み込みは非隔離なので、actor 参照の受け渡しだけをロックする。
     nonisolated private let contentsStorage = Mutex<Contents>(.empty)
 
@@ -135,6 +137,8 @@ import Synchronization
         }
     }
 
+    // MARK: - 生成と作業の状態
+
     override convenience init() { self.init(undoStack: ArchiveUndoStack()) }
 
     convenience init(passwordVault: ArchivePasswordVault) {
@@ -218,6 +222,8 @@ import Synchronization
         }
         self.materialization = nil
     }
+
+    // MARK: - 開く・パスワード
 
     nonisolated override class var autosavesInPlace: Bool { false }
     nonisolated override class var preservesVersions: Bool { false }
@@ -346,6 +352,8 @@ import Synchronization
         }
     }
 
+    // MARK: - ウインドウと最初の一覧
+
     override func makeWindowControllers() {
         let controller = ArchiveWindowController(preferencesStore: preferencesStore)
         addWindowController(controller)
@@ -415,6 +423,8 @@ import Synchronization
             }
         }
     }
+
+    // MARK: - 編集の入口と即時の変更
 
     func append(urls: [URL], to folder: String, progress: Progress,
                 resolveConflict: ArchiveImportConflict.Resolver? = nil,
@@ -565,6 +575,8 @@ import Synchronization
         }
     }
 
+    // MARK: - 取り消しとメニュー
+
     /// NSUndoManager の履歴と、その handler が保持する予約値の両方を捨てる。
     private func clearUndoHistory() {
         undoManager?.removeAllActions()
@@ -702,6 +714,8 @@ import Synchronization
         }
     }
 
+    // MARK: - 再読込と原本の切り替え
+
     func reloadAfterMutation() async throws {
         guard !closed, let session else { return }
         let loading = beginListLoading()
@@ -784,6 +798,8 @@ import Synchronization
         guard !closed, session === opened else { return }
         await displayAfterMutation()
     }
+
+    // MARK: - 一覧の表示
 
     private typealias ListLoading = [(controller: ArchiveWindowController, token: UUID)]
 
@@ -907,6 +923,8 @@ import Synchronization
         presentError(error)
     }
 
+    // MARK: - 終了と close
+
     /// 公開待ちの文書があっても、全ての文書へ先に取消しを届ける。
     func cancelForTermination() {
         loadingTask?.cancel()
@@ -993,6 +1011,8 @@ import Synchronization
         }
         super.close()
     }
+
+    // MARK: - NSDocument の保存・戻す・移動
 
     override func save(to url: URL, ofType typeName: String, for saveOperation: NSDocument.SaveOperationType,
                        completionHandler: @escaping (Error?) -> Void) {
@@ -1088,6 +1108,8 @@ import Synchronization
         }
     }
 
+    // MARK: - 取り消しの履歴の破棄
+
     private func disposeUndoStack() {
         clearUndoHistory()
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
@@ -1107,6 +1129,8 @@ import Synchronization
         }
     }
 }
+
+// MARK: - 予約（保存前モードと分割書庫の即時変更）
 
 extension ArchiveDocument {
     var isImmediateSplitMutation: Bool { saveBehavior == .immediate && session?.volumeLayout != nil }
@@ -1393,6 +1417,8 @@ extension ArchiveDocument {
     @concurrent private static func removeStaging(_ lease: StagingRegistry.Lease) async { await lease.removeWhenUnused() }
 }
 
+// MARK: - 分割書庫の保存
+
 extension ArchiveDocument {
     private func withSplitPrompt<Value>(_ body: (NSWindow?) async throws -> Value) async rethrows -> Value {
         let controller = windowControllers.compactMap { $0 as? ArchiveWindowController }.first
@@ -1508,6 +1534,8 @@ extension ArchiveDocument {
         if case .explicit = schedule { return String(localized: "保存すると元の巻サイズを再現します。", bundle: bundle) }
         return String(localized: "巻サイズが揃っていません。保存時に選びます。", bundle: bundle)
     }
+
+    // MARK: - 保存前モードの保存・戻す・別名で保存
 
     private func finishDeferredSave(sheet: ExtractionProgressSheet? = nil) {
         sheet?.finish()

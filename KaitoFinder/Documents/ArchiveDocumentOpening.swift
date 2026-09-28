@@ -4,6 +4,8 @@ import KaitoKit
 import Synchronization
 
 extension ArchiveDocument {
+    // MARK: - 内容と設定の受け渡し
+
     nonisolated enum Contents: Sendable {
         case empty, locked(URL), open(ArchiveSession), closed
     }
@@ -22,6 +24,8 @@ extension ArchiveDocument {
             snapshot.withLock { $0 }.value.withLock { $0.importOptions }
         }
     }
+
+    // MARK: - 先に開いた書庫
 
     nonisolated final class PreopenedArchive: Sendable {
         private let contents: Mutex<Contents?>
@@ -78,6 +82,8 @@ extension ArchiveDocument {
             if case .open(let session) = contents.withLock({ $0 }) { Task { await session.close() } }
         }
     }
+
+    // MARK: - 開く
 
     nonisolated static func openingError(_ error: any Error) -> NSError {
         NSError(domain: KaitoFinderErrorDomain.document, code: 1, userInfo: [

@@ -13,6 +13,12 @@ actor ArchiveSession {
     func setPromiseSourceForTesting(_ source: any ByteSource) { promiseSourceForTesting = source }
     #endif
 
+    // MARK: - 状態と、await なしに読める窓口
+
+    // `nonisolated var` は Mutex に置いた値を返し、main actor や展開の worker が `await` なしに読める。
+    // その値を書き換えるのは actor に隔離された区間だけで、対応する actor の状態と await を挟まずに揃える。
+    // 例外は文書が同期的に据える保存前モードの読み出し用の投影（setPendingReadSnapshot）で、
+    // UI の接続（setPasswordPrompt など）も同じく Mutex を介して同期的に据える。
     typealias PasswordPrompt = @MainActor @Sendable (ArchivePasswordChallenge) async throws -> String
     nonisolated private let nameIndexCache = ArchiveNameIndexCache()
     private var reader: ArchiveReader?
@@ -97,6 +103,8 @@ actor ArchiveSession {
     nonisolated private let importOptions: @Sendable () -> ArchiveImportPlan.Options
     private(set) var quarantine: Data?
 
+    // MARK: - 開く・読み出しの門
+
     init(url: URL, password: String? = nil, allowsSplitSave: Bool = false, allowsImmediateSplitSave: Bool = false,
          volumeMetadataStore: ArchiveVolumeMetadataStore = .shared,
          writerOptions: @escaping @Sendable (GyoshukuKit.ArchiveFormat) -> WriterOptions = { _ in WriterOptions() },
@@ -168,6 +176,8 @@ actor ArchiveSession {
         // 巻の削除や次の巻の出現も、開いているセットの外部変更として扱う。
         catch { throw ArchiveEditError.archiveChanged }
     }
+
+    // MARK: - パスワードの門と UI の接続
 
     nonisolated func setPasswordPrompt(_ prompt: PasswordPrompt?) {
         promptStorage.withLock { $0 = prompt }
@@ -255,6 +265,8 @@ actor ArchiveSession {
         return try ArchivePasswordVerification.verify(entries, using: reader, workers: max(1, threads), progress: progress)
     }
 
+    // MARK: - 閉じる
+
     func close() {
         closed = true
         password = nil
@@ -266,6 +278,8 @@ actor ArchiveSession {
         passwordRevision &+= 1
         encryptionStorage.withLock { $0.hasKnownPassword = false }
     }
+
+    // MARK: - 名前索引
 
     // 確認 UI を待つ間は書かず、回答後に世代と原本を再検証する。公開と再読込は直列。
     nonisolated func nameIndex(generation: UInt64, format: GyoshukuKit.ArchiveFormat) -> ArchiveNameIndex? {
@@ -347,6 +361,8 @@ actor ArchiveSession {
                 })
         }
     }
+
+    // MARK: - 即時の変更
 
     func append(urls: [URL], to folder: String, progress: Progress,
                 resolveConflict: ArchiveImportConflict.Resolver? = nil,
@@ -501,6 +517,8 @@ actor ArchiveSession {
         }
         return result
     }
+
+    // MARK: - 保存前モードの編集と保存
 
     func prepareDeferredEditing() {
         guard format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation,
@@ -720,6 +738,8 @@ actor ArchiveSession {
         }
     }
 
+    // MARK: - 書き込みの設定とパスワードの変更
+
     /// capabilities の mode に現在の暗号化設定と writer の設定を重ね、実際に公開へ渡す mode を決める。
     /// base は、暗号化の変更で設定を差し替えてから解決し直す呼出側（保存前モードの保存）のために返す。
     private func resolvedWriteMode() -> (base: ArchiveCapabilities.Mode, mode: ArchiveCapabilities.Mode, options: WriterOptions) {
@@ -806,6 +826,8 @@ actor ArchiveSession {
         catch { return ArchivePasswordEditResult(reloadFailure: Self.reloadFailureMessage) }
     }
 
+    // MARK: - 公開時の拒否と capabilities の更新
+
     // 公開時にだけ分かる拒否（ArchiveUpdater.open の中央ディレクトリと local header の照合など）は、以後の編集を最初から断る。
     // 終端の門番を通った ZIP が照合で失敗した場合、毎回の作業コピーと失敗を繰り返さない。
     private func publishing<T>(_ body: () throws -> T) throws -> T {
@@ -868,6 +890,8 @@ actor ArchiveSession {
         catch KaitoError.wrongPassword { return true }
         catch { return false }
     }
+
+    // MARK: - 変更後の再読込と取り消しの復元
 
     // atomic replace 後はこの入口で reader と世代を一緒に更新する。
     // 検証した inode が今のパスと一致するときだけ、解析を引き継ぐ。
@@ -996,6 +1020,8 @@ actor ArchiveSession {
         catch { throw restorationFailure ?? error }
         if let restorationFailure { throw restorationFailure }
     }
+
+    // MARK: - 一覧と展開の解決
 
     func snapshot() -> (entries: [ArchiveEntry], generation: UInt64) {
         (invalidated ? [] : reader?.entries ?? [], generation)
