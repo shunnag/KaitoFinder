@@ -94,8 +94,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
     private var filterRequest: FilterRequest?
     var isFilterPendingVisible: Bool { listLoading.isFilterPending }
-    private var trackingListMenus: Set<ObjectIdentifier> = []
-    private var isTrackingListMenu: Bool { !trackingListMenus.isEmpty }
     #if DEBUG
     nonisolated enum FilterExecution: Sendable { case automatic, synchronous, asynchronous }
     nonisolated static let filterExecution = TaskLocal<FilterExecution>(wrappedValue: .automatic)
@@ -166,9 +164,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.permitsInteraction = { [weak self] in self?.operationInFlight != true }
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: preferencesStore)
-        for name in [NSMenu.didBeginTrackingNotification, NSMenu.didEndTrackingNotification] {
-            NotificationCenter.default.addObserver(self, selector: #selector(listMenuTrackingChanged(_:)), name: name, object: nil)
-        }
         window.minSize = NSSize(width: 600, height: 300)
         window.center()
         window.setFrameAutosaveName(Self.frameAutosaveName)
@@ -1088,7 +1083,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
               result.isBuilt(for: root, configuration: request.configuration), request.configuration == filterConfiguration,
               request.generation == generation, !isLocked else { return .discard }
         if outlineView.isRenaming || operationInFlight || !draggedNodes.isEmpty || previewActive
-            || window?.attachedSheet != nil || isTrackingListMenu { return .hold }
+            || window?.attachedSheet != nil || outlineView.isTrackingMenu { return .hold }
         return .apply
     }
 
@@ -1102,22 +1097,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         #if DEBUG
         filterSwapCountForTesting += 1
         #endif
-    }
-
-    @objc private func listMenuTrackingChanged(_ notification: Notification) {
-        guard let menu = notification.object as? NSMenu else { return }
-        if notification.name == NSMenu.didEndTrackingNotification {
-            trackingListMenus.remove(ObjectIdentifier(menu))
-            return
-        }
-        var ancestor: NSMenu? = menu
-        while let candidate = ancestor {
-            if candidate === outlineView.menu || candidate === outlineView.blankAreaMenu || candidate === outlineView.headerView?.menu {
-                trackingListMenus.insert(ObjectIdentifier(menu))
-                return
-            }
-            ancestor = candidate.supermenu
-        }
     }
 
     private func applyFilter(_ filter: EntryTreeFilter, configuration: EntryTreeFilter.Configuration, reason: FilterReason) {
