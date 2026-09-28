@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import Foundation
+import KaitoKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
@@ -204,6 +205,105 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         await delegate.startLaunchSweeps().value
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
         XCTAssertTrue(try Self.entries(in: file).isEmpty)
+    }
+
+    // 旧名: ArchiveEditTests
+    @MainActor func testPendingRegistryTracksDocumentAppendUntilSuccessOrCancellation() async throws {
+        for cancel in [false, true] {
+            let fixture = try ScenarioFixture(), source = try fixture.file("appended.txt")
+            let (document, _) = try await scenarioDocument(fixture)
+            let file = fixture.root.appendingPathComponent("pending.json")
+            try Data("[]".utf8).write(to: file)
+            let registry = PendingWorkRegistry(fileURL: file), gate = ScenarioGate(), progress = Progress()
+            let before = try Data(contentsOf: fixture.archive)
+            defer { gate.release() }
+            let task = Task {
+                try await ArchiveImportTransaction.pendingWorkRegistry.withValue(registry) {
+                    try await document.append(urls: [source], to: "", progress: progress, willPublish: { gate.pauseOnce() })
+                }
+            }
+            try await scenarioWait { gate.isEntered }
+            let entries = try PendingWorkRegistryTests.entries(in: file)
+            XCTAssertEqual(entries.count, 1)
+            let work = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: fixture.root, includingPropertiesForKeys: nil)
+                .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") })
+            XCTAssertEqual((entries.first?["path"] as? String).map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path },
+                           work.resolvingSymlinksInPath().path)
+            XCTAssertNotNil(entries.first?["device"])
+            XCTAssertNotNil(entries.first?["inode"])
+            if cancel { progress.cancel() }
+            gate.release()
+            do {
+                let result = try await task.value
+                XCTAssertFalse(cancel)
+                XCTAssertEqual(result.addedPaths, ["appended.txt"])
+            } catch {
+                XCTAssertTrue(cancel)
+                XCTAssertTrue(error is CancellationError)
+                XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: work.path))
+            XCTAssertTrue(try PendingWorkRegistryTests.entries(in: file).isEmpty)
+        }
+    }
+
+    // 旧名: ArchiveEditTests
+    @MainActor func testPendingRegistryTracksPublicationUntilSuccessOrFailure() async throws {
+        enum Failure: Error { case injected }
+        for fail in [false, true] {
+            let fixture = try ScenarioFixture(), source = try fixture.file("added.txt")
+            let file = fixture.root.appendingPathComponent("pending.json")
+            try Data("[]".utf8).write(to: file)
+            let registry = PendingWorkRegistry(fileURL: file), gate = ScenarioGate()
+            let archive = fixture.archive, before = try Data(contentsOf: archive)
+            defer { gate.release() }
+            let task = Task.detached {
+                try ArchiveImportTransaction.publish(archive: archive, mode: .inPlace, options: .init(), progress: Progress(),
+                    willPublish: {
+                        gate.pauseOnce()
+                        if fail { throw Failure.injected }
+                    }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+                        additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
+                        try updater.add(contentsOf: source, as: "added.txt")
+                    }
+            }
+            try await scenarioWait { gate.isEntered }
+            let entries = try PendingWorkRegistryTests.entries(in: file)
+            XCTAssertEqual(entries.count, 1)
+            let work = try XCTUnwrap(FileManager.default.contentsOfDirectory(at: fixture.root, includingPropertiesForKeys: nil)
+                .first { $0.lastPathComponent.hasPrefix(".KaitoFinder-add-") })
+            XCTAssertEqual((entries.first?["path"] as? String).map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path },
+                           work.resolvingSymlinksInPath().path)
+            XCTAssertNotNil(entries.first?["device"])
+            XCTAssertNotNil(entries.first?["inode"])
+            gate.release()
+            do {
+                try await task.value
+                XCTAssertFalse(fail)
+                XCTAssertEqual(try ScenarioFixture.contents(archive)["added.txt"], Data("added".utf8))
+            } catch {
+                XCTAssertTrue(fail)
+                guard case Failure.injected = error else { return XCTFail("Unexpected error: \(error)") }
+                XCTAssertEqual(try Data(contentsOf: archive), before)
+            }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: work.path))
+            XCTAssertTrue(try PendingWorkRegistryTests.entries(in: file).isEmpty)
+        }
+    }
+
+    // 旧名: ArchiveEditTests
+    func testRegistryWriteFailureDoesNotPreventPublication() throws {
+        let fixture = try ScenarioFixture(), source = try fixture.file("added.txt")
+        let blocker = try fixture.file("registry-parent")
+        let registry = PendingWorkRegistry(fileURL: blocker.appendingPathComponent("pending.json"))
+        XCTAssertThrowsError(try registry.register(fixture.root.appendingPathComponent(".KaitoFinder-add-probe")))
+        try ArchiveImportTransaction.publish(archive: fixture.archive, mode: .inPlace, options: .init(), progress: Progress(),
+            willPublish: nil, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: fixture.archive).entries,
+                additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
+                try updater.add(contentsOf: source, as: "added.txt")
+            }
+        XCTAssertEqual(try ScenarioFixture.contents(fixture.archive)["added.txt"], Data("added".utf8))
+        XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: fixture.root.path).contains { $0.hasPrefix(".KaitoFinder-add-") })
     }
 }
 
