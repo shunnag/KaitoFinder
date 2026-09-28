@@ -85,6 +85,14 @@ Quick Look は標準 ZIP に加え、XZ・旧 Zstandard とその暗号化 fixtu
 `AppDelegate.makeMenu()` で別のメニューを作るテストは `preserveApplicationMenus()` を呼び、
 アプリに登録されたメニューを後で戻す。ウインドウ・パネル・文書も teardown で閉じる。
 
+テストは機能ごとのフォルダ(`KaitoFinderTests/` の `App`・`Extraction`・`Editing`・`Updaters`・`DeferredSave`・`Split`・
+`Password`・`UI`)に置く。Tools/verify_*.py はクラス名とテスト名で選ぶので、フォルダの場所には依らない。環境変数で有効に
+する計測・書き出しの harness は `Probes/`、共有の helper は `Support/` に置き、テストが読む環境変数は
+`Support/TestEnvironment.swift` に一覧する。AppDelegate が組み立てる実際のメニューの文言と結び付けは `MenuWordingTests`
+が確かめる。テストバンドルの principal class `TestProcessSetup`(`Support/TestProcessSetup.swift`)が、全テストの前にウインドウの
+自動アニメーションを止め、各テストの前に AppKit の autosave 値と一部の設定キーを消し、全テストの後に利用者の値を戻す。
+テスト側でウインドウの frame や列の保存値を退避・復元する必要はない。
+
 保存画面は `ArchivePasswordUITests.testPresentedSavePanelAnimatesEncryptionAndCancelsWithoutSaving` で
 実際の `NSSavePanel` を開き、表示直後のサイズ、暗号化のオン・オフ、入力検証、Tab 移動、非対応形式への切り替え、
 無効・非表示になった欄からのフォーカス移動、キャンセル完了まで確認する。

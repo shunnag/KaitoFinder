@@ -155,6 +155,11 @@ fd と巻の UUID で unmount 中の巻の手がかりを残す。
 試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置き、TaskLocal の hook は
 `+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。
 
+`KaitoFinderTests/` も同じ考えで分ける。機能ごとの `App`・`Extraction`・`Editing`・`Updaters`・`DeferredSave`・`Split`・
+`Password`・`UI` に test class を置き、file 名と class 名を一致させる。環境変数で有効にする計測と書き出しの harness は
+`Probes/`、複数の test が使う fixture・oracle・gate・待機・外部ツールの path(`ExternalTool`)・環境変数の一覧
+(`TestEnvironment`)は `Support/` に置く。Tools/verify_*.py はクラス名とテスト名で選ぶ。
+
 ## 3. KaitoKit への変更(追加のみ、3 点)
 
 既存の振る舞いを変えないことを条件に、次の 3 点だけを入れる。いずれも
