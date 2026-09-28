@@ -885,6 +885,47 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         }
     }
 
+    @MainActor func testMoveWithResolverRefusesOwnDirectoryAndSubtreeAtomically() async throws {
+        let fixture = try moveFixture(extra: ["dir/sub/child.txt"]), session = try ArchiveSession(url: fixture.archive)
+        let dirSelection = ArchiveEditSelection(try await node("dir", in: session))
+        let before = try Data(contentsOf: fixture.archive)
+        var conflicts = 0
+        for folder in ["dir", "dir/sub"] {
+            do {
+                _ = try await session.move([dirSelection], to: folder, progress: Progress(), resolveConflict: { _ in
+                    conflicts += 1
+                    return .init(choice: .replace)
+                })
+                XCTFail("自分自身や子孫への移動を受け入れました")
+            } catch { XCTAssertEqual(error as? ArchiveEditError, .destinationInsideSource("dir")) }
+        }
+        XCTAssertEqual(conflicts, 0)
+        XCTAssertEqual(session.generation, 0)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
+    }
+
+    @MainActor func testMoveWithResolverSkipsSameLocationEvenForStaleSelection() async throws {
+        let fixture = try moveFixture(extra: ["dir/file.txt"]), session = try ArchiveSession(url: fixture.archive)
+        let selection = ArchiveEditSelection(try await node("dir/file.txt", in: session))
+        let stale = ArchiveEditSelection(path: selection.path, isDirectory: selection.isDirectory,
+            entries: selection.entries.map { $0.pendingCopy(name: "dir/stale.txt") })
+        let before = try Data(contentsOf: fixture.archive)
+        var conflicts = 0
+        for selection in [selection, stale] {
+            let result = try await session.move([selection], to: "dir", progress: Progress(), resolveConflict: { _ in
+                conflicts += 1
+                return .init(choice: .replace)
+            })
+            XCTAssertTrue(result.removedPaths.isEmpty)
+            XCTAssertTrue(result.renamedPaths.isEmpty)
+            XCTAssertFalse(result.published)
+            XCTAssertNil(result.reloadFailure)
+        }
+        XCTAssertEqual(conflicts, 0)
+        XCTAssertEqual(session.generation, 0)
+        XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
+    }
+
     @MainActor func testMoveRefusesExistingVirtualAndBatchNameCollisionsAtomically() async throws {
         let cases: [([String], [String], String)] = [
             (["b/x.txt"], ["c/deep/z.txt", "a/x.txt"], "b/x.txt"),

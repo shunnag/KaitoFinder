@@ -416,19 +416,10 @@ actor ArchiveSession {
         let occupancy = currentNameIndex()?.overlay
         let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder, format: reservationFormat)
         _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: entries, progress: progress, format: reservationFormat, occupancy: occupancy)
-        var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
-        for selection in selections {
-            let source = try ArchiveImportPlan.path(selection.path, format: reservationFormat)
-            if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
-            if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
-                throw ArchiveEditError.destinationInsideSource(source)
-            }
-            let leaf = ArchivePath.components(source).last!
-            let destination = target.isEmpty ? leaf : target + "/" + leaf
-            moving.append(selection)
-            candidates.append(.init(path: destination, info: .archived(selection.entries, path: source,
-                                                                         archive: sourceURL, generation: expectedGeneration)))
-        }
+        let (moving, candidates) = try ArchiveMovePlanning.build(selections, target: target, format: reservationFormat,
+            mapSelection: { $0 }, info: { selection, source in
+                .archived(selection.entries, path: source, archive: sourceURL, generation: expectedGeneration)
+            })
         let groups = ArchiveConflictResolution.existingGroups(entries, folder: target, matching: Set(candidates.map(\.path)), occupancy: occupancy)
         #if DEBUG
         planning?.end()
