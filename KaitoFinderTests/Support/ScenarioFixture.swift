@@ -99,6 +99,8 @@ extension XCTestCase {
         }
     }
 
+    /// `fixture` の書庫（`url` を渡せばその file）を文書として開き、一覧を表示したウインドウと組にして返す。
+    /// 文書は teardown で `closeDocumentAfterTest` が閉じる。
     @MainActor func scenarioDocument(_ fixture: ScenarioFixture, url: URL? = nil,
                                       preferencesStore: ArchivePreferencesStore = .shared) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
@@ -110,13 +112,7 @@ extension XCTestCase {
         document.addWindowController(controller)
         controller.display(EntryNode.tree(from: await session.entries()), session: session,
                            materializationController: document.materializationController())
-        addTeardownBlock { @MainActor in
-            document.close()
-            await document.undoCleanup?.value
-            await document.materializationCleanup?.value
-            await document.sessionCleanup?.value
-            withExtendedLifetime(fixture) {}
-        }
+        closeDocumentAfterTest(document, controller: controller, retaining: fixture)
         return (document, controller)
     }
 }
