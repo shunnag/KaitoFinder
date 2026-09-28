@@ -63,7 +63,7 @@ nonisolated final class LHAUpdateTrace: Sendable {
         try await ArchiveStageDiagnostics.observer.withValue({ event in
             if case .began(_, let stage) = event { self.stages.withLock { $0.append(stage) } }
         }) {
-            try await ArchiveSession.readerAdoptionObserver.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
+            try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
                 try await ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ reason in self.fallbacks.withLock { $0.append(reason) } }) {
                     try await ArchiveImportTransaction.didCommitLHAUpdaterForTesting.withValue({ updater in
                         self.strategies.withLock { $0.append(updater.lastCommitStrategy) }

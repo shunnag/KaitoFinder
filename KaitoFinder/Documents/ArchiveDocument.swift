@@ -8,7 +8,7 @@ import Synchronization
     nonisolated private let contentsStorage = Mutex<Contents>(.empty)
 
     // makeDocument の同期呼び出し内だけで渡し、revert や直接の read には渡さない。
-    @TaskLocal nonisolated static var preopenedArchive: Result<PreopenedArchive, NSError>?
+    nonisolated static let preopenedArchive = TaskLocal<Result<PreopenedArchive, NSError>?>(wrappedValue: nil)
 
     nonisolated let preferencesSnapshot: PreferencesSnapshot
     nonisolated let saveBehavior: ArchivePreferences.SaveBehavior
@@ -201,7 +201,7 @@ import Synchronization
             throw ArchiveVolumeOpenError(recovery: recovery).presentedError
         }
         // 失敗も read から返し、AppKit のエラー整形を保つ。
-        let preopened = try Self.preopenedArchive?.get()
+        let preopened = try Self.preopenedArchive.get()?.get()
         // super は NSFileWrapper 経由で全体を読み込むため呼ばない。
         let contents: Contents
         do {

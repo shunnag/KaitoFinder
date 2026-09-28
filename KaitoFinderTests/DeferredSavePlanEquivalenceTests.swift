@@ -128,21 +128,21 @@ nonisolated final class DeferredSavePlanEquivalenceTests: XCTestCase {
             pending.additions = [.init(id: UUID(), path: "added", stagedURL: source, sourceStamp: stamp, stagedStamp: stamp)]
             pending.createdFolders = [.init(id: UUID(), path: "new/")]
             let keys = ArchiveTestCounter()
-            let plan = try ArchiveTestCounters.keys.withValue(keys) { try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending) }
+            let plan = try ArchiveTestCounters.editPlanKeys.withValue(keys) { try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending) }
             XCTAssertLessThanOrEqual(keys.value, count + 3 * (pending.renames.count + pending.additions.count + pending.createdFolders.count))
             let bound = pending.removals.count + 2 * plan.edits.renames.count + pending.additions.count + pending.createdFolders.count + 8
             let validating = ArchiveTestCounter()
-            try ArchiveTestCounters.keys.withValue(validating) { try plan.validate() }
+            try ArchiveTestCounters.editPlanKeys.withValue(validating) { try plan.validate() }
             XCTAssertLessThanOrEqual(validating.value, bound)
             let replaying = ArchiveTestCounter(), editor = StubEditor(base.map(\.name))
-            try ArchiveTestCounters.keys.withValue(replaying) { try plan.replay(on: editor, progress: Progress()) }
+            try ArchiveTestCounters.editPlanKeys.withValue(replaying) { try plan.replay(on: editor, progress: Progress()) }
             XCTAssertLessThanOrEqual(replaying.value, bound)
         }
         for deletes in [false, true] {
             var pending = ArchivePendingChanges()
             if deletes { pending.removals = Set(base.prefix(100).map(reference)) }
             let keys = ArchiveTestCounter()
-            _ = try ArchiveTestCounters.keys.withValue(keys) { try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending) }
+            _ = try ArchiveTestCounters.editPlanKeys.withValue(keys) { try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending) }
             XCTAssertLessThanOrEqual(keys.value, 8)
         }
     }

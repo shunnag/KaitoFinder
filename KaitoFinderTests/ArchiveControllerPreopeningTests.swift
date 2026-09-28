@@ -300,7 +300,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         controller.preopenWillMakeDocument = { url, _ in
             creations += 1
             XCTAssertEqual(url, fixture.archive)
-            XCTAssertNotNil(ArchiveDocument.preopenedArchive)
+            XCTAssertNotNil(ArchiveDocument.preopenedArchive.get())
             throw NSError(domain: "OpeningTest", code: 42)
         }
         var unused: ArchiveSession?
@@ -366,7 +366,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
             metadataStore: .shared, recoveryIndex: .shared)
         let session = try XCTUnwrap(contents.sessionForTesting)
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
-        try ArchiveDocument.$preopenedArchive.withValue(.success(contents)) {
+        try ArchiveDocument.preopenedArchive.withValue(.success(contents)) {
             try document.read(from: fixture.archive, ofType: "public.zip-archive")
         }
         await contents.close()
@@ -433,7 +433,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
                 metadataStore: .shared, recoveryIndex: .shared)
             let unused = try XCTUnwrap(contents.sessionForTesting)
             let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
-            try ArchiveDocument.$preopenedArchive.withValue(.success(contents)) {
+            try ArchiveDocument.preopenedArchive.withValue(.success(contents)) {
                 try document.read(from: mismatch == 0 ? other : fixture.archive, ofType: "public.zip-archive")
             }
             await contents.close()

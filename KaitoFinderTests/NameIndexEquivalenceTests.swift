@@ -73,7 +73,7 @@ nonisolated final class NameIndexEquivalenceTests: XCTestCase {
             for disabled in [true, false] {
                 try original.write(to: archive)
                 let session = try ArchiveSession(url: archive)
-                let outcome = await ArchiveSession.nameIndexDisabledForTesting.withValue(disabled) {
+                let outcome = await ArchiveNameIndexCache.disabledForTesting.withValue(disabled) {
                     do {
                         let entries = await session.entries(), root = EntryNode.tree(from: entries)
                         let folder = try XCTUnwrap(root.children.first { $0.path == "folder" })
@@ -211,7 +211,7 @@ nonisolated final class NameIndexEquivalenceTests: XCTestCase {
         for disabled in [true, false] {
             try original.write(to: archive)
             let session = try ArchiveSession(url: archive)
-            let outcome = await ArchiveSession.nameIndexDisabledForTesting.withValue(disabled) {
+            let outcome = await ArchiveNameIndexCache.disabledForTesting.withValue(disabled) {
                 do {
                     let snapshot = await session.snapshot()
                     let editor = ArchivePendingEditor()
@@ -289,7 +289,7 @@ nonisolated final class NameIndexEquivalenceTests: XCTestCase {
         let plan = try ArchiveStageDiagnostics.observer.withValue({ event in
             if case .began(_, let stage) = event { trace.withLock { $0.append(stage) } }
         }) {
-            try ArchiveTestCounters.keys.withValue(keys) {
+            try ArchiveTestCounters.editPlanKeys.withValue(keys) {
                 try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending, baseOccupancy: index.occupancy)
             }
         }

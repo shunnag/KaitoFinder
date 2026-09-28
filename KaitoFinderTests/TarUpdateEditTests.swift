@@ -86,7 +86,7 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
             try Data("new".utf8).write(to: source)
             let strategies = Mutex<[TarUpdater.CommitStrategy?]>([]), adoption = Mutex<[ArchiveReaderAdoption]>([])
             let progress = Progress()
-            try await ArchiveSession.readerAdoptionObserver.withValue({ event in adoption.withLock { $0.append(event) } }) {
+            try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in adoption.withLock { $0.append(event) } }) {
                 try await ArchiveImportTransaction.didCommitTarUpdaterForTesting.withValue({ updater in
                     strategies.withLock { $0.append(updater.lastCommitStrategy) }
                 }) {

@@ -5,10 +5,6 @@ nonisolated struct EntryNameMatcher: Sendable {
     private let foldedQuery: [UInt8]?
     private let rejectsASCIINames: Bool
 
-    #if DEBUG
-    nonisolated static let decidedWithoutFoundationForTesting = TaskLocal<ArchiveTestCounter?>(wrappedValue: nil)
-    #endif
-
     init(query: String) {
         self.query = query
         foldedQuery = !query.isEmpty && query.utf8.allSatisfy { (0x20...0x7e).contains($0) }
@@ -40,7 +36,7 @@ nonisolated struct EntryNameMatcher: Sendable {
         }
         if let available = decision, let result = available {
             #if DEBUG
-            Self.decidedWithoutFoundationForTesting.get()?.increment()
+            ArchiveTestCounters.asciiNameMatches.get()?.increment()
             #endif
             return result
         }

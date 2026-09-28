@@ -6,17 +6,15 @@ import Synchronization
 /// スレッドセーフではない reader を所有し、値型の一覧だけを外へ渡す。
 actor ArchiveSession {
     #if DEBUG
-    nonisolated static let nameIndexDisabledForTesting = TaskLocal<Bool>(wrappedValue: false)
     nonisolated static let nameIndexChangeForTesting = TaskLocal<(@Sendable (ArchiveNameIndexChange) -> ArchiveNameIndexChange)?>(wrappedValue: nil)
-    nonisolated static let readerAdoptionObserver = TaskLocal<(@Sendable (ArchiveReaderAdoption) -> Void)?>(wrappedValue: nil)
+    nonisolated static let readerAdoptionObserverForTesting = TaskLocal<(@Sendable (ArchiveReaderAdoption) -> Void)?>(wrappedValue: nil)
     nonisolated static let willAdoptReaderForTesting = TaskLocal<(@Sendable (ArchiveVerifiedOutput) -> Void)?>(wrappedValue: nil)
-    nonisolated static let passwordVerificationBytes = Mutex<UInt64>(0)
     private var promiseSourceForTesting: (any ByteSource)?
     func setPromiseSourceForTesting(_ source: any ByteSource) { promiseSourceForTesting = source }
     #endif
 
     typealias PasswordPrompt = @MainActor @Sendable (ArchivePasswordChallenge) async throws -> String
-    nonisolated private let nameIndexStorage = Mutex<ArchiveNameIndex?>(nil)
+    nonisolated private let nameIndexCache = ArchiveNameIndexCache()
     private var reader: ArchiveReader?
     private(set) var password: String?
     private let allowsSplitSave: Bool
@@ -269,32 +267,15 @@ actor ArchiveSession {
 
     // 確認 UI を待つ間は書かず、回答後に世代と原本を再検証する。公開と再読込は直列。
     nonisolated func nameIndex(generation: UInt64, format: GyoshukuKit.ArchiveFormat) -> ArchiveNameIndex? {
-        #if DEBUG
-        if Self.nameIndexDisabledForTesting.get() { return nil }
-        #endif
-        return nameIndexStorage.withLock { index in
-            guard let index, index.generation == generation, index.format == format else { return nil }
-            return index
-        }
+        nameIndexCache.index(generation: generation, format: format)
     }
 
     nonisolated func adoptNameIndex(_ index: ArchiveNameIndex) {
-        #if DEBUG
-        if Self.nameIndexDisabledForTesting.get() { return }
-        #endif
-        nameIndexStorage.withLock { stored in
-            if let stored {
-                if stored.generation > index.generation { return }
-                if stored.generation == index.generation, stored.representable || !index.representable { return }
-            }
-            stored = index
-        }
+        nameIndexCache.adopt(index)
     }
 
     nonisolated func adoptNameIndex(validation: ArchiveReservationValidation?, generation: UInt64) {
-        guard let validation, let occupancy = validation.occupancy else { return }
-        adoptNameIndex(.init(generation: generation, format: validation.format, entryCount: validation.base.count,
-                             containsHardLinks: false, occupancy: occupancy, representable: true))
+        nameIndexCache.adopt(validation: validation, generation: generation)
     }
 
     func availableNameIndex() -> ArchiveNameIndex? {
@@ -304,7 +285,7 @@ actor ArchiveSession {
 
     func currentNameIndex() -> ArchiveNameIndex? {
         #if DEBUG
-        if Self.nameIndexDisabledForTesting.get() { return nil }
+        if ArchiveNameIndexCache.disabledForTesting.get() { return nil }
         #endif
         if let index = availableNameIndex() { return index }
         guard !closed, !invalidated, let reader else { return nil }
@@ -318,7 +299,7 @@ actor ArchiveSession {
 
     nonisolated func prepareNameIndex(generation: UInt64) async -> ArchiveNameIndex? {
         #if DEBUG
-        if Self.nameIndexDisabledForTesting.get() { return nil }
+        if ArchiveNameIndexCache.disabledForTesting.get() { return nil }
         #endif
         if let index = nameIndex(generation: generation, format: reservationFormat) { return index }
         guard let input = await nameIndexInput(generation: generation) else { return nil }
@@ -892,7 +873,7 @@ actor ArchiveSession {
                              advancing change: ArchiveNameIndexChange? = nil) throws {
         let previousEntries = reader?.entries
         var advanced = false
-        defer { if !advanced { nameIndexStorage.withLock { $0 = nil } } }
+        defer { if !advanced { nameIndexCache.clear() } }
         #if DEBUG
         let span = ArchiveStageDiagnostics.begin(.reload)
         defer { span?.end() }
@@ -956,7 +937,7 @@ actor ArchiveSession {
                 advanced = true
             }
         }
-        if !advanced { nameIndexStorage.withLock { $0 = nil } }
+        if !advanced { nameIndexCache.clear() }
         invalidated = false
         invalidationStorage.withLock { $0 = false }
     }
@@ -964,7 +945,7 @@ actor ArchiveSession {
     private func adoptVerifiedReader(_ output: ArchiveVerifiedOutput?, identity: ArchiveSetIdentity) -> ArchiveReader? {
         func fallback(_ reason: ArchiveReaderAdoption.Reason) -> ArchiveReader? {
             #if DEBUG
-            Self.readerAdoptionObserver.get()?(.fallback(reason))
+            Self.readerAdoptionObserverForTesting.get()?(.fallback(reason))
             #endif
             return nil
         }
@@ -983,7 +964,7 @@ actor ArchiveSession {
             let replacement = try ArchiveStageDiagnostics.measure(.readerAdoption) { try verified.reopen() }
             output.reader = nil
             #if DEBUG
-            Self.readerAdoptionObserver.get()?(.adopted)
+            Self.readerAdoptionObserverForTesting.get()?(.adopted)
             #endif
             return replacement
         } catch { return fallback(.reopenFailed) }

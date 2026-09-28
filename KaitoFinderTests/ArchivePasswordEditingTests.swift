@@ -62,11 +62,11 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         for name in ["first", "second", "third"] { try writer.add(data: bytes, as: name) }
         try writer.finish()
         let session = try ArchiveSession(url: url, password: "known")
-        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
         let entries1 = await session.entries()
         let first = try XCTUnwrap(entries1.first)
         _ = try await session.rename(selection(first), to: "renamed", progress: Progress())
-        let verified = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let verified = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
         XCTAssertEqual(verified - before, UInt64(bytes.count * 3))
         let entries2 = await session.entries()
         let renamed = try XCTUnwrap(entries2.first)
@@ -81,7 +81,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let entries3 = await session.entries()
         let next = try XCTUnwrap(entries3.first)
         _ = try await session.rename(selection(next), to: "last", progress: Progress())
-        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 }, verified)
+        XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }, verified)
 
         let external = directory.url.appendingPathComponent("external.zip")
         try FileManager.default.copyItem(at: url, to: external)
@@ -90,7 +90,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let entries4 = await session.entries()
         let externalEntry = try XCTUnwrap(entries4.first)
         _ = try await session.rename(selection(externalEntry), to: "external-rename", progress: Progress())
-        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - verified, UInt64(bytes.count * 3))
+        XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 } - verified, UInt64(bytes.count * 3))
         await session.close()
     }
 
@@ -99,7 +99,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let url = try archive(in: directory, format: .zip, settings: .init(password: "known"))
         let session = try ArchiveSession(url: url, password: "known")
         _ = try await session.preparedPassword()
-        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
         for index in 0..<3 {
             let snapshot = await session.snapshot(), entry = try XCTUnwrap(snapshot.entries.first)
             var pending = ArchivePendingChanges()
@@ -114,7 +114,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
                 })
             XCTAssertNil(result.reloadFailure)
             _ = try await session.preparedPassword()
-            XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before,
+            XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 } - before,
                            index == 2 ? UInt64(payload.count) : 0)
         }
         await session.close()
@@ -125,7 +125,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let url = try archive(in: directory, format: .zip, settings: .init(password: "known"))
         let session = try ArchiveSession(url: url, password: "known")
         _ = try await session.preparedPassword()
-        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
         do {
             try await session.reloadAfterMutation(willOpen: { throw CocoaError(.fileReadUnknown) })
             XCTFail("Expected reload failure")
@@ -135,7 +135,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let entries5 = await session.entries()
         let entry = try XCTUnwrap(entries5.first)
         _ = try await session.rename(selection(entry), to: "after-failure", progress: Progress())
-        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before, UInt64(payload.count))
+        XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 } - before, UInt64(payload.count))
         await session.close()
     }
 
@@ -158,10 +158,10 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let entries = await session.entries()
         _ = try await session.rename(selection(try XCTUnwrap(entries.first)), to: "renamed", progress: Progress())
         stack.recordMutation(slot)
-        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
         try await session.restoreUndoSlot(slot.id, from: stack)
         _ = try await session.preparedPassword()
-        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before, UInt64(payload.count))
+        XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 } - before, UInt64(payload.count))
         await stack.dispose()
         await session.close()
     }
@@ -171,7 +171,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         let url = try archive(in: directory, format: .zip, settings: .init(password: "known"))
         let (document, _) = try await document(at: url, directory: directory, password: "known")
         let session = try XCTUnwrap(document.session)
-        let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+        let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
         _ = try await document.createFolder(in: "", baseName: "added-folder", progress: Progress())
         document.undo(nil)
         await document.undoTask?.value
@@ -181,7 +181,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
         _ = try await session.preparedPassword()
-        XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 }, before)
+        XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }, before)
     }
 
     @MainActor private func document(at url: URL, directory: ArchiveTestDirectory, password: String? = nil) async throws
@@ -357,7 +357,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
                 try await ArchiveStageDiagnostics.observer.withValue({ event in
                     if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
                 }) {
-                    try await ArchiveSession.readerAdoptionObserver.withValue({ event in adoptions.withLock { $0.append(event) } }) {
+                    try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in adoptions.withLock { $0.append(event) } }) {
                         let result = try await session.updatePassword(input == nil ? .set : output == nil ? .remove : .change,
                             settings: settings, progress: progress)
                         XCTAssertNil(result.reloadFailure)

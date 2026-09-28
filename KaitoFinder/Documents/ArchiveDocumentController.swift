@@ -48,7 +48,7 @@ class ArchiveDocumentController: NSDocumentController {
         let opening = openings[ArchiveSplitVolume.gateURL(for: url).standardizedFileURL]
         let result: Result<ArchiveDocument.PreopenedArchive, NSError>? =
             opening?.failure.map { .failure($0) } ?? opening?.contents.map { .success($0) }
-        return try ArchiveDocument.$preopenedArchive.withValue(result) {
+        return try ArchiveDocument.preopenedArchive.withValue(result) {
             #if DEBUG
             try preopenWillMakeDocument?(url, typeName)
             #endif

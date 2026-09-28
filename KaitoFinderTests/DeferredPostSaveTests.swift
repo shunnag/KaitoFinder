@@ -139,7 +139,7 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
                 if mode == .onSave { _ = try await document.createFolder(in: "", baseName: "saved", progress: Progress()) }
                 let adoptions = Mutex<[ArchiveReaderAdoption]>([])
                 let edit = Task {
-                    try await ArchiveSession.readerAdoptionObserver.withValue({ event in adoptions.withLock { $0.append(event) } }) {
+                    try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in adoptions.withLock { $0.append(event) } }) {
                         try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
                             if fallback { output.verificationPassword = "different" }
                         }) {
@@ -241,7 +241,7 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
         _ = try await session.deferredSnapshot()
         var pending = ArchivePendingChanges(); pending.createdFolders = [.init(id: UUID(), path: "new/")]
         let publication = ArchiveSavePublication(); defer { publication.finish() }
-        let result = try await ArchiveSession.readerAdoptionObserver.withValue({ event in events.withLock { $0.append(event) } }) {
+        let result = try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in events.withLock { $0.append(event) } }) {
             try await ArchiveImportTransaction.didCommitForTesting.withValue({ work in
                 var data = try Data(contentsOf: work)
                 func u16(_ offset: Int) -> Int { data.withUnsafeBytes { Int(UInt16(littleEndian: $0.loadUnaligned(fromByteOffset: offset, as: UInt16.self))) } }

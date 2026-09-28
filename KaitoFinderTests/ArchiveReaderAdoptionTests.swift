@@ -46,7 +46,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
     private func adopting(_ operation: () async throws -> Void, opens: Int = 1) async throws {
         let events = Mutex<[ArchiveReaderAdoption]>([]), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
-        try await ArchiveSession.readerAdoptionObserver.withValue({ event in events.withLock { $0.append(event) } }) {
+        try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in events.withLock { $0.append(event) } }) {
             try await ArchiveStageDiagnostics.observer.withValue({ event in
                 if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
             }) { try await operation() }
@@ -133,7 +133,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
                     let key = action == .set ? "first-key" : "second-key"
                     let settings = ArchiveEncryptionSettings(password: key, encryptsSevenZipHeaders: true)
                     let events = Mutex<[ArchiveReaderAdoption]>([])
-                    try await ArchiveSession.readerAdoptionObserver.withValue({ e in events.withLock { $0.append(e) } }) {
+                    try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ e in events.withLock { $0.append(e) } }) {
                         try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
                             if fallback { output.verificationPassword = "mismatched" }
                         }) {
@@ -152,9 +152,9 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
                     let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
                     XCTAssertNil(result.reloadFailure)
                 }, opens: format == .sevenZip ? 2 : 1)
-                let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+                let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
                 _ = try await session.preparedPassword()
-                XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 }, before)
+                XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }, before)
                 try await assertCurrent(session, password: "deferred")
                 await session.close()
             }
@@ -171,9 +171,9 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
                 let session = try ArchiveSession(url: url, password: "key"), entries = await session.entries()
                 try await adopting { check(try await session.remove([selection(try XCTUnwrap(entries.first { $0.name == removing }))], progress: Progress())) }
                 try await assertCurrent(session, password: "key")
-                let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+                let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
                 _ = try await session.preparedPassword()
-                XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 }, before)
+                XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }, before)
                 await session.close()
             }
         }
@@ -209,7 +209,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
                 let events = Mutex<[ArchiveReaderAdoption]>([]), removal = selection(entries[2])
                 let task = Task {
                     try await ArchiveSavePublication.current.withValue(publication) {
-                        try await ArchiveSession.readerAdoptionObserver.withValue({ e in events.withLock { $0.append(e) } }) {
+                        try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ e in events.withLock { $0.append(e) } }) {
                             try await ArchiveImportTransaction.didPublishForTesting.withValue({ url in
                                 if fallback {
                                     let copy = url.appendingPathExtension("replacement")
@@ -244,7 +244,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
             let directory = try ArchiveTestDirectory(), url = try archive(directory.url)
             let session = try ArchiveSession(url: url), entries = await session.entries()
             let weakSource = Mutex(WeakSource()), released = Mutex(false), events = Mutex<[ArchiveReaderAdoption]>([]), opened = Mutex(false)
-            let result = try await ArchiveSession.readerAdoptionObserver.withValue({ e in events.withLock { $0.append(e) } }) {
+            let result = try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ e in events.withLock { $0.append(e) } }) {
                 try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
                     weakSource.withLock { $0 = .init(source: output.source) }
                     output.didReleaseForTesting = { released.withLock { $0 = true } }
@@ -291,7 +291,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         for format: GyoshukuKit.ArchiveFormat in [.zip, .tar] {
             let directory = try ArchiveTestDirectory(), url = try archive(directory.url, format: format, suffix: format == .zip ? "zip.001" : "tar.001")
             let session = try ArchiveSession(url: url), entries = await session.entries(), events = Mutex<[ArchiveReaderAdoption]>([])
-            let result = try await ArchiveSession.readerAdoptionObserver.withValue({ e in events.withLock { $0.append(e) } }) {
+            let result = try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ e in events.withLock { $0.append(e) } }) {
                 try await session.remove([selection(entries[2])], progress: Progress())
             }
             XCTAssertNil(result.reloadFailure)
@@ -301,7 +301,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         }
         let directory = try ArchiveTestDirectory(), url = try archive(directory.url), session = try ArchiveSession(url: url)
         let events = Mutex<[ArchiveReaderAdoption]>([]), entries = await session.entries()
-        let result = try await ArchiveSession.readerAdoptionObserver.withValue({ e in events.withLock { $0.append(e) } }) {
+        let result = try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ e in events.withLock { $0.append(e) } }) {
             try await ArchiveImportTransaction.didPublishForTesting.withValue({ url in
                 do { let handle = try FileHandle(forWritingTo: url); try handle.seekToEnd(); try handle.write(contentsOf: Data([0])); try handle.close() }
                 catch { XCTFail("\(error)") }
@@ -376,7 +376,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
     private func diskAdoption(_ fileSystem: String) async throws {
         let disk = try VolumePublishTestDisk(fileSystem), url = try archive(disk.mount)
         let session = try ArchiveSession(url: url), entries = await session.entries(), events = Mutex<[ArchiveReaderAdoption]>([])
-        let result = try await ArchiveSession.readerAdoptionObserver.withValue({ e in events.withLock { $0.append(e) } }) {
+        let result = try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ e in events.withLock { $0.append(e) } }) {
             try await session.remove([selection(entries[2])], progress: Progress())
         }
         XCTAssertNil(result.reloadFailure)

@@ -98,12 +98,12 @@ nonisolated final class ArchivePasswordVerificationTests: XCTestCase {
             let url = try archive(method, in: directory, count: 68, size: 1)
             for execution in [ArchivePasswordVerification.Execution.serial, .parallel, .automatic] {
                 let provider = Provider(), counts = Mutex<[Int]>([])
-                let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+                let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
                 let result = try ArchivePasswordVerification.observer.withValue({ event in
                     if case .workers(let count) = event { counts.withLock { $0.append(count) } }
                 }) { try verify(url, execution: execution, provider: provider) }
                 XCTAssertEqual(result, .verified(Set(0..<68)))
-                XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before, 68)
+                XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 } - before, 68)
                 XCTAssertEqual(provider.calls.withLock { $0 }, 0)
                 XCTAssertEqual(counts.withLock { $0 }, execution == .serial ? [1] : [4])
             }
@@ -235,7 +235,7 @@ nonisolated final class ArchivePasswordVerificationTests: XCTestCase {
         let url = try archive(.aes256, in: directory, count: 70, size: 1)
         for execution in [ArchivePasswordVerification.Execution.serial, .parallel] {
             let session = try ArchiveSession(url: url, password: "known", writerOptions: { _ in .init(compressionThreads: 3) })
-            let before = ArchiveSession.passwordVerificationBytes.withLock { $0 }
+            let before = ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }
             let counts = Mutex<[Int]>([]), stages = Mutex<[ArchiveStageDiagnostics.Stage]>([])
             try await ArchivePasswordVerification.execution.withValue(execution) {
                 let payload = ArchiveEntryPayload(archiveURL: url, generation: 0, entryIndex: 17, path: "entry-17", isDirectory: false)
@@ -253,7 +253,7 @@ nonisolated final class ArchivePasswordVerificationTests: XCTestCase {
             }
             XCTAssertEqual(counts.withLock { $0 }, execution == .serial ? [1] : [3])
             XCTAssertTrue(stages.withLock { $0.contains(.passwordVerification) })
-            XCTAssertEqual(ArchiveSession.passwordVerificationBytes.withLock { $0 } - before, 70)
+            XCTAssertEqual(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 } - before, 70)
             await session.close()
         }
     }

@@ -74,7 +74,7 @@ nonisolated final class EntryNameMatcherTests: XCTestCase {
                      ("file.txt", "ー"), ("file.txt", "\u{ff9e}"), ("file.txt", "\u{309a}"),
                      ("file.txt", "\u{ff9f}"), ("ﾌｧｲﾙ", "ファイル"), ("資料9.txt", "資料9")]
         let counter = ArchiveTestCounter()
-        EntryNameMatcher.decidedWithoutFoundationForTesting.withValue(counter) {
+        ArchiveTestCounters.asciiNameMatches.withValue(counter) {
             for (name, query) in pairs {
                 XCTAssertEqual(EntryNameMatcher(query: query).matches(name), reference(name, query), "\(name), \(query)")
             }
@@ -117,7 +117,7 @@ nonisolated final class EntryNameMatcherTests: XCTestCase {
         let root = EntryNode.tree(from: entries)
         for query in ["file99999", "資料9"] {
             let counter = ArchiveTestCounter()
-            EntryNameMatcher.decidedWithoutFoundationForTesting.withValue(counter) {
+            ArchiveTestCounters.asciiNameMatches.withValue(counter) {
                 _ = EntryTreeFilter(root: root, query: query)
             }
             XCTAssertEqual(counter.value, 101_001)
@@ -127,13 +127,13 @@ nonisolated final class EntryNameMatcherTests: XCTestCase {
     func testJapaneseNamedNodesUseFoundationAndEmptyRootUsesASCII() {
         let entries = (0..<10_000).map { archiveColumnEntry("資料\($0 / 100)/文書\($0).txt", index: $0, size: 1) }
         let root = EntryNode.tree(from: entries), counter = ArchiveTestCounter()
-        EntryNameMatcher.decidedWithoutFoundationForTesting.withValue(counter) {
+        ArchiveTestCounters.asciiNameMatches.withValue(counter) {
             _ = EntryTreeFilter(root: root, query: "file")
         }
         // 空の root だけは D1 の印字可能 ASCII の条件を満たす。
         XCTAssertEqual(counter.value, 1)
         let named = ArchiveTestCounter()
-        EntryNameMatcher.decidedWithoutFoundationForTesting.withValue(named) {
+        ArchiveTestCounters.asciiNameMatches.withValue(named) {
             let matcher = EntryNameMatcher(query: "file")
             for directory in root.children {
                 XCTAssertFalse(matcher.matches(directory.name))

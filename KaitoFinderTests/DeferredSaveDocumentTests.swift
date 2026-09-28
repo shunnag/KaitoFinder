@@ -101,7 +101,7 @@ nonisolated final class DeferredSaveDocumentTests: XCTestCase {
             try await ArchiveStageDiagnostics.observer.withValue({ event in
                 if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
             }) {
-                try await ArchiveSession.readerAdoptionObserver.withValue({ event in adoptions.withLock { $0.append(event) } }) {
+                try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in adoptions.withLock { $0.append(event) } }) {
                     try await fixture.save()
                 }
             }

@@ -106,7 +106,7 @@ nonisolated final class CompressedTarTrace: Sendable {
                     try await ArchiveStageDiagnostics.observer.withValue({ event in
                         if case .began(_, let stage) = event { self.stages.withLock { $0.append(stage) } }
                     }) {
-                        try await ArchiveSession.readerAdoptionObserver.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
+                        try await ArchiveSession.readerAdoptionObserverForTesting.withValue({ event in self.adoptions.withLock { $0.append(event) } }) {
                             try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
                                 // Runs after rename. Reopening must retain the descriptor-backed K5 snapshot.
                                 let reopened = try? output.reader?.reopen()

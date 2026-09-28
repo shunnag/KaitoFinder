@@ -362,11 +362,11 @@ extension ArchivePasswordPersistenceTests {
                                          path: entry.name, isDirectory: false)
         let output = fixture.url.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
-        ArchiveSession.passwordVerificationBytes.withLock { $0 = 0 }
-        defer { ArchiveSession.passwordVerificationBytes.withLock { $0 = 0 } }
+        ArchivePasswordVerification.bytesReadForTesting.withLock { $0 = 0 }
+        defer { ArchivePasswordVerification.bytesReadForTesting.withLock { $0 = 0 } }
         let result = try await ExtractionService.extract([payload], from: session, to: output, progress: Progress())
         XCTAssertTrue(result.failures.isEmpty, "\(result.failures)")
-        XCTAssertLessThanOrEqual(Double(ArchiveSession.passwordVerificationBytes.withLock { $0 }),
+        XCTAssertLessThanOrEqual(Double(ArchivePasswordVerification.bytesReadForTesting.withLock { $0 }),
                                  Double(try XCTUnwrap(entry.compressedSize)) * 1.1,
                                  "Remembering a password must not verify unrelated members")
         let saved = await vault.password(for: .file(archive))

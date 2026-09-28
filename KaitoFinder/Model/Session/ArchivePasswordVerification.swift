@@ -12,6 +12,8 @@ nonisolated enum ArchivePasswordVerification {
     }
     static let execution = TaskLocal<Execution>(wrappedValue: .automatic)
     static let observer = TaskLocal<(@Sendable (Event) -> Void)?>(wrappedValue: nil)
+    /// 検証で読んだ本文の累計 byte 数。テストが操作の前後の差分で、検証の省略や重複を確かめる。
+    static let bytesReadForTesting = Mutex<UInt64>(0)
     #endif
 
     private struct State {
@@ -89,7 +91,7 @@ nonisolated enum ArchivePasswordVerification {
                     var buffer = [UInt8](repeating: 0, count: 128 * 1024)
                     #if DEBUG
                     var bytes: UInt64 = 0
-                    defer { ArchiveSession.passwordVerificationBytes.withLock { $0 += bytes } }
+                    defer { Self.bytesReadForTesting.withLock { $0 += bytes } }
                     #endif
                     func checkCancellation() throws {
                         if progress?.isCancelled == true || stopped.withLock({ $0 }) { throw CancellationError() }
@@ -172,7 +174,7 @@ nonisolated enum ArchivePasswordVerification {
         // ZipCrypto の短い照合値だけでなく、CRC / HMAC まで読む。
         try ExtractionService.consume(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation) { bytes in
             #if DEBUG
-            ArchiveSession.passwordVerificationBytes.withLock { $0 += UInt64(bytes.count) }
+            Self.bytesReadForTesting.withLock { $0 += UInt64(bytes.count) }
             observer?(.didRead(entry.index, bytes.count))
             #endif
         }
