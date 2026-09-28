@@ -182,8 +182,8 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         return (archive, otherArchive, folder, text)
     }
 
-    @MainActor private func dragging(_ urls: [URL]) throws -> WelcomeDraggingInfo {
-        let info = WelcomeDraggingInfo()
+    @MainActor private func dragging(_ urls: [URL]) throws -> TestDraggingInfo {
+        let info = TestDraggingInfo()
         addTeardownBlock { @MainActor in info.pasteboard.releaseGlobally() }
         if !urls.isEmpty, !info.pasteboard.writeObjects(urls.map { $0 as NSURL }) {
             // 入力自体を用意できない環境で、空ペーストボードの拒否を成功と取り違えない。
@@ -412,28 +412,5 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
             XCTAssertTrue(zone.accessibilityPerformPress())
             XCTAssertEqual(calls, 4)
         }
-    }
-
-    // ArchiveEntryControlsTests の NSDraggingInfo スタブと同じ AppKit 境界を使う。
-    @MainActor private final class WelcomeDraggingInfo: NSObject, NSDraggingInfo {
-        var draggingDestinationWindow: NSWindow?
-        var draggingSourceOperationMask: NSDragOperation = [.copy]
-        var draggingLocation: NSPoint = .zero
-        var draggedImageLocation: NSPoint { .zero }
-        nonisolated var draggedImage: NSImage? { nil }
-        let pasteboard = NSPasteboard(name: .init("KaitoFinder-Welcome-" + UUID().uuidString))
-        var draggingPasteboard: NSPasteboard { pasteboard }
-        var draggingSource: Any?
-        var draggingSequenceNumber = 0
-        var draggingFormation: NSDraggingFormation = .none
-        var animatesToDestination = false
-        var numberOfValidItemsForDrop = 0
-        var springLoadingHighlight: NSSpringLoadingHighlight { .none }
-        func slideDraggedImage(to screenPoint: NSPoint) {}
-        nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
-        func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions, for view: NSView?,
-            classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any],
-            using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
-        func resetSpringLoading() {}
     }
 }

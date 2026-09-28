@@ -22,7 +22,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         let node = try XCTUnwrap(view.item(atRow: 0) as? EntryNode)
         controller.setDraggedNodesForTesting([node])
         defer { controller.setDraggedNodesForTesting([]) }
-        let info = FileURLDragInfo(urls: [], window: controller.window,
+        let info = TestDraggingInfo(urls: [], window: controller.window,
             location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
         defer { info.draggingPasteboard.releaseGlobally() }
         info.draggingSource = view
@@ -54,7 +54,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
             XCTAssertEqual(controller.currentFolderPath, "a")
             controller.window?.contentView?.layoutSubtreeIfNeeded()
             let source = try fixture.file("dropped.txt")
-            let info = FileURLDragInfo(urls: [source], window: controller.window,
+            let info = TestDraggingInfo(urls: [source], window: controller.window,
                 location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
             defer { info.draggingPasteboard.releaseGlobally() }
             XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), .copy)
@@ -98,7 +98,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         let folder = try XCTUnwrap((0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }
             .first { $0.path == "target" })
         let rect = view.rect(ofRow: view.row(forItem: folder))
-        let info = FileURLDragInfo(urls: urls, window: controller.window,
+        let info = TestDraggingInfo(urls: urls, window: controller.window,
                                   location: view.convert(NSPoint(x: 90, y: rect.midY), to: nil))
         defer { info.draggingPasteboard.releaseGlobally() }
         XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), .copy)

@@ -6,7 +6,7 @@ import XCTest
 nonisolated final class ArchiveConflictUITests: XCTestCase {
     @MainActor private func drop(_ urls: [URL], into controller: ArchiveWindowController) throws {
         let view = controller.outlineView
-        let info = FileURLDragInfo(urls: urls, window: controller.window, location: .zero)
+        let info = TestDraggingInfo(urls: urls, window: controller.window, location: .zero)
         defer { info.draggingPasteboard.releaseGlobally() }
         XCTAssertTrue(controller.outlineView(view, acceptDrop: info, item: nil, childIndex: -1))
         XCTAssertTrue(controller.operationInFlight)

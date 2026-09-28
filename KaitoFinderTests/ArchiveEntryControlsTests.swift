@@ -717,7 +717,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(resignations.withLock { $0 }, 0)
         XCTAssertFalse(controller.canReceiveTabDrag)
         XCTAssertNil(controller.outlineView(view, pasteboardWriterForItem: target))
-        let drag = FileURLDragInfo(urls: [fixture.archive], window: window, location: point)
+        let drag = TestDraggingInfo(urls: [fixture.archive], window: window, location: point)
         defer { drag.draggingPasteboard.releaseGlobally() }
         XCTAssertEqual(controller.outlineView(view, validateDrop: drag, proposedItem: nil, proposedChildIndex: -1), [])
         XCTAssertFalse(controller.outlineView(view, acceptDrop: drag, item: nil, childIndex: -1))
@@ -1293,29 +1293,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         override var draggingSequenceNumber: Int { sequence }
     }
 
-    @MainActor private final class MoveDraggingInfo: NSObject, NSDraggingInfo {
-        var draggingDestinationWindow: NSWindow?
-        var draggingSourceOperationMask: NSDragOperation = [.move, .copy]
-        var draggingLocation: NSPoint = .zero
-        var draggedImageLocation: NSPoint { .zero }
-        nonisolated var draggedImage: NSImage? { nil }
-        let pasteboard = NSPasteboard(name: .init("KaitoFinder-Move-" + UUID().uuidString))
-        var pasteboardReads = 0
-        var draggingPasteboard: NSPasteboard { pasteboardReads += 1; return pasteboard }
-        var draggingSource: Any?
-        var draggingSequenceNumber = 0
-        var draggingFormation: NSDraggingFormation = .none
-        var animatesToDestination = false
-        var numberOfValidItemsForDrop = 0
-        var springLoadingHighlight: NSSpringLoadingHighlight { .none }
-        func slideDraggedImage(to screenPoint: NSPoint) {}
-        nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
-        func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions, for view: NSView?,
-                                    classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any],
-                                    using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
-        func resetSpringLoading() {}
-    }
-
     @MainActor private final class MoveDropOutline: NSOutlineView {
         var hovered: EntryNode?
         private(set) var proposedFolder: EntryNode?
@@ -1329,8 +1306,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor private func moveDrag(_ nodes: [EntryNode], in controller: ArchiveWindowController)
-        -> (MoveDraggingSession, MoveDraggingInfo) {
-        let session = MoveDraggingSession(), info = MoveDraggingInfo()
+        -> (MoveDraggingSession, TestDraggingInfo) {
+        let session = MoveDraggingSession(), info = TestDraggingInfo(operationMask: [.move, .copy])
         info.draggingSource = controller.outlineView
         info.draggingDestinationWindow = controller.window
         info.draggingSequenceNumber = session.draggingSequenceNumber

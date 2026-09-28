@@ -289,7 +289,7 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
         controller.setFilterQuery(".")
         let hidden = try select(".hidden", in: controller)
         controller.setDraggedNodesForTesting([a])
-        let info = FileURLDragInfo(urls: [], window: controller.window, location: .zero)
+        let info = TestDraggingInfo(urls: [], window: controller.window, location: .zero)
         defer { info.draggingPasteboard.releaseGlobally() }
         info.draggingSource = controller.outlineView
         info.draggingSourceOperationMask = .move
