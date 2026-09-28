@@ -10,21 +10,24 @@ nonisolated final class ScenarioFixture {
     let archive: URL
     var root: URL { directory.url }
 
+    /// `script` は `p`（書庫の path）を受け取って `archive.<suffix>` を書く Python。`arguments` は
+    /// `sys.argv[2:]` として script へ渡す。
     init(script: String = "with zipfile.ZipFile(p, 'w') as z: z.writestr('original.txt', b'original')",
-         suffix: String = "zip") throws {
+         suffix: String = "zip", arguments: [String] = []) throws {
         directory = try ArchiveTestDirectory()
         archive = directory.url.appendingPathComponent("archive." + suffix)
-        try Self.python(directory, archive: archive, script: script)
+        try Self.python(directory, archive: archive, script: script, arguments: arguments)
     }
 
-    private static func python(_ directory: ArchiveTestDirectory, archive: URL, script: String) throws {
+    private static func python(_ directory: ArchiveTestDirectory, archive: URL, script: String, arguments: [String]) throws {
         try directory.run(ExternalTool.python3, ["-c",
-            "import sys, zipfile, tarfile, io, stat, struct, os\np = sys.argv[1]\n" + script, archive.path])
+            "import sys, zipfile, tarfile, io, stat, struct, os\np = sys.argv[1]\n" + script, archive.path] + arguments)
     }
 
-    func pythonArchive(_ name: String, script: String) throws -> URL {
+    /// fixture の中の `name` へ、`init` と同じ前置きの `script` で書く。同じ名前なら既存の file を置き換える。
+    func pythonArchive(_ name: String, script: String, arguments: [String] = []) throws -> URL {
         let url = root.appendingPathComponent(name)
-        try Self.python(directory, archive: url, script: script)
+        try Self.python(directory, archive: url, script: script, arguments: arguments)
         return url
     }
 
@@ -69,9 +72,12 @@ nonisolated final class ScenarioFixture {
         """
     }
 
-    func extract(to destination: URL, session: ArchiveSession? = nil) async throws -> ExtractionResult {
+    /// 書庫の全項目を `destination` へ展開する。`session` を省くと新しい session で開く。
+    func extract(to destination: URL, session: ArchiveSession? = nil, progress: Progress = Progress(totalUnitCount: 0),
+                 didProcess: (@Sendable (Int) -> Void)? = nil) async throws -> ExtractionResult {
         let source = try session ?? ArchiveSession(url: archive)
-        return try await ExtractionService.extract(ExtractionSelection(entries: await source.entries()), from: source, to: destination)
+        return try await ExtractionService.extract(ExtractionSelection(entries: await source.entries()), from: source,
+                                                   to: destination, progress: progress, didProcess: didProcess)
     }
 }
 

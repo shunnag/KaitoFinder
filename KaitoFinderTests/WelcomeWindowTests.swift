@@ -170,9 +170,8 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
     }
 
     @MainActor private func fixtureURLs() throws -> (archive: URL, otherArchive: URL, folder: URL, text: URL) {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-Welcome-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let directory = try ArchiveTestDirectory(), root = directory.url
+        addTeardownBlock { withExtendedLifetime(directory) {} }
         let archive = root.appendingPathComponent("photos.zip"), otherArchive = root.appendingPathComponent("more.zip")
         let text = root.appendingPathComponent("notes.txt"), folder = root.appendingPathComponent("folder.zip")
         try Data().write(to: archive)

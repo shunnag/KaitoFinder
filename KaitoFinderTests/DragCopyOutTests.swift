@@ -17,39 +17,36 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         XCTAssertEqual(try delegate.makeProvider().fileType, UTType.folder.identifier)
     }
 
+    /// `ScenarioFixture` の書庫（既定は ZIP、`tar` なら USTAR の tar）と、promise の書き出し先 `out/`。
     private final class Fixture {
-        let parent: URL
-        let archive: URL
+        let scenario: ScenarioFixture
         let output: URL
+        var parent: URL { scenario.root }
+        var archive: URL { scenario.archive }
         init(tar: Bool = false) throws {
-            parent = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-DragTests-" + UUID().uuidString)
-            archive = parent.appendingPathComponent(tar ? "fixture.tar" : "fixture.zip")
-            output = parent.appendingPathComponent("out")
-            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-            guard chmod(parent.path, 0o700) == 0 else { throw ExtractionFailure.system(errno) }
-            if tar {
-                try run("""
+            scenario = try ScenarioFixture(script: tar ? """
                 with tarfile.open(p, 'w', format=tarfile.USTAR_FORMAT) as t:
                     d = tarfile.TarInfo('outer/folder/'); d.type = tarfile.DIRTYPE; d.mode = 0o755; t.addfile(d)
                     f = tarfile.TarInfo('outer/folder/a.txt'); f.size = 5; t.addfile(f, io.BytesIO(b'hello'))
                     h = tarfile.TarInfo('outer/folder/deep/link'); h.type = tarfile.LNKTYPE
                     h.linkname = 'outer/folder/a.txt'; t.addfile(h)
                     f = tarfile.TarInfo('outside'); f.size = 3; t.addfile(f, io.BytesIO(b'out'))
-                """)
-            } else { try writeZIP([("folder/a.txt", "hello"), ("folder/deep/b.txt", "world"), ("other.txt", "other")]) }
+                """ : Self.zipScript([("folder/a.txt", "hello"), ("folder/deep/b.txt", "world"), ("other.txt", "other")]),
+                suffix: tar ? "tar" : "zip")
+            output = scenario.root.appendingPathComponent("out")
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         }
+        /// 書庫と同じ path へ `script` で書き直す（`p` は書庫の path）。
         func run(_ script: String) throws {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
-            process.arguments = ["-c", "import sys, zipfile, tarfile, io\np=sys.argv[1]\n" + script, archive.path]
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { throw ExtractionFailure.refused("fixture 生成失敗") }
+            _ = try scenario.pythonArchive(archive.lastPathComponent, script: script)
         }
         func writeZIP(_ entries: [(String, String)]) throws {
+            try run(Self.zipScript(entries))
+        }
+        // 置換で新しい inode を作り、旧 reader の reopen との差を検査する。
+        private static func zipScript(_ entries: [(String, String)]) -> String {
             let pairs = entries.map { "('\($0.0)', '\($0.1)')" }.joined(separator: ",")
-            // 置換で新しい inode を作り、旧 reader の reopen との差を検査する。
-            try run("import os\nwith zipfile.ZipFile(p + '.new', 'w') as z:\n for n, v in [\(pairs)]: z.writestr(n, v)\nos.replace(p + '.new', p)")
+            return "import os\nwith zipfile.ZipFile(p + '.new', 'w') as z:\n for n, v in [\(pairs)]: z.writestr(n, v)\nos.replace(p + '.new', p)"
         }
         func writeSolidSevenZip(groupSizes: [Int]) throws {
             try run("""
@@ -68,10 +65,8 @@ nonisolated final class DragCopyOutTests: XCTestCase {
             open(p, 'wb').write(archive + start + packed + header)
             """)
         }
-        deinit {
-            try? ExtractionTemporaryDirectory(root: parent).sweepOnLaunch()
-            try? FileManager.default.removeItem(at: parent)
-        }
+        // 展開で復元した読み取り専用の directory も消せるように片付け、fixture の directory の削除は ScenarioFixture に任せる。
+        deinit { try? ExtractionTemporaryDirectory(root: parent).sweepOnLaunch() }
         func payload(_ path: String, session: ArchiveSession, index: Int? = nil, directory: Bool = false) -> ArchiveEntryPayload {
             ArchiveEntryPayload(archiveURL: archive, generation: session.generation, entryIndex: index, path: path, isDirectory: directory)
         }

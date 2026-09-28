@@ -208,9 +208,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
     @MainActor private func checkSavePanelResize(split: Bool) async throws {
         let restoreAnimations = enableNativeWindowAnimations()
         defer { restoreAnimations() }
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-SavePanel-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = try ArchiveTestDirectory(), directory = fixture.url
+        defer { withExtendedLifetime(fixture) {} }
         for browserExpanded in [false, true] {
             let restoreBrowser = setNativeSavePanelBrowserExpanded(browserExpanded)
             defer { restoreBrowser() }

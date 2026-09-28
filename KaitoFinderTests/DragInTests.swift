@@ -7,36 +7,8 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class DragInTests: XCTestCase {
-    private final class Fixture {
-        let root: URL
-        let archive: URL
-        init(filename: String = "archive.zip", script: String = "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old.txt', 'original')\n z.writestr('sub/deep/old.txt', 'nested')") throws {
-            root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-DragIn-" + UUID().uuidString)
-            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            archive = root.appendingPathComponent(filename)
-            try run(ExternalTool.python3, ["-c", "import sys, zipfile, tarfile, io, struct\np=sys.argv[1]\n" + script, archive.path])
-        }
-        deinit { try? FileManager.default.removeItem(at: root) }
-        func file(_ name: String, _ text: String = "added") throws -> URL {
-            let url = root.appendingPathComponent(name)
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data(text.utf8).write(to: url)
-            return url
-        }
-        @discardableResult func run(_ tool: String, _ args: [String]) throws -> String {
-            let process = Process(), output = Pipe()
-            process.executableURL = URL(fileURLWithPath: tool)
-            process.arguments = args
-            process.standardOutput = output
-            process.standardError = output
-            try process.run()
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            let text = String(decoding: data, as: UTF8.self)
-            XCTAssertEqual(process.terminationStatus, 0, text)
-            return text
-        }
-    }
+    /// 既定の書庫（old.txt と sub/deep/old.txt を持つ ZIP）を書く script。
+    private static let originalScript = "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old.txt', 'original')\n z.writestr('sub/deep/old.txt', 'nested')"
 
     private final class AdditionProgressTrace: Sendable {
         struct Sample: Sendable { let slot: ArchiveWriteProgress.Slot; let completed: Int64; let total: Int64 }
@@ -59,7 +31,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testAppendFilePreservesExistingBytesAndPassesUnzip() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         XCTAssertTrue(session.capabilities.canEdit)
         XCTAssertNil(session.capabilities.readOnlyReason)
         let result = try await session.append(urls: [fixture.file("new.txt")], to: "", progress: Progress())
@@ -68,13 +40,13 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertNil(result.reloadFailure)
         let bytes = try ArchiveOracle.contents(ArchiveReader.open(url: fixture.archive), including: .all)
         XCTAssertEqual(bytes, ["old.txt": Data("original".utf8), "sub/deep/old.txt": Data("nested".utf8), "new.txt": Data("added".utf8)])
-        print(try fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
+        print(try fixture.directory.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
     }
 
     func testAppendDirectoryPreservesSubtreeAndEmptyDirectoryUnderVirtualFolder() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
-        _ = try fixture.file("tree/a.txt", "a")
-        _ = try fixture.file("tree/deeper/b.txt", "b")
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
+        _ = try fixture.file("tree/a.txt", bytes: Data("a".utf8))
+        _ = try fixture.file("tree/deeper/b.txt", bytes: Data("b".utf8))
         try FileManager.default.createDirectory(at: fixture.root.appendingPathComponent("tree/empty"), withIntermediateDirectories: true)
         _ = try await session.append(urls: [fixture.root.appendingPathComponent("tree")], to: "sub/deep", progress: Progress())
         let bytes = try ArchiveOracle.contents(ArchiveReader.open(url: fixture.archive), including: .all)
@@ -83,11 +55,11 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(bytes["sub/deep/tree/empty/"], Data())
         XCTAssertNil(bytes["tree/a.txt"])
         XCTAssertEqual(bytes.count, 7)
-        print(try fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
+        print(try fixture.directory.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
     }
 
     @MainActor func testDropTargetFolderFileEmptyAndVirtualRows() throws {
-        let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('real/', '')\n z.writestr('virtual/deep/a', 'a')")
+        let fixture = try ScenarioFixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('real/', '')\n z.writestr('virtual/deep/a', 'a')")
         let root = EntryNode.tree(from: try ArchiveReader.open(url: fixture.archive).entries)
         let real = try XCTUnwrap(root.children.first { $0.path == "real" })
         let virtual = try XCTUnwrap(root.children.first { $0.path == "virtual" }?.children.first)
@@ -106,7 +78,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testCollisionRefusesWholeDropAndReportsEveryConflictingItem() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive)
         let result = try await session.append(urls: [fixture.file("old.txt"), fixture.file("sub"), fixture.file("safe.txt")], to: "", progress: Progress())
         XCTAssertEqual(result.failures.map(\.name), ["old.txt", "sub"])
@@ -117,7 +89,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testSameBatchNameCollisionAndUnicodeNormalizationAreRefused() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive)
         let urls = try [fixture.file("one/café.txt"), fixture.file("two/cafe\u{301}.txt")]
         let result = try await session.append(urls: urls, to: "", progress: Progress())
@@ -127,7 +99,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testUnsupportedTarWrapperAcceptsConversionDropButRefusesAppendWithFormatReason() async throws {
-        let fixture = try Fixture(filename: "archive.tar.lzma", script: "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))")
+        let fixture = try ScenarioFixture(script: "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", suffix: "tar.lzma")
         let session = try ArchiveSession(url: fixture.archive)
         XCTAssertEqual(session.capabilities.refusal, .format("tar.lzma"))
         let formatName = "tar.lzma"
@@ -142,7 +114,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     private func gate(_ gate: UpdateGatekeeper, patch: String) async throws {
-        let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old.txt', 'original')\n" + patch)
+        let fixture = try ScenarioFixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old.txt', 'original')\n" + patch)
         let before = try Data(contentsOf: fixture.archive)
         let capability = ArchiveCapabilities.inspect(url: fixture.archive, format: .zip)
         XCTAssertEqual(capability.refusal, .gatekeeper(gate, gate.reason))
@@ -179,7 +151,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testAppendFreshOpenSeesNewInodeAndOldPromiseResolvesByPath() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let oldReader = try await session.extractionReader()
         let payload = ArchiveEntryPayload(archiveURL: fixture.archive, generation: 0, entryIndex: 999,
                                           path: "old.txt", isDirectory: false)
@@ -195,7 +167,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testCancellationPartwayPreservesOriginalBytesAndGeneration() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive)
         let progress = Progress()
         let trace = AdditionProgressTrace()
@@ -213,7 +185,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testFailureAfterFirstItemLeavesOriginalUntouched() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive), progress = Progress()
         let second = try fixture.file("b")
         let trace = AdditionProgressTrace()
@@ -306,7 +278,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     @MainActor func testViewStateRestoresSelectionExpansionAndScrollAnchorByPath() throws {
-        let fixture = try Fixture()
+        let fixture = try ScenarioFixture(script: Self.originalScript)
         let entries = try ArchiveReader.open(url: fixture.archive).entries
         let old = EntryNode.tree(from: entries), new = EntryNode.tree(from: entries)
         let state = ArchiveViewState(selectedPaths: ["sub/deep/old.txt"], expandedPaths: ["sub", "sub/deep"], topPath: "sub/deep")
@@ -318,7 +290,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testUnsafeDestinationAndMissingFolderLeaveArchiveUntouched() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive)
         for path in ["../escape", "/absolute", "sub/../escape", "missing", "old.txt"] {
             do {
@@ -330,7 +302,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     @MainActor func testDocumentAppendInvalidatesMaterializationCache() async throws {
-        let fixture = try Fixture(), document = ArchiveDocument()
+        let fixture = try ScenarioFixture(script: Self.originalScript), document = ArchiveDocument()
         try document.read(from: fixture.archive, ofType: "zip")
         let controller = try XCTUnwrap(document.materializationController())
         let session = try XCTUnwrap(document.session)
@@ -377,7 +349,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     @MainActor func testPasteAddsFileURLsToDisplayedFolderWithoutUsingSelection() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let source = PasteboardProbe()
         source.urls = [try fixture.file("pasted.txt")]
         let result = try await session.append(urls: ArchiveIncomingPasteboard.readPaste(source), to: "sub/deep", progress: Progress())
@@ -388,7 +360,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     @MainActor func testNamedPasteboardFileURLAdapter() throws {
-        let fixture = try Fixture()
+        let fixture = try ScenarioFixture(script: Self.originalScript)
         let pasteboard = NSPasteboard(name: .init("KaitoFinder-DragIn-" + UUID().uuidString))
         defer { pasteboard.releaseGlobally() }
         guard pasteboard.setString("probe", forType: .string) else {
@@ -403,7 +375,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testCancellationAfterStagedCommitStillLeavesOriginalUntouched() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive), progress = Progress()
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: progress,
@@ -417,7 +389,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testFailureAfterStagedCommitStillLeavesOriginalUntouched() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
         let before = try Data(contentsOf: fixture.archive), progress = Progress()
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: progress,
@@ -431,7 +403,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testLeadingDotExistingEntryCollisionIsRefused() async throws {
-        let fixture = try Fixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('./old.txt', 'original')")
+        let fixture = try ScenarioFixture(script: "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('./old.txt', 'original')")
         let session = try ArchiveSession(url: fixture.archive), before = try Data(contentsOf: fixture.archive)
         let result = try await session.append(urls: [fixture.file("old.txt")], to: "", progress: Progress())
         XCTAssertEqual(result.failures.count, 1)
@@ -440,7 +412,7 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testAppendPreservesArchiveQuarantinePermissionsAndExtendedAttributes() async throws {
-        let fixture = try Fixture()
+        let fixture = try ScenarioFixture(script: Self.originalScript)
         let quarantine = Data("0083;00000001;KaitoFinderTests;append".utf8)
         try ExtractionQuarantine.apply(quarantine, to: fixture.archive)
         XCTAssertEqual(chmod(fixture.archive.path, 0o640), 0)
@@ -464,8 +436,8 @@ nonisolated final class DragInTests: XCTestCase {
     }
 
     func testDirectorySymlinkIsStoredWithoutFollowingItsSubtree() async throws {
-        let fixture = try Fixture(), session = try ArchiveSession(url: fixture.archive)
-        _ = try fixture.file("outside/secret", "outside")
+        let fixture = try ScenarioFixture(script: Self.originalScript), session = try ArchiveSession(url: fixture.archive)
+        _ = try fixture.file("outside/secret", bytes: Data("outside".utf8))
         try FileManager.default.createDirectory(at: fixture.root.appendingPathComponent("tree"), withIntermediateDirectories: true)
         try FileManager.default.createSymbolicLink(atPath: fixture.root.appendingPathComponent("tree/link").path, withDestinationPath: "../outside")
         let result = try await session.append(urls: [fixture.root.appendingPathComponent("tree")], to: "", progress: Progress())

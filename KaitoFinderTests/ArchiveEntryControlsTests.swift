@@ -8,44 +8,7 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveEntryControlsTests: XCTestCase {
-    private final class Fixture {
-        let directory: URL
-        let archive: URL
-
-        init(_ names: [String] = ["a.txt", "b.txt", "c.txt"], tar: Bool = false) throws {
-            directory = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-Controls-" + UUID().uuidString)
-            archive = directory.appendingPathComponent(tar ? "archive.tar.lzma" : "archive.zip")
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let process = Process(), output = Pipe()
-            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
-            process.arguments = ["-c", """
-            import io, sys, tarfile, zipfile
-            p, *names = sys.argv[1:]
-            if p.endswith('.tar.lzma'):
-                with tarfile.open(p, 'w') as a:
-                    for name in names:
-                        item = tarfile.TarInfo(name)
-                        data = name.encode()
-                        item.size = len(data)
-                        a.addfile(item, io.BytesIO(data))
-                import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
-            else:
-                with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as a:
-                    for name in names:
-                        a.writestr(name, b'' if name.endswith('/') else name.encode())
-            """, archive.path] + names
-            process.standardOutput = output
-            process.standardError = output
-            try process.run()
-            let data = output.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            XCTAssertEqual(process.terminationStatus, 0, String(decoding: data, as: UTF8.self))
-        }
-
-        deinit { try? FileManager.default.removeItem(at: directory) }
-    }
-
-    @MainActor private func interface(_ fixture: Fixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
+    @MainActor private func interface(_ fixture: ScenarioFixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
         -> (ArchiveDocument, ArchiveWindowController) {
         preserveArchiveWindowFrame()
         let document = ArchiveDocument(undoStack: stack)
@@ -84,7 +47,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         return Set((0..<view.numberOfRows).compactMap { (view.item(atRow: $0) as? EntryNode)?.path })
     }
 
-    private func names(_ fixture: Fixture) throws -> Set<String> {
+    private func names(_ fixture: ScenarioFixture) throws -> Set<String> {
         Set(try ArchiveReader.open(url: fixture.archive).entries.map(\.name))
     }
 
@@ -103,7 +66,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testMultiSelectionDeletesOnceAndRegistersOneUndoEntryWithoutConfirmation() async throws {
-        let fixture = try Fixture(), captures = Mutex(0)
+        let fixture = try ScenarioFixture.withEntries(), captures = Mutex(0)
         let stack = ArchiveUndoStack { source, destination in
             captures.withLock { $0 += 1 }
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
@@ -127,7 +90,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDeletingVirtualFolderRemovesAllDescendants() async throws {
-        let fixture = try Fixture(["virtual/a.txt", "virtual/deep/b.txt", "virtualish/keep.txt"])
+        let fixture = try ScenarioFixture.withEntries(["virtual/a.txt", "virtual/deep/b.txt", "virtualish/keep.txt"])
         let (document, controller) = try await interface(fixture)
         XCTAssertTrue(try node("virtual", in: controller).isVirtual)
         try select(["virtual", "virtual/a.txt"], in: controller)
@@ -139,7 +102,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDeletingRealDirectoryRemovesDirectoryAndDescendants() async throws {
-        let fixture = try Fixture(["real/", "real/a.txt", "real/deep/", "real/deep/b.txt", "keep.txt"])
+        let fixture = try ScenarioFixture.withEntries(["real/", "real/a.txt", "real/deep/", "real/deep/b.txt", "keep.txt"])
         let (_, controller) = try await interface(fixture)
         XCTAssertFalse(try node("real", in: controller).isVirtual)
         try select(["real"], in: controller)
@@ -150,7 +113,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testReturnCommitsInlineRenameAndPreservesSelection() async throws {
-        let fixture = try Fixture(), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (document, controller) = try await interface(fixture)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "renamed.txt")
         commit(controller, field: field, editor: editor)
@@ -165,7 +128,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testEscapeCancelsInlineRenameWithoutChangingArchive() async throws {
-        let fixture = try Fixture(), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (document, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "renamed.txt")
@@ -181,7 +144,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testFocusLossCommitsInlineRename() async throws {
-        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (_, controller) = try await interface(fixture)
         try select(["b.txt"], in: controller)
         let (field, _) = try editor(controller, text: "focus.txt")
         // Window の responder 移動を使い、終了通知だけを偽造しない。
@@ -302,7 +265,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor private func assertRejected(_ name: String, focusLoss: Bool = false) async throws {
-        let fixture = try Fixture(), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (document, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: name)
@@ -335,7 +298,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testSortingCommitsValidRenameAndKeepsInvalidNameEditing() async throws {
-        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (_, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "a.txt")
@@ -373,7 +336,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testRejectedNameCanBeCorrectedAndCommittedInSameEditor() async throws {
-        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (_, controller) = try await interface(fixture)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "a.txt")
         commit(controller, field: field, editor: editor)
@@ -385,7 +348,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testRenameRejectsVirtualFolderCollisionAndRenamesWholeSubtree() async throws {
-        let fixture = try Fixture(["source/a.txt", "source/deep/b.txt", "occupied/keep.txt"])
+        let fixture = try ScenarioFixture.withEntries(["source/a.txt", "source/deep/b.txt", "occupied/keep.txt"])
         let (document, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive)
         try select(["source"], in: controller)
@@ -450,7 +413,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testNonUndoableDeleteRequiresOneConfirmationAndHonorsBothResponses() async throws {
         // 文書のフラグを保持件数から false にする。ボリューム判定は偽装しない。
-        let fixture = try Fixture(), stack = ArchiveUndoStack(maximumCount: 0)
+        let fixture = try ScenarioFixture.withEntries(), stack = ArchiveUndoStack(maximumCount: 0)
         let (document, controller) = try await interface(fixture, stack: stack)
         XCTAssertFalse(document.canUndoNextMutation)
         let before = try ArchiveOracle.digest(fixture.archive)
@@ -477,7 +440,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testEditAndContextMenusValidateSelectionAndShortcuts() async throws {
-        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (_, controller) = try await interface(fixture)
         let mainItems = try XCTUnwrap(NSApp.mainMenu).items.compactMap(\.submenu).flatMap(\.items)
         let context = try XCTUnwrap(controller.outlineView.menu)
         let actions = [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))]
@@ -504,7 +467,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testReadOnlyArchiveDisablesBothMenusWithRefusalReason() async throws {
-        let fixture = try Fixture(tar: true), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(tar: true), (document, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive)
         try select(["a.txt"], in: controller)
         XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
@@ -521,7 +484,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testReadOnlyBlankMenuKeepsEditRefusalAndPasteConversionValidation() async throws {
-        let fixture = try Fixture(tar: true), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(tar: true), (document, controller) = try await interface(fixture)
         let menu = try XCTUnwrap(controller.outlineView.contextMenu(forRow: -1))
         let folder = try XCTUnwrap(menu.items.first { $0.action == #selector(ArchiveWindowController.newFolder(_:)) })
         XCTAssertFalse(controller.validateMenuItem(folder))
@@ -537,7 +500,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testToolbarValidationTracksSelectionReadabilityAndArchiveCapabilities() async throws {
         for readOnly in [false, true] {
-            let fixture = try Fixture(["a.txt", "folder/b.txt"], tar: readOnly)
+            let fixture = try ScenarioFixture.withEntries(["a.txt", "folder/b.txt"], tar: readOnly)
             let (document, controller) = try await interface(fixture)
             let toolbar = try XCTUnwrap(controller.window?.toolbar)
             func item(_ identifier: String) throws -> NSToolbarItem {
@@ -583,7 +546,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testPendingDeleteDisablesBothActionsAndCancellationPreservesBytesAndUndo() async throws {
-        let fixture = try Fixture(), gate = ScenarioGate()
+        let fixture = try ScenarioFixture.withEntries(), gate = ScenarioGate()
         let cancelled = Mutex(false)
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
@@ -628,7 +591,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testGatedDeleteBlocksInputImmediatelyAndAttachesAfterDelay() async throws {
-        let fixture = try Fixture(), gate = ScenarioGate()
+        let fixture = try ScenarioFixture.withEntries(), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             gate.pauseOnce()
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
@@ -667,7 +630,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor private func assertDelayedEditBlocksInput(throughApplication: Bool) async throws {
-        let fixture = try Fixture(["a.txt", "b.txt", "folder/", "folder/c.txt"]), gate = ScenarioGate()
+        let fixture = try ScenarioFixture.withEntries(["a.txt", "b.txt", "folder/", "folder/c.txt"]), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             gate.pauseOnce()
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
@@ -754,7 +717,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testSuspendedUndoAllowsWindowSelectionExceptWhileProgressSheetIsPending() async throws {
-        let fixture = try Fixture(), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (document, controller) = try await interface(fixture)
         let window = try XCTUnwrap(controller.window), view = controller.outlineView
         try await makeKeyWindow(window)
         XCTAssertTrue(window.makeFirstResponder(view))
@@ -823,7 +786,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDocumentMutationOutsideControllerDisablesBothEditActions() async throws {
-        let fixture = try Fixture(), gate = ScenarioGate()
+        let fixture = try ScenarioFixture.withEntries(), gate = ScenarioGate()
         let (document, controller) = try await interface(fixture)
         try select(["a.txt"], in: controller)
         let target = try node("c.txt", in: controller)
@@ -842,7 +805,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDeletingMiddleSiblingSelectsFollowingSibling() async throws {
-        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (_, controller) = try await interface(fixture)
         try select(["b.txt"], in: controller)
         controller.deleteEntries(nil)
         await controller.extractionTask?.value
@@ -850,7 +813,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDeletingOnlyChildSelectsSurvivingParent() async throws {
-        let fixture = try Fixture(["folder/", "folder/child.txt"])
+        let fixture = try ScenarioFixture.withEntries(["folder/", "folder/child.txt"])
         let (_, controller) = try await interface(fixture)
         try select(["folder/child.txt"], in: controller)
         controller.deleteEntries(nil)
@@ -860,7 +823,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testUndoAndRedoRebuildOutlineAndRestoreDeleteBytes() async throws {
-        let fixture = try Fixture(), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (document, controller) = try await interface(fixture)
         let before = try Data(contentsOf: fixture.archive)
         try select(["b.txt"], in: controller)
         let oldNode = try node("b.txt", in: controller)
@@ -972,7 +935,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             (["folder/deep/a.txt"], "folder/deep"), (["folder/deep"], "folder/deep"),
             (["folder/deep/a.txt", "other/b.txt"], "folder/deep"), (["folder", "other/b.txt"], "folder")]
         for (selection, parent) in cases {
-            let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
+            let fixture = try ScenarioFixture.withEntries(initial), (document, controller) = try await interface(fixture)
             try select(selection, in: controller)
             controller.newFolder(nil)
             await controller.extractionTask?.value
@@ -991,7 +954,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testNewFolderUsesHiddenCollisionsAndRevealsResultForRename() async throws {
         let leaf = String(localized: "名称未設定フォルダ")
-        let fixture = try Fixture(["parent/match.txt", "parent/" + leaf + "/", "parent/" + leaf + " 2/hidden.txt"])
+        let fixture = try ScenarioFixture.withEntries(["parent/match.txt", "parent/" + leaf + "/", "parent/" + leaf + " 2/hidden.txt"])
         let (_, controller) = try await interface(fixture)
         controller.setFilterQuery("match")
         XCTAssertEqual(paths(controller), ["parent", "parent/match.txt"])
@@ -1007,7 +970,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testNewFolderMenusUseShiftCommandNAndExposeReadOnlyReason() async throws {
         preserveApplicationMenus()
-        let (_, controller) = try await interface(Fixture())
+        let (_, controller) = try await interface(ScenarioFixture.withEntries())
         let menu = AppDelegate().makeMenu()
         let fileMenu = try XCTUnwrap(menu.items.compactMap(\.submenu).first { $0.title == String(localized: "ファイル") })
         let action = #selector(ArchiveWindowController.newFolder(_:))
@@ -1020,7 +983,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(context.title, String(localized: "新規フォルダ"))
         XCTAssertTrue(context.target === controller)
         XCTAssertTrue(controller.validateMenuItem(context))
-        let fixture = try Fixture(tar: true), before = try ArchiveOracle.digest(fixture.archive)
+        let fixture = try ScenarioFixture.withEntries(tar: true), before = try ArchiveOracle.digest(fixture.archive)
         let (document, readOnly) = try await interface(fixture)
         readOnly.setFilterQuery("a")
         XCTAssertFalse(readOnly.validateMenuItem(item))
@@ -1032,7 +995,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testFilterClearRestoresExpansionAndMultipleSelectionAfterQueryChangesAndReload() async throws {
-        let fixture = try Fixture(["a/top.txt", "a/deep/leaf.txt", "b/leaf.txt", "c/keep.txt"])
+        let fixture = try ScenarioFixture.withEntries(["a/top.txt", "a/deep/leaf.txt", "b/leaf.txt", "c/keep.txt"])
         let (document, controller) = try await interface(fixture), view = controller.outlineView
         view.collapseItem(try node("a/deep", in: controller))
         view.collapseItem(try node("b", in: controller))
@@ -1061,7 +1024,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         for explicit in [false, true] {
             let initial = ["folder/show.txt", "folder/hidden.txt", "folder/deep/hidden.bin", "outside/show.txt"]
                 + (explicit ? ["folder/", "folder/deep/"] : [])
-            let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
+            let fixture = try ScenarioFixture.withEntries(initial), (document, controller) = try await interface(fixture)
             let before = try ArchiveOracle.digest(fixture.archive)
             controller.setFilterQuery("show")
             // 検索語を親の名前に含めない。隠れた子孫がある状態でなければ cascade の検証にならない。
@@ -1093,7 +1056,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         for explicit in [false, true] {
             let initial = ["folder/show.txt", "folder/hidden.txt", "folder/deep/hidden.bin", "outside/show.txt"]
                 + (explicit ? ["folder/", "folder/deep/"] : [])
-            let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
+            let fixture = try ScenarioFixture.withEntries(initial), (document, controller) = try await interface(fixture)
             let before = try ArchiveOracle.digest(fixture.archive)
             controller.setFilterQuery("show")
             XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
@@ -1211,7 +1174,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testFilterChangePreservesInvalidInlineRenameUntilCorrected() async throws {
-        let fixture = try Fixture(), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(), (_, controller) = try await interface(fixture)
         controller.setFilterQuery(".txt")
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "a.txt")
@@ -1230,7 +1193,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testFilteredFolderCopyPreparationAndDragPromiseIncludeHiddenEntries() async throws {
-        let fixture = try Fixture(["folder/show.txt", "folder/deep/hidden.bin", "outside.txt"])
+        let fixture = try ScenarioFixture.withEntries(["folder/show.txt", "folder/deep/hidden.bin", "outside.txt"])
         let (document, controller) = try await interface(fixture), session = try XCTUnwrap(document.session)
         controller.setFilterQuery("show")
         try select(["folder"], in: controller)
@@ -1238,13 +1201,13 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let folder = try XCTUnwrap(controller.selectedNodes.first)
         let payload = ArchiveEntryPayload(node: folder, archiveURL: fixture.archive, generation: session.generation)
         let prepared = try await ArchiveCopyOut.prepare([payload], from: session, progress: Progress(),
-            temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.directory.appendingPathComponent("copy")))
+            temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.root.appendingPathComponent("copy")))
         let copy = try XCTUnwrap(prepared.urls.first)
         XCTAssertEqual(try Data(contentsOf: copy.appendingPathComponent("show.txt")), Data("folder/show.txt".utf8))
         XCTAssertEqual(try Data(contentsOf: copy.appendingPathComponent("deep/hidden.bin")), Data("folder/deep/hidden.bin".utf8))
         // 型サービスが遮断されても、promise の書き込み自体は選択した完全な部分木で検証する。
         let provider = NSFilePromiseProvider(), delegate = ArchiveFilePromise(payload: payload, session: session)
-        let output = fixture.directory.appendingPathComponent("promised-folder")
+        let output = fixture.root.appendingPathComponent("promised-folder")
         let completion = Mutex((calls: 0, failure: Optional<String>.none))
         delegate.filePromiseProvider(provider, writePromiseTo: output) { @Sendable error in
             completion.withLock { $0.calls += 1; $0.failure = error.map(String.init(describing:)) }
@@ -1259,7 +1222,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         guard UTType.folder.conforms(to: .directory) else {
             throw XCTSkip("この実行環境では LaunchServices が public.folder を解決できません")
         }
-        let fixture = try Fixture(["folder/show.txt", "folder/hidden.txt", "outside.txt"])
+        let fixture = try ScenarioFixture.withEntries(["folder/show.txt", "folder/hidden.txt", "outside.txt"])
         let (document, controller) = try await interface(fixture), session = try XCTUnwrap(document.session)
         controller.setFilterQuery("show")
         let folder = try node("folder", in: controller)
@@ -1320,7 +1283,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testLocalDragValidationReturnsMoveAndHighlightsHoveredFilesParent() async throws {
-        let fixture = try Fixture(["a/x.txt", "b/deep/target.txt"]), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(["a/x.txt", "b/deep/target.txt"]), (_, controller) = try await interface(fixture)
         let dragged = try node("a/x.txt", in: controller), folder = try node("b/deep", in: controller)
         let (session, info) = moveDrag([dragged], in: controller), view = MoveDropOutline()
         view.hovered = try node("b/deep/target.txt", in: controller)
@@ -1343,8 +1306,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testOptionAndCrossArchiveDragValidationRemainCopy() async throws {
-        let fixture = try Fixture(["a/x.txt", "b/target.txt"]), (_, controller) = try await interface(fixture)
-        let otherFixture = try Fixture(), (_, other) = try await interface(otherFixture)
+        let fixture = try ScenarioFixture.withEntries(["a/x.txt", "b/target.txt"]), (_, controller) = try await interface(fixture)
+        let otherFixture = try ScenarioFixture.withEntries(), (_, other) = try await interface(otherFixture)
         let (_, info) = moveDrag([try node("a/x.txt", in: controller)], in: controller)
         // 実際の型照会を通し、copy だけは引き続き pasteboard を必要とする。
         guard info.pasteboard.writeObjects([fixture.archive as NSURL]) else {
@@ -1365,7 +1328,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testLocalDragValidationAndAcceptanceRefuseSameParentOwnSubtreeAndReadOnlyArchive() async throws {
-        let fixture = try Fixture(["a/x.txt", "a/deep/y.txt", "b/"]), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(["a/x.txt", "a/deep/y.txt", "b/"]), (_, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive), view = MoveDropOutline()
         for (source, target) in [("a/x.txt", "a"), ("a", "a"), ("a", "a/deep")] {
             let (_, info) = moveDrag([try node(source, in: controller)], in: controller)
@@ -1377,7 +1340,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertNil(controller.extractionTask)
         }
         XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
-        let readOnly = try Fixture(["a/x.txt"], tar: true), (_, readOnlyController) = try await interface(readOnly)
+        let readOnly = try ScenarioFixture.withEntries(["a/x.txt"], tar: true), (_, readOnlyController) = try await interface(readOnly)
         let (_, info) = moveDrag([try node("a/x.txt", in: readOnlyController)], in: readOnlyController)
         let readOnlyBefore = try ArchiveOracle.digest(readOnly.archive)
         info.draggingSource = view
@@ -1393,7 +1356,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testAcceptLocalMoveMovesMultipleEntriesExpandsDestinationAndSelectsNewPaths() async throws {
-        let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/deep/keep.txt"])
+        let fixture = try ScenarioFixture.withEntries(["a/x.txt", "a/y.txt", "b/deep/keep.txt"])
         let (document, controller) = try await interface(fixture), before = try ArchiveOracle.digest(fixture.archive)
         let nodes = try [node("a/x.txt", in: controller), node("a/y.txt", in: controller)]
         let target = try node("b/deep/keep.txt", in: controller)
@@ -1424,7 +1387,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testAcceptLocalDirectoryMoveKeepsExpandedDescendantsAndSelectsMovedFolder() async throws {
-        let fixture = try Fixture(["a/", "a/deep/", "a/deep/x.txt", "a/y.txt", "b/"])
+        let fixture = try ScenarioFixture.withEntries(["a/", "a/deep/", "a/deep/x.txt", "a/y.txt", "b/"])
         let (_, controller) = try await interface(fixture)
         let source = try node("a", in: controller), target = try node("b", in: controller)
         let (_, info) = moveDrag([source], in: controller)
@@ -1438,7 +1401,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testAcceptLocalMoveRevealsSelectionWhenOldParentWasTheOnlyFilterMatch() async throws {
-        let fixture = try Fixture(["old/x.txt", "b/old-reference.txt"]), (_, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(["old/x.txt", "b/old-reference.txt"]), (_, controller) = try await interface(fixture)
         controller.setFilterQuery("old")
         let source = try node("old/x.txt", in: controller), target = try node("b", in: controller)
         let (_, info) = moveDrag([source], in: controller)
@@ -1450,7 +1413,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged() async throws {
-        let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
+        let fixture = try ScenarioFixture.withEntries(["a/x.txt", "a/y.txt", "b/x.txt"])
         let (document, controller) = try await interface(fixture), before = try ArchiveOracle.digest(fixture.archive)
         try select(["a/x.txt", "a/y.txt"], in: controller)
         let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
@@ -1471,7 +1434,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testLocalMoveCanReplaceOrSkipConflictAndUndoTheWholeBatch() async throws {
         for replace in [true, false] {
-            let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
+            let fixture = try ScenarioFixture.withEntries(["a/x.txt", "a/y.txt", "b/x.txt"])
             let (document, controller) = try await interface(fixture), before = try ArchiveOracle.digest(fixture.archive)
             try select(["a/x.txt", "a/y.txt"], in: controller)
             let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
@@ -1492,7 +1455,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testPendingMoveDisablesEditsAndDropsAndCancellationPreservesBytes() async throws {
-        let fixture = try Fixture(["a/x.txt", "b/"]), gate = ScenarioGate()
+        let fixture = try ScenarioFixture.withEntries(["a/x.txt", "b/"]), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
             gate.pause()
@@ -1558,5 +1521,27 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             result.append(literal[index]); index = literal.index(after: index)
         }
         return result
+    }
+}
+
+private extension ScenarioFixture {
+    /// `names` の項目を入れた ZIP。file の内容はそれぞれの名前で、`/` で終わる名前は directory にする。
+    /// `tar` なら同じ名前の file を入れた tar を LZMA_Alone で包んだ archive.tar.lzma（読み取り専用の形式）にする。
+    nonisolated static func withEntries(_ names: [String] = ["a.txt", "b.txt", "c.txt"], tar: Bool = false) throws -> ScenarioFixture {
+        try ScenarioFixture(script: """
+        names = sys.argv[2:]
+        if p.endswith('.tar.lzma'):
+            with tarfile.open(p, 'w') as a:
+                for name in names:
+                    item = tarfile.TarInfo(name)
+                    data = name.encode()
+                    item.size = len(data)
+                    a.addfile(item, io.BytesIO(data))
+            import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
+        else:
+            with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as a:
+                for name in names:
+                    a.writestr(name, b'' if name.endswith('/') else name.encode())
+        """, suffix: tar ? "tar.lzma" : "zip", arguments: names)
     }
 }

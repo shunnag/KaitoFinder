@@ -6,36 +6,25 @@ import XCTest
 
 /// 入力は標準 Python の ZIP/tar writer で毎回生成し、既存書庫を流用しない。
 nonisolated final class ExtractionTests: XCTestCase {
+    /// `ScenarioFixture` の書庫と、その隣の展開先 `out/`。
     private final class Fixture {
-        let parent: URL
+        let scenario: ScenarioFixture
         let destination: URL
-        let archive: URL
+        var parent: URL { scenario.root }
+        var archive: URL { scenario.archive }
 
         init(_ script: String, suffix: String = "zip") throws {
-            parent = FileManager.default.temporaryDirectory
-                .appendingPathComponent("KaitoFinder-ExtractionTests-" + UUID().uuidString)
-            destination = parent.appendingPathComponent("out", isDirectory: true)
-            archive = parent.appendingPathComponent("fixture." + suffix)
+            scenario = try ScenarioFixture(script: script, suffix: suffix)
+            destination = scenario.root.appendingPathComponent("out", isDirectory: true)
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
-            guard chmod(parent.path, 0o700) == 0 else { throw ExtractionFailure.system(errno) }
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
-            process.arguments = ["-c", "import sys, zipfile, tarfile, io, stat, struct\np = sys.argv[1]\n" + script, archive.path]
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { throw ExtractionFailure.refused("fixture 生成失敗") }
         }
 
-        deinit {
-            try? ExtractionTemporaryDirectory(root: parent).sweepOnLaunch()
-            try? FileManager.default.removeItem(at: parent)
-        }
+        // 展開で復元した読み取り専用の directory も消せるように片付け、fixture の directory の削除は ScenarioFixture に任せる。
+        deinit { try? ExtractionTemporaryDirectory(root: parent).sweepOnLaunch() }
 
         func extract(progress: Progress = Progress(totalUnitCount: 0),
                      didProcess: (@Sendable (Int) -> Void)? = nil) async throws -> ExtractionResult {
-            let session = try ArchiveSession(url: archive)
-            return try await ExtractionService.extract(ExtractionSelection(entries: await session.entries()),
-                from: session, to: destination, progress: progress, didProcess: didProcess)
+            try await scenario.extract(to: destination, progress: progress, didProcess: didProcess)
         }
 
         func text(_ path: String) throws -> String {

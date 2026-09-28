@@ -9,14 +9,14 @@ import XCTest
 
 nonisolated final class ArchiveUndoStackTests: XCTestCase {
     private final class Fixture {
-        let root: URL
+        let directory: ArchiveTestDirectory
         let archive: URL
         let inputs: URL
 
         init(payloadBytes: Int = 4096) throws {
-            root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-UndoTests-" + UUID().uuidString)
-            archive = root.appendingPathComponent("user/Archive.zip")
-            inputs = root.appendingPathComponent("inputs")
+            directory = try ArchiveTestDirectory()
+            archive = directory.url.appendingPathComponent("user/Archive.zip")
+            inputs = directory.url.appendingPathComponent("inputs")
             try FileManager.default.createDirectory(at: archive.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FileManager.default.createDirectory(at: inputs, withIntermediateDirectories: true)
             let payload = try file("payload.bin", byteCount: payloadBytes)
@@ -48,8 +48,6 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             }
             return url
         }
-
-        deinit { try? FileManager.default.removeItem(at: root) }
     }
 
     private func attributes(_ url: URL) throws -> stat {
