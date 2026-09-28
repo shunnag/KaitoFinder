@@ -278,76 +278,13 @@ nonisolated final class VolumeSetPublication: Sendable {
                 critical = true
                 progress.isCancellable = false
                 let prepared = transaction
-                let publishPrepared: @Sendable () throws -> PublishedVolumeSet = { [self] in
-                    var transaction = prepared
-                    do {
-                        try hook(.s5)
-                        try transaction.retireOld(hook: hook)
-                        let inodes = try transaction.placeNew(hook: hook)
-                        do { try transaction.validateNew(in: parent, inodes: inodes, options: options, validation: validation) }
-                        catch let error as VolumePublishError {
-                            if case .contentMismatch = error { throw error }
-                            // 次巻名の占有は namespace の衝突。reader の一時エラーとは分けて引き戻す。
-                            if case .nameOccupied = error { throw error }
-                            if Self.requiresHold(error) { throw error }
-                            throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
-                        } catch {
-                            throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
-                        }
-                        try hook(.s10)
-                        try hook(.s11)
-                    } catch is SimulatedCrash { throw SimulatedCrash() }
-                    catch let failure as VolumePublishError where Self.requiresHold(failure) { throw failure }
-                    catch {
-                        let underlying = String(describing: error)
-                        do { try transaction.rollback() }
-                        catch { throw VolumePublishError.rollbackIncomplete(staging.url) }
-                        var disposal: VolumeDisposal = .none
-                        var cleanupFailure = transaction.persistMetadataWarning(restored: true)
-                        do {
-                            disposal = try transaction.dispose("abandoned")
-                            if case .kept = disposal { cleanupFailure = "Generated data retained" }
-                            else { try transaction.removeEmptyStaging() }
-                        } catch { cleanupFailure = String(describing: error) }
-                        throw VolumePublishError.rolledBack(underlying: underlying, cleanupFailed: cleanupFailure, disposal: disposal)
-                    }
-                    var layout = ArchiveVolumeLayout(scheme: plan.scheme, volumes: plan.volumes.map {
-                        .init(url: parent.url.appendingPathComponent($0.name), length: $0.length)
-                    }, openedVolumeIndex: 0)
-                    layout.savedSchedule = target.schedule
-                    let identity: ArchiveSetIdentity
-                    // この durable な境界以降は cleanup のみ。失敗しても新しい identity を返す。
-                    do {
-                        identity = try ArchiveSetIdentity.capture(layout: layout)
-                        try transaction.phase(.done)
-                    } catch {
-                        throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
-                    }
-                    var disposal: VolumeDisposal = .none
-                    let metadataWarning = transaction.persistMetadataWarning()
-                    var cleanupFailure = metadataWarning
-                    do {
-                        try hook(.committed)
-                        disposal = try transaction.dispose("old")
-                        try hook(.oldDisposed)
-                        if case .kept = disposal {
-                            try transaction.markOldKept()
-                            cleanupFailure = "Superseded old volumes retained"
-                        }
-                        else { try transaction.removeEmptyStaging(hook: hook) }
-                    } catch is SimulatedCrash { throw SimulatedCrash() }
-                    catch { cleanupFailure = String(describing: error) }
-                    return PublishedVolumeSet(gateURL: layout.gateURL, layout: layout, identity: identity,
-                        oldVolumesDisposal: disposal, usedExclusiveRenameFallback: renamer.usesFallback,
-                        outcome: .committed(cleanupFailed: cleanupFailure), metadataWarning: metadataWarning)
-                }
                 #if DEBUG
                 // TaskLocal は detach した thread へ自動では渡らない。
                 return try UncancelledThread.run {
-                    try ArchiveStageDiagnostics.observer.withValue(observer) { try publishPrepared() }
+                    try ArchiveStageDiagnostics.observer.withValue(observer) { try self.commitPrepared(prepared, plan: plan, validation: validation) }
                 }
                 #else
-                return try UncancelledThread.run(publishPrepared)
+                return try UncancelledThread.run { try self.commitPrepared(prepared, plan: plan, validation: validation) }
                 #endif
             }
         } catch is SimulatedCrash { throw SimulatedCrash() }
@@ -355,6 +292,74 @@ nonisolated final class VolumeSetPublication: Sendable {
             if !critical { _ = try? transaction.discardPrepared() }
             throw error
         }
+    }
+
+    /// S5 以降の臨界区間。旧巻の退避、新巻の配置、S10 の検証、durable done、旧巻の後片付けを順に行う。
+    /// S11 の hook までの失敗は rollback して rolledBack を投げる（保留すべき検証失敗と SimulatedCrash はそのまま投げる）。
+    /// done を書いた後に残るのは後片付けだけで、その失敗は committed の cleanupFailed に載せる。
+    private func commitPrepared(_ prepared: VolumePublishTransaction, plan: VolumePlan,
+                                validation: (@Sendable (ArchiveReader) throws -> Void)?) throws -> PublishedVolumeSet {
+        var transaction = prepared
+        do {
+            try hook(.s5)
+            try transaction.retireOld(hook: hook)
+            let inodes = try transaction.placeNew(hook: hook)
+            do { try transaction.validateNew(in: parent, inodes: inodes, options: options, validation: validation) }
+            catch let error as VolumePublishError {
+                if case .contentMismatch = error { throw error }
+                // 次巻名の占有は namespace の衝突。reader の一時エラーとは分けて引き戻す。
+                if case .nameOccupied = error { throw error }
+                if Self.requiresHold(error) { throw error }
+                throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
+            } catch {
+                throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
+            }
+            try hook(.s10)
+            try hook(.s11)
+        } catch is SimulatedCrash { throw SimulatedCrash() }
+        catch let failure as VolumePublishError where Self.requiresHold(failure) { throw failure }
+        catch {
+            let underlying = String(describing: error)
+            do { try transaction.rollback() }
+            catch { throw VolumePublishError.rollbackIncomplete(staging.url) }
+            var disposal: VolumeDisposal = .none
+            var cleanupFailure = transaction.persistMetadataWarning(restored: true)
+            do {
+                disposal = try transaction.dispose("abandoned")
+                if case .kept = disposal { cleanupFailure = "Generated data retained" }
+                else { try transaction.removeEmptyStaging() }
+            } catch { cleanupFailure = String(describing: error) }
+            throw VolumePublishError.rolledBack(underlying: underlying, cleanupFailed: cleanupFailure, disposal: disposal)
+        }
+        var layout = ArchiveVolumeLayout(scheme: plan.scheme, volumes: plan.volumes.map {
+            .init(url: parent.url.appendingPathComponent($0.name), length: $0.length)
+        }, openedVolumeIndex: 0)
+        layout.savedSchedule = target.schedule
+        let identity: ArchiveSetIdentity
+        // この durable な境界以降は cleanup のみ。失敗しても新しい identity を返す。
+        do {
+            identity = try ArchiveSetIdentity.capture(layout: layout)
+            try transaction.phase(.done)
+        } catch {
+            throw VolumePublishError.publishedVerificationPending(staging: staging.url, diagnostic: String(describing: error))
+        }
+        var disposal: VolumeDisposal = .none
+        let metadataWarning = transaction.persistMetadataWarning()
+        var cleanupFailure = metadataWarning
+        do {
+            try hook(.committed)
+            disposal = try transaction.dispose("old")
+            try hook(.oldDisposed)
+            if case .kept = disposal {
+                try transaction.markOldKept()
+                cleanupFailure = "Superseded old volumes retained"
+            }
+            else { try transaction.removeEmptyStaging(hook: hook) }
+        } catch is SimulatedCrash { throw SimulatedCrash() }
+        catch { cleanupFailure = String(describing: error) }
+        return PublishedVolumeSet(gateURL: layout.gateURL, layout: layout, identity: identity,
+            oldVolumesDisposal: disposal, usedExclusiveRenameFallback: renamer.usesFallback,
+            outcome: .committed(cleanupFailed: cleanupFailure), metadataWarning: metadataWarning)
     }
 
     private static func requiresHold(_ error: VolumePublishError) -> Bool {

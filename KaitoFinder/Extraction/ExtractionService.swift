@@ -268,60 +268,13 @@ nonisolated enum ExtractionService {
                     }
                     materialized[entry.index] = components
                 case .symlink:
-                    let target: String
-                    if let staged {
-                        target = try FileManager.default.destinationOfSymbolicLink(atPath: staged.stagedURL.path)
-                        try staged.stagedStamp.verify()
-                    } else if let retained = entry.formatSpecific["linkPath"] {
-                        try drain(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation)
-                        target = retained
-                    } else if entry.formatSpecific["linkTargetStoredAsData"] == "true" {
-                        var data = Data()
-                        try consume(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation) { bytes in
-                            guard data.count + bytes.count <= 16_384 else {
-                                throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが長すぎます。"))
-                            }
-                            data.append(contentsOf: bytes)
-                        }
-                        guard let decoded = String(data: data, encoding: .utf8) else {
-                            throw ExtractionFailure.refused(String(localized: "リンクのtargetがUTF-8ではありません。"))
-                        }
-                        target = decoded
-                    } else {
-                        throw ExtractionFailure.refused(String(localized: "リンクのtargetがありません。"))
-                    }
+                    let target = try symlinkTarget(entry, original: original, staged: staged, reader: reader,
+                                                   buffer: &buffer, checkCancellation: checkCancellation)
                     try output.symlink(components, target: target, staged: staged)
                 case .hardlink:
-                    if sources != nil {
-                        // 改名・削除済みの target も基底 index で辿る。Save の rewriter と同じ本文を独立して運ぶ。
-                        var target = original
-                        while target.kind == .hardlink, (target.compressedSize ?? target.uncompressedSize ?? 0) == 0 {
-                            guard let index = target.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
-                                  index >= 0, index < target.index, reader.entries.indices.contains(index) else {
-                                throw ArchiveEntryPayload.staleSelection
-                            }
-                            target = reader.entries[index]
-                        }
-                        try output.file(components, entry: entry, stream: reader.stream(target), buffer: &buffer,
-                                        checkCancellation: checkCancellation)
-                        materialized[entry.index] = components
-                        break
-                    }
-                    // 本体付き hard link は既存 inode の内容を書き換えず、独立ファイルにする。
-                    if (entry.compressedSize ?? entry.uncompressedSize ?? 0) > 0 {
-                        try output.file(components, entry: entry, stream: reader.stream(entry), buffer: &buffer,
-                                        checkCancellation: checkCancellation)
-                    } else {
-                        guard let index = entry.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
-                              let target = materialized[index], index < entry.index,
-                              let targetName = entry.formatSpecific["linkPath"],
-                              try mapping.components(targetName) == target else {
-                            throw ExtractionFailure.refused(String(localized: "同じreaderとrootで先に展開したhard link targetがありません。"))
-                        }
-                        try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
-                        try output.hardlink(components, target: target)
-                    }
-                    materialized[entry.index] = components
+                    try extractHardlink(entry, original: original, components: components, output: output, reader: reader,
+                                        mapping: mapping, hasSources: sources != nil, materialized: &materialized,
+                                        buffer: &buffer, checkCancellation: checkCancellation)
                 case .other:
                     throw ExtractionFailure.refused(String(localized: "このentryの種類は展開できません。"))
                 }
@@ -378,6 +331,72 @@ nonisolated enum ExtractionService {
         result.written += output.createdDirectories.filter { !explicit.contains($0.path) }
             .map { ExtractionResult.WrittenItem(entryIndex: nil, url: $0) }
         return result
+    }
+
+    /// symlink の宛先。退避物はリンク自身から、reader の entry は formatSpecific か本文（UTF-8、16 KiB まで）から読む。
+    private static func symlinkTarget(_ entry: ArchiveEntry, original: ArchiveEntry, staged: ArchivePendingChanges.PendingAddition?,
+                                      reader: ArchiveReader, buffer: inout [UInt8], checkCancellation: () throws -> Void) throws -> String {
+        if let staged {
+            let target = try FileManager.default.destinationOfSymbolicLink(atPath: staged.stagedURL.path)
+            try staged.stagedStamp.verify()
+            return target
+        }
+        if let retained = entry.formatSpecific["linkPath"] {
+            try drain(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation)
+            return retained
+        }
+        if entry.formatSpecific["linkTargetStoredAsData"] == "true" {
+            var data = Data()
+            try consume(reader.stream(original), buffer: &buffer, checkCancellation: checkCancellation) { bytes in
+                guard data.count + bytes.count <= 16_384 else {
+                    throw ExtractionFailure.refused(String(localized: "シンボリックリンクのtargetが長すぎます。"))
+                }
+                data.append(contentsOf: bytes)
+            }
+            guard let decoded = String(data: data, encoding: .utf8) else {
+                throw ExtractionFailure.refused(String(localized: "リンクのtargetがUTF-8ではありません。"))
+            }
+            return decoded
+        }
+        throw ExtractionFailure.refused(String(localized: "リンクのtargetがありません。"))
+    }
+
+    /// hard link。保留中の読み取り（sources あり）では基底 index で target を辿り、本文を独立ファイルとして書く。
+    /// 本体付きの link も独立ファイル。本体なしの link は同じ root で先に展開した target へ linkat する。
+    private static func extractHardlink(_ entry: ArchiveEntry, original: ArchiveEntry, components: [String],
+                                        output: ExtractionDestination, reader: ArchiveReader, mapping: OutputMapping,
+                                        hasSources: Bool, materialized: inout [Int: [String]],
+                                        buffer: inout [UInt8], checkCancellation: () throws -> Void) throws {
+        if hasSources {
+            // 改名・削除済みの target も基底 index で辿る。Save の rewriter と同じ本文を独立して運ぶ。
+            var target = original
+            while target.kind == .hardlink, (target.compressedSize ?? target.uncompressedSize ?? 0) == 0 {
+                guard let index = target.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
+                      index >= 0, index < target.index, reader.entries.indices.contains(index) else {
+                    throw ArchiveEntryPayload.staleSelection
+                }
+                target = reader.entries[index]
+            }
+            try output.file(components, entry: entry, stream: reader.stream(target), buffer: &buffer,
+                            checkCancellation: checkCancellation)
+            materialized[entry.index] = components
+            return
+        }
+        // 本体付き hard link は既存 inode の内容を書き換えず、独立ファイルにする。
+        if (entry.compressedSize ?? entry.uncompressedSize ?? 0) > 0 {
+            try output.file(components, entry: entry, stream: reader.stream(entry), buffer: &buffer,
+                            checkCancellation: checkCancellation)
+        } else {
+            guard let index = entry.formatSpecific["hardLinkTargetIndex"].flatMap(Int.init),
+                  let target = materialized[index], index < entry.index,
+                  let targetName = entry.formatSpecific["linkPath"],
+                  try mapping.components(targetName) == target else {
+                throw ExtractionFailure.refused(String(localized: "同じreaderとrootで先に展開したhard link targetがありません。"))
+            }
+            try drain(reader.stream(entry), buffer: &buffer, checkCancellation: checkCancellation)
+            try output.hardlink(components, target: target)
+        }
+        materialized[entry.index] = components
     }
 
     static func written(_ entry: ArchiveEntry, components: [String], output: ExtractionDestination) throws

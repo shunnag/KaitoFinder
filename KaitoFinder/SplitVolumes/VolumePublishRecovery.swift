@@ -211,26 +211,11 @@ nonisolated struct VolumePublishRecovery: Sendable {
                 let originalURL = parent.url.appendingPathComponent(baseName, isDirectory: true)
                 let indexedURL = entry.map { URL(fileURLWithPath: $0.stagingPath, isDirectory: true) } ?? originalURL
                 if try url.lastPathComponent.hasSuffix(".discard") || (parent.info(baseName) == nil && parent.info(baseName + ".discard") != nil) {
-                    try VolumePublishRemoval.remove(baseName + ".discard", from: parent, operations: operations)
-                    try parent.sync(full: true)
-                    if try parent.info(baseName) == nil { try index.removeCompleted(indexedURL) }
-                    return .recovered(staging: url, direction: .cleanup, disposal: .removed)
+                    return try removeTombstone(baseName, parent: parent, indexedURL: indexedURL, staging: url)
                 }
                 if try parent.info(url.lastPathComponent) == nil {
-                    guard let entry else { return .recovered(staging: url, direction: .cleanup, disposal: .none) }
-                    let roots = Set(mounts.volumes.filter { $0.uuid == entry.volumeUUID }.map(\.root))
-                    guard mounts.isComplete, VolumePublishFS.knownUUID(entry.volumeUUID), entry.volumeUUID == volume.uuid,
-                          roots.count == 1, let root = roots.first,
-                          let resolved = entry.resolved(on: root, uuid: entry.volumeUUID) else { throw VolumePublishError.system(ENOENT) }
-                    let resolvedParent = try VolumePublishDirectory(resolved.deletingLastPathComponent())
-                    var actual = stat(), expected = stat()
-                    guard fstat(parent.fd, &actual) == 0, fstat(resolvedParent.fd, &expected) == 0,
-                          actual.st_dev == expected.st_dev, actual.st_ino == expected.st_ino,
-                          entry.parentInode == actual.st_ino,
-                          try resolvedParent.info(resolved.lastPathComponent) == nil,
-                          try resolvedParent.info(resolved.lastPathComponent + ".discard") == nil else { throw VolumePublishError.setChanged }
-                    try index.removeCompleted(indexedURL)
-                    return .recovered(staging: url, direction: .cleanup, disposal: .none)
+                    return try resolveMissingStaging(entry: entry, mounts: mounts, volume: volume, parent: parent,
+                                                     indexedURL: indexedURL, staging: url)
                 }
                 let staging = try parent.directory(url.lastPathComponent)
                 let journal: VolumePublishJournal
@@ -278,18 +263,9 @@ nonisolated struct VolumePublishRecovery: Sendable {
                 if try transaction.abandonedIsDisposable() { return try finishBackward(&transaction) }
                 let contents = try transaction.inspect()
                 var direction: Direction
-                if contents.abandoned || record.phase == .abandoned {
-                    guard contents.allOld || contents.newAtFinal.contains(true) else {
-                        return .held(staging: url, reason: "Incomplete old set; no placed new volumes to withdraw")
-                    }
-                    direction = .backward
-                }
-                else if contents.allNew && contents.allOld && transaction.forwardObstacles(contents).isEmpty { direction = .forward }
-                else if contents.allOld { direction = .backward }
-                else { return .held(staging: url, reason: "Incomplete old set; recovery cannot prove a safe direction") }
-                if direction == .backward, !contents.newAtFinal.contains(true),
-                   !contents.foreignFinal.isDisjoint(with: Set(record.oldVolumes.map(\.name))) {
-                    return .held(staging: url, reason: "An old name has an unrelated occupant")
+                switch Self.chooseDirection(contents, record: record, forwardObstacles: transaction.forwardObstacles(contents)) {
+                case .proceed(let chosen): direction = chosen
+                case .hold(let reason): return .held(staging: url, reason: reason)
                 }
                 if direction == .backward, contents.oldDirectoryEmpty, !contents.newAtFinal.contains(true) {
                     // Internal staging renames only. If that proof changes, stop before any live move.
@@ -317,55 +293,115 @@ nonisolated struct VolumePublishRecovery: Sendable {
                 return try coordinator.withAccess(gate: gateURL, additional: liveURLs, timeout: 10) {
                     let prepared = transaction, chosenDirection = direction
                     return try UncancelledThread.run {
-                        var transaction = prepared
-                        let lease = try VolumePublishCriticalSection.shared.enter()
-                        defer { withExtendedLifetime(lease) {} }
-                        if journal.usesOwnerFallback {
-                            transaction.record.owner = try VolumePublishProcessIdentity.capture()
-                            guard transaction.record.owner != nil else { throw VolumePublishError.journalUnreadable }
-                            try journal.write(transaction.record)
-                        }
-                        if chosenDirection == .backward {
-                            try Self.requireUnpresented(record, parent: parent, excluding: excluded)
-                            try transaction.rollback()
-                            return try finishBackward(&transaction)
-                        }
-                        // coordinator を待つ間に非協調 writer が変えた状態も再確認する。
-                        let current = try transaction.inspect()
-                        guard current.allOld else {
-                            return .held(staging: url, reason: "Old set changed while acquiring coordination")
-                        }
-                        do {
-                            if let foreign = transaction.forwardObstacles(current).sorted().first { throw VolumePublishError.nameOccupied(foreign) }
-                            // すべて最終名にある場合は gate を再び隠す必要がない。
-                            if !current.newAtFinal.allSatisfy({ $0 }) {
-                                try Self.requireUnpresented(record, parent: parent, excluding: excluded)
-                                try transaction.retireOld(hook: { _ in })
-                                _ = try transaction.placeNew(hook: { _ in })
-                            }
-                        } catch {
-                            // 配置・占有の失敗では、foreign gate の横に自分の新巻を残さない。
-                            try Self.requireUnpresented(record, parent: parent, excluding: excluded)
-                            try transaction.rollback()
-                            return try finishBackward(&transaction)
-                        }
-                        // S4 already opened these exact bytes with the caller's credentials.
-                        do { try transaction.validateHashes(in: parent) }
-                        catch let error as VolumePublishError {
-                            switch error {
-                            case .contentMismatch, .nameOccupied:
-                                try Self.requireUnpresented(record, parent: parent, excluding: excluded)
-                                try transaction.rollback()
-                                return try finishBackward(&transaction)
-                            default: throw error
-                            }
-                        }
-                        return try finishForward(&transaction, options: options)
+                        try self.finishUnderCoordination(prepared, direction: chosenDirection, journal: journal, record: record,
+                                                         parent: parent, excluding: excluded, options: options, staging: url)
                     }
                 }
             } catch VolumePublishError.ownerAlive { return .owned(url) }
             catch { return .held(staging: url, reason: String(describing: error)) }
         }
+    }
+    /// 破棄が確定した staging の墓標（<name>.discard）を消す。原本の名前がもう無ければ索引の項目も外す。
+    private func removeTombstone(_ baseName: String, parent: VolumePublishDirectory, indexedURL: URL, staging url: URL) throws -> Result {
+        try VolumePublishRemoval.remove(baseName + ".discard", from: parent, operations: operations)
+        try parent.sync(full: true)
+        if try parent.info(baseName) == nil { try index.removeCompleted(indexedURL) }
+        return .recovered(staging: url, direction: .cleanup, disposal: .removed)
+    }
+
+    /// staging が親に無い。索引の手がかり（volume UUID・相対パス・親 inode）が今の親と一致し、
+    /// 解決先にも staging と墓標が無いと証明できたときだけ索引の項目を外す。
+    private func resolveMissingStaging(entry: RecoverableWorkIndex.Entry?, mounts: VolumePublishFS.MountScan,
+                                       volume: VolumePublishFS.VolumeInfo, parent: VolumePublishDirectory,
+                                       indexedURL: URL, staging url: URL) throws -> Result {
+        guard let entry else { return .recovered(staging: url, direction: .cleanup, disposal: .none) }
+        let roots = Set(mounts.volumes.filter { $0.uuid == entry.volumeUUID }.map(\.root))
+        guard mounts.isComplete, VolumePublishFS.knownUUID(entry.volumeUUID), entry.volumeUUID == volume.uuid,
+              roots.count == 1, let root = roots.first,
+              let resolved = entry.resolved(on: root, uuid: entry.volumeUUID) else { throw VolumePublishError.system(ENOENT) }
+        let resolvedParent = try VolumePublishDirectory(resolved.deletingLastPathComponent())
+        var actual = stat(), expected = stat()
+        guard fstat(parent.fd, &actual) == 0, fstat(resolvedParent.fd, &expected) == 0,
+              actual.st_dev == expected.st_dev, actual.st_ino == expected.st_ino,
+              entry.parentInode == actual.st_ino,
+              try resolvedParent.info(resolved.lastPathComponent) == nil,
+              try resolvedParent.info(resolved.lastPathComponent + ".discard") == nil else { throw VolumePublishError.setChanged }
+        try index.removeCompleted(indexedURL)
+        return .recovered(staging: url, direction: .cleanup, disposal: .none)
+    }
+
+    private enum DirectionChoice { case proceed(Direction), hold(reason: String) }
+    /// 回復の向きの判定表。forward は新旧の全巻が揃い foreign な障害物が無いときだけ、backward は旧セットが揃っているときだけ。
+    /// それ以外は理由を付けて保留する。
+    private static func chooseDirection(_ contents: VolumePublishTransaction.Contents, record: VolumePublishJournalRecord,
+                                        forwardObstacles: Set<String>) -> DirectionChoice {
+        let direction: Direction
+        if contents.abandoned || record.phase == .abandoned {
+            guard contents.allOld || contents.newAtFinal.contains(true) else {
+                return .hold(reason: "Incomplete old set; no placed new volumes to withdraw")
+            }
+            direction = .backward
+        }
+        else if contents.allNew && contents.allOld && forwardObstacles.isEmpty { direction = .forward }
+        else if contents.allOld { direction = .backward }
+        else { return .hold(reason: "Incomplete old set; recovery cannot prove a safe direction") }
+        if direction == .backward, !contents.newAtFinal.contains(true),
+           !contents.foreignFinal.isDisjoint(with: Set(record.oldVolumes.map(\.name))) {
+            return .hold(reason: "An old name has an unrelated occupant")
+        }
+        return .proceed(direction)
+    }
+
+    /// coordinator と臨界区間の内側で、後退（rollback）または前進（退避 → 配置 → hash 証明 → done）を完了する。
+    /// 待っている間に非協調 writer が変えた状態は inspect で再確認し、証明できなければ保留か後退にする。
+    private func finishUnderCoordination(_ prepared: VolumePublishTransaction, direction chosenDirection: Direction,
+                                         journal: VolumePublishJournal, record: VolumePublishJournalRecord,
+                                         parent: VolumePublishDirectory, excluding excluded: ObjectIdentifier?,
+                                         options: ReaderOptions, staging url: URL) throws -> Result {
+        var transaction = prepared
+        let lease = try VolumePublishCriticalSection.shared.enter()
+        defer { withExtendedLifetime(lease) {} }
+        if journal.usesOwnerFallback {
+            transaction.record.owner = try VolumePublishProcessIdentity.capture()
+            guard transaction.record.owner != nil else { throw VolumePublishError.journalUnreadable }
+            try journal.write(transaction.record)
+        }
+        if chosenDirection == .backward {
+            try Self.requireUnpresented(record, parent: parent, excluding: excluded)
+            try transaction.rollback()
+            return try finishBackward(&transaction)
+        }
+        // coordinator を待つ間に非協調 writer が変えた状態も再確認する。
+        let current = try transaction.inspect()
+        guard current.allOld else {
+            return .held(staging: url, reason: "Old set changed while acquiring coordination")
+        }
+        do {
+            if let foreign = transaction.forwardObstacles(current).sorted().first { throw VolumePublishError.nameOccupied(foreign) }
+            // すべて最終名にある場合は gate を再び隠す必要がない。
+            if !current.newAtFinal.allSatisfy({ $0 }) {
+                try Self.requireUnpresented(record, parent: parent, excluding: excluded)
+                try transaction.retireOld(hook: { _ in })
+                _ = try transaction.placeNew(hook: { _ in })
+            }
+        } catch {
+            // 配置・占有の失敗では、foreign gate の横に自分の新巻を残さない。
+            try Self.requireUnpresented(record, parent: parent, excluding: excluded)
+            try transaction.rollback()
+            return try finishBackward(&transaction)
+        }
+        // S4 already opened these exact bytes with the caller's credentials.
+        do { try transaction.validateHashes(in: parent) }
+        catch let error as VolumePublishError {
+            switch error {
+            case .contentMismatch, .nameOccupied:
+                try Self.requireUnpresented(record, parent: parent, excluding: excluded)
+                try transaction.rollback()
+                return try finishBackward(&transaction)
+            default: throw error
+            }
+        }
+        return try finishForward(&transaction, options: options)
     }
     private static func requireUnpresented(_ record: VolumePublishJournalRecord, parent: VolumePublishDirectory,
                                            excluding excluded: ObjectIdentifier?) throws {
