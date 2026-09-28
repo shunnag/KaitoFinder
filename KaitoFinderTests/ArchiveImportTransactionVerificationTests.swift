@@ -99,7 +99,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
                     default: codec = "tar"
                     }
                     XCTAssertThrowsError(try ArchiveImportTransaction.didCommitForTesting.withValue({ work in
-                        try directory.run("/usr/bin/python3", ["-c", #"""
+                        try directory.run(ExternalTool.python3, ["-c", #"""
                         import sys, pathlib, tarfile, io, gzip, bz2, lzma
                         p = pathlib.Path(sys.argv[1])
                         codec = {'gzip': gzip, 'bz2': bz2, 'lzma': lzma}.get(sys.argv[2])
@@ -292,10 +292,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
 
     func testSharedProjectionUsesNFCMultisetsKindsSizesAndOnlyOmitsDirectoryRoot() throws {
         func entry(_ name: String, kind: EntryKind = .file, size: UInt64 = 1) -> ArchiveEntry {
-            ArchiveEntry(index: 0, rawName: .init(bytes: Array(name.utf8)), name: name,
-                pathComponents: ArchivePath.components(name), kind: kind, uncompressedSize: size, compressedSize: nil,
-                modificationDate: nil, posixPermissions: nil, isEncrypted: false, solidGroup: -1, crc32: nil,
-                methodDescription: "", formatSpecific: [:])
+            archiveColumnEntry(name, kind: kind, size: size, compressed: nil, method: "", pathComponents: ArchivePath.components(name))
         }
         let a = entry("./cafe\u{301}"), b = entry("b", kind: .symlink), sidecar = entry("__MACOSX/._b", size: 80)
         let projection = ArchiveOutputProjection(projected: [entry("./", kind: .directory, size: 0), a, b, sidecar], mode: .rewrite(.zip))
@@ -331,7 +328,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
 
     func testZIPVerificationCostAt100kEntries() throws {
         let directory = try ArchiveTestDirectory(), url = directory.url.appendingPathComponent("100k.zip")
-        try directory.run("/usr/bin/python3", ["-c", #"""
+        try directory.run(ExternalTool.python3, ["-c", #"""
         import sys, zipfile
         with zipfile.ZipFile(sys.argv[1], 'w', compression=zipfile.ZIP_STORED) as archive:
             for i in range(100000):

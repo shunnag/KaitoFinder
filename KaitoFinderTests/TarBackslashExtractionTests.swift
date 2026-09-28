@@ -16,7 +16,7 @@ nonisolated final class TarBackslashExtractionTests: XCTestCase {
             directory = try ArchiveTestDirectory()
             archive = directory.url.appendingPathComponent("fixture." + suffix)
             let json = String(decoding: try JSONSerialization.data(withJSONObject: names), as: UTF8.self)
-            try directory.run("/usr/bin/python3", ["-c", #"""
+            try directory.run(ExternalTool.python3, ["-c", #"""
             import io, json, sys, tarfile, zipfile
             path, suffix, names = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
             if suffix == 'zip':
@@ -236,7 +236,7 @@ nonisolated final class TarBackslashExtractionTests: XCTestCase {
     func testBSDTarVerbatimPathsMatchFixtureANameBytesKindsAndContents() throws {
         let fixture = try Fixture(), expected = try fixture.output(), actual = try fixture.output()
         // bsdtar の既定は C: を外すため、この安全な fixture だけは名前をそのまま使う。
-        try fixture.directory.run("/usr/bin/bsdtar", ["-Pxf", fixture.archive.path, "-C", expected.path])
+        try fixture.directory.run(ExternalTool.bsdtar, ["-Pxf", fixture.archive.path, "-C", expected.path])
         let reader = try ArchiveReader.open(url: fixture.archive)
         try ArchiveCopyOut.check(ExtractionService.extractResolved(reader.entries, reader: reader, to: actual, quarantine: nil, progress: Progress()))
         try assertEditableOutput(actual)

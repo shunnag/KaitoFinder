@@ -6,10 +6,9 @@ import XCTest
 
 nonisolated final class DeferredSavePlanEquivalenceTests: XCTestCase {
     private func entry(_ index: Int, _ name: String, kind: EntryKind = .file, target: String? = nil) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: .init(bytes: Array(name.utf8)), name: name,
-            pathComponents: ArchivePath.components(name), kind: kind, uncompressedSize: kind == .directory ? 0 : 1,
-            compressedSize: nil, modificationDate: nil, posixPermissions: nil, isEncrypted: false,
-            solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: target.map { ["hardLinkTargetIndex": $0] } ?? [:])
+        archiveColumnEntry(name, index: index, kind: kind, size: kind == .directory ? 0 : 1, compressed: nil, method: "stored",
+                           pathComponents: ArchivePath.components(name),
+                           formatSpecific: target.map { ["hardLinkTargetIndex": $0] } ?? [:])
     }
     private func reference(_ entry: ArchiveEntry) -> ArchivePendingChanges.BaseReference {
         .init(index: entry.index, expectedName: entry.name, baseGeneration: 0)

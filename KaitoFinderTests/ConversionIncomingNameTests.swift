@@ -34,10 +34,10 @@ nonisolated final class ConversionIncomingNameTests: XCTestCase {
         let creator = ArchiveCreationController(store: ArchivePreferencesStore(defaults: defaults.defaults))
         let tarBzip2 = directory.url.appendingPathComponent("original.tar.bz2")
         try Data("original content".utf8).write(to: directory.url.appendingPathComponent("old.txt"))
-        try directory.run("/usr/bin/tar", ["--no-mac-metadata", "--no-xattrs", "-cjf", tarBzip2.path, "old.txt"])
+        try directory.run(ExternalTool.tar, ["--no-mac-metadata", "--no-xattrs", "-cjf", tarBzip2.path, "old.txt"])
         // ArchiveCreationTests の変換 fixture を、編集非対応の外側の圧縮で包む。
         let archive = directory.url.appendingPathComponent("original.tar.lzma")
-        try directory.run("/usr/bin/python3", ["-c", "import bz2, lzma, sys; open(sys.argv[2], 'wb').write(lzma.compress(bz2.decompress(open(sys.argv[1], 'rb').read()), format=lzma.FORMAT_ALONE))", tarBzip2.path, archive.path])
+        try directory.run(ExternalTool.python3, ["-c", "import bz2, lzma, sys; open(sys.argv[2], 'wb').write(lzma.compress(bz2.decompress(open(sys.argv[1], 'rb').read()), format=lzma.FORMAT_ALONE))", tarBzip2.path, archive.path])
         let original = try Data(contentsOf: archive), session = try ArchiveSession(url: archive)
         XCTAssertFalse(session.capabilities.canEdit)
         let existing = try await ArchiveCreationController.existingArchive(from: session, progress: Progress())

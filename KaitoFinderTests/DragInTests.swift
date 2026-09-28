@@ -14,7 +14,7 @@ nonisolated final class DragInTests: XCTestCase {
             root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-DragIn-" + UUID().uuidString)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             archive = root.appendingPathComponent(filename)
-            try run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct\np=sys.argv[1]\n" + script, archive.path])
+            try run(ExternalTool.python3, ["-c", "import sys, zipfile, tarfile, io, struct\np=sys.argv[1]\n" + script, archive.path])
         }
         deinit { try? FileManager.default.removeItem(at: root) }
         func file(_ name: String, _ text: String = "added") throws -> URL {
@@ -36,16 +36,6 @@ nonisolated final class DragInTests: XCTestCase {
             XCTAssertEqual(process.terminationStatus, 0, text)
             return text
         }
-    }
-
-    private func contents(_ reader: ArchiveReader) throws -> [String: Data] {
-        var result: [String: Data] = [:]
-        for entry in reader.entries {
-            var bytes = Data()
-            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { bytes.append(contentsOf: $0) }
-            result[entry.name] = bytes
-        }
-        return result
     }
 
     private final class AdditionProgressTrace: Sendable {
@@ -76,9 +66,9 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(result.addedPaths, ["new.txt"])
         XCTAssertTrue(result.failures.isEmpty)
         XCTAssertNil(result.reloadFailure)
-        let bytes = try contents(ArchiveReader.open(url: fixture.archive))
+        let bytes = try ArchiveOracle.contents(ArchiveReader.open(url: fixture.archive), including: .all)
         XCTAssertEqual(bytes, ["old.txt": Data("original".utf8), "sub/deep/old.txt": Data("nested".utf8), "new.txt": Data("added".utf8)])
-        print(try fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path]))
+        print(try fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
     }
 
     func testAppendDirectoryPreservesSubtreeAndEmptyDirectoryUnderVirtualFolder() async throws {
@@ -87,13 +77,13 @@ nonisolated final class DragInTests: XCTestCase {
         _ = try fixture.file("tree/deeper/b.txt", "b")
         try FileManager.default.createDirectory(at: fixture.root.appendingPathComponent("tree/empty"), withIntermediateDirectories: true)
         _ = try await session.append(urls: [fixture.root.appendingPathComponent("tree")], to: "sub/deep", progress: Progress())
-        let bytes = try contents(ArchiveReader.open(url: fixture.archive))
+        let bytes = try ArchiveOracle.contents(ArchiveReader.open(url: fixture.archive), including: .all)
         XCTAssertEqual(bytes["sub/deep/tree/a.txt"], Data("a".utf8))
         XCTAssertEqual(bytes["sub/deep/tree/deeper/b.txt"], Data("b".utf8))
         XCTAssertEqual(bytes["sub/deep/tree/empty/"], Data())
         XCTAssertNil(bytes["tree/a.txt"])
         XCTAssertEqual(bytes.count, 7)
-        print(try fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path]))
+        print(try fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
     }
 
     @MainActor func testDropTargetFolderFileEmptyAndVirtualRows() throws {
@@ -165,11 +155,11 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(readable.entries.map(\.name), ["old.txt"])
         if gate == .centralDirectoryOffset {
             // offset=1 の人工 fixture は一覧だけ読める。展開の既存の拒否も具体的に検査する。
-            XCTAssertThrowsError(try contents(readable)) { error in
+            XCTAssertThrowsError(try ArchiveOracle.contents(readable, including: .all)) { error in
                 XCTAssertEqual(error as? KaitoError, .malformed("ZIP local header overlaps the central directory"))
             }
         } else {
-            XCTAssertEqual(try contents(readable), ["old.txt": Data("original".utf8)])
+            XCTAssertEqual(try ArchiveOracle.contents(readable, including: .all), ["old.txt": Data("original".utf8)])
         }
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: Progress())
@@ -196,12 +186,12 @@ nonisolated final class DragInTests: XCTestCase {
         _ = try await session.append(urls: [fixture.file("new")], to: "", progress: Progress())
         XCTAssertEqual(session.generation, 1)
         // 対照群: reopen は実際に古い byte を返す。この差がない fixture では合格させない。
-        XCTAssertNil(try contents(oldReader.reopen())["new"])
+        XCTAssertNil(try ArchiveOracle.contents(oldReader.reopen(), including: .all)["new"])
         let fresh = try await session.extractionReader()
-        XCTAssertEqual(try contents(fresh)["new"], Data("added".utf8))
+        XCTAssertEqual(try ArchiveOracle.contents(fresh, including: .all)["new"], Data("added".utf8))
         let resolved = try await session.resolveForExtraction([payload])
         XCTAssertEqual(resolved.selection.entries.map(\.name), ["old.txt"])
-        XCTAssertEqual(try contents(resolved.reader)["old.txt"], Data("original".utf8))
+        XCTAssertEqual(try ArchiveOracle.contents(resolved.reader, including: .all)["old.txt"], Data("original".utf8))
     }
 
     func testCancellationPartwayPreservesOriginalBytesAndGeneration() async throws {
@@ -394,7 +384,7 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(result.addedPaths, ["sub/deep/pasted.txt"])
         XCTAssertEqual(source.events, ["read URLs"])
         let reader = try await session.extractionReader()
-        XCTAssertEqual(try contents(reader)["sub/deep/pasted.txt"], Data("added".utf8))
+        XCTAssertEqual(try ArchiveOracle.contents(reader, including: .all)["sub/deep/pasted.txt"], Data("added".utf8))
     }
 
     @MainActor func testNamedPasteboardFileURLAdapter() throws {

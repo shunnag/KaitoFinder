@@ -60,11 +60,11 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let archive = directory.url.appendingPathComponent(readOnly ? "original.tar.lzma" : (gzip ? "original.tgz" : "original.zip"))
         if readOnly {
             try Data("read-only contents".utf8).write(to: directory.url.appendingPathComponent("file.txt"))
-            try directory.run("/usr/bin/tar", ["-cf", archive.path, "file.txt"])
-            try directory.run("/usr/bin/python3", ["-c", "import sys; p=sys.argv[1]; import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", archive.path])
+            try directory.run(ExternalTool.tar, ["-cf", archive.path, "file.txt"])
+            try directory.run(ExternalTool.python3, ["-c", "import sys; p=sys.argv[1]; import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", archive.path])
         } else if encrypted {
             try Data("decrypted contents".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-            try directory.run("/usr/bin/zip", ["-q", "-P", "known-password", archive.path, "secret.txt"])
+            try directory.run(ExternalTool.zip, ["-q", "-P", "known-password", archive.path, "secret.txt"])
         } else {
             let writer = try ArchiveWriter.create(url: archive, format: gzip ? .tarGzip : .zip)
             try writer.add(data: Data("original contents".utf8), as: "folder/file.txt")
@@ -97,17 +97,11 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         return (directory, document, controller, store)
     }
 
+    /// 暗号化された項目がないことも確かめる。
     private func contents(_ archive: URL) throws -> [String: Data] {
         let reader = try ArchiveReader.open(url: archive)
-        var result: [String: Data] = [:]
-        for entry in reader.entries {
-            XCTAssertFalse(entry.isEncrypted)
-            guard entry.kind == .file else { continue }
-            var bytes = Data()
-            try ExtractionService.consume(reader.stream(entry), checkCancellation: {}) { bytes.append(contentsOf: $0) }
-            result[entry.name] = bytes
-        }
-        return result
+        for entry in reader.entries { XCTAssertFalse(entry.isEncrypted) }
+        return try ArchiveOracle.contents(reader)
     }
 
     @MainActor private func assertConversion(gzip: Bool, format: GyoshukuKit.ArchiveFormat) async throws {
@@ -260,9 +254,9 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let (directory, document, controller, store) = try await interface(encrypted: true)
         let source = try XCTUnwrap(document.fileURL), original = try Data(contentsOf: source)
         let session = try XCTUnwrap(document.session)
-        session.setPasswordPrompt { _ in "known-password" }
+        session.setPasswordPrompt(PasswordPrompts.fixed("known-password"))
         _ = try await session.preparedPassword()
-        session.setPasswordPrompt { _ in XCTFail("Known password must be reused"); throw CancellationError() }
+        session.setPasswordPrompt(PasswordPrompts.refusing("Known password must be reused"))
         let destination = directory.url.appendingPathComponent("decrypted.7z")
         let creator = ArchiveCreationController(store: store)
         creator.destinationHandler = { save, _ in
@@ -288,7 +282,7 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let (directory, document, controller, store) = try await interface(encrypted: true)
         let source = try XCTUnwrap(document.fileURL), original = try Data(contentsOf: source)
         let session = try XCTUnwrap(document.session)
-        session.setPasswordPrompt { _ in "known-password" }
+        session.setPasswordPrompt(PasswordPrompts.fixed("known-password"))
         let destination = directory.url.appendingPathComponent("protected.7z")
         let creator = ArchiveCreationController(store: store)
         creator.destinationHandler = { save, _ in

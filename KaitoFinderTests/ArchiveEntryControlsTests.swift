@@ -17,7 +17,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             archive = directory.appendingPathComponent(tar ? "archive.tar.lzma" : "archive.zip")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let process = Process(), output = Pipe()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
             process.arguments = ["-c", """
             import io, sys, tarfile, zipfile
             p, *names = sys.argv[1:]
@@ -43,22 +43,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         }
 
         deinit { try? FileManager.default.removeItem(at: directory) }
-    }
-
-    private final class Gate: Sendable {
-        let entered = Mutex(false)
-        let release = DispatchSemaphore(value: 0)
-        func wait() {
-            XCTAssertFalse(Thread.isMainThread)
-            entered.withLock { $0 = true }
-            XCTAssertEqual(release.wait(timeout: .now() + 10), .success)
-        }
-    }
-
-    @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition())
     }
 
     @MainActor private func interface(_ fixture: Fixture, stack: ArchiveUndoStack = ArchiveUndoStack()) async throws
@@ -102,10 +86,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     private func names(_ fixture: Fixture) throws -> Set<String> {
         Set(try ArchiveReader.open(url: fixture.archive).entries.map(\.name))
-    }
-
-    private func digest(_ fixture: Fixture) throws -> Data {
-        Data(SHA256.hash(data: try Data(contentsOf: fixture.archive)))
     }
 
     @MainActor private func editor(_ controller: ArchiveWindowController, text: String) throws -> (NSTextField, NSTextView) {
@@ -186,7 +166,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testEscapeCancelsInlineRenameWithoutChangingArchive() async throws {
         let fixture = try Fixture(), (document, controller) = try await interface(fixture)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "renamed.txt")
         XCTAssertTrue(controller.outlineView.control(field, textView: editor,
@@ -195,7 +175,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertNil(field.currentEditor())
         XCTAssertNil(controller.extractionTask)
         XCTAssertEqual(field.stringValue, "b.txt")
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
     }
@@ -323,7 +303,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor private func assertRejected(_ name: String, focusLoss: Bool = false) async throws {
         let fixture = try Fixture(), (document, controller) = try await interface(fixture)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: name)
         if focusLoss {
@@ -341,7 +321,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(field.toolTip).isEmpty)
         XCTAssertNil(controller.extractionTask)
         XCTAssertNil(controller.window?.attachedSheet)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
     }
@@ -356,14 +336,14 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testSortingCommitsValidRenameAndKeepsInvalidNameEditing() async throws {
         let fixture = try Fixture(), (_, controller) = try await interface(fixture)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         let (field, editor) = try editor(controller, text: "a.txt")
         let view = controller.outlineView
         view.sortDescriptors = [NSSortDescriptor(key: "name", ascending: false)]
         XCTAssertTrue(field.currentEditor() === editor)
         XCTAssertTrue(try XCTUnwrap(view.sortDescriptors.first).ascending)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         editor.string = "sorted.txt"
         view.sortDescriptors = [NSSortDescriptor(key: "name", ascending: false)]
         await controller.extractionTask?.value
@@ -407,12 +387,12 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor func testRenameRejectsVirtualFolderCollisionAndRenamesWholeSubtree() async throws {
         let fixture = try Fixture(["source/a.txt", "source/deep/b.txt", "occupied/keep.txt"])
         let (document, controller) = try await interface(fixture)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["source"], in: controller)
         let (field, editor) = try editor(controller, text: "occupied")
         commit(controller, field: field, editor: editor)
         XCTAssertTrue(field.currentEditor() === editor)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         editor.string = "renamed"
         commit(controller, field: field, editor: editor)
         await controller.extractionTask?.value
@@ -473,18 +453,18 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let fixture = try Fixture(), stack = ArchiveUndoStack(maximumCount: 0)
         let (document, controller) = try await interface(fixture, stack: stack)
         XCTAssertFalse(document.canUndoNextMutation)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["a.txt", "c.txt"], in: controller)
         controller.deleteEntries(nil)
         let declined = try XCTUnwrap(controller.deletionConfirmation)
         XCTAssertNil(controller.extractionTask)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         controller.deleteEntries(nil)
         XCTAssertTrue(controller.deletionConfirmation === declined)
         controller.window?.endSheet(declined.window, returnCode: .alertSecondButtonReturn)
         try await waitUntil { controller.deletionConfirmation == nil }
         XCTAssertNil(controller.extractionTask)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         controller.deleteEntries(nil)
         let accepted = try XCTUnwrap(controller.deletionConfirmation)
         controller.window?.endSheet(accepted.window, returnCode: .alertFirstButtonReturn)
@@ -525,7 +505,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testReadOnlyArchiveDisablesBothMenusWithRefusalReason() async throws {
         let fixture = try Fixture(tar: true), (document, controller) = try await interface(fixture)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["a.txt"], in: controller)
         XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
         for action in [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))] {
@@ -537,7 +517,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         controller.renameEntry(nil)
         XCTAssertNil(controller.extractionTask)
         XCTAssertFalse(controller.outlineView.isRenaming)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
     }
 
     @MainActor func testReadOnlyBlankMenuKeepsEditRefusalAndPasteConversionValidation() async throws {
@@ -603,21 +583,21 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testPendingDeleteDisablesBothActionsAndCancellationPreservesBytesAndUndo() async throws {
-        let fixture = try Fixture(), gate = Gate()
+        let fixture = try Fixture(), gate = ScenarioGate()
         let cancelled = Mutex(false)
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
-            gate.wait()
+            gate.pause()
             cancelled.withLock { $0 = Task.isCancelled }
             return result
         }
         let (document, controller) = try await interface(fixture, stack: stack)
-        let before = try digest(fixture)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try select(["b.txt"], in: controller)
         controller.deleteEntries(nil)
         let task = try XCTUnwrap(controller.extractionTask)
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         for action in [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))] {
             let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
             XCTAssertFalse(controller.validateMenuItem(item))
@@ -636,11 +616,11 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         sheet.cancelExtraction(nil)
         XCTAssertTrue(sheet.progress.isCancelled)
         try await waitUntil { task.isCancelled }
-        gate.release.signal()
+        gate.release()
         await task.value
         XCTAssertTrue(cancelled.withLock { $0 })
         XCTAssertNil(controller.failureAlert)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
@@ -698,7 +678,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         try await makeKeyWindow(window)
         try select(["b.txt"], in: controller)
         XCTAssertTrue(window.makeFirstResponder(view))
-        let selection = view.selectedRowIndexes, before = try digest(fixture)
+        let selection = view.selectedRowIndexes, before = try ArchiveOracle.digest(fixture.archive)
         let resignations = Mutex(0)
         let observer = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification,
                                                                object: window, queue: nil) { _ in resignations.withLock { $0 += 1 } }
@@ -737,7 +717,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(resignations.withLock { $0 }, 0)
         XCTAssertFalse(controller.canReceiveTabDrag)
         XCTAssertNil(controller.outlineView(view, pasteboardWriterForItem: target))
-        let drag = FileURLDragInfo(urls: [fixture.archive], window: window, location: point)
+        let drag = TestDraggingInfo(urls: [fixture.archive], window: window, location: point)
         defer { drag.draggingPasteboard.releaseGlobally() }
         XCTAssertEqual(controller.outlineView(view, validateDrop: drag, proposedItem: nil, proposedChildIndex: -1), [])
         XCTAssertFalse(controller.outlineView(view, acceptDrop: drag, item: nil, childIndex: -1))
@@ -758,7 +738,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         try await waitUntil { task.isCancelled }
         gate.release()
         await task.value
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
         XCTAssertNil(controller.failureAlert)
         XCTAssertEqual(view.selectedRowIndexes, selection)
@@ -843,20 +823,20 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testDocumentMutationOutsideControllerDisablesBothEditActions() async throws {
-        let fixture = try Fixture(), gate = Gate()
+        let fixture = try Fixture(), gate = ScenarioGate()
         let (document, controller) = try await interface(fixture)
         try select(["a.txt"], in: controller)
         let target = try node("c.txt", in: controller)
         let progress = Progress()
-        let task = Task { try await document.remove([target], progress: progress, willPublish: { gate.wait() }) }
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        let task = Task { try await document.remove([target], progress: progress, willPublish: { gate.pause() }) }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         XCTAssertNil(controller.extractionTask)
         for action in [#selector(ArchiveWindowController.deleteEntries(_:)), #selector(ArchiveWindowController.renameEntry(_:))] {
             XCTAssertFalse(controller.validateMenuItem(NSMenuItem(title: "", action: action, keyEquivalent: "")))
         }
         progress.cancel()
-        gate.release.signal()
+        gate.release()
         do { _ = try await task.value; XCTFail("取消しを公開しない") }
         catch { XCTAssertTrue(error is CancellationError) }
     }
@@ -908,7 +888,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     func testAllEditUIAndUndoStringsHaveCatalogEntriesAndTranslations() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
@@ -951,7 +931,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     func testExtractionCatalogUsesNewWordingAndCompleteTranslations() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
@@ -1040,7 +1020,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(context.title, String(localized: "新規フォルダ"))
         XCTAssertTrue(context.target === controller)
         XCTAssertTrue(controller.validateMenuItem(context))
-        let fixture = try Fixture(tar: true), before = try digest(fixture)
+        let fixture = try Fixture(tar: true), before = try ArchiveOracle.digest(fixture.archive)
         let (document, readOnly) = try await interface(fixture)
         readOnly.setFilterQuery("a")
         XCTAssertFalse(readOnly.validateMenuItem(item))
@@ -1048,7 +1028,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(item.toolTip).isEmpty)
         readOnly.newFolder(nil)
         XCTAssertNil(readOnly.extractionTask)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
     }
 
     @MainActor func testFilterClearRestoresExpansionAndMultipleSelectionAfterQueryChangesAndReload() async throws {
@@ -1082,7 +1062,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             let initial = ["folder/show.txt", "folder/hidden.txt", "folder/deep/hidden.bin", "outside/show.txt"]
                 + (explicit ? ["folder/", "folder/deep/"] : [])
             let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
-            let before = try digest(fixture)
+            let before = try ArchiveOracle.digest(fixture.archive)
             controller.setFilterQuery("show")
             // 検索語を親の名前に含めない。隠れた子孫がある状態でなければ cascade の検証にならない。
             XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
@@ -1095,16 +1075,16 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertEqual(try names(fixture), ["outside/show.txt"])
             XCTAssertEqual(controller.filterQuery, "show")
             XCTAssertEqual(document.archiveUndoStack.slots.count, 1)
-            let after = try digest(fixture)
+            let after = try ArchiveOracle.digest(fixture.archive)
             document.undo(nil)
             await document.undoTask?.value
             XCTAssertNil(document.undoFailure)
-            XCTAssertEqual(try digest(fixture), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
             XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
             document.redo(nil)
             await document.undoTask?.value
             XCTAssertNil(document.undoFailure)
-            XCTAssertEqual(try digest(fixture), after)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), after)
             XCTAssertEqual(paths(controller), ["outside", "outside/show.txt"])
         }
     }
@@ -1114,7 +1094,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             let initial = ["folder/show.txt", "folder/hidden.txt", "folder/deep/hidden.bin", "outside/show.txt"]
                 + (explicit ? ["folder/", "folder/deep/"] : [])
             let fixture = try Fixture(initial), (document, controller) = try await interface(fixture)
-            let before = try digest(fixture)
+            let before = try ArchiveOracle.digest(fixture.archive)
             controller.setFilterQuery("show")
             XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
             try select(["folder"], in: controller)
@@ -1129,7 +1109,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             document.undo(nil)
             await document.undoTask?.value
             XCTAssertNil(document.undoFailure)
-            XCTAssertEqual(try digest(fixture), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
             XCTAssertEqual(paths(controller), ["folder", "folder/show.txt", "outside", "outside/show.txt"])
         }
     }
@@ -1313,29 +1293,6 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         override var draggingSequenceNumber: Int { sequence }
     }
 
-    @MainActor private final class MoveDraggingInfo: NSObject, NSDraggingInfo {
-        var draggingDestinationWindow: NSWindow?
-        var draggingSourceOperationMask: NSDragOperation = [.move, .copy]
-        var draggingLocation: NSPoint = .zero
-        var draggedImageLocation: NSPoint { .zero }
-        nonisolated var draggedImage: NSImage? { nil }
-        let pasteboard = NSPasteboard(name: .init("KaitoFinder-Move-" + UUID().uuidString))
-        var pasteboardReads = 0
-        var draggingPasteboard: NSPasteboard { pasteboardReads += 1; return pasteboard }
-        var draggingSource: Any?
-        var draggingSequenceNumber = 0
-        var draggingFormation: NSDraggingFormation = .none
-        var animatesToDestination = false
-        var numberOfValidItemsForDrop = 0
-        var springLoadingHighlight: NSSpringLoadingHighlight { .none }
-        func slideDraggedImage(to screenPoint: NSPoint) {}
-        nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
-        func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions, for view: NSView?,
-                                    classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any],
-                                    using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
-        func resetSpringLoading() {}
-    }
-
     @MainActor private final class MoveDropOutline: NSOutlineView {
         var hovered: EntryNode?
         private(set) var proposedFolder: EntryNode?
@@ -1349,8 +1306,8 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor private func moveDrag(_ nodes: [EntryNode], in controller: ArchiveWindowController)
-        -> (MoveDraggingSession, MoveDraggingInfo) {
-        let session = MoveDraggingSession(), info = MoveDraggingInfo()
+        -> (MoveDraggingSession, TestDraggingInfo) {
+        let session = MoveDraggingSession(), info = TestDraggingInfo(operationMask: [.move, .copy])
         info.draggingSource = controller.outlineView
         info.draggingDestinationWindow = controller.window
         info.draggingSequenceNumber = session.draggingSequenceNumber
@@ -1409,7 +1366,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testLocalDragValidationAndAcceptanceRefuseSameParentOwnSubtreeAndReadOnlyArchive() async throws {
         let fixture = try Fixture(["a/x.txt", "a/deep/y.txt", "b/"]), (_, controller) = try await interface(fixture)
-        let before = try digest(fixture), view = MoveDropOutline()
+        let before = try ArchiveOracle.digest(fixture.archive), view = MoveDropOutline()
         for (source, target) in [("a/x.txt", "a"), ("a", "a"), ("a", "a/deep")] {
             let (_, info) = moveDrag([try node(source, in: controller)], in: controller)
             view.hovered = try node(target, in: controller)
@@ -1419,10 +1376,10 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertFalse(controller.outlineView(view, acceptDrop: info, item: view.hovered, childIndex: NSOutlineViewDropOnItemIndex))
             XCTAssertNil(controller.extractionTask)
         }
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         let readOnly = try Fixture(["a/x.txt"], tar: true), (_, readOnlyController) = try await interface(readOnly)
         let (_, info) = moveDrag([try node("a/x.txt", in: readOnlyController)], in: readOnlyController)
-        let readOnlyBefore = try digest(readOnly)
+        let readOnlyBefore = try ArchiveOracle.digest(readOnly.archive)
         info.draggingSource = view
         view.hovered = nil
         for mask: NSDragOperation in [[.move, .copy], .copy] {
@@ -1432,12 +1389,12 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertNil(readOnlyController.conversionConfirmation)
             XCTAssertNil(readOnlyController.extractionTask)
         }
-        XCTAssertEqual(try digest(readOnly), readOnlyBefore)
+        XCTAssertEqual(try ArchiveOracle.digest(readOnly.archive), readOnlyBefore)
     }
 
     @MainActor func testAcceptLocalMoveMovesMultipleEntriesExpandsDestinationAndSelectsNewPaths() async throws {
         let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/deep/keep.txt"])
-        let (document, controller) = try await interface(fixture), before = try digest(fixture)
+        let (document, controller) = try await interface(fixture), before = try ArchiveOracle.digest(fixture.archive)
         let nodes = try [node("a/x.txt", in: controller), node("a/y.txt", in: controller)]
         let target = try node("b/deep/keep.txt", in: controller)
         try select(["a/x.txt", "a/y.txt"], in: controller)
@@ -1462,7 +1419,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         document.undo(nil)
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
     }
 
@@ -1494,7 +1451,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testCancelLocalMoveConflictLeavesWholeSelectionAndUndoUnchanged() async throws {
         let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
-        let (document, controller) = try await interface(fixture), before = try digest(fixture)
+        let (document, controller) = try await interface(fixture), before = try ArchiveOracle.digest(fixture.archive)
         try select(["a/x.txt", "a/y.txt"], in: controller)
         let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
         XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
@@ -1503,7 +1460,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(prompt.conflict.path, "b/x.txt")
         prompt.alert.buttons[2].performClick(nil)
         await controller.extractionTask?.value
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(document.archiveUndoStack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
@@ -1515,7 +1472,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     @MainActor func testLocalMoveCanReplaceOrSkipConflictAndUndoTheWholeBatch() async throws {
         for replace in [true, false] {
             let fixture = try Fixture(["a/x.txt", "a/y.txt", "b/x.txt"])
-            let (document, controller) = try await interface(fixture), before = try digest(fixture)
+            let (document, controller) = try await interface(fixture), before = try ArchiveOracle.digest(fixture.archive)
             try select(["a/x.txt", "a/y.txt"], in: controller)
             let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
             XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: -1))
@@ -1529,25 +1486,25 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             XCTAssertEqual(document.generation, 1)
             document.undo(nil)
             await document.undoTask?.value
-            XCTAssertEqual(try digest(fixture), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
             XCTAssertFalse(document.undoManager?.canUndo == true)
         }
     }
 
     @MainActor func testPendingMoveDisablesEditsAndDropsAndCancellationPreservesBytes() async throws {
-        let fixture = try Fixture(["a/x.txt", "b/"]), gate = Gate()
+        let fixture = try Fixture(["a/x.txt", "b/"]), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             let result = ArchiveUndoStack.cloneFile(from: source, to: destination)
-            gate.wait()
+            gate.pause()
             return result
         }
-        let (document, controller) = try await interface(fixture, stack: stack), before = try digest(fixture)
+        let (document, controller) = try await interface(fixture, stack: stack), before = try ArchiveOracle.digest(fixture.archive)
         try select(["a/x.txt"], in: controller)
         let (_, info) = moveDrag(controller.selectedNodes, in: controller), target = try node("b", in: controller)
         XCTAssertTrue(controller.outlineView(controller.outlineView, acceptDrop: info, item: target, childIndex: NSOutlineViewDropOnItemIndex))
         let task = try XCTUnwrap(controller.extractionTask)
-        defer { gate.release.signal() }
-        try await waitUntil { gate.entered.withLock { $0 } }
+        defer { gate.release() }
+        try await waitUntil { gate.isEntered }
         for action in [#selector(ArchiveWindowController.newFolder(_:)), #selector(ArchiveWindowController.deleteEntries(_:)),
                        #selector(ArchiveWindowController.renameEntry(_:))] {
             let item = NSMenuItem(title: "", action: action, keyEquivalent: "")
@@ -1563,9 +1520,9 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         do { _ = try await document.move([other], to: "b", progress: Progress()); XCTFail("処理中の移動を受理しました") }
         catch { XCTAssertTrue(error is ExtractionFailure) }
         try XCTUnwrap(controller.editProgressSheet).cancelExtraction(nil)
-        gate.release.signal()
+        gate.release()
         await task.value
-        XCTAssertEqual(try digest(fixture), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)

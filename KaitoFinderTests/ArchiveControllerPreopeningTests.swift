@@ -24,14 +24,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         return controller
     }
 
-    private actor Gate {
-        private var released = false
-        func release() { released = true }
-        func wait() async throws {
-            while !released { try await Task.sleep(for: .milliseconds(5)) }
-        }
-    }
-
     @MainActor private func open(_ controller: NSDocumentController, _ url: URL,
                                  display: Bool = false) async -> (NSDocument?, Bool, NSError?) {
         await withCheckedContinuation { continuation in
@@ -62,12 +54,6 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
             await document.sessionCleanup?.value
             withExtendedLifetime(directory) {}
         }
-    }
-
-    @MainActor private func waitUntil(_ predicate: () -> Bool, timeout: Duration = .seconds(10)) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while !predicate(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(predicate())
     }
 
     @MainActor func testHundredThousandEntryZIPKeepsMainThreadResponsiveAndParsesOnce() async throws {
@@ -147,7 +133,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testLoadingPanelRevealsAfterDelayAndFinishesWithOpen() async throws {
-        let fixture = try ScenarioFixture(), controller = try makeController(), gate = Gate()
+        let fixture = try ScenarioFixture(), controller = try makeController(), gate = AsyncGate()
         controller.openingRevealDelay = .milliseconds(100)
         controller.preopenWillStart = { try await gate.wait() }
         let task = Task { await open(controller, fixture.archive) }
@@ -170,7 +156,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testFastOpenNeverRevealsLoadingPanel() async throws {
-        let fixture = try ScenarioFixture(), controller = try makeController(), gate = Gate()
+        let fixture = try ScenarioFixture(), controller = try makeController(), gate = AsyncGate()
         controller.openingRevealDelay = .milliseconds(500)
         controller.preopenWillStart = { try await gate.wait() }
         let task = Task { await open(controller, fixture.archive) }
@@ -191,7 +177,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
     }
 
     @MainActor func testJoinedCancellationCompletesEveryRequestWithSameError() async throws {
-        let fixture = try ScenarioFixture(), controller = try makeController(), gate = Gate()
+        let fixture = try ScenarioFixture(), controller = try makeController(), gate = AsyncGate()
         controller.preopenWillStart = { try await gate.wait() }
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
         let failures: [NSError?] = await withCheckedContinuation { continuation in
@@ -243,10 +229,10 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         let task = Task { await open(controller, fixture.archive) }
         defer { controller.openingSheet(for: fixture.archive)?.cancelExtraction(nil) }
         var staging: Set<UInt64> = []
-        try await waitUntil({
+        try await waitUntil(timeout: .seconds(30)) {
             staging = Self.unlinkedStagingFiles().subtracting(before)
             return !staging.isEmpty
-        }, timeout: .seconds(30))
+        }
         let sheet = try XCTUnwrap(controller.openingSheet(for: fixture.archive))
         sheet.cancelExtraction(nil)
         let (document, wasOpen, error) = await task.value
@@ -340,7 +326,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), controller = try makeController()
         let archive = directory.url.appendingPathComponent("locked.7z")
         try Data("secret".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-        try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-pfixture-password", "-mhe=on", archive.path, "secret.txt"])
+        try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-pfixture-password", "-mhe=on", archive.path, "secret.txt"])
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
         let (opened, wasOpen, error) = await open(controller, archive, display: true)
         XCTAssertNil(error)

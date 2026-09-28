@@ -4,36 +4,6 @@ import KaitoKit
 import XCTest
 @testable import KaitoFinder
 
-/// OS が与える drag 情報だけを差し替え、pasteboard → acceptDrop → 文書更新は実物を使う。
-@MainActor final class FileURLDragInfo: NSObject, NSDraggingInfo {
-    let draggingPasteboard: NSPasteboard
-    let draggingDestinationWindow: NSWindow?
-    var draggingSource: Any?
-    var draggingSourceOperationMask: NSDragOperation = .copy
-    var draggingLocation: NSPoint
-    var draggedImageLocation: NSPoint { draggingLocation }
-    nonisolated var draggedImage: NSImage? { nil }
-    let draggingSequenceNumber = 1
-    var draggingFormation: NSDraggingFormation = .default
-    var animatesToDestination = false
-    var numberOfValidItemsForDrop = 0
-    var springLoadingHighlight: NSSpringLoadingHighlight { .none }
-
-    init(urls: [URL], window: NSWindow?, location: NSPoint) {
-        draggingPasteboard = .withUniqueName()
-        draggingDestinationWindow = window
-        draggingLocation = location
-        super.init()
-        if !urls.isEmpty { XCTAssertTrue(draggingPasteboard.writeObjects(urls.map { $0 as NSURL })) }
-    }
-    func slideDraggedImage(to screenPoint: NSPoint) {}
-    nonisolated override func namesOfPromisedFilesDropped(atDestination dropDestination: URL) -> [String]? { nil }
-    func resetSpringLoading() {}
-    func enumerateDraggingItems(options enumOpts: NSDraggingItemEnumerationOptions, for view: NSView?,
-                                classes classArray: [AnyClass], searchOptions: [NSPasteboard.ReadingOptionKey: Any],
-                                using block: (NSDraggingItem, Int, UnsafeMutablePointer<ObjCBool>) -> Void) {}
-}
-
 nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
     @MainActor func testBlankLocalMoveRefusesCurrentFolderWithoutPasteboardFiles() async throws {
         _ = NSApplication.shared
@@ -52,7 +22,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         let node = try XCTUnwrap(view.item(atRow: 0) as? EntryNode)
         controller.setDraggedNodesForTesting([node])
         defer { controller.setDraggedNodesForTesting([]) }
-        let info = FileURLDragInfo(urls: [], window: controller.window,
+        let info = TestDraggingInfo(urls: [], window: controller.window,
             location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
         defer { info.draggingPasteboard.releaseGlobally() }
         info.draggingSource = view
@@ -84,7 +54,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
             XCTAssertEqual(controller.currentFolderPath, "a")
             controller.window?.contentView?.layoutSubtreeIfNeeded()
             let source = try fixture.file("dropped.txt")
-            let info = FileURLDragInfo(urls: [source], window: controller.window,
+            let info = TestDraggingInfo(urls: [source], window: controller.window,
                 location: view.convert(NSPoint(x: 80, y: view.bounds.maxY - 5), to: nil))
             defer { info.draggingPasteboard.releaseGlobally() }
             XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), .copy)
@@ -128,7 +98,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         let folder = try XCTUnwrap((0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }
             .first { $0.path == "target" })
         let rect = view.rect(ofRow: view.row(forItem: folder))
-        let info = FileURLDragInfo(urls: urls, window: controller.window,
+        let info = TestDraggingInfo(urls: urls, window: controller.window,
                                   location: view.convert(NSPoint(x: 90, y: rect.midY), to: nil))
         defer { info.draggingPasteboard.releaseGlobally() }
         XCTAssertEqual(controller.outlineView(view, validateDrop: info, proposedItem: nil, proposedChildIndex: -1), .copy)
@@ -148,7 +118,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         document.redo(nil)
         await document.undoTask?.value
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), expected)
-        XCTAssertEqual(try fixture.directory.run("/usr/bin/unzip", ["-tqq", fixture.archive.path]), "")
+        XCTAssertEqual(try fixture.directory.run(ExternalTool.unzip, ["-tqq", fixture.archive.path]), "")
     }
 
     func testBulkAppendAcrossEveryWritableFormatPreservesAllFileContents() async throws {
@@ -223,7 +193,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
             for i in range(100): z.writestr(f'file-{i:03}.txt', f'contents {i}'.encode())
         """)
         if corruptSource {
-            try fixture.directory.run("/usr/bin/python3", ["-c", """
+            try fixture.directory.run(ExternalTool.python3, ["-c", """
             import sys, struct
             p = sys.argv[1]
             raw = bytearray(open(p, 'rb').read())

@@ -8,7 +8,7 @@ nonisolated final class ExtractionPerformanceProbeTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["KAITOFINDER_PERFORMANCE_PROBES"] == "1" else {
             throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 to run extraction throughput probes")
         }
-        let fixture = try ScenarioFixture(script: ParallelExtractionTests.zipScript(count: 50_000, size: 256))
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 50_000, size: 256))
         let workers = max(1, min(ProcessInfo.processInfo.activeProcessorCount, 8))
         var durations: [Double] = []
         for (name, execution) in [("serial", ExtractionExecution.serial), ("parallel", .parallel(workers: workers))] {

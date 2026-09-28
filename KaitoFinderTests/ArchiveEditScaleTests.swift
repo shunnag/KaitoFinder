@@ -60,10 +60,7 @@ nonisolated final class ArchiveEditScaleTests: XCTestCase {
     }
 
     private func entry(_ index: Int, path: String) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: RawName(bytes: Array(path.utf8)), name: path,
-            pathComponents: path.split(separator: "/").map(String.init), kind: .file,
-            uncompressedSize: 1, compressedSize: 1, modificationDate: nil, posixPermissions: nil,
-            isEncrypted: false, solidGroup: -1, crc32: nil, methodDescription: "stored", formatSpecific: [:])
+        archiveColumnEntry(path, index: index, size: 1, compressed: 1, method: "stored")
     }
 
     @MainActor func testLargeFolderRenamePlanningScalesWithEntryCount() throws {

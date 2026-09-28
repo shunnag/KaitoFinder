@@ -9,8 +9,7 @@ import XCTest
 nonisolated enum SevenZipUpdateFixture {
     static let date = Date(timeIntervalSince1970: 1_700_000_000)
     static let fallbacks = ["archive_properties", "packpos16"]
-    static let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("Fixtures/sevenzip-edit")
+    static let fixtures = TestPaths.fixtures.appendingPathComponent("sevenzip-edit")
 
     static func frozen(_ name: String, at root: URL, filename: String = "original.7z") throws -> URL {
         let url = root.appendingPathComponent(filename)
@@ -36,10 +35,6 @@ nonisolated enum SevenZipUpdateFixture {
 
     static func selection(_ entry: ArchiveEntry) -> ArchiveEditSelection {
         .init(path: ArchiveEditPlan.key(entry.name), isDirectory: entry.kind == .directory, entries: [entry])
-    }
-
-    static func contents(_ reader: ArchiveReader) throws -> [String: Data] {
-        try Dictionary(uniqueKeysWithValues: reader.entries.filter { $0.kind != .directory }.map { ($0.name, try reader.read($0)) })
     }
 
     static func assertWork(_ work: URL, archive: URL, bytes: Data, identity: ArchiveFileIdentity) throws {

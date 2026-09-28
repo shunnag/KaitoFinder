@@ -53,11 +53,7 @@ nonisolated final class EntryTreeTests: XCTestCase {
     @MainActor
     private func entry(_ path: String, index: Int = 0, kind: EntryKind = .file,
                        size: UInt64? = 2, compressed: UInt64? = 1) -> ArchiveEntry {
-        ArchiveEntry(index: index, rawName: RawName(bytes: Array(path.utf8)), name: path,
-                     pathComponents: path.split(separator: "/").map(String.init), kind: kind,
-                     uncompressedSize: size, compressedSize: compressed, modificationDate: nil,
-                     posixPermissions: nil, isEncrypted: false, solidGroup: -1, crc32: nil,
-                     methodDescription: "stored", formatSpecific: [:])
+        archiveColumnEntry(path, index: index, kind: kind, size: size, compressed: compressed, method: "stored")
     }
 
     @MainActor
@@ -214,7 +210,7 @@ nonisolated final class EntryTreeTests: XCTestCase {
     @MainActor
     func testZIPAndTarFixturesThroughArchiveSession() async throws {
         // テスト用書庫もリポジトリ内に作り、外部の checkout は変更しない。
-        let repository = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let repository = TestPaths.repositoryRoot
         let fixture = repository.appendingPathComponent("build/Fixtures/\(UUID().uuidString)")
         let source = fixture.appendingPathComponent("src")
         let manager = FileManager.default
@@ -226,9 +222,9 @@ nonisolated final class EntryTreeTests: XCTestCase {
         let list = fixture.appendingPathComponent("files.txt")
         try Data("./a.txt\n./sub/b.txt\n./sub/deep/c.txt\n".utf8).write(to: list)
         let cases: [(String, String, [String], Bool)] = [
-            ("nodirs.zip", "/usr/bin/zip", ["-D", "-q", "-r", fixture.appendingPathComponent("nodirs.zip").path, "."], true),
-            ("dirs.zip", "/usr/bin/zip", ["-q", "-r", fixture.appendingPathComponent("dirs.zip").path, "."], false),
-            ("nodirs.tar", "/usr/bin/tar", ["--no-recursion", "-cf", fixture.appendingPathComponent("nodirs.tar").path, "-T", list.path], true)
+            ("nodirs.zip", ExternalTool.zip, ["-D", "-q", "-r", fixture.appendingPathComponent("nodirs.zip").path, "."], true),
+            ("dirs.zip", ExternalTool.zip, ["-q", "-r", fixture.appendingPathComponent("dirs.zip").path, "."], false),
+            ("nodirs.tar", ExternalTool.tar, ["--no-recursion", "-cf", fixture.appendingPathComponent("nodirs.tar").path, "-T", list.path], true)
         ]
         for (filename, executable, arguments, virtual) in cases {
             let process = Process()

@@ -369,12 +369,12 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
     }
 
     func testOptionalSevenZipReadsPublishedNumberedSet() throws {
-        guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/7zz") else {
+        guard FileManager.default.isExecutableFile(atPath: ExternalTool.sevenZip) else {
             throw XCTSkip("7zz is not installed")
         }
         let fixture = try VolumePublishFixture()
         let publication = try fixture.begin()
         _ = try publication.publish(progress: Progress())
-        _ = try fixture.directory.run("/opt/homebrew/bin/7zz", ["t", fixture.gate.path])
+        _ = try fixture.directory.run(ExternalTool.sevenZip, ["t", fixture.gate.path])
     }
 }

@@ -41,14 +41,14 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
             try secret.write(to: source)
             let archive = directory.url.appendingPathComponent(name)
             if headers {
-                try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-p" + password, "-mhe=on", archive.path, source.path])
+                try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-p" + password, "-mhe=on", archive.path, source.path])
             } else {
                 if publicEntry {
                     let file = inputs.appendingPathComponent("public.txt")
                     try Data("public".utf8).write(to: file)
-                    try directory.run("/usr/bin/zip", ["-q", "-j", archive.path, file.path])
+                    try directory.run(ExternalTool.zip, ["-q", "-j", archive.path, file.path])
                 }
-                try directory.run("/usr/bin/zip", ["-q", "-j", "-P", password, archive.path, source.path])
+                try directory.run(ExternalTool.zip, ["-q", "-j", "-P", password, archive.path, source.path])
             }
             return archive
         }

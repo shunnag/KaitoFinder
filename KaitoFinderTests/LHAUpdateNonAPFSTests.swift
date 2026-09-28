@@ -23,7 +23,7 @@ nonisolated final class LHAUpdateNonAPFSTests: XCTestCase {
         let saved = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
         XCTAssertNil(saved.reloadFailure)
         let reader = try ArchiveReader.open(url: archive)
-        let result = (reader.entries.map(\.name), reader.entries.map(\.kind), reader.entries.map(\.uncompressedSize), try LHAUpdateFixture.contents(reader))
+        let result = (reader.entries.map(\.name), reader.entries.map(\.kind), reader.entries.map(\.uncompressedSize), try ArchiveOracle.contents(reader, including: .nonDirectories))
         await session.close()
         return result
     }

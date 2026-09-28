@@ -6,8 +6,7 @@ import XCTest
 
 nonisolated final class CompressionCapabilityTests: XCTestCase {
     private var fixtures: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("KaitoKit/Tests/Fixtures")
+        TestPaths.kaitoKitFixtures
     }
 
     private func fixtureData(_ fixture: String) throws -> Data {
@@ -94,7 +93,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 withExtendedLifetime(directory) {}
             }
             let session = try XCTUnwrap(document.session)
-            session.setPasswordPrompt { _ in "KaitoFixture" }
+            session.setPasswordPrompt(PasswordPrompts.fixed("KaitoFixture"))
             _ = try await session.preparedPassword()
             XCTAssertEqual(session.capabilities.mode, .inPlace)
             var states = [try Data(contentsOf: archive)]
@@ -187,7 +186,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 XCTAssertEqual(document.isPasswordLocked, protection == "aes")
                 if document.isPasswordLocked { try await document.unlock(password: "KaitoFixture") }
                 let session = try XCTUnwrap(document.session)
-                session.setPasswordPrompt { _ in "KaitoFixture" }
+                session.setPasswordPrompt(PasswordPrompts.fixed("KaitoFixture"))
                 _ = try await session.preparedPassword()
                 XCTAssertEqual(session.capabilities.mode, .update(.sevenZip))
                 let additions = ["added-a.txt", "added-b.txt"].map { directory.url.appendingPathComponent($0) }
@@ -223,7 +222,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
                 await document.undoTask?.value
                 XCTAssertNil(document.undoFailure)
                 XCTAssertEqual(try Data(contentsOf: archive), edited)
-                _ = try directory.run("/opt/homebrew/bin/7zz", ["t", "-bd", "-pKaitoFixture", archive.path])
+                _ = try directory.run(ExternalTool.sevenZip, ["t", "-bd", "-pKaitoFixture", archive.path])
             }
         }
     }
@@ -288,7 +287,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
     func testLZMATarWithNondefaultPropertiesCannotBeRewrittenAsPlainTar() throws {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("archive.tar.lzma")
-        try directory.run("/usr/bin/python3", ["-c", """
+        try directory.run(ExternalTool.python3, ["-c", """
         import io, lzma, sys, tarfile
         tar = io.BytesIO()
         with tarfile.open(fileobj=tar, mode='w') as writer:
@@ -490,7 +489,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("fixture")
         try fixtureData(fixture).write(to: archive)
-        try directory.run("/usr/bin/python3", ["-c", """
+        try directory.run(ExternalTool.python3, ["-c", """
         import sys, struct, zlib, binascii
         p = sys.argv[1]
         d = bytearray(open(p, 'rb').read())

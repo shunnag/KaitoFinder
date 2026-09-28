@@ -22,18 +22,18 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
             if publicEntry {
                 XCTAssertTrue(isZIP)
                 try Data("public".utf8).write(to: directory.url.appendingPathComponent("public.txt"))
-                try directory.run("/usr/bin/zip", ["-q", archive.path, "public.txt"])
+                try directory.run(ExternalTool.zip, ["-q", archive.path, "public.txt"])
             }
             switch format {
             case .pkware:
-                try directory.run("/usr/bin/zip", ["-q", "-P", password, archive.path, "secret.bin"])
+                try directory.run(ExternalTool.zip, ["-q", "-P", password, archive.path, "secret.bin"])
             case .aes:
-                try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-tzip", "-p" + password,
+                try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-tzip", "-p" + password,
                                                            "-mem=AES256", archive.path, "secret.bin"])
             case .sevenZip, .encryptedHeaders:
                 var arguments = ["a", "-bd", "-y", "-p" + password]
                 if format == .encryptedHeaders { arguments.append("-mhe=on") }
-                try directory.run("/opt/homebrew/bin/7zz", arguments + [archive.path, "secret.bin"])
+                try directory.run(ExternalTool.sevenZip, arguments + [archive.path, "secret.bin"])
             }
         }
 
@@ -67,12 +67,6 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         let actual = await session.password
         // XCTest の失敗文にもパスワードそのものを出さない。
         XCTAssertTrue(actual == expected, "Session password state")
-    }
-
-    @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition())
     }
 
     @MainActor private func interface(_ fixture: Fixture, behavior: ArchivePreferences.SaveBehavior = .immediate) async throws
@@ -210,7 +204,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         let secondPassword = "different-fixture-password-2026"
         let secondBytes = Data("second encrypted entry".utf8)
         try secondBytes.write(to: fixture.directory.url.appendingPathComponent("second.bin"))
-        try fixture.directory.run("/usr/bin/zip", ["-q", "-P", secondPassword, fixture.archive.path, "second.bin"])
+        try fixture.directory.run(ExternalTool.zip, ["-q", "-P", secondPassword, fixture.archive.path, "second.bin"])
         let original = try Data(contentsOf: fixture.archive)
         // 正しい entry が検証順の先・後のどちらでも、部分成功を認識する。
         for password in [fixture.password, secondPassword] {
@@ -241,7 +235,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
             for (name, key, bytes) in [("secret.bin", fixture.password, fixture.original),
                                        ("second.bin", secondPassword, secondBytes)] {
-                session.setPasswordPrompt { _ in key }
+                session.setPasswordPrompt(PasswordPrompts.fixed(key))
                 let output = try fixture.destination()
                 let result = try await ExtractionService.extract(await payloads(session, named: name),
                     from: session, to: output, progress: Progress())
@@ -275,10 +269,10 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
     @MainActor private func commitPreservesPassword(_ format: Format) async throws {
         let fixture = try Fixture(format), session = try ArchiveSession(url: fixture.archive)
         let password = fixture.password
-        var prompts = 0
-        session.setPasswordPrompt { _ in prompts += 1; return password }
+        let prompts = PasswordPrompts.counting(returning: password)
+        session.setPasswordPrompt(prompts.prompt)
         try await extractSecret(fixture, session: session)
-        XCTAssertEqual(prompts, 1)
+        XCTAssertEqual(prompts.count, 1)
         let addition = fixture.directory.url.appendingPathComponent("added.txt")
         try Data("added".utf8).write(to: addition)
         let result = try await session.append(urls: [addition], to: "", progress: Progress())
@@ -288,7 +282,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertEqual(session.generation, 1)
         await assertPassword(session, equals: password)
         try await extractSecret(fixture, session: session)
-        XCTAssertEqual(prompts, 1, "commit 後の URL からの再読込にも同じ鍵を渡す")
+        XCTAssertEqual(prompts.count, 1, "commit 後の URL からの再読込にも同じ鍵を渡す")
         let reader = try await session.extractionReader()
         let encrypted = try XCTUnwrap(reader.entries.first { $0.name == "secret.bin" })
         XCTAssertTrue(encrypted.isEncrypted)
@@ -306,9 +300,9 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
     @MainActor func testCloseClearsPasswordAndReopeningPromptsAgain() async throws {
         let fixture = try Fixture(.aes), password = fixture.password
-        var prompts = 0
+        let prompts = PasswordPrompts.counting(returning: password)
         let first = try ArchiveSession(url: fixture.archive)
-        first.setPasswordPrompt { _ in prompts += 1; return password }
+        first.setPasswordPrompt(prompts.prompt)
         try await extractSecret(fixture, session: first)
         await first.close()
         await assertPassword(first, equals: nil)
@@ -318,9 +312,9 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         catch { XCTAssertTrue(error is CancellationError) }
         let second = try ArchiveSession(url: fixture.archive)
         await assertPassword(second, equals: nil)
-        second.setPasswordPrompt { _ in prompts += 1; return password }
+        second.setPasswordPrompt(prompts.prompt)
         try await extractSecret(fixture, session: second)
-        XCTAssertEqual(prompts, 2)
+        XCTAssertEqual(prompts.count, 2)
         await second.close()
     }
 
@@ -342,7 +336,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
         await assertPassword(session, equals: nil)
         let password = fixture.password
-        session.setPasswordPrompt { _ in password }
+        session.setPasswordPrompt(PasswordPrompts.fixed(password))
         try await extractSecret(fixture, session: session)
         await session.close()
     }
@@ -511,8 +505,8 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
     @MainActor func testCopyOutPublishesByteExactEncryptedEntryAfterPrompt() async throws {
         let fixture = try Fixture(.aes), session = try ArchiveSession(url: fixture.archive), password = fixture.password
-        var prompts = 0
-        session.setPasswordPrompt { _ in prompts += 1; return password }
+        let prompts = PasswordPrompts.counting(returning: password)
+        session.setPasswordPrompt(prompts.prompt)
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
         guard pasteboard.setString("probe", forType: .string) else {
@@ -520,7 +514,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         }
         let urls = try await ArchiveCopyOut.copy(await payloads(session), from: session, to: pasteboard, progress: Progress(),
             temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.directory.url.appendingPathComponent("copy")))
-        XCTAssertEqual(prompts, 1)
+        XCTAssertEqual(prompts.count, 1)
         XCTAssertEqual(urls.count, 1)
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(urls.first)), fixture.original)
         XCTAssertEqual(pasteboard.string(forType: .fileURL), urls.first?.absoluteString)
@@ -529,11 +523,11 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
     @MainActor func testCopyPreparationAuthenticatesAndReturnsByteExactFile() async throws {
         let fixture = try Fixture(.aes), session = try ArchiveSession(url: fixture.archive), password = fixture.password
-        var prompts = 0
-        session.setPasswordPrompt { _ in prompts += 1; return password }
+        let prompts = PasswordPrompts.counting(returning: password)
+        session.setPasswordPrompt(prompts.prompt)
         let prepared = try await ArchiveCopyOut.prepare(await payloads(session), from: session, progress: Progress(),
             temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.directory.url.appendingPathComponent("copy")))
-        XCTAssertEqual(prompts, 1)
+        XCTAssertEqual(prompts.count, 1)
         XCTAssertEqual(prepared.paths, ["secret.bin"])
         XCTAssertEqual(prepared.urls.count, 1)
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(prepared.urls.first)), fixture.original)
@@ -593,8 +587,8 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
 
     @MainActor func testMaterializerPublishesExactBytesAfterAuthentication() async throws {
         let fixture = try Fixture(.aes), session = try ArchiveSession(url: fixture.archive), password = fixture.password
-        var prompts = 0
-        session.setPasswordPrompt { _ in prompts += 1; return password }
+        let prompts = PasswordPrompts.counting(returning: password)
+        session.setPasswordPrompt(prompts.prompt)
         let worker = EntryMaterializer(session: session,
             temporaryDirectory: ExtractionTemporaryDirectory(root: fixture.directory.url.appendingPathComponent("preview")))
         let selection = await payloads(session)
@@ -602,7 +596,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         let url = try await worker.materialize(payload, progress: Progress()) { _ in
             XCTAssertFalse(Thread.isMainThread, "復号と書き込みは main actor の外で実行する")
         }
-        XCTAssertEqual(prompts, 1)
+        XCTAssertEqual(prompts.count, 1)
         XCTAssertEqual(try Data(contentsOf: url), fixture.original)
         await worker.close()
         await session.close()
@@ -673,7 +667,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
     @MainActor func testDocumentCloseReleasesSessionPassword() async throws {
         let fixture = try Fixture(.aes), (document, _) = try await interface(fixture)
         let session = try XCTUnwrap(document.session), password = fixture.password
-        session.setPasswordPrompt { _ in password }
+        session.setPasswordPrompt(PasswordPrompts.fixed(password))
         try await extractSecret(fixture, session: session)
         document.close()
         await document.sessionCleanup?.value
@@ -842,7 +836,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
                 XCTAssertEqual(incorrect.alert.informativeText, "パスワードが違います。もう一度入力してください。")
             }
         }
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = TestPaths.repositoryRoot
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])

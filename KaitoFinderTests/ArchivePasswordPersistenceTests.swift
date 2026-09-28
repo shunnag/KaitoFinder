@@ -30,14 +30,8 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
         func encrypt(password: String) throws {
             if FileManager.default.fileExists(atPath: archive.path) { try FileManager.default.removeItem(at: archive) }
             let options = format == .zip ? ["-tzip", "-mem=AES256"] : ["-mhe=on"]
-            try root.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-p" + password] + options + [archive.path, "secret.bin"])
+            try root.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-p" + password] + options + [archive.path, "secret.bin"])
         }
-    }
-
-    @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition())
     }
 
     @MainActor private func interface(_ fixture: Fixture, vault: ArchivePasswordVault? = nil) async throws

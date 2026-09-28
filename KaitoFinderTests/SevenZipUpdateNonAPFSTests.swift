@@ -37,7 +37,7 @@ nonisolated final class SevenZipUpdateNonAPFSTests: XCTestCase {
             XCTAssertEqual(errno, ENOATTR)
         }
         let reader = try ArchiveReader.open(url: archive)
-        let result = (reader.entries.map(\.name), reader.entries.map(\.kind), reader.entries.map(\.uncompressedSize), try SevenZipUpdateFixture.contents(reader))
+        let result = (reader.entries.map(\.name), reader.entries.map(\.kind), reader.entries.map(\.uncompressedSize), try ArchiveOracle.contents(reader, including: .nonDirectories))
         await session.close()
         return result
     }

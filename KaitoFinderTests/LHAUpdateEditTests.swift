@@ -17,7 +17,7 @@ nonisolated final class LHAUpdateEditTests: XCTestCase {
                 let original = try Data(contentsOf: archive), identity = try ArchiveFileIdentity.capture(url: archive)
                 var attributes = stat(); XCTAssertEqual(lstat(archive.path, &attributes), 0)
                 let session = try ArchiveSession(url: archive), entries = await session.entries()
-                let beforeContents = try LHAUpdateFixture.contents(ArchiveReader.open(url: archive))
+                let beforeContents = try ArchiveOracle.contents(ArchiveReader.open(url: archive), including: .nonDirectories)
                 let folder = entries[2].name.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
                 let target = entries[mixed && operation == 2 ? 3 : 1]
                 let source = directory.url.appendingPathComponent(operation == 7 ? target.name : "added")
@@ -103,7 +103,7 @@ nonisolated final class LHAUpdateEditTests: XCTestCase {
                 case 8: expectedContents[folder + "/" + target.name] = expectedContents.removeValue(forKey: target.name)
                 default: break
                 }
-                XCTAssertEqual(try LHAUpdateFixture.contents(fresh), expectedContents)
+                XCTAssertEqual(try ArchiveOracle.contents(fresh, including: .nonDirectories), expectedContents)
                 var saved = stat(); XCTAssertEqual(lstat(archive.path, &saved), 0)
                 XCTAssertEqual(saved.st_mode & 0o7777, attributes.st_mode & 0o7777)
                 XCTAssertEqual(saved.st_birthtimespec.tv_sec, attributes.st_birthtimespec.tv_sec)

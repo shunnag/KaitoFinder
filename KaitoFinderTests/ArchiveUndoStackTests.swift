@@ -52,24 +52,6 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         deinit { try? FileManager.default.removeItem(at: root) }
     }
 
-    private final class Gate: Sendable {
-        let entered = Mutex(false)
-        let release = DispatchSemaphore(value: 0)
-        func wait() {
-            XCTAssertFalse(Thread.isMainThread)
-            entered.withLock { $0 = true }
-            XCTAssertEqual(release.wait(timeout: .now() + 10), .success)
-        }
-    }
-
-    private func digest(_ url: URL) throws -> Data {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        var digest = SHA256()
-        while let data = try handle.read(upToCount: 1024 * 1024), !data.isEmpty { digest.update(data: data) }
-        return Data(digest.finalize())
-    }
-
     private func attributes(_ url: URL) throws -> stat {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
@@ -114,37 +96,29 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertNil(document.undoFailure)
     }
 
-    @MainActor private func waitForGate(_ gate: Gate) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
-        while !gate.entered.withLock({ $0 }), ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        XCTAssertTrue(gate.entered.withLock { $0 })
-    }
-
     @MainActor func testAppendUndoRestoresFullArchiveSHA256() async throws {
         let fixture = try Fixture(), document = try document(fixture)
-        let before = try digest(fixture.archive)
+        let before = try ArchiveOracle.digest(fixture.archive)
         try await append("added.txt", fixture: fixture, document: document)
-        XCTAssertNotEqual(try digest(fixture.archive), before)
+        XCTAssertNotEqual(try ArchiveOracle.digest(fixture.archive), before)
         let slot = try XCTUnwrap(document.archiveUndoStack.slots.first)
-        XCTAssertEqual(try digest(slot.url), before)
+        XCTAssertEqual(try ArchiveOracle.digest(slot.url), before)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertFalse(exists(slot.directory))
     }
 
     @MainActor func testRedoRestoresFullPostAppendSHA256() async throws {
         let fixture = try Fixture(), document = try document(fixture)
         try await append("added.txt", fixture: fixture, document: document)
-        let after = try digest(fixture.archive)
+        let after = try ArchiveOracle.digest(fixture.archive)
         try await undo(document)
-        XCTAssertNotEqual(try digest(fixture.archive), after)
+        XCTAssertNotEqual(try ArchiveOracle.digest(fixture.archive), after)
         let slot = try XCTUnwrap(document.archiveUndoStack.slots.first)
         XCTAssertTrue(slot.isRedo)
-        XCTAssertEqual(try digest(slot.url), after)
+        XCTAssertEqual(try ArchiveOracle.digest(slot.url), after)
         try await redo(document)
-        XCTAssertEqual(try digest(fixture.archive), after)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), after)
         XCTAssertFalse(exists(slot.directory))
     }
 
@@ -224,7 +198,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         for index in 0..<12 {
             try await append("added\(index).txt", fixture: fixture, document: document)
             slots.append(try XCTUnwrap(document.archiveUndoStack.slots.last))
-            if index == 1 { afterTwo = try digest(fixture.archive) }
+            if index == 1 { afterTwo = try ArchiveOracle.digest(fixture.archive) }
         }
         XCTAssertEqual(document.archiveUndoStack.slots.count, 10)
         for slot in slots.prefix(2) {
@@ -234,7 +208,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         for slot in slots.suffix(10) { XCTAssertTrue(exists(slot.url)) }
         for _ in 0..<10 { try await undo(document) }
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
-        XCTAssertEqual(try digest(fixture.archive), afterTwo)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), afterTwo)
         for _ in 0..<10 { try await redo(document) }
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canRedo)
         XCTAssertEqual(document.archiveUndoStack.slots.count, 10)
@@ -300,7 +274,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         let after = try available()
         XCTAssertLessThan(before - after, 16 * 1024 * 1024)
         XCTAssertEqual(try attributes(slot.url).st_dev, info.st_dev)
-        XCTAssertEqual(try digest(slot.url), try digest(fixture.archive))
+        XCTAssertEqual(try ArchiveOracle.digest(slot.url), try ArchiveOracle.digest(fixture.archive))
         print("UNDO CLONE: archive=\(info.st_size) bytes, available capacity decrease=\(before - after) bytes")
     }
 
@@ -313,7 +287,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
         }
         let document = try document(fixture, stack: stack)
-        let before = try digest(fixture.archive)
+        let before = try ArchiveOracle.digest(fixture.archive)
         let archive = fixture.archive
         let previousMode = try mode(archive)
         do {
@@ -325,7 +299,7 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             })
             XCTFail("原本が変わった追加は公開できない")
         } catch { }
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertEqual(directories.withLock { $0.count }, 1)
@@ -341,13 +315,13 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
         }
         let document = try document(fixture, stack: stack), progress = Progress()
-        let before = try digest(fixture.archive)
+        let before = try ArchiveOracle.digest(fixture.archive)
         do {
             _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: progress,
                                           willPublish: { progress.cancel() })
             XCTFail("取消し後に公開できない")
         } catch { XCTAssertTrue(error is CancellationError) }
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertEqual(directories.withLock { $0.count }, 1)
         for directory in directories.withLock({ $0 }) { XCTAssertFalse(exists(directory)) }
@@ -365,10 +339,10 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             let document = try document(fixture, stack: stack)
             try await append("first.txt", fixture: fixture, document: document)
             XCTAssertTrue(try XCTUnwrap(document.undoManager).canUndo)
-            let before = try digest(fixture.archive)
+            let before = try ArchiveOracle.digest(fixture.archive)
             failure.withLock { $0 = unsupported }
             try await append("second.txt", fixture: fixture, document: document)
-            XCTAssertNotEqual(try digest(fixture.archive), before)
+            XCTAssertNotEqual(try ArchiveOracle.digest(fixture.archive), before)
             XCTAssertEqual(document.generation, 2)
             XCTAssertEqual(Set(try ArchiveReader.open(url: fixture.archive).entries.map(\.name)),
                            ["old.txt", "sub/old.txt", "first.txt", "second.txt"])
@@ -387,12 +361,12 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             return EIO
         }
         let document = try document(fixture, stack: stack)
-        let before = try digest(fixture.archive)
+        let before = try ArchiveOracle.digest(fixture.archive)
         do {
             _ = try await document.append(urls: [fixture.file("added.txt")], to: "", progress: Progress())
             XCTFail("予期しない clone 障害を無視しない")
         } catch { }
-        XCTAssertEqual(try digest(fixture.archive), before)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         XCTAssertEqual(document.generation, 0)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertEqual(directories.withLock { $0.count }, 1)
@@ -474,9 +448,9 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
 
     @MainActor func testAppendAfterUndoDeletesRedoSlotAndPreservesUndoOrder() async throws {
         let fixture = try Fixture(), document = try document(fixture)
-        let original = try digest(fixture.archive)
+        let original = try ArchiveOracle.digest(fixture.archive)
         try await append("first.txt", fixture: fixture, document: document)
-        let first = try digest(fixture.archive)
+        let first = try ArchiveOracle.digest(fixture.archive)
         try await append("second.txt", fixture: fixture, document: document)
         try await undo(document)
         let redoSlot = try XCTUnwrap(document.archiveUndoStack.slots.first(where: \.isRedo))
@@ -484,9 +458,9 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canRedo)
         XCTAssertFalse(exists(redoSlot.directory))
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), first)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), first)
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
     }
 
@@ -497,62 +471,62 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             return code == 0 ? ArchiveUndoStack.cloneFile(from: source, to: destination) : code
         }
         let document = try document(fixture, stack: stack)
-        let original = try digest(fixture.archive)
+        let original = try ArchiveOracle.digest(fixture.archive)
         try await append("added.txt", fixture: fixture, document: document)
-        let added = try digest(fixture.archive)
+        let added = try ArchiveOracle.digest(fixture.archive)
         failure.withLock { $0 = EIO }
         let manager = try XCTUnwrap(document.undoManager)
         manager.undo()
         await document.undoTask?.value
         XCTAssertNotNil(document.undoFailure)
-        XCTAssertEqual(try digest(fixture.archive), added)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), added)
         XCTAssertEqual(document.generation, 1)
         XCTAssertTrue(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
         if document.saveBehavior == .immediate { XCTAssertFalse(document.isDocumentEdited) }
         failure.withLock { $0 = 0 }
         try await undo(document)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertTrue(manager.canRedo)
     }
 
     @MainActor func testCloseWaitsForPendingPublicationBeforeDeletingItsSlot() async throws {
-        let fixture = try Fixture(), directories = Mutex<[URL]>([]), gate = Gate()
+        let fixture = try Fixture(), directories = Mutex<[URL]>([]), gate = ScenarioGate()
         let stack = ArchiveUndoStack { source, destination in
             directories.withLock { $0.append(destination.deletingLastPathComponent()) }
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
         }
         let document = try document(fixture, stack: stack)
-        let original = try digest(fixture.archive), added = try fixture.file("added.txt")
+        let original = try ArchiveOracle.digest(fixture.archive), added = try fixture.file("added.txt")
         let task = Task {
-            try await document.append(urls: [added], to: "", progress: Progress(), willPublish: { gate.wait() })
+            try await document.append(urls: [added], to: "", progress: Progress(), willPublish: { gate.pause() })
         }
-        try await waitForGate(gate)
+        try await waitUntil { gate.isEntered }
         document.close()
         XCTAssertTrue(exists(try XCTUnwrap(directories.withLock { $0.first })))
-        gate.release.signal()
+        gate.release()
         do { _ = try await task.value; XCTFail("閉じた文書の未公開の追加を取り消す") }
         catch { XCTAssertTrue(error is CancellationError) }
         await document.undoCleanup?.value
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         for directory in directories.withLock({ $0 }) { XCTAssertFalse(exists(directory)) }
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertFalse(try XCTUnwrap(document.undoManager).canUndo)
     }
 
     @MainActor func testPendingUndoRejectsRepeatedUndoRedoAndAppend() async throws {
-        let fixture = try Fixture(), gate = Gate(), calls = Mutex(0)
+        let fixture = try Fixture(), gate = ScenarioGate(), calls = Mutex(0)
         let stack = ArchiveUndoStack { source, destination in
             let index = calls.withLock { $0 += 1; return $0 }
-            if index == 2 { gate.wait() }
+            if index == 2 { gate.pause() }
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
         }
         let document = try document(fixture, stack: stack)
-        let original = try digest(fixture.archive)
+        let original = try ArchiveOracle.digest(fixture.archive)
         try await append("first.txt", fixture: fixture, document: document)
         let manager = try XCTUnwrap(document.undoManager)
         manager.undo()
-        try await waitForGate(gate)
+        try await waitUntil { gate.isEntered }
         XCTAssertFalse(manager.canUndo)
         XCTAssertFalse(manager.canRedo)
         manager.undo()
@@ -561,11 +535,11 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             _ = try await document.append(urls: [fixture.file("second.txt")], to: "", progress: Progress())
             XCTFail("復元中に別の変更を始めない")
         } catch { }
-        gate.release.signal()
+        gate.release()
         await document.undoTask?.value
         XCTAssertNil(document.undoFailure)
         XCTAssertEqual(document.generation, 2)
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertTrue(manager.canRedo)
         try await redo(document)
         XCTAssertEqual(document.generation, 3)
@@ -593,9 +567,9 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
             return ArchiveUndoStack.cloneFile(from: source, to: destination)
         }
         let document = try document(fixture, stack: stack)
-        let original = try digest(fixture.archive)
+        let original = try ArchiveOracle.digest(fixture.archive)
         try await append("added.txt", fixture: fixture, document: document)
-        XCTAssertNotEqual(try digest(fixture.archive), original)
+        XCTAssertNotEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertEqual(stack.retainedBytes, 0)
         XCTAssertTrue(stack.slots.isEmpty)
         XCTAssertEqual(directories.withLock { $0.count }, 1)
@@ -618,17 +592,17 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertEqual(redoItem.keyEquivalent, "Z")
         XCTAssertTrue(undoItem.keyEquivalentModifierMask.contains(.command))
         XCTAssertTrue(redoItem.keyEquivalentModifierMask.contains(.command))
-        let original = try digest(fixture.archive)
+        let original = try ArchiveOracle.digest(fixture.archive)
         try await append("added.txt", fixture: fixture, document: document)
-        let added = try digest(fixture.archive)
+        let added = try ArchiveOracle.digest(fixture.archive)
         XCTAssertTrue(document.validateUserInterfaceItem(undoItem))
         XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(undoItem.action), to: document, from: undoItem))
         await document.undoTask?.value
-        XCTAssertEqual(try digest(fixture.archive), original)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), original)
         XCTAssertTrue(document.validateUserInterfaceItem(redoItem))
         XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(redoItem.action), to: document, from: redoItem))
         await document.undoTask?.value
-        XCTAssertEqual(try digest(fixture.archive), added)
+        XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), added)
     }
 }
 
@@ -658,14 +632,14 @@ extension ArchiveUndoStackTests {
             document.addWindowController(controller)
             controller.display(EntryNode.tree(from: await session.entries()), session: session)
             controller.outlineView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-            let before = try digest(fixture.archive)
+            let before = try ArchiveOracle.digest(fixture.archive)
             controller.deleteEntries(nil)
             XCTAssertNotNil(controller.deletionConfirmation, "Unsupported or unknown clone support must ask before publication")
             XCTAssertFalse(document.canUndoNextMutation, "Only confirmed clone support permits undo")
-            XCTAssertEqual(try digest(fixture.archive), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
             controller.cancelExtraction()
             await controller.extractionTask?.value
-            XCTAssertEqual(try digest(fixture.archive), before)
+            XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
         }
     }
 

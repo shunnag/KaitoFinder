@@ -6,70 +6,7 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
-nonisolated enum TarUpdateFixture {
-    static func checksum(_ header: inout Data) {
-        header.replaceSubrange(148..<156, with: Data(repeating: 32, count: 8))
-        let value = String(header.reduce(0) { $0 + Int($1) }, radix: 8)
-        header.replaceSubrange(148..<156, with: (String(repeating: "0", count: 6 - value.count) + value + "\0 ").utf8)
-    }
-
-    static func member(_ name: String, type: UInt8 = 48, body: Data = Data("payload".utf8), link: String = "") -> Data {
-        var header = Data(count: 512)
-        func text(_ value: String, _ offset: Int) { header.replaceSubrange(offset..<(offset + value.utf8.count), with: value.utf8) }
-        func number(_ value: Int, _ offset: Int, _ width: Int) {
-            let digits = String(value, radix: 8)
-            text(String(repeating: "0", count: width - 1 - digits.count) + digits + "\0", offset)
-        }
-        text(name, 0); number(0o755, 100, 8); number(501, 108, 8); number(20, 116, 8)
-        number(body.count, 124, 12); number(1_700_000_000, 136, 12)
-        header[156] = type; text(link, 157); text("ustar\0" + "00", 257); text("alice", 265); text("staff", 297)
-        checksum(&header)
-        return header + body + Data(count: (512 - body.count % 512) % 512)
-    }
-
-    static func pax(_ key: String, _ value: String, type: UInt8 = 120) -> Data {
-        let suffix = " \(key)=\(value)\n"
-        var count = suffix.utf8.count + 1
-        while String(count).utf8.count + suffix.utf8.count != count { count = String(count).utf8.count + suffix.utf8.count }
-        return member("PaxHeader", type: type, body: Data("\(count)\(suffix)".utf8))
-    }
-
-    static var bytes: Data {
-        pax("SCHILY.xattr.user.kaito", "kept") + member("keep") + member("remove")
-            + member("folder/", type: 53, body: Data()) + member("folder/child") + member("last") + Data(count: 1024)
-    }
-
-    static func archive(_ root: URL, bytes: Data = bytes, name: String = "original.tar") throws -> URL {
-        let url = root.appendingPathComponent(name)
-        try bytes.write(to: url)
-        return url
-    }
-
-    static func groups(_ bytes: Data) -> [Data] {
-        var result: [Data] = [], offset = 0, start = 0
-        while offset + 512 <= bytes.count, bytes[offset..<(offset + 512)].contains(where: { $0 != 0 }) {
-            let size = Int(String(decoding: bytes[(offset + 124)..<(offset + 136)].prefix { $0 != 0 && $0 != 32 }, as: UTF8.self), radix: 8)!
-            let type = bytes[offset + 156]
-            offset += 512 + (size + 511) / 512 * 512
-            if ![UInt8(120), 103, 76, 75].contains(type) {
-                result.append(bytes.subdata(in: start..<offset)); start = offset
-            }
-        }
-        return result
-    }
-
-    static func selection(_ entry: ArchiveEntry) -> ArchiveEditSelection {
-        .init(path: entry.name, isDirectory: entry.kind == .directory, entries: [entry])
-    }
-}
-
 nonisolated final class TarUpdateEditTests: XCTestCase {
-    private static func assertWork(_ work: URL, archive: URL, original: Data, identity: ArchiveFileIdentity) throws {
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: work.deletingLastPathComponent().path), ["archive.tar"])
-        XCTAssertEqual(try Data(contentsOf: archive), original)
-        XCTAssertEqual(try ArchiveFileIdentity.capture(url: archive), identity)
-    }
-
     func testImmediateEditsKeepMemberBytesAttributesAndAdoptVerifiedReader() async throws {
         let expected: [TarUpdater.CommitStrategy] = [.splice, .inPlacePatch, .inPlacePatch, .splice, .inPlacePatch,
                                                      .appendOnly, .appendOnly, .splice, .inPlacePatch]
@@ -91,7 +28,7 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
                     strategies.withLock { $0.append(updater.lastCommitStrategy) }
                 }) {
                     try await ArchiveImportTransaction.didCommitForTesting.withValue({ work in
-                        try Self.assertWork(work, archive: archive, original: original, identity: identity)
+                        try TarUpdateFixture.assertWork(work, archive: archive, original: original, identity: identity)
                     }) {
                         switch operation {
                         case 0, 1:
@@ -226,7 +163,7 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
                         if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
                     }) {
                         try ArchiveImportTransaction.didCommitForTesting.withValue({ work in
-                            try Self.assertWork(work, archive: archive, original: original, identity: identity)
+                            try TarUpdateFixture.assertWork(work, archive: archive, original: original, identity: identity)
                         }) {
                             try ArchiveImportTransaction.publish(archive: archive, mode: .update(.tar), options: .init(), progress: progress,
                                 willOpenUpdater: { openings.increment() }, willPublish: nil, deferredPlan: deferred ? plan : nil,
@@ -329,50 +266,5 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
         XCTAssertEqual(saved.prefix(4).map { $0.rawName.bytes }, names.map { Array($0.utf8) })
         XCTAssertEqual(Array(TarUpdateFixture.groups(try Data(contentsOf: archive)).prefix(4)), TarUpdateFixture.groups(bytes))
         await session.close()
-    }
-
-    private func volumeEdits(_ root: URL) async throws -> [ArchiveEntry] {
-        let archive = try TarUpdateFixture.archive(root), session = try ArchiveSession(url: archive)
-        let source = root.appendingPathComponent("added"); try Data("new".utf8).write(to: source)
-        var entries = await session.entries()
-        let removed = try await session.remove([TarUpdateFixture.selection(entries[1])], progress: Progress())
-        XCTAssertNil(removed.reloadFailure)
-        let added = try await session.append(urls: [source], to: "", progress: Progress())
-        XCTAssertNil(added.reloadFailure)
-        entries = await session.entries()
-        let renamed = try await session.rename(TarUpdateFixture.selection(entries[0]), to: "kept", progress: Progress())
-        XCTAssertNil(renamed.reloadFailure)
-        let snapshot = try await session.deferredSnapshot()
-        var pending = ArchivePendingChanges(); pending.createdFolders = [.init(id: UUID(), path: "saved/", date: Date(timeIntervalSince1970: 1_700_000_000))]
-        let publication = ArchiveSavePublication(); defer { publication.finish() }
-        let saved = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: Progress(), publication: publication)
-        XCTAssertNil(saved.reloadFailure)
-        let reader = try ArchiveReader.open(url: archive)
-        XCTAssertEqual(try reader.read(XCTUnwrap(reader.entries.first { $0.name == "added" })), Data("new".utf8))
-        let result = await session.entries(); await session.close()
-        return result
-    }
-
-    private func checkVolume(_ fileSystem: String) async throws {
-        let disk = try VolumePublishTestDisk(fileSystem), directory = try ArchiveTestDirectory()
-        let baseline = try await volumeEdits(directory.url), actual = try await volumeEdits(disk.mount)
-        XCTAssertEqual(actual.map(\.name), baseline.map(\.name)); XCTAssertEqual(actual.map(\.kind), baseline.map(\.kind))
-        XCTAssertEqual(actual.map(\.uncompressedSize), baseline.map(\.uncompressedSize))
-    }
-    func testHFSPlusEditsMatchAPFS() async throws { try await checkVolume("HFS+") }
-    func testExFATEditsMatchAPFS() async throws { try await checkVolume("ExFAT") }
-    func testFAT32EditsMatchAPFS() async throws { try await checkVolume("MS-DOS FAT32") }
-    func testSequentialEditsWithoutCloneMatchAPFS() async throws {
-        let a = try ArchiveTestDirectory(), b = try ArchiveTestDirectory()
-        let baseline = try await volumeEdits(a.url)
-        let strategies = Mutex<[TarUpdater.CommitStrategy?]>([])
-        let actual = try await TarUpdater.$testingDisablesClone.withValue(true) {
-            try await ArchiveImportTransaction.didCommitTarUpdaterForTesting.withValue({ updater in strategies.withLock { $0.append(updater.lastCommitStrategy) } }) {
-                try await volumeEdits(b.url)
-            }
-        }
-        XCTAssertEqual(strategies.withLock { $0 }, Array(repeating: .sequential, count: 4))
-        XCTAssertEqual(actual.map(\.name), baseline.map(\.name)); XCTAssertEqual(actual.map(\.kind), baseline.map(\.kind))
-        XCTAssertEqual(actual.map(\.uncompressedSize), baseline.map(\.uncompressedSize))
     }
 }

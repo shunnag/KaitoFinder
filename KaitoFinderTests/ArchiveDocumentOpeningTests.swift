@@ -17,14 +17,14 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
 
     @MainActor func testZIPOpensThroughDocumentController() async throws {
         let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("opening.zip")
-        try directory.run("/usr/bin/zip", ["-q", "-D", archive.path,
+        try directory.run(ExternalTool.zip, ["-q", "-D", archive.path,
                                            "nested/deeper/one.txt", "nested/deeper/two.txt", "note.txt"])
         try await assertOpensThroughDocumentController(archive, in: directory)
     }
 
     @MainActor func testTGZOpensThroughDocumentController() async throws {
         let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("opening.tgz")
-        try directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", "-czf", archive.path,
+        try directory.run(ExternalTool.bsdtar, ["--no-mac-metadata", "--no-xattrs", "-czf", archive.path,
                                               "nested", "note.txt"])
         try await assertOpensThroughDocumentController(archive, in: directory)
     }
@@ -83,7 +83,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     @MainActor func testHeaderEncryptedReadKeepsLockedDocumentWithoutPresentingPrompt() throws {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("locked.7z")
         try Data("secret".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-        try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-pfixture-password", "-mhe=on", archive.path, "secret.txt"])
+        try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-pfixture-password", "-mhe=on", archive.path, "secret.txt"])
         let document = ArchiveDocument()
         defer { document.close() }
         try document.read(from: archive, ofType: "org.7-zip.7-zip-archive")
@@ -97,7 +97,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         preserveArchiveWindowFrame()
         let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("launch.zip")
         let missing = directory.url.appendingPathComponent("missing.zip")
-        try directory.run("/usr/bin/zip", ["-q", "-D", archive.path, "note.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-D", archive.path, "note.txt"])
         try requireDocumentTypeLookup(archive)
         let suite = try ArchivePreferencesTestDefaults()
         let delegate = AppDelegate(preferencesStore: ArchivePreferencesStore(defaults: suite.defaults))
@@ -160,13 +160,12 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
     @MainActor func testQuickLookForSelectedZIPRowSurvivesForegroundAsyncLoading() async throws {
         let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("preview.zip")
         // 行 0 が仮想フォルダではなく、プレビュー可能なファイルになる ZIP を開く。
-        try directory.run("/usr/bin/zip", ["-q", "-D", archive.path, "note.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-D", archive.path, "note.txt"])
         try await assertQuickLook(archive, in: directory, name: "note.txt", expected: Data("note.txt".utf8))
     }
 
     @MainActor func testQuickLookForXZAndLegacyZstandardZIPRows() async throws {
-        let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("KaitoKit/Tests/Fixtures/zip-modern")
+        let fixtures = TestPaths.kaitoKitFixtures.appendingPathComponent("zip-modern")
         let expected = Data(String(repeating: "XZ and Zstandard ZIP interoperability 日本語\n", count: 800).utf8)
         for name in ["xz.zip", "xz-aes.zip", "xz-zipcrypto.zip", "zstd20.zip", "zstd-aes20.zip"] {
             let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent(name)
@@ -184,7 +183,7 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
             expectedTopLevelPaths: [name])
         if let password {
             let document = try XCTUnwrap(controller.document as? ArchiveDocument)
-            document.session?.setPasswordPrompt { _ in password }
+            document.session?.setPasswordPrompt(PasswordPrompts.fixed(password))
         }
         let window = try XCTUnwrap(controller.window)
         window.makeKeyAndOrderFront(nil)

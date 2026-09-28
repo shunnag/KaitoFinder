@@ -27,8 +27,8 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
             for name in images + ["encrypted.png"] { try png.write(to: directory.url.appendingPathComponent(name)) }
             try Data(repeating: 0, count: 9 * 1024 * 1024).write(to: directory.url.appendingPathComponent("big.png"))
             try Data("not an image".utf8).write(to: directory.url.appendingPathComponent("note.txt"))
-            try directory.run("/usr/bin/zip", ["-q", "-D", archive.path] + images + ["big.png", "note.txt"])
-            try directory.run("/usr/bin/zip", ["-q", "-P", "secret", archive.path, "encrypted.png"])
+            try directory.run(ExternalTool.zip, ["-q", "-D", archive.path] + images + ["big.png", "note.txt"])
+            try directory.run(ExternalTool.zip, ["-q", "-P", "secret", archive.path, "encrypted.png"])
         }
 
         func files() -> [URL] {
@@ -89,10 +89,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let root = EntryNode.tree(from: snapshot.entries)
         let materialization = try XCTUnwrap(document.materializationController(temporaryDirectory: fixture.temporary))
         controller.display(root, session: session, generation: snapshot.generation, materializationController: materialization)
-        session.setPasswordPrompt { _ in
-            XCTFail("サムネイルはパスワード入力を要求しない")
-            throw CancellationError()
-        }
+        session.setPasswordPrompt(PasswordPrompts.refusing("サムネイルはパスワード入力を要求しない"))
         addTeardownBlock { @MainActor in
             document.close()
             await document.materializationCleanup?.value
@@ -106,10 +103,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
     @MainActor private func provider(_ fixture: Fixture, generate: @escaping ArchiveThumbnailProvider.Generate) async throws
         -> (ArchiveThumbnailProvider, ArchiveSession, EntryNode, EntryMaterializer) {
         let session = try ArchiveSession(url: fixture.archive), snapshot = await session.snapshot()
-        session.setPasswordPrompt { _ in
-            XCTFail("サムネイルはパスワード入力を要求しない")
-            throw CancellationError()
-        }
+        session.setPasswordPrompt(PasswordPrompts.refusing("サムネイルはパスワード入力を要求しない"))
         let worker = EntryMaterializer(session: session, temporaryDirectory: fixture.temporary)
         let provider = ArchiveThumbnailProvider(materializer: worker, session: session, generation: snapshot.generation, isImage: { $0.hasSuffix(".png") }, generate: generate)
         addTeardownBlock { @MainActor in
@@ -123,12 +117,6 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
 
     @MainActor private func node(_ name: String, in root: EntryNode) throws -> EntryNode {
         try XCTUnwrap(root.children.first { $0.name == name })
-    }
-
-    @MainActor private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) async throws {
-        let deadline = ContinuousClock.now + .seconds(5)
-        while !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }
-        XCTAssertTrue(condition(), "処理が 5 秒以内に完了すること", file: file, line: line)
     }
 
     @MainActor private func nameCell(_ node: EntryNode, in controller: ArchiveWindowController) throws -> NSTableCellView {
@@ -193,10 +181,8 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
 
     private func entry(_ path: String, kind: EntryKind = .file, size: UInt64? = 1,
                        encrypted: Bool = false, incomplete: Bool = false, solidGroup: Int = -1) -> ArchiveEntry {
-        ArchiveEntry(index: 0, rawName: RawName(bytes: Array(path.utf8)), name: path,
-            pathComponents: path.split(separator: "/").map(String.init), kind: kind, uncompressedSize: size,
-            compressedSize: 1, modificationDate: nil, posixPermissions: nil, isEncrypted: encrypted,
-            solidGroup: solidGroup, crc32: nil, methodDescription: "stored", formatSpecific: [:], isIncomplete: incomplete)
+        archiveColumnEntry(path, kind: kind, size: size, compressed: 1, solidGroup: solidGroup, encrypted: encrypted,
+                           method: "stored", incomplete: incomplete)
     }
 
     @MainActor func testSolidMemberNeverStartsThumbnailProduction() async throws {
@@ -240,18 +226,18 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         for node in nodes {
             for _ in 0..<3 { XCTAssertNil(provider.thumbnail(for: node)) }
         }
-        try await waitUntil { gate.urls.count == 2 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 2 }
         XCTAssertEqual(Set(gate.urls.map(\.lastPathComponent)), Set(names.prefix(2)))
         XCTAssertEqual(fixture.files().count, 2)
         try gate.succeed(names[0])
         for index in 2..<5 {
-            try await waitUntil { gate.urls.count == index + 1 }
+            try await waitUntil(timeout: .seconds(5)) { gate.urls.count == index + 1 }
             XCTAssertEqual(gate.urls.last?.lastPathComponent, names[index])
             XCTAssertEqual(fixture.files().count, 2)
             try gate.succeed(names[index])
         }
         try gate.succeed(names[1])
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         XCTAssertEqual(gate.maximumActiveCount, 2)
         XCTAssertEqual(gate.urls.count, 5)
         XCTAssertEqual(Set(produced), Set(nodes))
@@ -273,24 +259,24 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         var visible = Set(nodes)
         provider.isVisible = { visible.contains($0) }
         for node in nodes { _ = provider.thumbnail(for: node) }
-        try await waitUntil { gate.urls.count == 2 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 2 }
         visible = [nodes[6], nodes[7]]
         try gate.succeed(names[0])
-        try await waitUntil { gate.urls.count == 3 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 3 }
         XCTAssertEqual(gate.urls.last?.lastPathComponent, names[6])
         try gate.succeed(names[1])
-        try await waitUntil { gate.urls.count == 4 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 4 }
         XCTAssertEqual(gate.urls.last?.lastPathComponent, names[7])
         try gate.succeed(names[6])
         try gate.succeed(names[7])
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         XCTAssertEqual(Set(gate.urls.map(\.lastPathComponent)), Set([names[0], names[1], names[6], names[7]]))
         visible.insert(nodes[2])
         _ = provider.thumbnail(for: nodes[2])
-        try await waitUntil { gate.urls.count == 5 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 5 }
         XCTAssertEqual(gate.urls.last?.lastPathComponent, names[2])
         try gate.succeed(names[2])
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         XCTAssertTrue(fixture.files().isEmpty)
     }
 
@@ -320,14 +306,14 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         provider.isVisible = { _ in visible }
         _ = provider.thumbnail(for: small)
         visible = false
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         XCTAssertTrue(gate.urls.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.temporary.root.path))
         visible = true
         _ = provider.thumbnail(for: small)
-        try await waitUntil { gate.urls.count == 1 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 1 }
         try gate.succeed("small.png")
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
     }
 
     @MainActor func testThumbnailGenerationFailureIsDiscardedAndNeverRetried() async throws {
@@ -337,9 +323,9 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let small = try node("small.png", in: root)
         provider.didProduce = { _ in XCTFail("失敗した画像を公開しない") }
         XCTAssertNil(provider.thumbnail(for: small))
-        try await waitUntil { gate.urls.count == 1 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 1 }
         try gate.fail("small.png")
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         for _ in 0..<3 { XCTAssertNil(provider.thumbnail(for: small)) }
         XCTAssertTrue(provider.isIdle)
         XCTAssertEqual(gate.urls.count, 1)
@@ -356,19 +342,19 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let (provider, session, _, worker) = try await provider(fixture, generate: generate)
         let missing = try XCTUnwrap(EntryNode.tree(from: [entry("missing.png")]).children.first)
         XCTAssertNil(provider.thumbnail(for: missing))
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         XCTAssertEqual(generated, 0)
         XCTAssertTrue(fixture.files().isEmpty)
         try Data(contentsOf: fixture.directory.url.appendingPathComponent("small.png"))
             .write(to: fixture.directory.url.appendingPathComponent("missing.png"))
-        try fixture.directory.run("/usr/bin/zip", ["-q", fixture.archive.path, "missing.png"])
+        try fixture.directory.run(ExternalTool.zip, ["-q", fixture.archive.path, "missing.png"])
         try await session.reloadAfterMutation()
         XCTAssertNil(provider.thumbnail(for: missing))
         XCTAssertTrue(provider.isIdle)
         let fresh = ArchiveThumbnailProvider(materializer: worker, session: session, generation: session.generation, isImage: { $0.hasSuffix(".png") }, generate: generate)
         addTeardownBlock { @MainActor in await fresh.cancelAll().value }
         XCTAssertNil(fresh.thumbnail(for: missing))
-        try await waitUntil { fresh.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { fresh.isIdle }
         XCTAssertNotNil(fresh.thumbnail(for: missing))
         XCTAssertEqual(generated, 1)
         XCTAssertTrue(fixture.files().isEmpty)
@@ -384,7 +370,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         let entries = [entry("small.png", size: 8 * 1024 * 1024), entry("small.png", size: 8 * 1024 * 1024)]
         let nodes = EntryNode.tree(from: entries).children
         for node in nodes { XCTAssertNil(provider.thumbnail(for: node)) }
-        try await waitUntil { provider.isIdle }
+        try await waitUntil(timeout: .seconds(5)) { provider.isIdle }
         XCTAssertEqual(generated, 2)
         let images = try nodes.map { try XCTUnwrap(provider.thumbnail(for: $0)) }
         XCTAssertFalse(images[0] === images[1])
@@ -399,7 +385,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         var produced = 0
         provider.didProduce = { _ in produced += 1 }
         for node in nodes { XCTAssertNil(provider.thumbnail(for: node)) }
-        try await waitUntil { gate.urls.count == 2 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 2 }
         let cleanup = provider.cancelAll()
         // 生成器が取消しを無視して成功を返しても、コピーも通知も残さない。
         for name in gate.urls.map(\.lastPathComponent) { try gate.succeed(name) }
@@ -498,7 +484,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         provider.didProduce = { _ in XCTFail("文書の終了後は通知しない") }
         let small = try node("small.png", in: EntryNode.tree(from: snapshot.entries))
         XCTAssertNil(provider.thumbnail(for: small))
-        try await waitUntil { gate.urls.count == 1 }
+        try await waitUntil(timeout: .seconds(5)) { gate.urls.count == 1 }
         let url = try XCTUnwrap(gate.urls.first), documentDirectory = url.deletingLastPathComponent().deletingLastPathComponent()
         let cleanup = materialization.close()
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))

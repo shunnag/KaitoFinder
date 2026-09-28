@@ -164,7 +164,7 @@ nonisolated final class CompressedTarPublishTests: XCTestCase {
             try CompressedTarFixture.externalBytes.write(to: raw)
             let archive = directory.url.appendingPathComponent("bsdtar." + CompressedTarFixture.suffix(format))
             // @raw copies entries through bsdtar, retaining owners, uname, pax and AppleDouble.
-            try directory.run("/usr/bin/bsdtar", [format == .tarGzip ? "-czf" : "-cJf", archive.path, "@" + raw.path])
+            try directory.run(ExternalTool.bsdtar, [format == .tarGzip ? "-czf" : "-cJf", archive.path, "@" + raw.path])
             let base = try CompressedTarFixture.open(archive)
             XCTAssertEqual(base.entries.first?.formatSpecific["uid"], "501")
             XCTAssertEqual(base.entries.first?.formatSpecific["gid"], "20")

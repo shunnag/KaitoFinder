@@ -9,7 +9,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
         for fixture in ["g_plain", "g_aes", "g_aesh", "z_default", "z_aes", "z_aesh", "z_aesonlyh"] {
             for headers in [false, true] {
                 let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.frozen(fixture, at: directory.url)
-                let original = try SevenZipUpdateFixture.contents(SevenZipUpdateFixture.reader(archive))
+                let original = try ArchiveOracle.contents(SevenZipUpdateFixture.reader(archive), including: .nonDirectories)
                 let encrypted = fixture.contains("aes")
                 let session = try ArchiveSession(url: archive, password: encrypted ? "secret" : nil)
                 XCTAssertEqual(session.capabilities.sevenZipAssessment?.canReencrypt, true)
@@ -26,7 +26,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
                     let reader = try SevenZipUpdateFixture.reader(archive, password: password)
                     try ArchiveOutputProjection(projected: reader.entries, mode: .update(.sevenZip), sevenZipEncryption: password != nil).validate(reader)
                     XCTAssertEqual(try XCTUnwrap(reader.sevenZipEditingSnapshot()).header.isEncrypted, password != nil && headers)
-                    XCTAssertEqual(try SevenZipUpdateFixture.contents(reader), original)
+                    XCTAssertEqual(try ArchiveOracle.contents(reader, including: .nonDirectories), original)
                 }
                 let snapshot = try await session.deferredSnapshot(), target = try XCTUnwrap(snapshot.entries.first { $0.kind == .file })
                 var pending = ArchivePendingChanges()
@@ -52,7 +52,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
     func testUnsupportedAssessmentUsesRewriterAndCompletesProgress() async throws {
         for fixture in ["bcj2"] + SevenZipUpdateFixture.fallbacks {
             let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.frozen(fixture, at: directory.url)
-            let expected = try SevenZipUpdateFixture.contents(SevenZipUpdateFixture.reader(archive))
+            let expected = try ArchiveOracle.contents(SevenZipUpdateFixture.reader(archive), including: .nonDirectories)
             let session = try ArchiveSession(url: archive)
             XCTAssertEqual(session.capabilities.sevenZipAssessment?.canReencrypt, false)
             let trace = SevenZipUpdateTrace(), progress = Progress()
@@ -63,7 +63,7 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
             trace.assertRoute([.rewriterOpen])
             XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
             let reader = try SevenZipUpdateFixture.reader(archive, password: "new")
-            XCTAssertEqual(try SevenZipUpdateFixture.contents(reader), expected)
+            XCTAssertEqual(try ArchiveOracle.contents(reader, including: .nonDirectories), expected)
             try ArchiveOutputProjection(projected: reader.entries, mode: .rewrite(.sevenZip), sevenZipEncryption: true).validate(reader)
             await session.close()
         }
