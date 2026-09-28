@@ -7,21 +7,11 @@ import XCTest
 
 nonisolated final class VolumePublishCorrectionTests: XCTestCase {
     private enum Injected: Error { case failure, trashUnavailable, readerUnavailable }
-    private func noTrash() -> VolumePublishOperations {
-        var operations = VolumePublishOperations()
-        operations.trash = { _ in throw Injected.trashUnavailable }
-        return operations
-    }
     private func crash(_ fixture: VolumePublishFixture, at step: VolumePublishStep,
                        operations: VolumePublishOperations = .init(), consent: Bool = false) throws -> URL {
         let publication = try fixture.begin(consent: consent, operations: operations) { if $0 == step { throw SimulatedCrash() } }
         XCTAssertThrowsError(try publication.publish(progress: Progress())) { XCTAssertTrue($0 is SimulatedCrash, "\($0)") }
         return publication.stagingURL
-    }
-    private func disk(_ kind: String) throws -> VolumePublishTestDisk {
-        let disk = try VolumePublishTestDisk(kind)
-        addTeardownBlock { try disk.detach() }
-        return disk
     }
     private func setXattr(_ url: URL, _ name: String, _ bytes: Data) throws {
         guard bytes.withUnsafeBytes({ setxattr(url.path, name, $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW) }) == 0 else {
@@ -32,7 +22,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
     // 1 / 4: 実 FAT の AppleDouble と、必ず Trash が失敗する分岐。
     func testFATAndExFATXattrsForeignEntriesAndForcedRemoval() throws {
         for kind in ["MS-DOS FAT32", "ExFAT"] {
-            let disk = try disk(kind)
+            let disk = try attachedTestDisk(kind)
             defer { try? disk.detach() }
             try disk.disableTrash()
             for step in [VolumePublishStep.s7, .s8] {
@@ -91,7 +81,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
     func testS11PartialDirectoryRemovalStillRecoversByCleanupOnly() throws {
         for oldDirectory in [true, false] {
             let fixture = try VolumePublishFixture()
-            var operations = noTrash()
+            var operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
             operations.willRemove = { url in
                 if oldDirectory && url.lastPathComponent == "old" {
                     try FileManager.default.removeItem(at: url.appendingPathComponent("archive.tar.001"))
@@ -128,7 +118,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
     // 3: S1 write-ahead と、原本の外部変更後の pre-S5 cleanup。
     func testPreS5AbortAndCancelRemoveStagingAfterExternalChange() throws {
         for cancel in [false, true] {
-            let fixture = try VolumePublishFixture(), publication = try fixture.begin(operations: noTrash())
+            let fixture = try VolumePublishFixture(), publication = try fixture.begin(operations: .refusingTrash(Injected.trashUnavailable))
             let third = fixture.root.appendingPathComponent("archive.tar.003")
             try FileManager.default.removeItem(at: third)
             try fixture.oldParts[2].write(to: third)
@@ -199,7 +189,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
 
     // 4: no-Trash は成功した rollback と forward recovery の障害にならない。
     func testForcedTrashFailureRemovesCommittedAndRolledBackData() throws {
-        let operations = noTrash()
+        let operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
         let committed = try VolumePublishFixture(), publication = try committed.begin(operations: operations)
         XCTAssertEqual(try publication.publish(progress: Progress()).oldVolumesDisposal, .removed)
         try committed.assertNew(); try committed.assertRemoved(publication.stagingURL)
@@ -299,7 +289,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
     }
     func testCompletedRollbackCleanupFailureRetainsOriginalCause() throws {
         let fixture = try VolumePublishFixture()
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
         operations.willRemove = { _ in throw Injected.failure }
         let publication = try fixture.begin(operations: operations) { if $0 == .s7 { throw Injected.readerUnavailable } }
         XCTAssertThrowsError(try publication.publish(progress: Progress())) {
@@ -385,7 +375,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
     // 9: hook は実 FULLFSYNC（非対応時 fsync）の完了後にのみ通知される。
     func testDurabilityBarriersPrecedeSiblingMovesGatePublicationAndDisposal() throws {
         let events = Mutex<[String]>([])
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
         operations.didBarrier = { point in events.withLock { $0.append(String(describing: point)) } }
         operations.trash = { _ in events.withLock { $0.append("dispose") }; throw Injected.trashUnavailable }
         let fixture = try VolumePublishFixture()
@@ -406,7 +396,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
         let fixture = try VolumePublishFixture(), staging = try crash(fixture, at: .s8), events = Mutex<[String]>([])
         let directory = try VolumePublishDirectory(staging)
         try VolumeExclusiveRename(usesFallback: false).move("new", from: directory, to: directory, as: "abandoned")
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash(Injected.trashUnavailable)
         operations.didBarrier = { point in events.withLock { $0.append(String(describing: point)) } }
         operations.trash = { _ in events.withLock { $0.append("dispose") }; throw Injected.trashUnavailable }
         guard case .recovered(_, .backward, .removed) = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: staging) else { return XCTFail("backward recovery") }
@@ -448,7 +438,7 @@ nonisolated final class VolumePublishCorrectionTests: XCTestCase {
 
     // 11: didMount と同じ index-only 呼び出しを別 mount point から行う。
     func testIndexRecoversByUUIDAfterRemountAtDifferentPath() throws {
-        let disk = try disk("APFS")
+        let disk = try attachedTestDisk("APFS")
         defer { try? disk.detach() }
         let fixture = try VolumePublishFixture(parent: disk.mount), staging = try crash(fixture, at: .s7)
         let entry = try XCTUnwrap(fixture.index.entries().first)

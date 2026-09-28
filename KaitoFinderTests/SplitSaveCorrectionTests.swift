@@ -17,11 +17,6 @@ import XCTest
 }
 
 nonisolated final class SplitSaveCorrectionTests: XCTestCase {
-    private func disk(_ kind: String = "MS-DOS FAT32") throws -> VolumePublishTestDisk {
-        let disk = try VolumePublishTestDisk(kind)
-        addTeardownBlock { try disk.detach() }
-        return disk
-    }
     private func crash(_ fixture: VolumePublishFixture, at step: VolumePublishStep = .s7) throws -> URL {
         // This fixture tests recovery/presentation, not Foundation coordination availability.
         var operations = VolumePublishOperations()
@@ -93,7 +88,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
 
     // 3: a failed publication must not strand the pending plan; Save As uses the same readable base.
     @MainActor func testProvenRollbackRetainsGenerationAndAllowsSaveAsOnFAT() async throws {
-        let disk = try disk(), fixture = try DeferredSplitSaveFixture(parent: disk.mount), document = fixture.document
+        let disk = try attachedTestDisk("MS-DOS FAT32"), fixture = try DeferredSplitSaveFixture(parent: disk.mount), document = fixture.document
         defer { document.close() }
         document.splitHazardConsent = { _ in true }
         _ = try await document.rename(fixture.node("file0.txt"), to: "kept.txt", progress: Progress())
@@ -191,7 +186,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
     // 5: marker avoidance must never strip security or the old members' unrelated xattrs.
     @MainActor func testAppleDoubleQuarantineSurvivesDeferredImmediateAndSplitSaveAs() async throws {
         for kind in ["MS-DOS FAT32", "ExFAT"] {
-            let disk = try disk(kind)
+            let disk = try attachedTestDisk(kind)
             for behavior: ArchivePreferences.SaveBehavior in [.onSave, .immediate] {
                 let fixture = try DeferredSplitSaveFixture(parent: disk.mount, behavior: behavior), document = fixture.document
                 defer { document.close() }
@@ -223,7 +218,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
     }
 
     func testAppleDoubleOnlyCopiesAttributesToMatchingOldMembers() throws {
-        let disk = try disk(), fixture = try VolumePublishFixture(parent: disk.mount, oldCount: 3, newCount: 3)
+        let disk = try attachedTestDisk("MS-DOS FAT32"), fixture = try VolumePublishFixture(parent: disk.mount, oldCount: 3, newCount: 3)
         try xattr(fixture.gate, "com.shunnag.test.extra", Data([7]))
         var target = fixture.target(consent: true); target.writesVolumeMetadata = true
         let publication = try VolumeSetPublication.begin(target, estimatedOutputLength: UInt64(fixture.newBytes.count), index: fixture.index)
@@ -269,7 +264,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
 
     // 7: preserve the old inode, size AND coarse mtime: only the content key can reject this stale entry.
     func testMetadataCacheRejectsReusedInodeAndSameSizeDifferentGateBytes() throws {
-        let disk = try disk(), fixture = try VolumePublishFixture(parent: disk.mount)
+        let disk = try attachedTestDisk("MS-DOS FAT32"), fixture = try VolumePublishFixture(parent: disk.mount)
         let store = ArchiveVolumeMetadataStore(fileURL: try volumePublishTestURL(fixture.directory.url).appendingPathComponent("cache/metadata.json"))
         let layout = try XCTUnwrap(fixture.layout)
         let publication = ArchiveVolumeMetadata.Publication(layout: .init(stem: "archive.tar", width: 3, schedule: .uniform(size: 99999)),
@@ -293,7 +288,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
 
     // 8: cache writes fail AFTER proof. Neither normal publish, forward recovery nor rollback may HOLD.
     func testMetadataWriteFailureCannotHoldCommitRecoveryOrRollback() throws {
-        let disk = try disk()
+        let disk = try attachedTestDisk("MS-DOS FAT32")
         for direction in ["commit", "forward", "backward"] {
             let fixture = try VolumePublishFixture(parent: disk.mount)
             let store = ArchiveVolumeMetadataStore(fileURL: try volumePublishTestURL(fixture.directory.url).appendingPathComponent("cache/metadata.json"))
@@ -335,7 +330,7 @@ nonisolated final class SplitSaveCorrectionTests: XCTestCase {
     }
 
     @MainActor func testSplitSaveAsMetadataFailureSucceedsAndReportsWarningInBothModes() async throws {
-        let disk = try disk()
+        let disk = try attachedTestDisk("MS-DOS FAT32")
         for behavior: ArchivePreferences.SaveBehavior in [.onSave, .immediate] {
             let fixture = try DeferredSplitSaveFixture(behavior: behavior), document = fixture.document
             defer { document.close() }

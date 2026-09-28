@@ -6,34 +6,10 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumePublishRound3Tests: XCTestCase {
-    private enum Fault: Error { case io }
-    private func noTrash() -> VolumePublishOperations {
-        var operations = VolumePublishOperations()
-        operations.trash = { _ in throw Fault.io }
-        return operations
-    }
-
-    /// Real split/validation/rename primitives produce crash states without needing a coordinator claim.
-    private func staged(_ fixture: VolumePublishFixture, operations: VolumePublishOperations = .init()) throws -> VolumePublishTransaction {
-        var publication: VolumeSetPublication? = try fixture.begin(operations: operations)
-        let url = publication!.stagingURL, work = publication!.workURL
-        publication = nil
-        let parent = try VolumePublishDirectory(fixture.root), staging = try parent.directory(url.lastPathComponent)
-        let journal = try VolumePublishJournal(staging: staging, create: false)
-        var record = try journal.read()
-        record.newVolumes = try VolumeSplitter.split(workURL: work, into: staging.directory("new"), plan: fixture.plan, oldLayout: fixture.layout)
-        record.totalLength = fixture.plan.totalLength
-        var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
-            renamer: .init(usesFallback: false), index: fixture.index, record: record, operations: operations)
-        try transaction.validateNew(in: staging.directory("new"), options: fixture.readerOptions)
-        try transaction.phase(.prepared)
-        return transaction
-    }
-
     func testEmptyIndexNeverEntersBlockingMountProbe() throws {
         let fixture = try VolumePublishFixture()
         let probed = Mutex(false), unblock = DispatchSemaphore(value: 0)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.mountedVolumes = { _ in
             probed.withLock { $0 = true }
             _ = unblock.wait(timeout: .now() + 0.1)
@@ -44,10 +20,10 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
     }
 
     func testDidMountProbesOnlyNotifiedVolume() throws {
-        let fixture = try VolumePublishFixture(), transaction = try staged(fixture)
+        let fixture = try VolumePublishFixture(), transaction = try fixture.stagedTransaction()
         transaction.journal.release()
         let probes = Mutex<[URL]>([]), mount = fixture.root
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.mountedVolumes = { _ in XCTFail("didMount must not enumerate other mounts"); return [] }
         operations.volumeInfo = { directory in
             probes.withLock { $0.append(directory.url) }
@@ -65,7 +41,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         let url = fixture.root.appendingPathComponent(VolumePublishFS.stagingPrefix + UUID().uuidString)
         try fixture.index.register(url, volumeUUID: volume.uuid, gateName: fixture.plan.gateName)
         let calls = Mutex(0)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.mountedVolumes = { _ in
             calls.withLock { $0 += 1 }
             let lock = try VolumePublishLock.setLock(volumeUUID: volume.uuid, gateInode: nil, parent: fixture.root,
@@ -81,7 +57,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
     func testHeldDoneBackupAllowsThirdSaveAfterDifferentOrLargerGeneration() throws {
         for count in [5, 7, 2] {
             let fixture = try VolumePublishFixture()
-            var first = try staged(fixture, operations: noTrash())
+            var first = try fixture.stagedTransaction(operations: .refusingTrash())
             try first.retireOld(hook: { _ in }); _ = try first.placeNew(hook: { _ in })
             try first.validateHashes(in: first.parent); try first.phase(.done)
             try Data("externally changed backup".utf8).write(to: first.staging.url.appendingPathComponent("old/" + fixture.plan.gateName))
@@ -94,7 +70,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
             let target = VolumeSetTarget(parent: fixture.root, layout: layout, expected: try ArchiveSetIdentity.capture(layout: layout),
                 schedule: .uniform(size: plan.largestVolume))
             var publication: VolumeSetPublication? = try VolumeSetPublication.begin(target, estimatedOutputLength: plan.totalLength,
-                index: fixture.index, operations: noTrash())
+                index: fixture.index, operations: .refusingTrash())
             let url = publication!.stagingURL, work = publication!.workURL
             try fixture.oldBytes.write(to: work); publication = nil
             let staging = try VolumePublishDirectory(url), journal = try VolumePublishJournal(staging: staging, create: false)
@@ -102,7 +78,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
             record.newVolumes = try VolumeSplitter.split(workURL: work, into: staging.directory("new"), plan: plan, oldLayout: layout)
             record.totalLength = plan.totalLength
             var second = VolumePublishTransaction(parent: first.parent, staging: staging, journal: journal,
-                renamer: .init(usesFallback: false), index: fixture.index, record: record, operations: noTrash())
+                renamer: .init(usesFallback: false), index: fixture.index, record: record, operations: .refusingTrash())
             try second.validateNew(in: staging.directory("new")); try second.phase(.prepared)
             try second.retireOld(hook: { _ in }); _ = try second.placeNew(hook: { _ in })
             try second.validateHashes(in: second.parent); try second.phase(.done)
@@ -114,7 +90,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
                 schedule: .uniform(size: plan.largestVolume))
             do {
                 let third = try VolumeSetPublication.begin(thirdTarget, estimatedOutputLength: plan.totalLength,
-                    index: fixture.index, operations: noTrash())
+                    index: fixture.index, operations: .refusingTrash())
                 third.cancel()
             } catch { XCTFail("Third save with \(count) volumes: \(error)") }
             XCTAssertTrue(FileManager.default.fileExists(atPath: first.staging.url.appendingPathComponent("old").path))
@@ -126,13 +102,13 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
 
     func testUnknownUUIDStoredJournalRecoversAndRemovesCompletedHint() throws {
         let fixture = try VolumePublishFixture()
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.volumeInfo = { directory in
             let info = try VolumePublishFS.volumeInfo(directory)
             return .init(uuid: "unknown-volume", cacheIdentity: info.cacheIdentity, fileSystem: info.fileSystem,
                          available: info.available, hazard: nil)
         }
-        let transaction = try staged(fixture, operations: operations)
+        let transaction = try fixture.stagedTransaction(operations: operations)
         transaction.journal.release()
         operations.mountedVolumes = { _ in [] }
         let results = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
@@ -178,9 +154,9 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
 
     func testDiscardClosesJournalBeforeFirstRemoval() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         let journal = transaction.journal, checked = Mutex(false)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.willRemove = { _ in
             if !checked.withLock({ value in let was = value; value = true; return was }) {
                 XCTAssertThrowsError(try journal.read(), "No journal handle may remain open across the tombstone rename")
@@ -194,10 +170,10 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
 
     func testRecoveryVolumeProbeDoesNotHoldProcessMutex() throws {
         let first = try VolumePublishFixture(), second = try VolumePublishFixture()
-        let firstStage = try staged(first), secondStage = try staged(second)
+        let firstStage = try first.stagedTransaction(), secondStage = try second.stagedTransaction()
         firstStage.journal.release(); secondStage.journal.release()
         let completed = DispatchSemaphore(value: 0)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.volumeInfo = { parent in
             Thread.detachNewThread {
                 _ = VolumePublishRecovery(index: second.index).recover(staging: secondStage.staging.url)
@@ -257,10 +233,10 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
     }
 
     func testDuplicateUUIDStoredJournalRecoversAndMissingHintIsRetained() throws {
-        let fixture = try VolumePublishFixture(), transaction = try staged(fixture)
+        let fixture = try VolumePublishFixture(), transaction = try fixture.stagedTransaction()
         transaction.journal.release()
         let volume = try VolumePublishFS.volumeInfo(transaction.parent), root = try VolumePublishFS.volumeRoot(transaction.parent)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.mountedVolumes = { _ in [.init(root: root, uuid: volume.uuid), .init(root: fixture.root, uuid: volume.uuid)] }
         let recovery = VolumePublishRecovery(index: fixture.index, operations: operations)
         XCTAssertTrue(recovery.recoverAll().contains { if case .recovered = $0 { return true }; return false })
@@ -273,9 +249,9 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
     }
 
     func testStoredPathRecoveryRemovesHintWithoutEnumeratingOnEitherPass() throws {
-        let fixture = try VolumePublishFixture(), transaction = try staged(fixture)
+        let fixture = try VolumePublishFixture(), transaction = try fixture.stagedTransaction()
         transaction.journal.release()
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.mountedVolumes = { _ in XCTFail("An existing stored staging needs no mount enumeration"); return [] }
         _ = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
@@ -285,12 +261,12 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
     }
 
     func testUnknownUUIDRejectsMismatchedStoredJournal() throws {
-        let fixture = try VolumePublishFixture(), transaction = try staged(fixture)
+        let fixture = try VolumePublishFixture(), transaction = try fixture.stagedTransaction()
         transaction.journal.release()
         let entry = try XCTUnwrap(fixture.index.entries().first)
         try fixture.index.removeCompleted(transaction.staging.url)
         try fixture.index.register(transaction.staging.url, volumeUUID: "unknown-volume", gateName: "another.tar.001")
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.mountedVolumes = { _ in XCTFail("An unknown UUID cannot be resolved by enumeration"); return [] }
         _ = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
         XCTAssertTrue(FileManager.default.fileExists(atPath: entry.stagingPath))
@@ -301,18 +277,18 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         for unknown in [true, false] {
             for mountNotification in [true, false] {
                 let fixture = try VolumePublishFixture()
-                var operations = noTrash()
+                var operations = VolumePublishOperations.refusingTrash()
                 let actual = try VolumePublishFS.volumeInfo(VolumePublishDirectory(fixture.root))
                 let uuid = unknown ? "unknown-volume" : actual.uuid
                 operations.volumeInfo = { _ in
                     .init(uuid: uuid, cacheIdentity: actual.cacheIdentity, fileSystem: actual.fileSystem,
                           available: actual.available, hazard: nil)
                 }
-                var transaction = try staged(fixture, operations: operations)
+                var transaction = try fixture.stagedTransaction(operations: operations)
                 try transaction.retireOld(hook: { _ in }); transaction.journal.release()
                 let before = try VolumePublishFixture.snapshot(fixture.root), coordinated = Mutex(false)
                 operations.mountedVolumes = { _ in [.init(root: fixture.root, uuid: uuid), .init(root: fixture.root.appendingPathComponent("clone"), uuid: uuid)] }
-                operations.willCoordinate = { _ in coordinated.withLock { $0 = true }; throw Fault.io }
+                operations.willCoordinate = { _ in coordinated.withLock { $0 = true }; throw VolumePublishTestFault.io }
                 _ = VolumePublishRecovery(index: fixture.index, operations: operations)
                     .recoverAll(mountedVolume: mountNotification ? fixture.root : nil)
                 XCTAssertTrue(coordinated.withLock { $0 }, "The stored S7 journal must reach the recovery move claim")
@@ -323,7 +299,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
     }
 
     func testRebasedEntryLookupAndCompletionUseVolumeRelativePath() throws {
-        let fixture = try VolumePublishFixture(), transaction = try staged(fixture)
+        let fixture = try VolumePublishFixture(), transaction = try fixture.stagedTransaction()
         transaction.journal.release()
         let entry = try XCTUnwrap(fixture.index.entries().first)
         let alias = URL(fileURLWithPath: "/System/Volumes/Data" + transaction.staging.url.path, isDirectory: true)
@@ -355,7 +331,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
             XCTAssertEqual(VolumePublishRecovery(index: fixture.index).recover(staging: url), .owned(url))
             var operations = VolumePublishOperations()
             operations.mountedVolumes = { _ in XCTFail("A live S1 owner needs no mount resolution"); return [] }
-            operations.volumeInfo = { _ in XCTFail("A live S1 owner needs no volume probe"); throw Fault.io }
+            operations.volumeInfo = { _ in XCTFail("A live S1 owner needs no volume probe"); throw VolumePublishTestFault.io }
             XCTAssertEqual(VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll(), [.owned(url)])
         }
         publication.cancel()
@@ -366,12 +342,12 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
         for failure in [EBUSY, EACCES] {
             for stop in [nil, "archive.tar.002", "journal"] as [String?] {
                 let fixture = try VolumePublishFixture()
-                var transaction = try staged(fixture)
+                var transaction = try fixture.stagedTransaction()
                 let journal = transaction.journal, stagingName = transaction.staging.url.lastPathComponent
                 let outside = fixture.root.appendingPathComponent("outside"), bytes = Data("untouched".utf8)
                 try bytes.write(to: outside)
                 try FileManager.default.createSymbolicLink(at: transaction.staging.url.appendingPathComponent("new/link"), withDestinationURL: outside)
-                var operations = noTrash()
+                var operations = VolumePublishOperations.refusingTrash()
                 operations.volumeInfo = { directory in
                     let info = try VolumePublishFS.volumeInfo(directory)
                     return .init(uuid: info.uuid, cacheIdentity: info.cacheIdentity, fileSystem: "smbfs", available: info.available, hazard: "non-local")
@@ -406,7 +382,7 @@ nonisolated final class VolumePublishRound3Tests: XCTestCase {
 
     func testLocalBusyRenameDoesNotAuthorizeInPlaceRemoval() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture), operations = noTrash()
+        var transaction = try fixture.stagedTransaction(), operations = VolumePublishOperations.refusingTrash()
         operations.renameStaging = { _, _, _, _ in errno = EBUSY; return -1 }
         transaction.operations = operations
         let before = try VolumePublishFixture.snapshot(transaction.staging.url)

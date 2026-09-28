@@ -8,11 +8,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumeSetPublisherTests: XCTestCase {
-    private func disk(_ fileSystem: String) throws -> VolumePublishTestDisk {
-        let disk = try VolumePublishTestDisk(fileSystem)
-        addTeardownBlock { try disk.detach() }
-        return disk
-    }
 
     private let scheme = ArchiveVolumeSet.Scheme.numbered(stem: "archive.tar", width: 3)
     private enum Injected: Error { case failure }
@@ -194,7 +189,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
     }
 
     func testAPFSHappyPathsGrowShrinkOneSameAndCreate() throws {
-        let disk = try disk("APFS")
+        let disk = try attachedTestDisk("APFS")
         defer { try? disk.detach() }
         for (oldCount, newCount) in [(3, 5), (5, 2), (5, 1), (3, 3), (0, 4)] {
             let fixture = try VolumePublishFixture(parent: disk.mount, oldCount: oldCount, newCount: newCount)
@@ -214,7 +209,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
     }
 
     func testEveryBoundaryOrdinaryFailureRollsBackAndCrashRecoversWithoutMixedGate() throws {
-        let disk = try disk("APFS")
+        let disk = try attachedTestDisk("APFS")
         defer { try? disk.detach() }
         for (oldCount, newCount) in [(3, 5), (5, 2), (3, 1), (3, 3), (0, 3)] {
             let template = try VolumePublishFixture(parent: disk.mount, oldCount: oldCount, newCount: newCount)
@@ -324,7 +319,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
     func testFAT32HazardConsentHappyPathAndCrashRecovery() throws { try hazardousFileSystem("MS-DOS FAT32") }
     func testExFATHazardConsentHappyPathAndCrashRecovery() throws { try hazardousFileSystem("ExFAT") }
     private func hazardousFileSystem(_ fileSystem: String) throws {
-        let disk = try disk(fileSystem)
+        let disk = try attachedTestDisk(fileSystem)
         defer { try? disk.detach() }
         try disk.disableTrash()
         let fixture = try VolumePublishFixture(parent: disk.mount)
@@ -349,7 +344,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
     }
 
     func testHFSPlusHappyPathUsesTrash() throws {
-        let disk = try disk("HFS+")
+        let disk = try attachedTestDisk("HFS+")
         defer { try? disk.detach() }
         let fixture = try VolumePublishFixture(parent: disk.mount, oldCount: 5, newCount: 2)
         let publication = try fixture.begin(), result = try publication.publish(progress: Progress())

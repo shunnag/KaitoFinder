@@ -7,44 +7,16 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumePublishRound2Tests: XCTestCase {
-    private enum Fault: Error { case io }
-    private func noTrash() -> VolumePublishOperations {
-        var operations = VolumePublishOperations()
-        operations.trash = { _ in throw Fault.io }
-        return operations
-    }
-    /// Construct a real S4/S9 crash state using the transaction primitives, without a coordinator mock.
-    private func staged(_ fixture: VolumePublishFixture, placed: Bool = false,
-                        operations: VolumePublishOperations = .init()) throws -> VolumePublishTransaction {
-        var publication: VolumeSetPublication? = try fixture.begin()
-        let url = publication!.stagingURL, work = publication!.workURL
-        publication = nil
-        let parent = try VolumePublishDirectory(fixture.root), staging = try parent.directory(url.lastPathComponent)
-        let journal = try VolumePublishJournal(staging: staging, create: false)
-        var record = try journal.read()
-        record.newVolumes = try VolumeSplitter.split(workURL: work, into: staging.directory("new"), plan: fixture.plan, oldLayout: fixture.layout)
-        record.totalLength = fixture.plan.totalLength
-        var transaction = VolumePublishTransaction(parent: parent, staging: staging, journal: journal,
-            renamer: .init(usesFallback: false), index: fixture.index, record: record, operations: operations)
-        try transaction.validateNew(in: staging.directory("new"), options: fixture.readerOptions)
-        try transaction.phase(.prepared)
-        if placed {
-            try transaction.proveOldBeforeRetiring()
-            try transaction.retireOld(hook: { _ in })
-            _ = try transaction.placeNew { if $0 == .s9 { throw SimulatedCrash() } }
-        }
-        return transaction
-    }
     private func placed(_ fixture: VolumePublishFixture) throws -> URL {
         // A simulated crash unwinds the journal owner without performing rollback.
-        XCTAssertThrowsError(try staged(fixture, placed: true)) { XCTAssertTrue($0 is SimulatedCrash, "\($0)") }
+        XCTAssertThrowsError(try fixture.stagedTransaction(placed: true)) { XCTAssertTrue($0 is SimulatedCrash, "\($0)") }
         return URL(fileURLWithPath: try XCTUnwrap(fixture.index.entries().first).stagingPath, isDirectory: true)
     }
     func testEncryptedHeaderRecoveryCommitsWithoutPasswordAndAllowsNextBegin() throws {
         let fixture = try VolumePublishFixture(encrypted: true)
         let url = try placed(fixture)
         XCTAssertThrowsError(try ArchiveReader.open(url: fixture.gate))
-        let result = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recover(staging: url)
+        let result = VolumePublishRecovery(index: fixture.index, operations: .refusingTrash()).recover(staging: url)
         guard case .recovered(_, .forward, _) = result else { return XCTFail("\(result)") }
         try fixture.assertRemoved(url)
         let reader = try ArchiveReader.open(url: fixture.gate, options: fixture.readerOptions)
@@ -66,7 +38,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         let presenter = Presenter(fixture.gate)
         NSFileCoordinator.addFilePresenter(presenter)
         defer { NSFileCoordinator.removeFilePresenter(presenter) }
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.willCoordinate = { _ in XCTFail("Moves-free cleanup requested a live-name claim") }
         guard case .recovered(_, .forward, _) = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: url)
         else { return XCTFail("Presented, hash-proven set must finish cleanup") }
@@ -74,7 +46,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     }
     func testPresentedNonGateHoldsBeforeRecoveryMoves() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         XCTAssertThrowsError(try transaction.retireOld { if $0 == .s6 { throw SimulatedCrash() } })
         transaction.journal.release()
         let presenter = Presenter(fixture.root.appendingPathComponent(fixture.plan.volumes[1].name))
@@ -88,12 +60,12 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testDiscardTombstonesBeforeRemovalAndRecoversWithoutJournal() throws {
         let fixture = try VolumePublishFixture()
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.willRemove = { url in
             XCTAssertTrue(url.lastPathComponent.hasSuffix(".discard"), "Must rename before the first unlink")
             throw SimulatedCrash()
         }
-        let transaction = try staged(fixture, operations: operations)
+        let transaction = try fixture.stagedTransaction(operations: operations)
         XCTAssertThrowsError(try transaction.discardPrepared()) { XCTAssertTrue($0 is SimulatedCrash) }
         transaction.journal.release()
         let tombstone = URL(fileURLWithPath: transaction.staging.url.path + ".discard", isDirectory: true)
@@ -113,7 +85,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         let sentinel = victim.appendingPathComponent("old/keep")
         try Data("user data".utf8).write(to: sentinel)
         let swapped = Mutex(false)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         let originalRemove = operations.willRemove
         operations.willRemove = { location in
             if location.lastPathComponent == "old", !swapped.withLock({ value in let old = value; value = true; return old }) {
@@ -136,7 +108,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
             if missing { try FileManager.default.removeItem(at: fixture.gate) }
             else { try Data("foreign replacement".utf8).write(to: fixture.gate) }
             let oldBefore = try VolumePublishFixture.snapshot(url.appendingPathComponent("old"))
-            let result = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recover(staging: url)
+            let result = VolumePublishRecovery(index: fixture.index, operations: .refusingTrash()).recover(staging: url)
             guard case .held = result else { XCTFail("Only complete copy must stay: \(result)"); continue }
             XCTAssertEqual(try VolumePublishFixture.snapshot(url.appendingPathComponent("old")), oldBefore)
             XCTAssertEqual(try fixture.index.entries().count, 1)
@@ -150,7 +122,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
             else { throw XCTSkip("Requires native-xattr APFS or HFS+") }
             let sentinels = [fixture.plan.gateName, fixture.plan.volumes.last!.name].map { fixture.root.appendingPathComponent("._" + $0) }
             for url in sentinels { try Data("independent user file".utf8).write(to: url) }
-            var transaction = try staged(fixture, operations: noTrash())
+            var transaction = try fixture.stagedTransaction(operations: .refusingTrash())
             try transaction.proveOldBeforeRetiring(); try transaction.retireOld(hook: { _ in })
             _ = try transaction.placeNew(hook: { _ in })
             if rollback { try transaction.rollback(); _ = try transaction.dispose("abandoned") }
@@ -167,7 +139,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
             let actual = try VolumePublishFS.volumeInfo(VolumePublishDirectory(fixture.root))
             let uuid = unknown ? "unknown-volume" : actual.uuid
             try fixture.index.register(url, volumeUUID: uuid, gateName: fixture.plan.gateName)
-            var operations = noTrash()
+            var operations = VolumePublishOperations.refusingTrash()
             operations.volumeInfo = { _ in .init(uuid: uuid, cacheIdentity: uuid, fileSystem: "apfs", available: .max, hazard: nil) }
             operations.mountedVolumes = { _ in [.init(root: fixture.root, uuid: uuid), .init(root: fixture.root.appendingPathComponent("clone"), uuid: uuid)] }
             _ = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: url)
@@ -176,12 +148,12 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     }
     func testLaunchResolvesUUIDRelativeStagingWithoutDidMount() throws {
         let fixture = try VolumePublishFixture()
-        let transaction = try staged(fixture), url = transaction.staging.url
+        let transaction = try fixture.stagedTransaction(), url = transaction.staging.url
         transaction.journal.release()
         let entry = try XCTUnwrap(fixture.index.entries().first)
         let stale = fixture.root.appendingPathComponent("not-mounted").appendingPathComponent(url.lastPathComponent)
         try fixture.index.rebase(entry, to: stale)
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         let root = try VolumePublishFS.volumeRoot(transaction.parent)
         operations.mountedVolumes = { _ in [.init(root: root, uuid: entry.volumeUUID)] }
         let results = VolumePublishRecovery(index: fixture.index, operations: operations).recoverAll()
@@ -192,7 +164,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         let disk = try VolumePublishTestDisk("APFS")
         defer { try? disk.detach() }
         let fixture = try VolumePublishFixture(parent: disk.mount)
-        let transaction = try staged(fixture), name = transaction.staging.url.lastPathComponent
+        let transaction = try fixture.stagedTransaction(), name = transaction.staging.url.lastPathComponent
         transaction.journal.release()
         try disk.detach()
         let newMount = disk.mount.deletingLastPathComponent().appendingPathComponent("remounted")
@@ -204,7 +176,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testCompletedRollbackDisposesDespiteLaterLiveEditsAndNextOccupant() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         try transaction.retireOld(hook: { _ in }); _ = try transaction.placeNew(hook: { _ in })
         try transaction.rollback(); transaction.journal.release()
         try Data("later user edit".utf8).write(to: fixture.gate)
@@ -213,7 +185,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         let presenter = Presenter(fixture.gate)
         NSFileCoordinator.addFilePresenter(presenter)
         defer { NSFileCoordinator.removeFilePresenter(presenter) }
-        let result = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recover(staging: transaction.staging.url)
+        let result = VolumePublishRecovery(index: fixture.index, operations: .refusingTrash()).recover(staging: transaction.staging.url)
         guard case .recovered(_, .backward, _) = result else { return XCTFail("\(result)") }
         XCTAssertEqual(try Data(contentsOf: fixture.gate), Data("later user edit".utf8))
         XCTAssertEqual(try Data(contentsOf: next), Data("later next occupant".utf8))
@@ -221,7 +193,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     }
     func testNoOldMovedRollbackIgnoresForeignLiveNames() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         try Data("changed before S6".utf8).write(to: fixture.gate)
         try Data("occupied next".utf8).write(to: fixture.root.appendingPathComponent("archive.tar.004"))
         XCTAssertNoThrow(try transaction.rollback())
@@ -231,10 +203,10 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     func testRollbackUsesHeldParentAfterFolderRenameAtEveryBarrier() throws {
         for boundary in [VolumePublishStep.s6, .s7, .s8, .s9] {
             let fixture = try VolumePublishFixture()
-            var transaction = try staged(fixture)
+            var transaction = try fixture.stagedTransaction()
             let moved = fixture.root.deletingLastPathComponent().appendingPathComponent("renamed-" + UUID().uuidString)
             let hook: (VolumePublishStep) throws -> Void = { step in
-                if step == boundary { try FileManager.default.moveItem(at: fixture.root, to: moved); throw Fault.io }
+                if step == boundary { try FileManager.default.moveItem(at: fixture.root, to: moved); throw VolumePublishTestFault.io }
             }
             XCTAssertThrowsError(try { try transaction.retireOld(hook: hook); _ = try transaction.placeNew(hook: hook) }())
             XCTAssertNoThrow(try transaction.rollback(), "\(boundary)")
@@ -274,14 +246,14 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
             .init(url: fixture.root.appendingPathComponent($0.name), length: $0.length)
         }, openedVolumeIndex: 0)
         let target = VolumeSetTarget(parent: fixture.root, layout: layout, expected: try ArchiveSetIdentity.capture(layout: layout), schedule: fixture.target().schedule)
-        let next = try VolumeSetPublication.begin(target, estimatedOutputLength: UInt64(fixture.newBytes.count), index: fixture.index, operations: noTrash())
+        let next = try VolumeSetPublication.begin(target, estimatedOutputLength: UInt64(fixture.newBytes.count), index: fixture.index, operations: .refusingTrash())
         next.cancel()
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
     }
     func testBeginRechecksOccupancyAfterPreparedCleanup() throws {
         let fixture = try VolumePublishFixture(oldCount: 0)
-        let transaction = try staged(fixture); transaction.journal.release()
-        var operations = noTrash()
+        let transaction = try fixture.stagedTransaction(); transaction.journal.release()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.willRemove = { url in
             if url.lastPathComponent.hasSuffix(".discard") { try Data("foreign".utf8).write(to: fixture.gate) }
         }
@@ -293,7 +265,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testFallbackOwnershipExpiresWhenOwnPublicationReleasesJournal() throws {
         let fixture = try VolumePublishFixture()
-        let transaction = try staged(fixture)
+        let transaction = try fixture.stagedTransaction()
         var record = transaction.record
         let identity = VolumePublishProcessIdentity(bootSession: "test-boot", pid: getpid(), startSeconds: 123, startMicroseconds: 456)
         record.owner = identity
@@ -331,11 +303,11 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testFinalHashProofDetectsNextNameCreatedDuringHashing() throws {
         let fixture = try VolumePublishFixture()
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.didHash = { url in
             if url == fixture.gate { try? Data("foreign next".utf8).write(to: fixture.root.appendingPathComponent(fixture.plan.nextVolumeName)) }
         }
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         try transaction.retireOld(hook: { _ in }); _ = try transaction.placeNew(hook: { _ in })
         transaction.operations = operations
         XCTAssertThrowsError(try transaction.validateHashes(in: transaction.parent)) {
@@ -345,12 +317,12 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     func testRecoveryWithdrawsOnNextNameCollisionDuringFinalHash() throws {
         for allFinal in [true, false] {
             let fixture = try VolumePublishFixture()
-            var transaction = try staged(fixture)
+            var transaction = try fixture.stagedTransaction()
             try transaction.retireOld(hook: { _ in })
             if allFinal { _ = try transaction.placeNew(hook: { _ in }) }
             let url = transaction.staging.url; transaction.journal.release()
             let hashes = Mutex(0)
-            var operations = noTrash()
+            var operations = VolumePublishOperations.refusingTrash()
             operations.didHash = { location in
                 guard location == fixture.gate else { return }
                 let number = hashes.withLock { $0 += 1; return $0 }
@@ -370,7 +342,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testShrinkRetirementIgnoresRetiredOldOnlyOccupantsBeyondGap() throws {
         let fixture = try VolumePublishFixture(oldCount: 6, newCount: 2)
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         try transaction.retireOld(hook: { _ in })
         let foreign = fixture.root.appendingPathComponent("archive.tar.005")
         try Data("beyond gap".utf8).write(to: foreign)
@@ -383,7 +355,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
         let fixture = try VolumePublishFixture(oldCount: 6, newCount: 2), url = try placed(fixture)
         let foreign = fixture.root.appendingPathComponent("archive.tar.005")
         try Data("beyond gap".utf8).write(to: foreign)
-        let result = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recover(staging: url)
+        let result = VolumePublishRecovery(index: fixture.index, operations: .refusingTrash()).recover(staging: url)
         guard case .recovered(_, .forward, _) = result else { return XCTFail("\(result)") }
         let reader = try ArchiveReader.open(url: fixture.gate)
         XCTAssertEqual(try reader.read(XCTUnwrap(reader.entries.first)), fixture.newContents)
@@ -404,28 +376,28 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testCallingPresenterIsExcludedBeforeCoordinatedRecovery() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         try transaction.retireOld(hook: { _ in }); transaction.journal.release()
         let presenter = Presenter(fixture.gate)
         NSFileCoordinator.addFilePresenter(presenter)
         defer { NSFileCoordinator.removeFilePresenter(presenter) }
         let called = Mutex(false)
-        var operations = noTrash()
-        operations.willCoordinate = { _ in called.withLock { $0 = true }; throw Fault.io }
+        var operations = VolumePublishOperations.refusingTrash()
+        operations.willCoordinate = { _ in called.withLock { $0 = true }; throw VolumePublishTestFault.io }
         _ = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: transaction.staging.url, presenter: presenter)
         XCTAssertTrue(called.withLock { $0 }, "The caller's own presenter must not HOLD before coordination")
     }
     func testDiscardRemovesJournalLastAndResumesEveryDeletionBoundary() throws {
         for stop in ["archive.tar.002", "new", "work", "journal"] {
             let fixture = try VolumePublishFixture()
-            var operations = noTrash()
+            var operations = VolumePublishOperations.refusingTrash()
             operations.didRemove = { url in
                 if url.lastPathComponent == "journal" {
                     XCTAssertTrue(try VolumePublishDirectory(url.deletingLastPathComponent()).names().isEmpty, "journal must be last")
                 }
                 if url.lastPathComponent == stop { throw SimulatedCrash() }
             }
-            let transaction = try staged(fixture, operations: operations)
+            let transaction = try fixture.stagedTransaction(operations: operations)
             XCTAssertThrowsError(try transaction.discardPrepared()) { XCTAssertTrue($0 is SimulatedCrash) }
             transaction.journal.release()
             guard case .recovered = VolumePublishRecovery(index: fixture.index).recover(staging: transaction.staging.url)
@@ -435,7 +407,7 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     }
     func testDiscardUnlinksNestedSymlinkWithoutTraversingTarget() throws {
         let fixture = try VolumePublishFixture()
-        let transaction = try staged(fixture)
+        let transaction = try fixture.stagedTransaction()
         let victim = fixture.root.appendingPathComponent("victim")
         try FileManager.default.createDirectory(at: victim, withIntermediateDirectories: false)
         try Data("user data".utf8).write(to: victim.appendingPathComponent("keep"))
@@ -454,22 +426,22 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
 
     func testPresentedBackwardPreparationWithoutLiveMovesCleansUp() throws {
         let fixture = try VolumePublishFixture()
-        var transaction = try staged(fixture)
+        var transaction = try fixture.stagedTransaction()
         try transaction.phase(.retiring)
         try FileManager.default.removeItem(at: transaction.staging.url.appendingPathComponent("new/" + fixture.plan.volumes[1].name))
         transaction.journal.release()
         let presenter = Presenter(fixture.gate)
         NSFileCoordinator.addFilePresenter(presenter)
         defer { NSFileCoordinator.removeFilePresenter(presenter) }
-        let result = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recover(staging: transaction.staging.url)
+        let result = VolumePublishRecovery(index: fixture.index, operations: .refusingTrash()).recover(staging: transaction.staging.url)
         guard case .recovered(_, .backward, _) = result else { return XCTFail("\(result)") }
         try fixture.assertOld(); try fixture.assertRemoved(transaction.staging.url)
     }
 
     func testLaunchResolvesRealBootVolumeWithoutFalseCloneAmbiguity() throws {
         let fixture = try VolumePublishFixture()
-        let transaction = try staged(fixture); transaction.journal.release()
-        let results = VolumePublishRecovery(index: fixture.index, operations: noTrash()).recoverAll()
+        let transaction = try fixture.stagedTransaction(); transaction.journal.release()
+        let results = VolumePublishRecovery(index: fixture.index, operations: .refusingTrash()).recoverAll()
         XCTAssertTrue(results.contains { if case .recovered = $0 { return true }; return false }, "\(results)")
         try fixture.assertOld()
         XCTAssertFalse(FileManager.default.fileExists(atPath: transaction.staging.url.path))
@@ -479,10 +451,10 @@ nonisolated final class VolumePublishRound2Tests: XCTestCase {
     func testOptionalReaderDiagnosticUsesCallerOptionsWithoutHoldingCommit() throws {
         let fixture = try VolumePublishFixture(encrypted: true), url = try placed(fixture)
         let diagnostics = Mutex<[String?]>([])
-        var operations = noTrash()
+        var operations = VolumePublishOperations.refusingTrash()
         operations.openReader = { _, options in
             XCTAssertEqual(options.password, "round2-secret")
-            throw Fault.io
+            throw VolumePublishTestFault.io
         }
         operations.recoveryReaderDiagnostic = { diagnostic in diagnostics.withLock { $0.append(diagnostic) } }
         let result = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: url, options: fixture.readerOptions)

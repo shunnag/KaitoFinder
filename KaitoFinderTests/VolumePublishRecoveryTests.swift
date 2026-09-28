@@ -5,11 +5,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumePublishRecoveryTests: XCTestCase {
-    private func disk(_ fileSystem: String) throws -> VolumePublishTestDisk {
-        let disk = try VolumePublishTestDisk(fileSystem)
-        addTeardownBlock { try disk.detach() }
-        return disk
-    }
 
     private func crashed(_ fixture: VolumePublishFixture, at step: VolumePublishStep = .s6, consent: Bool = false) throws -> URL {
         let publication = try fixture.begin(consent: consent) { if $0 == step { throw SimulatedCrash() } }
@@ -187,7 +182,7 @@ nonisolated final class VolumePublishRecoveryTests: XCTestCase {
     }
 
     func testParentScanRecoversWithoutIndexAndRemountDoesNotRequireDeviceNumber() throws {
-        let disk = try disk("APFS")
+        let disk = try attachedTestDisk("APFS")
         defer { try? disk.detach() }
         let fixture = try VolumePublishFixture(parent: disk.mount), staging = try crashed(fixture, at: .s7)
         // 索引を失っても親の列挙で発見する。journal の UUID は診断用で判定には用いない。
@@ -201,7 +196,7 @@ nonisolated final class VolumePublishRecoveryTests: XCTestCase {
     }
 
     func testFAT32SameSizeSameTwoSecondMtimeModificationIsRejectedByOldHash() throws {
-        let disk = try disk("MS-DOS FAT32")
+        let disk = try attachedTestDisk("MS-DOS FAT32")
         defer { try? disk.detach() }
         let fixture = try VolumePublishFixture(parent: disk.mount)
         let staging = try crashed(fixture, at: .retiredVolume(1), consent: true)
@@ -230,7 +225,7 @@ nonisolated final class VolumePublishRecoveryTests: XCTestCase {
     }
 
     func testFAT32UnchangedGateBytesInBothGenerationsCanRecoverForward() throws {
-        let disk = try disk("MS-DOS FAT32")
+        let disk = try attachedTestDisk("MS-DOS FAT32")
         defer { try? disk.detach() }
         let fixture = try VolumePublishFixture(parent: disk.mount, oldCount: 3, newCount: 3)
         let publication = try fixture.begin(consent: true) { if $0 == .s9 { throw SimulatedCrash() } }
