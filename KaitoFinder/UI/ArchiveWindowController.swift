@@ -127,11 +127,11 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var currentFolder: EntryNode
     private var displayedRoot: EntryNode
     private(set) var currentFolderPath = ""
-    private(set) var backStack: [String] = []
-    private(set) var forwardStack: [String] = []
-    private(set) var folderViewStates: [String: ArchiveViewState] = [:]
-    private var folderViewStateOrder: [String] = []
-    nonisolated enum History: Sendable, Equatable { case push, back, forward }
+    private var navigationHistory = ArchiveNavigationHistory()
+    var backStack: [String] { navigationHistory.backStack }
+    var forwardStack: [String] { navigationHistory.forwardStack }
+    var folderViewStates: [String: ArchiveViewState] { navigationHistory.folderViewStates }
+    typealias History = ArchiveNavigationHistory.Direction
     private var sortedChildren: [ObjectIdentifier: [EntryNode]] = [:]
     private var restoringSort = false
     private var hasShownWindow = false
@@ -561,7 +561,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         display(EntryNode.tree(from: []))
         currentFolder = root
         currentFolderPath = ""
-        clearNavigationHistory()
+        navigationHistory.clear()
         pathControl.pathItems = []
         isLocked = true
         previewSplitItem.isCollapsed = true
@@ -921,26 +921,6 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         #endif
     }
 
-    private func clearNavigationHistory() {
-        backStack.removeAll()
-        forwardStack.removeAll()
-        folderViewStates.removeAll()
-        folderViewStateOrder.removeAll()
-    }
-
-    private func rememberFolderState() {
-        folderViewStates[currentFolderPath] = captureViewState()
-        touchFolderState(currentFolderPath)
-        if folderViewStateOrder.count > 32 {
-            folderViewStates.removeValue(forKey: folderViewStateOrder.removeFirst())
-        }
-    }
-
-    private func touchFolderState(_ path: String) {
-        folderViewStateOrder.removeAll { $0 == path }
-        folderViewStateOrder.append(path)
-    }
-
     @discardableResult
     func navigate(to node: EntryNode, selecting: EntryNode? = nil, history: History) -> Bool {
         guard folderOpening == .enter, !operationInFlight, !isLocked, node.isDirectory,
@@ -954,16 +934,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return true
         }
         let from = currentFolderPath
-        rememberFolderState()
-        switch history {
-        case .push:
-            backStack.append(from)
-            forwardStack.removeAll()
-        case .back: forwardStack.append(from)
-        case .forward: backStack.append(from)
-        }
-        if backStack.count > 100 { backStack.removeFirst(backStack.count - 100) }
-        if forwardStack.count > 100 { forwardStack.removeFirst(forwardStack.count - 100) }
+        navigationHistory.remember(from, state: captureViewState())
+        navigationHistory.record(leaving: from, direction: history)
         closePreview()
         outlineView.cancelPendingClickRename()
         outlineView.collapseItem(nil, collapseChildren: true)
@@ -971,8 +943,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         currentFolderPath = node.path
         displayedRoot = node
         outlineView.reloadData()
-        if history != .push, let state = folderViewStates[node.path] {
-            touchFolderState(node.path)
+        if history != .push, let state = navigationHistory.state(for: node.path) {
+            navigationHistory.touch(node.path)
             restoreViewState(state)
         } else {
             outlineView.deselectAll(nil)
@@ -996,14 +968,14 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private func navigateHistory(_ history: History) {
         guard folderOpening == .enter, !operationInFlight, !isLocked,
               outlineView.commitRenaming(), !operationInFlight else { return }
-        while let path = history == .back ? backStack.last : forwardStack.last {
+        while let path = navigationHistory.peek(history) {
             if let node = directoryNode(at: path) {
                 guard navigate(to: node, history: history) else { return }
-                if history == .back { backStack.removeLast() } else { forwardStack.removeLast() }
+                navigationHistory.pop(history)
                 window?.toolbar?.validateVisibleItems()
                 return
             }
-            if history == .back { backStack.removeLast() } else { forwardStack.removeLast() }
+            navigationHistory.pop(history)
         }
         window?.toolbar?.validateVisibleItems()
         NSSound.beep()
@@ -1050,19 +1022,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         let path = moved(original)
         guard path != original, let node = directoryNode(at: path) else { return }
         relocateCurrentFolder(to: node)
-        backStack = backStack.map(moved)
-        forwardStack = forwardStack.map(moved)
-        var states: [String: ArchiveViewState] = [:]
-        var order: [String] = []
-        for key in folderViewStateOrder {
-            guard let state = folderViewStates[key] else { continue }
-            let next = moved(key)
-            states[next] = state.mappingPaths(moved)
-            order.removeAll { $0 == next }
-            order.append(next)
-        }
-        folderViewStates = states
-        folderViewStateOrder = order
+        navigationHistory.remap(moved)
     }
 
     private func missingImportFolderReason(_ folder: String) -> String {
@@ -1154,7 +1114,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             folderOpening = preferences.folderOpening
             if folderOpening == .expand {
                 relocateCurrentFolder(to: root)
-                clearNavigationHistory()
+                navigationHistory.clear()
             }
             window?.toolbar?.validateVisibleItems()
         }
