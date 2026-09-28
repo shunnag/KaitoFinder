@@ -29,7 +29,7 @@ nonisolated final class BatchImportCompatibilityTests: XCTestCase {
                 return url
             }
             // Set both atime and mtime, including the symlink itself.
-            try fixture.run(ExternalTool.touch, ["-h", "-t", "202301020304.05"] + sources.map(\.path))
+            try fixture.run("/usr/bin/touch", ["-h", "-t", "202301020304.05"] + sources.map(\.path))
             let options = WriterOptions(compressionThreads: 8)
             let created = output.appendingPathComponent("create." + suffix)
             _ = try ArchiveCreationTransaction.run(plan: .init(sources: sources, destination: created, format: format,
