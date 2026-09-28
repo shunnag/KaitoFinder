@@ -128,8 +128,9 @@ nonisolated struct ArchiveCapabilities: Sendable {
         }
     }
 
-    /// reader を持たない呼出側向け。従来どおり、形式の判定と書き込み権限を先に確かめてから一度だけ開く
-    /// （書き込めない形式・権限のない場所・圧縮 tar の外側の判定に、書庫の解析や一時展開を要しない）。
+    /// テストだけが使う入口。製品コードは actor が所有する reader を渡す `inspect(reader:url:…)` を使う。
+    /// 形式の判定と書き込み権限を先に確かめてから一度だけ開く（書き込めない形式・権限のない場所・
+    /// 圧縮 tar の外側の判定に、書庫の解析や一時展開を要しない）。
     static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String? = nil) -> Self {
         inspect(url: url, format: format, password: password) {
             try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
@@ -139,7 +140,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
     /// 既に開いた reader から編集可否を導き、書庫を開き直さない。
     /// ZIP は GyoshukuKit の `ArchiveUpdater.probe`（終端の門番、reader を作らない）で entry 数を照合する。
     /// tar / 7z / LHA は reader 版 probe で、MacBinary envelope も検査する。
-    /// G4 の中央ディレクトリの照合は公開時（`ArchiveUpdater.open`）に行うため、終端の門番を通っても
+    /// 中央ディレクトリと local header の照合は公開時（`ArchiveUpdater.open`）に行うため、終端の門番を通っても
     /// その照合に失敗する ZIP は、最初の編集で拒否される。reader はスレッドセーフではないので、
     /// 呼出側（ArchiveSession の actor 内）が所有したまま呼ぶ。
     static func inspect(reader: ArchiveReader, url: URL, password: String? = nil,
@@ -161,7 +162,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         return inspect(url: url, format: format ?? reader.format, password: password) { reader }
     }
 
-    /// Call only after detecting a split set: an ordinary .zip is also parseable as a final ZIP volume.
+    /// 分割セットを検出した後にだけ呼ぶ。通常の .zip も ZIP の終巻として解釈できてしまう。
     static func splitRefusal(for url: URL, scheme: ArchiveVolumeSet.Scheme? = nil) -> Refusal {
         if case .zipSpanned? = scheme ?? ArchiveVolumeSet.parse(fileName: url.lastPathComponent)?.scheme {
             return .nativeSplitArchive
@@ -174,7 +175,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         do {
             let mode: Mode
             switch reader.format {
-            case .zip: mode = .inPlace // The joined ZIP's gatekeeper is checked by the W producer.
+            case .zip: mode = .inPlace // 連結した ZIP の終端の門番は、作業コピーを作る ArchiveSplitWorkProducer が照合する。
             case .sevenZip: mode = .rewrite(.sevenZip)
             case .lha: mode = .rewrite(.lha)
             case .tar:
@@ -214,7 +215,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 let reader = try open()
                 if let set = reader.volumeSet { return Self(refusal: splitRefusal(for: url, scheme: set.scheme)) }
                 if reader.entries.contains(where: \.isEncrypted), password == nil { return Self(refusal: .encrypted) }
-                // 従来の updater open と同じ門番と照合。原本が通常ファイルであることも同じ経路で確かめる。
+                // updater の open と同じ門番で照合する。原本が通常ファイルであることも同じ経路で確かめる。
                 let probe = try ArchiveUpdater.probe(url: url)
                 guard probe.entryCount == UInt64(reader.entries.count) else {
                     throw UpdaterError.invalidArchive("KaitoKit の entry 数と EOCD が一致しません")
@@ -225,7 +226,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 // skippable frame や tar のファイル名を短い圧縮署名と取り違えない。
                 switch try FormatDetector.detect(url: url) {
                 case .tar:
-                    // TarUpdater の R7 と同じく、一巻だけでも分割名は書き直す。
+                    // TarUpdater と同じ門番: 分割巻の名前を持つ tar は、一巻だけでも書き直す。
                     mode = ArchiveVolumeSet.parse(fileName: url.lastPathComponent) == nil ? .update(.tar) : .rewrite(.tar)
                 case .gzip: mode = .update(.tarGzip)
                 case .bzip2: mode = .update(.tarBzip2)
@@ -247,7 +248,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
                 return Self(refusal: .unavailable(String(localized: "アーカイブまたは親フォルダへの書き込み権限がありません。")))
             }
             if mode != .inPlace {
-                // 従来の rewriter open と同じく、原本が通常ファイル（symlink でない）であることを確かめてから
+                // rewriter の open と同じく、原本が通常ファイル（symlink でない）であることを確かめてから
                 // 全 entry の表現可能性を検査する。ファイルもディレクトリも作らず、書庫も開き直さない。
                 var info = stat()
                 guard lstat(url.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else {
@@ -275,7 +276,7 @@ nonisolated struct ArchiveCapabilities: Sendable {
         switch error {
         case UpdaterError.editingRefused(let gatekeeper, let reason): .gatekeeper(gatekeeper, reason)
         case RewriterError.password: .encrypted
-        // 従来は rewriter open が KaitoError を RewriterError.password に写していた。url 版でも同じ拒否にする。
+        // rewriter の open は KaitoError を RewriterError.password に写す。url 版も同じ拒否にする。
         case KaitoError.passwordRequired, KaitoError.wrongPassword: .encrypted
         case RewriterError.unrepresentable(let entry, let reason): .unrepresentable("\(entry): \(reason)")
         default: .unavailable(ArchiveErrorText.describe(error))

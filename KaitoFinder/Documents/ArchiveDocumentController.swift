@@ -66,7 +66,7 @@ class ArchiveDocumentController: NSDocumentController {
 
     override func openDocument(withContentsOf url: URL, display displayDocument: Bool,
                                completionHandler: @escaping (NSDocument?, Bool, (any Error)?) -> Void) {
-        // Lookup must precede discovery, even while this document's publisher has hidden the gate.
+        // 既存文書の検索は回復の探索より先に行う。この文書の publisher が gate を隠している間も同じ。
         let gate = ArchiveSplitVolume.gateURL(for: url)
         let canonicalParent = url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL
         let parsed = ArchiveVolumeSet.parse(fileName: url.lastPathComponent)

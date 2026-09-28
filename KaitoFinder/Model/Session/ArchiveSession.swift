@@ -27,6 +27,8 @@ actor ArchiveSession {
     nonisolated private let invalidationStorage = Mutex(false)
     nonisolated var isInvalidated: Bool { invalidationStorage.withLock { $0 } }
     private var deferredUpdaterGeneration: UInt64?
+    /// 保存前モードの読み出し用の投影。予約の値（ArchivePendingEditor）は文書が所有し、投影も文書が計算する。
+    /// 展開の worker が actor の中で payload を解決する（resolvePendingForExtraction）ため、現在の投影だけを session が預かる。
     nonisolated private let pendingReading = Mutex<(enabled: Bool, snapshot: ArchivePendingReadSnapshot?)>((false, nil))
     nonisolated var usesPendingReading: Bool { pendingReading.withLock { $0.enabled } }
     nonisolated var pendingReadSnapshot: ArchivePendingReadSnapshot? { pendingReading.withLock { $0.snapshot } }
@@ -219,7 +221,7 @@ actor ArchiveSession {
                         verifiedEntries = verified
                         rememberVerification()
                         refreshCapabilities()
-                        // Only the request's verified entries authorize persistence; no second archive pass.
+                        // 永続化を許すのはこの要求で検証した entry だけ。書庫をもう一度なめ直さない。
                         let accepted = passwordAcceptance.withLock { callback in
                             let result = callback
                             callback = nil
@@ -508,7 +510,7 @@ actor ArchiveSession {
         defer { span?.end() }
         #endif
         ArchiveReservationDiagnostics.record(.updaterPreparation)
-        // 失敗は従来どおり編集入口で提示し、読める書庫の表示は妨げない。
+        // 失敗はここでは提示せず編集の入口に任せ、読める書庫の表示は妨げない。
         do {
             try verifyDeferredIdentity()
             _ = try ArchiveUpdater.open(url: sourceURL)
@@ -540,7 +542,8 @@ actor ArchiveSession {
         guard current.contentEquals(sourceIdentity) else {
             throw ArchiveEditError.archiveChanged
         }
-        // 公開側には最新の mode を渡し、処理中の変更は従来どおり照合する。
+        // contentEquals は mode を比べない。権限だけが変わった identity をここで採用し、公開側へ最新の mode を渡す。
+        // 処理中の外部変更は公開時の照合で検出する。
         sourceIdentity = current
     }
 
@@ -554,7 +557,7 @@ actor ArchiveSession {
             }, openedVolumeIndex: layout.openedVolumeIndex)
             moved.savedSchedule = layout.savedSchedule
             let current = try ArchiveSetIdentity.capture(layout: moved)
-            // Names are unchanged by a containing-folder move; every member and the absent tail must agree.
+            // 親フォルダの移動では名前は変わらない。全巻と、次の巻の不在が一致しなければならない。
             guard current.contentEquals(sourceIdentity) else { throw ArchiveEditError.archiveChanged }
             try reanchorSplitReader(at: url, layout: moved, identity: current)
             return
@@ -565,7 +568,7 @@ actor ArchiveSession {
         sourceIdentity = current
     }
 
-    /// Neither a proved rollback nor a folder move changes entries or the pending plan's generation.
+    /// 証明済みの rollback もフォルダの移動も、entry と予約の世代は変えない。
     private func reanchorSplitReader(at url: URL, layout: ArchiveVolumeLayout, identity: ArchiveSetIdentity) throws {
         let replacement = try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
         let assembled = try replacement.volumeSet.map { ArchiveSetIdentity(volumeSet: $0) } ?? ArchiveSetIdentity.capture(url: url)
@@ -803,7 +806,7 @@ actor ArchiveSession {
         catch { return ArchivePasswordEditResult(reloadFailure: Self.reloadFailureMessage) }
     }
 
-    // 公開時にだけ分かる拒否（G4 の中央ディレクトリ照合など）は、以後の編集を最初から断る。
+    // 公開時にだけ分かる拒否（ArchiveUpdater.open の中央ディレクトリと local header の照合など）は、以後の編集を最初から断る。
     // 終端の門番を通った ZIP が照合で失敗した場合、毎回の作業コピーと失敗を繰り返さない。
     private func publishing<T>(_ body: () throws -> T) throws -> T {
         do { return try body() } catch UpdaterError.invalidArchive(let reason) {

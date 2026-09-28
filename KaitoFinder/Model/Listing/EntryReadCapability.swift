@@ -87,7 +87,7 @@ nonisolated struct EntryReadCapability: Sendable {
             // DMGReader は ISO / UDF の一覧を委譲する場合もある。
             guard entry.formatSpecific["unsupported"] == nil else { return false }
             guard entry.formatSpecific["hfsCompressed"] == "true" else { return true }
-            // KaitoKit 0.9.0 の対応 type を公開メタデータで判定する。属性欠落・未知の type は一覧のみ。
+            // KaitoKit が対応する decmpfs type を公開メタデータで判定する。属性欠落・未知の type は一覧のみ。
             return ["1", "3", "4", "7", "8", "9", "10", "11", "12"].contains(entry.formatSpecific["decmpfsType"] ?? "")
         case .chm:
             // CHMReader は未対応 section の非空ファイルを unknown として公開する。

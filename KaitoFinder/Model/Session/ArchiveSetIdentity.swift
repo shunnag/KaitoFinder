@@ -62,7 +62,7 @@ nonisolated struct ArchiveSetIdentity: Sendable, Equatable {
     let volumes: [Volume]
     let nextVolumeName: String?
 
-    /// Foundation constructs modification dates relative to 2001, avoiding an extra epoch rounding.
+    /// Foundation の Date は 2001 年基準なので、その基準で組み立てて epoch 変換の丸めを一回減らす。
     var modificationDate: Date {
         let gate = volumes[0]
         return Date(timeIntervalSinceReferenceDate: Double(gate.modificationSeconds) - 978_307_200

@@ -17,7 +17,7 @@ nonisolated struct ArchiveVolumeLayout: Sendable, Equatable {
     let volumes: [Volume]
     let openedVolumeIndex: Int
     let schedule: Schedule
-    /// The intended schedule survives a short last volume, including a one-volume set.
+    /// 最後の巻が短くても、一巻だけのセットでも、意図した予定表を保つ。
     var savedSchedule: VolumePlan.Schedule? = nil
 
     init(volumeSet: ArchiveVolumeSet) {
@@ -40,13 +40,13 @@ nonisolated struct ArchiveVolumeLayout: Sendable, Equatable {
         }
     }
 
-    /// Prefer the persisted size after a set shrinks to one short member.
+    /// セットが短い一巻に縮んだ後は、保存済みのサイズを優先する。
     var uniformSize: UInt64? {
         guard case .uniform(let size) = immediateSchedule else { return nil }
         return size
     }
 
-    /// An explicit saved choice is authoritative even if today's member lengths look uniform.
+    /// 明示的に保存した選択は、今の巻の長さが一様に見えても優先する。
     var immediateSchedule: VolumePlan.Schedule? {
         guard case .numbered = scheme else { return nil }
         if let savedSchedule { return savedSchedule }

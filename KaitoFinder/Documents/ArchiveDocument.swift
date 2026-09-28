@@ -224,9 +224,9 @@ import Synchronization
     nonisolated override var isEntireFileLoaded: Bool { false }
 
     nonisolated override class func canConcurrentlyReadDocuments(ofType typeName: String) -> Bool {
-        // 実測(2026-09-15): 並行読み込みを許すと AppKit が @MainActor の initializer を
-        // "NSDocumentController Opening" queue で呼び、EXC_BREAKPOINT で落ちる。
-        // read(from:ofType:) は非隔離のままでよいが、文書の生成は main actor で行う。
+        // 並行読み込みを許すと AppKit は @MainActor の initializer を "NSDocumentController Opening" queue で
+        // 呼び、EXC_BREAKPOINT で落ちる。false のままにする。read(from:ofType:) は非隔離のままでよいが、
+        // 文書の生成は main actor で行う。
         false
     }
 
@@ -311,7 +311,7 @@ import Synchronization
         let vaultGeneration = await passwordVault.generation()
         let response = try await request()
         try checkPasswordRequest(session, generation: expectedGeneration)
-        // A closed session must reject even a correct candidate before installing a callback.
+        // 閉じた session は、正しい候補でも callback を据える前に拒否しなければならない。
         _ = try await session.extractionReader()
         try checkPasswordRequest(session, generation: expectedGeneration)
         session.setPasswordAcceptance(nil)
@@ -1033,8 +1033,8 @@ import Synchronization
                     recordSplitSaveFailure(failure)
                     refreshPendingNotices()
                     if failure.kind == .tooManyVolumes, let layout = session.volumeLayout {
-                        // The attempted publication is finished. Remember a new size for the next Save;
-                        // never begin a second publisher within one save operation.
+                        // 試みた公開は終わっている。次の保存のために新しい巻サイズだけを覚え、
+                        // 一回の保存操作の中で二つ目の publisher は始めない。
                         do { splitSchedule = try await chooseSplitSchedule(layout, tooMany: true) }
                         catch {
                             finishDeferredSave(sheet: sheet)
@@ -1531,8 +1531,8 @@ extension ArchiveDocument {
             schedule: schedule, allowHazardousVolume: consent, filePresenter: self)
         target.oldVolumeDisposal = isImmediateSplitMutation ? .remove : .trash
         if let window = windowControllers.first?.window { sheet?.begin(on: window) }
-        // KaitoKit standardizes layout URLs (e.g. /private/var -> /var). Keep the
-        // document's original gate spelling so later saves do not look like moves.
+        // KaitoKit は layout の URL を標準化する（/private/var → /var など）。文書の元の gate の綴りを保ち、
+        // 後の保存が移動に見えないようにする。
         let documentGate = fileURL ?? session.sourceURL
         splitPublicationActive.withLock { $0 = true }
         defer {

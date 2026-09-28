@@ -83,7 +83,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     static let didChange = Notification.Name("ArchivePreferencesDidChange")
 
     enum Key {
-        // 保存パネルが従来使っていたキーと拡張子の表現を引き継ぐ。
+        // 保存パネルと同じキーと拡張子の表現を使う。
         static let defaultFormat = "ArchiveCreationFormat"
         static let compressionThreads = "ArchiveCompressionThreads"
         static let zipMethod = "ArchiveZipMethod"

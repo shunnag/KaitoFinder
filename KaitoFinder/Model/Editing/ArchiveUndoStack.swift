@@ -54,7 +54,7 @@ nonisolated final class ArchiveUndoStack: Sendable {
         canUndoNextMutation && archiveSize <= maximumBytes
     }
 
-    /// Resolve before a confirmation decision, once for this backing archive. Unknown is conservative.
+    /// 確認の判断より前に、この原本につき一度だけ解決する。不明なら「取り消せない」側に倒す。
     func resolveCloneSupport(for archive: URL) {
         storage.withLock { state in
             guard !state.closed, state.cloneSupport == .unknown, !state.queriedCloneSupport else { return }
@@ -72,13 +72,13 @@ nonisolated final class ArchiveUndoStack: Sendable {
                          clone: clone, cloneSupportQuery: cloneSupportQuery)
     }
 
-    /// Menu validation queries volume metadata only; the capture closure is never used as a probe.
+    /// メニューの検証はボリュームのメタデータだけを見る。capture の closure を probe として使うことはない。
     static func volumeSupportsCloning(at archive: URL) -> Bool? {
         guard archive.isFileURL else { return nil }
         var attributes = attrlist()
         attributes.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT)
         attributes.volattr = UInt32(ATTR_VOL_INFO) | UInt32(ATTR_VOL_CAPABILITIES)
-        // getattrlist returns a UInt32 length, then capabilities[4] and valid[4] (sys/attr.h).
+        // getattrlist は UInt32 の長さの後に capabilities[4] と valid[4] を返す（sys/attr.h）。
         let wordsPerSet = MemoryLayout<vol_capabilities_set_t>.size / MemoryLayout<UInt32>.size
         var buffer = [UInt32](repeating: 0, count: 1 + 2 * wordsPerSet)
         let status = archive.deletingLastPathComponent().withUnsafeFileSystemRepresentation { path in
