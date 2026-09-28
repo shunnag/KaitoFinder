@@ -39,7 +39,7 @@ nonisolated struct ArchiveEditResult: Sendable {
     var published: Bool { !removedPaths.isEmpty || !renamedPaths.isEmpty }
 }
 
-/// Both editing modes use the same result and publication boundary.
+/// 即時編集と保存前モードの両方が、同じ結果の型と公開境界を使う。
 nonisolated protocol ArchiveMutationResult: Sendable {
     var reloadFailure: String? { get set }
     var didPublishMutation: Bool { get }

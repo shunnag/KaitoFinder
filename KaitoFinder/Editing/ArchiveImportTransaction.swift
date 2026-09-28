@@ -100,7 +100,7 @@ nonisolated enum ArchiveImportTransaction {
                         }
                     }
                 } catch let error as ArchiveAdditionError {
-                    // A callback can itself throw a batch error from another operation.
+                    // callback 自身が、別の操作の batch エラーを投げることがある。
                     if let callbackFailure { throw callbackFailure }
                     throw ExtractionFailure.refused("\(plan.items[error.index].path): \(ArchiveErrorText.describe(error.underlying))")
                 }

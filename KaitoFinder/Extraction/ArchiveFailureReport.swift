@@ -1,6 +1,6 @@
 import Foundation
 
-/// Bound both alert layout and text allocation; archive names/reasons may contain newlines.
+/// alert の配置と文字列の確保の両方に上限を設ける。書庫内の名前や理由には改行が含まれうる。
 nonisolated enum ArchiveFailureReport {
     static let displayedLineLimit = 20
 

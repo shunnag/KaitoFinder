@@ -234,7 +234,7 @@ nonisolated struct ArchiveSaveReplayPlan: Sendable {
             ArchiveAddition(path: folder.path, source: .directory(modificationDate: folder.date),
                             ownerIDs: preservingOwnerIDs ? .init(user: 0, group: 0) : nil)
         }
-        // An empty batch can still prepare an append writer and change the commit strategy.
+        // 空の batch でも add を呼ぶと追記用の writer を準備し、commit の方式が変わる。
         guard !batch.isEmpty else { return }
         do {
             try editor.add(batch) { event in

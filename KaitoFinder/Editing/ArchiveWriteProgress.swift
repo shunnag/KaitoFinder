@@ -3,7 +3,7 @@ import GyoshukuKit
 import KaitoKit
 import Synchronization
 
-/// One serial editor operation. Byte sessions supply ratios; item counts never include byte budgets.
+/// 1 回の直列の編集操作の進捗。byte の進捗は各枠の予算に対する割合としてだけ使い、項目数に byte の予算は含めない。
 nonisolated final class ArchiveWriteProgress: Sendable {
     struct Plan: Sendable {
         var counted: Int
@@ -25,7 +25,7 @@ nonisolated final class ArchiveWriteProgress: Sendable {
     #if DEBUG
     static let didCreditForTesting = TaskLocal<(@Sendable (Slot, Int64, Int64) -> Void)?>(wrappedValue: nil)
     enum Lifecycle: Sendable { case began, reset, published }
-    // Exact endpoints for PROBE-PROGRESS, including time spent verifying before publication.
+    // PROBE-PROGRESS 用の正確な始点と終点。公開前の検証にかかる時間も含む。
     static let lifecycleForTesting = TaskLocal<(@Sendable (Lifecycle) -> Void)?>(wrappedValue: nil)
     #endif
 
@@ -105,7 +105,7 @@ nonisolated final class ArchiveWriteProgress: Sendable {
                 let pending = min(Self.sum([plan.carriedBytes, added]), options.maximumPendingInputBytes(for: f))
                 commit = max(1_000, Self.sum([plan.carriedBytes, reads ? added : 0, pending]))
             }
-            // Reserve publication even for unrepresentably large metadata totals.
+            // メタデータ上の合計が Int64 で表せないほど大きくても、公開の分を残しておく。
             var available = Int64.max - 1
             func allocate(_ bytes: UInt64) -> Int64 {
                 let units = min(available, Int64(clamping: bytes))
@@ -144,7 +144,7 @@ nonisolated final class ArchiveWriteProgress: Sendable {
             value.enter(slot)
             let budget = value.budget(slot)
             let units: Int64
-            // Avoid converting Double(Int64.max), which rounds upward out of Int64's range.
+            // Double(Int64.max) は切り上がって Int64 の範囲外になるため、その値を Int64 へ変換しない。
             if total == 0 || completed >= total { units = budget }
             else {
                 let mapped = Double(budget) * (Double(completed) / Double(total))
@@ -215,7 +215,7 @@ nonisolated final class ArchiveWriteProgress: Sendable {
             assert(value.completed >= before.completed && value.completed <= value.total)
             return (before, value.snapshot)
         }
-        // GK calls synchronously on the editor's thread. Never hold the state lock across KVO or hooks.
+        // GyoshukuKit は editor の thread で同期的に呼ぶ。KVO や hook をまたいで state のロックを持たない。
         if after.completed != before.completed { progress.completedUnitCount = after.completed }
         if after.items != before.items { progress.setUserInfoObject(after.items, forKey: .fileCompletedCountKey) }
         return after
