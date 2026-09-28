@@ -18,7 +18,11 @@ nonisolated final class AutosaveIsolationTests: XCTestCase {
         XCTAssertEqual(second.outlineView.sortDescriptors.first?.ascending, true)
     }
 
-    func testAutosaveKeysCoverAllApplicationAutosaveNames() {
+    /// 期待値は本番の定数から作る。TestProcessSetup は nonisolated なので設定キーを文字列で持ち、
+    /// ここでその文字列が `ArchivePreferencesStore.Key` の値の改名に追随しているかを確かめる。
+    /// 定数は列挙できないため、本番に autosave 名や設定キーを足したときは、ここと `autosaveKeys` の両方へ足す。
+    @MainActor func testAutosaveKeysCoverAllApplicationAutosaveNames() {
+        typealias Key = ArchivePreferencesStore.Key
         XCTAssertEqual(TestProcessSetup.autosaveKeys.sorted(), [
             "NSTableView Sort Ordering v2 \(ArchiveWindowController.columnsAutosaveName)",
             "NSTableView Columns v3 \(ArchiveWindowController.columnsAutosaveName)",
@@ -26,15 +30,9 @@ nonisolated final class AutosaveIsolationTests: XCTestCase {
             "NSToolbar Configuration \(ArchiveWindowController.toolbarAutosaveName)",
             "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)",
             "NSWindow Frame \(PreferencesWindowController.frameAutosaveName)",
-            "ArchiveSaveBehavior",
-            "ArchiveCompressionThreads",
-            "ArchiveFolderOpening",
-            "ArchiveListIconSize",
-            "ArchiveListTextSize",
             "NSWindow Frame \(ArchiveViewOptionsController.frameAutosaveName)",
-            "ArchiveKeepsFoldersOnTop",
-            "ArchiveAdditionPlacement",
-            "ArchiveTarCarriedOwnerIDs"
+            Key.saveBehavior, Key.compressionThreads, Key.folderOpening, Key.listIconSize, Key.listTextSize,
+            Key.keepsFoldersOnTop, Key.additionPosition, Key.tarCarriedOwnerIDs
         ].sorted())
     }
 }

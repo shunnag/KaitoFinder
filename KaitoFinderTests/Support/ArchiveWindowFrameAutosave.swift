@@ -1,12 +1,14 @@
 import Foundation
 import XCTest
+@testable import KaitoFinder
 
 @MainActor struct ArchiveWindowFrameAutosave {
-    private let frame = UserDefaults.standard.string(forKey: "NSWindow Frame ArchiveWindow")
+    private static let key = "NSWindow Frame \(ArchiveWindowController.frameAutosaveName)"
+    private let frame = UserDefaults.standard.string(forKey: key)
 
     func restore() {
-        if let frame { UserDefaults.standard.set(frame, forKey: "NSWindow Frame ArchiveWindow") }
-        else { UserDefaults.standard.removeObject(forKey: "NSWindow Frame ArchiveWindow") }
+        if let frame { UserDefaults.standard.set(frame, forKey: Self.key) }
+        else { UserDefaults.standard.removeObject(forKey: Self.key) }
     }
 }
 

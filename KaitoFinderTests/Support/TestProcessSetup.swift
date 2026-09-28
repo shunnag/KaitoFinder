@@ -2,6 +2,11 @@ import Foundation
 import XCTest
 @testable import KaitoFinder
 
+/// テストバンドルの principal class（project.pbxproj の INFOPLIST_KEY_NSPrincipalClass）。全テストより先に 1 回だけ生成され、
+/// 1. PendingWorkRegistry / StagingRegistry をプロセス専用の一時領域へ向ける。
+/// 2. ウインドウの自動アニメーションを無効にする（理由は init のコメントと design.md 11.1）。
+/// 3. AppKit の autosave 値と設定キー（`autosaveKeys`）を開始時に退避し、各テストの前に消し、全テストの後に戻す。
+/// 名前順で最後に動く ZZProcessHealthTests が 2 の登録を検査する。
 nonisolated final class TestProcessSetup: NSObject, XCTestObservation {
     static let autosaveKeys = [
         "NSTableView Sort Ordering v2 \(ArchiveWindowController.columnsAutosaveName)",
