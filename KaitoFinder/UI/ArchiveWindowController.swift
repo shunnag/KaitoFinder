@@ -185,23 +185,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.rowSizeStyle = .default
         defaultRowHeight = outlineView.rowHeight
         applyListSizing()
-        for definition in ArchiveColumn.allCases {
-            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(definition.rawValue))
-            column.title = definition.title(bundle: bundle)
-            column.width = definition.width
-            column.minWidth = 60
-            column.resizingMask = [.userResizingMask]
-            column.sortDescriptorPrototype = NSSortDescriptor(key: definition.rawValue, ascending: true)
-            // 保存データにない追加列だけが既定値を使い、既存列は後で AppKit が復元する。
-            column.isHidden = definition.hiddenByDefault
-            if definition.hiddenByDefault && definition.isNumeric { column.headerCell.alignment = .right }
-            outlineView.addTableColumn(column)
-            if definition == .name { outlineView.outlineTableColumn = column }
-        }
-        outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
-        outlineView.autosaveName = Self.columnsAutosaveName
-        outlineView.autosaveTableColumns = true
-        outlineView.outlineTableColumn?.isHidden = false
+        configureColumns()
         let columnsMenu = NSMenu(title: String(localized: "列", bundle: bundle))
         columnsMenu.delegate = self
         outlineView.headerView?.menu = columnsMenu
@@ -219,33 +203,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             self?.renameValidationNotice.stringValue = reason ?? ""
             self?.renameValidationNotice.isHidden = reason == nil
         }
-        let menu = NSMenu()
-        menu.addItem(withTitle: String(localized: "開く", bundle: bundle),
-                     action: #selector(openEntry(_:)), keyEquivalent: "")
-        menu.addItem(withTitle: String(localized: "クイックルック", bundle: bundle),
-                     action: #selector(togglePreviewPanel(_:)), keyEquivalent: "")
-        let openWith = menu.addItem(withTitle: openWithMenu.title, action: #selector(openWithEntry(_:)), keyEquivalent: "")
-        openWith.submenu = openWithMenu
-        menu.addItem(.separator())
-        menu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle), action: #selector(newFolder(_:)), keyEquivalent: "")
-        menu.addItem(withTitle: String(localized: "削除", bundle: bundle), action: #selector(deleteEntries(_:)), keyEquivalent: "")
-        menu.addItem(withTitle: String(localized: "名称変更", bundle: bundle), action: #selector(renameEntry(_:)), keyEquivalent: "")
-        for item in menu.items { item.target = self }
-        openWithMenu.delegate = self
-        outlineView.menu = menu
-        let blankAreaMenu = outlineView.blankAreaMenu
-        blankAreaMenu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle), action: #selector(newFolder(_:)), keyEquivalent: "")
-        blankAreaMenu.addItem(withTitle: String(localized: "ペースト", bundle: bundle), action: #selector(paste(_:)), keyEquivalent: "")
-        blankAreaMenu.addItem(.separator())
-        blankAreaMenu.addItem(withTitle: String(localized: "すべて展開…", bundle: bundle), action: #selector(extractAll(_:)), keyEquivalent: "")
-        blankAreaMenu.addItem(.separator())
-        blankAreaMenu.addItem(withTitle: String(localized: "新規アーカイブ…", bundle: bundle), action: #selector(AppDelegate.newArchive(_:)), keyEquivalent: "")
-        blankAreaMenu.addItem(withTitle: String(localized: "アーカイブをFinderに表示", bundle: bundle), action: #selector(revealArchiveInFinder(_:)), keyEquivalent: "")
-        for item in blankAreaMenu.items where !item.isSeparatorItem && item.action != #selector(AppDelegate.newArchive(_:)) {
-            item.target = self
-        }
-        ArchiveMenuSymbols.apply(to: menu)
-        ArchiveMenuSymbols.apply(to: blankAreaMenu)
+        configureEntryContextMenus()
         outlineView.setDraggingSourceOperationMask(.copy, forLocal: false)
         outlineView.setDraggingSourceOperationMask([.move, .copy], forLocal: true)
         outlineView.registerForDraggedTypes(
@@ -364,6 +322,58 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     required init?(coder: NSCoder) { nil }
+
+    /// 列の目録から表の列を作る。並べ順の既定と、列の幅・表示の自動保存もここで決める。
+    private func configureColumns() {
+        for definition in ArchiveColumn.allCases {
+            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(definition.rawValue))
+            column.title = definition.title(bundle: bundle)
+            column.width = definition.width
+            column.minWidth = 60
+            column.resizingMask = [.userResizingMask]
+            column.sortDescriptorPrototype = NSSortDescriptor(key: definition.rawValue, ascending: true)
+            // 保存データにない追加列だけが既定値を使い、既存列は後で AppKit が復元する。
+            column.isHidden = definition.hiddenByDefault
+            if definition.hiddenByDefault && definition.isNumeric { column.headerCell.alignment = .right }
+            outlineView.addTableColumn(column)
+            if definition == .name { outlineView.outlineTableColumn = column }
+        }
+        outlineView.sortDescriptors = [NSSortDescriptor(key: "name", ascending: true)]
+        outlineView.autosaveName = Self.columnsAutosaveName
+        outlineView.autosaveTableColumns = true
+        outlineView.outlineTableColumn?.isHidden = false
+    }
+
+    /// 行の文脈メニューと空き領域のメニューを組み、一覧に付ける。
+    private func configureEntryContextMenus() {
+        let menu = NSMenu()
+        menu.addItem(withTitle: String(localized: "開く", bundle: bundle),
+                     action: #selector(openEntry(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: String(localized: "クイックルック", bundle: bundle),
+                     action: #selector(togglePreviewPanel(_:)), keyEquivalent: "")
+        let openWith = menu.addItem(withTitle: openWithMenu.title, action: #selector(openWithEntry(_:)), keyEquivalent: "")
+        openWith.submenu = openWithMenu
+        menu.addItem(.separator())
+        menu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle), action: #selector(newFolder(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: String(localized: "削除", bundle: bundle), action: #selector(deleteEntries(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: String(localized: "名称変更", bundle: bundle), action: #selector(renameEntry(_:)), keyEquivalent: "")
+        for item in menu.items { item.target = self }
+        openWithMenu.delegate = self
+        outlineView.menu = menu
+        let blankAreaMenu = outlineView.blankAreaMenu
+        blankAreaMenu.addItem(withTitle: String(localized: "新規フォルダ", bundle: bundle), action: #selector(newFolder(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(withTitle: String(localized: "ペースト", bundle: bundle), action: #selector(paste(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(.separator())
+        blankAreaMenu.addItem(withTitle: String(localized: "すべて展開…", bundle: bundle), action: #selector(extractAll(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(.separator())
+        blankAreaMenu.addItem(withTitle: String(localized: "新規アーカイブ…", bundle: bundle), action: #selector(AppDelegate.newArchive(_:)), keyEquivalent: "")
+        blankAreaMenu.addItem(withTitle: String(localized: "アーカイブをFinderに表示", bundle: bundle), action: #selector(revealArchiveInFinder(_:)), keyEquivalent: "")
+        for item in blankAreaMenu.items where !item.isSeparatorItem && item.action != #selector(AppDelegate.newArchive(_:)) {
+            item.target = self
+        }
+        ArchiveMenuSymbols.apply(to: menu)
+        ArchiveMenuSymbols.apply(to: blankAreaMenu)
+    }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         ArchiveToolbarItem.defaultOrder
@@ -624,34 +634,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         kindResolver.resetNodes()
         refreshCapabilityNotice(session: session)
         if let session, let controller = nextMaterialization {
-            session.setCapabilitiesObserver { [weak self, weak session] in
-                guard let self, let session, self.archiveSession === session else { return }
-                self.refreshCapabilityNotice(session: session)
-                self.window?.toolbar?.validateVisibleItems()
-            }
-            session.setPasswordPrompt { [weak self, weak session] challenge in
-                guard let self, let session, self.archiveSession === session else { throw CancellationError() }
-                guard let document = self.document as? ArchiveDocument else {
-                    return try await self.requestPassword(challenge)
-                }
-                return try await document.password(for: session, challenge: challenge) {
-                    try await self.requestPasswordResponse(challenge)
-                }
-            }
-            controller.started = { [weak self] item, progress in
-                guard let self else { return }
-                guard item.requiresProgress, let window = self.window else { return }
-                let sheet = ExtractionProgressSheet(progress: progress, detail: item.payload.path, bundle: bundle)
-                // 進捗シートが key window になっても、QL の responder chain を文書へ戻す。
-                sheet.nextResponder = self
-                self.materializationSheet = sheet
-                sheet.begin(on: window)
-            }
-            controller.finished = { [weak self] in
-                self?.materializationSheet?.finish()
-                self?.materializationSheet = nil
-            }
-            controller.failed = { [weak self] reason in self?.reportFailure(reason) }
+            installSessionCallbacks(session, controller: controller)
             materialization = controller
             rebuildThumbnailProvider()
         } else { materialization = nil }
@@ -669,6 +652,38 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         NotificationCenter.default.post(name: Self.viewOptionsDidChange, object: self)
         ArchiveReservationDiagnostics.record(.treeDisplayed)
         if indexingRenames, let session { prepareRenameIndex(for: root, session: session, generation: generation) }
+    }
+
+    /// 表示するセッションと、その取り出しを受け持つ controller の通知を、このウインドウにつなぐ。
+    private func installSessionCallbacks(_ session: ArchiveSession, controller: ArchiveMaterializationController) {
+        session.setCapabilitiesObserver { [weak self, weak session] in
+            guard let self, let session, self.archiveSession === session else { return }
+            self.refreshCapabilityNotice(session: session)
+            self.window?.toolbar?.validateVisibleItems()
+        }
+        session.setPasswordPrompt { [weak self, weak session] challenge in
+            guard let self, let session, self.archiveSession === session else { throw CancellationError() }
+            guard let document = self.document as? ArchiveDocument else {
+                return try await self.requestPassword(challenge)
+            }
+            return try await document.password(for: session, challenge: challenge) {
+                try await self.requestPasswordResponse(challenge)
+            }
+        }
+        controller.started = { [weak self] item, progress in
+            guard let self else { return }
+            guard item.requiresProgress, let window = self.window else { return }
+            let sheet = ExtractionProgressSheet(progress: progress, detail: item.payload.path, bundle: bundle)
+            // 進捗シートが key window になっても、QL の responder chain を文書へ戻す。
+            sheet.nextResponder = self
+            self.materializationSheet = sheet
+            sheet.begin(on: window)
+        }
+        controller.finished = { [weak self] in
+            self?.materializationSheet?.finish()
+            self?.materializationSheet = nil
+        }
+        controller.failed = { [weak self] reason in self?.reportFailure(reason) }
     }
 
     /// 表示範囲の上下に何行ぶん、サムネールを先に作るか。
