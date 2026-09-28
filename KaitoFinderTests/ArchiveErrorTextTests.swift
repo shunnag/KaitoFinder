@@ -208,7 +208,7 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
     }
 
     func testAllErrorTextKeysHaveTwentySixTranslations() throws {
-        let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/UI/ArchiveErrorText.swift"),
+        let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/Model/ArchiveErrorText.swift"),
                                 encoding: .utf8)
         let catalog = try LocalizationAcceptance.catalog()
         let literals = try NSRegularExpression(pattern: #"String\(localized:\s*"((?:\\.|[^"\\])*)""#)
@@ -229,10 +229,11 @@ nonisolated final class ArchiveErrorTextTests: XCTestCase {
 
     func testUserFacingCallSitesDoNotDescribeErrorEnumsDirectly() throws {
         let sources = [
-            "UI/ArchiveCreationController.swift", "UI/ArchiveWindowController.swift", "Model/ArchiveCapabilities.swift",
-            "Model/ArchiveMaterializationController.swift", "Import/ArchiveIncomingFiles.swift", "Extraction/ExtractionService.swift",
-            "Extraction/ArchiveBatchExtraction.swift", "Import/ArchiveImportPlan.swift", "Import/ArchiveImportTransaction.swift",
-            "Creation/ArchiveCreationTransaction.swift"
+            "UI/ArchiveCreationController.swift", "UI/ArchiveWindowController.swift", "Model/Session/ArchiveCapabilities.swift",
+            "UI/ArchiveMaterializationController.swift", "Editing/ArchiveIncomingFiles.swift", "Editing/ArchiveIncomingPasteboard.swift",
+            "Extraction/ExtractionService.swift", "Extraction/ArchiveBatchExtraction.swift", "Editing/ArchiveImportPlan.swift",
+            "Editing/ArchiveImportTransaction.swift", "Editing/ArchiveEditTransaction.swift", "Editing/ArchiveEditPlan.swift",
+            "Editing/ArchiveEditError.swift", "Creation/ArchiveCreationTransaction.swift"
         ]
         for path in sources {
             let source = try String(contentsOf: LocalizationAcceptance.root.appendingPathComponent("KaitoFinder/" + path), encoding: .utf8)

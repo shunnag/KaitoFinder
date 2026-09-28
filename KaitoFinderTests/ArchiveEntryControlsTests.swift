@@ -912,8 +912,11 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         let catalog = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf:
             root.appendingPathComponent("KaitoFinder/Resources/Localizable.xcstrings"))) as? [String: Any])
         let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
-        let sources = ["UI/ArchiveOutlineView.swift", "UI/ArchiveWindowController.swift", "App/AppDelegate.swift", "Model/ArchiveUndoStack.swift",
-                       "UI/ExtractionProgressSheet.swift", "Extraction/EntryMaterializer.swift", "Extraction/ArchiveFilePromise.swift"]
+        let sources = ["UI/ArchiveOutlineView.swift", "UI/ArchiveWindowController.swift", "UI/ArchiveToolbarItem.swift",
+                       "UI/ArchiveEntryFormatter.swift", "UI/ArchiveLockedPlaceholderView.swift", "UI/ArchiveListLoadingIndicator.swift",
+                       "App/AppDelegate.swift", "Documents/ArchiveUndoManager.swift", "UI/ExtractionProgressSheet.swift",
+                       "Extraction/EntryMaterializer.swift", "Extraction/ArchiveFilePromise.swift", "Extraction/FilePromiseRegistry.swift",
+                       "Extraction/ArchivePromiseExtractionQueue.swift"]
         let localized = try NSRegularExpression(pattern: #"String\(localized:\s*"((?:\\.|[^"\\])*)""#)
         let bareUIString = try NSRegularExpression(pattern: #"(?:withTitle:|(?:messageText|informativeText|toolTip)\s*=)\s*"[^"\n]+""#)
         for path in sources {
@@ -932,7 +935,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
                 XCTAssertNotNil(translations["en"], key)
                 XCTAssertNotNil(translations["ja"], key)
             }
-            if path == "Model/ArchiveUndoStack.swift" {
+            if path == "Documents/ArchiveUndoManager.swift" {
                 XCTAssertFalse(source.contains(#"? "取り消す""#))
                 XCTAssertFalse(source.contains(#"? "やり直す""#))
                 XCTAssertTrue(source.contains("super.setActionName(String(localized:"))
