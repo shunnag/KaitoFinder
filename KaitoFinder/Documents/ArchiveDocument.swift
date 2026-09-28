@@ -292,6 +292,14 @@ import Synchronization
         return response.password
     }
 
+    /// 記憶した鍵を vault と文書の両方から忘れる。session がなくても文書側の記憶は消す。
+    private func forgetRememberedPassword(for session: ArchiveSession?) async {
+        if let session, let stored = await passwordVault.password(for: .file(session.sourceURL)) {
+            await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
+        }
+        rememberedPayloadPassword = nil
+    }
+
     private func checkPasswordRequest(_ session: ArchiveSession, generation: UInt64) throws {
         try Task.checkCancellation()
         guard !closed, self.session === session else { throw CancellationError() }
@@ -339,9 +347,9 @@ import Synchronization
                     await session.prepareDeferredEditing()
                     guard !Task.isCancelled, !self.closed, self.session === session,
                           session.generation == snapshot.generation else { return }
-                    try await self.pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
-                        index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
-                    session.adoptNameIndex(validation: self.pendingEditor?.validation, generation: snapshot.generation)
+                    if let editor = self.pendingEditor {
+                        try await self.installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session)
+                    }
                     guard !Task.isCancelled, !self.closed, self.session === session else { return }
                     if let baseTree, let editor = self.pendingEditor {
                         let prepared = try await editor.prepare(generation: snapshot.generation, baseTree: baseTree)
@@ -451,10 +459,7 @@ import Synchronization
             try await session.updatePassword(action, settings: settings, progress: progress, willPublish: publish)
         }
         // 以前に記憶した鍵を次回の open に使わせない。新しい鍵の永続化は明示的な記憶操作だけ。
-        if let session, let stored = await passwordVault.password(for: .file(session.sourceURL)) {
-            await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
-        }
-        rememberedPayloadPassword = nil
+        await forgetRememberedPassword(for: session)
         return result
     }
 
@@ -511,7 +516,7 @@ import Synchronization
                 publication.cancelBeforePublication(progress: progress) { task.cancel() }
             }
             if !closed, published(result) {
-                if isSplit { undoManager?.removeAllActions(); undoActions.removeAll() }
+                if isSplit { clearUndoHistory() }
                 else { synchronizeUndoActions(registering: actionName) }
             }
             if session.generation != previousGeneration { await displayAfterMutation() }
@@ -520,6 +525,12 @@ import Synchronization
             if session.generation != previousGeneration { await displayAfterMutation() }
             throw error
         }
+    }
+
+    /// NSUndoManager の履歴と、その handler が保持する予約値の両方を捨てる。
+    private func clearUndoHistory() {
+        undoManager?.removeAllActions()
+        undoActions.removeAll()
     }
 
     private func synchronizeUndoActions(registering name: String? = nil) {
@@ -553,31 +564,39 @@ import Synchronization
     }
 
     private func restore(_ action: UndoAction) {
-        if let pending = action.pending, let editor = pendingEditor {
-            guard !closed, !isDeferredSaveRunning, !reservationInFlight, let session, !session.requiresSplitRecovery else { return }
-            do {
-                guard editor.baseGeneration == session.generation else { throw ArchiveEditError.staleSelection }
-                try pending.validate(base: editor.base, generation: session.generation)
-                let previous = editor.changes
-                editor.replace(pending)
-                session.setPendingReadSnapshot(try .init(deferredBase: editor.base, generation: session.generation,
-                    changes: editor.changes, staging: editor.staging, nameSyntax: .init(session.reservationFormat)))
-                action.pending = previous
-                registerUndo(action)
-                let revision = editor.changes.revision, previousRefresh = undoTask, refreshID = UUID()
-                pendingUndoRefresh = refreshID
-                undoFailure = nil
-                undoTask = Task { [weak self] in
-                    await previousRefresh?.value
-                    guard let self else { return }
-                    defer { if pendingUndoRefresh == refreshID { undoTask = nil; pendingUndoRefresh = nil } }
-                    guard editor.changes.revision == revision else { return }
-                    do { try await displayPending() }
-                    catch { if editor.changes.revision == revision { undoFailure = error } }
-                }
-            } catch { undoFailure = error }
-            return
-        }
+        if action.pending != nil, pendingEditor != nil { restorePendingChanges(action) }
+        else { restoreArchiveSlot(action) }
+    }
+
+    /// 保存前モードの取消し。予約値を editor に戻し、逆操作として今の予約値を同じ action に持たせる。
+    private func restorePendingChanges(_ action: UndoAction) {
+        guard let pending = action.pending, let editor = pendingEditor else { return }
+        guard !closed, !isDeferredSaveRunning, !reservationInFlight, let session, !session.requiresSplitRecovery else { return }
+        do {
+            guard editor.baseGeneration == session.generation else { throw ArchiveEditError.staleSelection }
+            try pending.validate(base: editor.base, generation: session.generation)
+            let previous = editor.changes
+            editor.replace(pending)
+            session.setPendingReadSnapshot(try .init(deferredBase: editor.base, generation: session.generation,
+                changes: editor.changes, staging: editor.staging, nameSyntax: .init(session.reservationFormat)))
+            action.pending = previous
+            registerUndo(action)
+            let revision = editor.changes.revision, previousRefresh = undoTask, refreshID = UUID()
+            pendingUndoRefresh = refreshID
+            undoFailure = nil
+            undoTask = Task { [weak self] in
+                await previousRefresh?.value
+                guard let self else { return }
+                defer { if pendingUndoRefresh == refreshID { undoTask = nil; pendingUndoRefresh = nil } }
+                guard editor.changes.revision == revision else { return }
+                do { try await displayPending() }
+                catch { if editor.changes.revision == revision { undoFailure = error } }
+            }
+        } catch { undoFailure = error }
+    }
+
+    /// 即時モードの取消し。clone した原本を session に戻させ、置換前に失敗したときは NSUndoManager の位置だけを戻す。
+    private func restoreArchiveSlot(_ action: UndoAction) {
         guard !closed, let session, let manager = undoManager as? ArchiveUndoManager else { return }
         // isUndoing / isRedoing が立っている同期呼び出し中に逆操作を登録する必要がある。
         registerUndo(action)
@@ -675,15 +694,11 @@ import Synchronization
             await opened.close()
             throw CancellationError()
         }
-        let format: GyoshukuKit.ArchiveFormat
-        switch opened.capabilities.mode {
-        case .inPlace: format = .zip
-        case .rewrite(let outputFormat), .update(let outputFormat): format = outputFormat
-        case nil:
+        guard let format = opened.capabilities.mode?.outputFormat else {
             await opened.close()
             throw ExtractionFailure.refused(String(localized: "対応していないフォーマットです。"))
         }
-        let newModificationDate = try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+        let newModificationDate = try Self.modificationDate(atPath: url.path)
         loadingTask?.cancel()
         loadingTask = nil
         for controller in windowControllers.compactMap({ $0 as? ArchiveWindowController }) {
@@ -754,77 +769,88 @@ import Synchronization
         let snapshot = await session.snapshot()
         guard !session.isInvalidated else { return false }
         if saveBehavior == .onSave {
-            do {
-                if let editor = pendingEditor, editor.changes.isEmpty {
-                    let revision = editor.changes.revision
-                    let configurations = Set(loading.map { $0.controller.filterConfiguration })
-                    // 公開後の一覧は取消しに左右されず、編集の準備だけを背景へ渡す。
-                    let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
-                    let filters = await Self.prepareFilters(tree, configurations: configurations)
-                    guard !closed, self.session === session, session.generation == snapshot.generation,
-                          pendingEditor === editor, editor.changes.isEmpty, editor.changes.revision == revision else { return false }
-                    session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
-                                                            changes: editor.changes, staging: nil, nameSyntax: .init(session.reservationFormat)))
-                    for (controller, token) in loading where controller.isCurrentListLoading(token) {
-                        controller.display(tree, session: session, generation: snapshot.generation,
-                            materializationController: materializationController(), preparedFilter: filters[controller.filterConfiguration], loadingToken: token)
-                    }
-                    let previous = loadingTask
-                    previous?.cancel()
-                    let preparationID = UUID()
-                    deferredPreparationID = preparationID
-                    loadingTask = Task {
-                        defer { finishListLoading(loading) }
-                        @MainActor func isCurrent() -> Bool {
-                            !closed && self.session === session && session.generation == snapshot.generation
-                                && pendingEditor === editor && editor.changes.revision == revision
-                                && deferredPreparationID == preparationID
-                        }
-                        do {
-                            await previous?.value
-                            guard !Task.isCancelled, isCurrent() else { return }
-                            await session.prepareDeferredEditing()
-                            guard !Task.isCancelled, isCurrent() else { return }
-                            #if DEBUG
-                            if let error = Self.preparationFailureForTesting.get() { throw error }
-                            #endif
-                            try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: true,
-                                index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
-                            session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
-                            guard !Task.isCancelled, isCurrent() else { return }
-                            let prepared = try await editor.prepare(generation: snapshot.generation, filters: configurations,
-                                                                    baseTree: tree, checksCancellation: true)
-                            guard !Task.isCancelled, isCurrent() else { return }
-                            session.setPendingReadSnapshot(prepared.reading)
-                        } catch {
-                            finishListLoading(loading)
-                            if isCurrent(), !(error is CancellationError) { presentPreparationError(error) }
-                        }
-                    }
-                    handedOff = true
-                    return true
-                }
-                await session.prepareDeferredEditing()
-                guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
-                try await pendingEditor?.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session), checksCancellation: false,
-                    index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
-                session.adoptNameIndex(validation: pendingEditor?.validation, generation: snapshot.generation)
-                guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
-                try await displayPending(checksCancellation: false)
-            } catch {
-                finishListLoading(loading)
-                if !closed { presentPreparationError(error) }
-            }
-            return false
+            handedOff = await displayDeferred(snapshot, session: session, loading: loading)
+            return handedOff
         }
+        await displayImmediate(snapshot, session: session, loading: loading)
+        return false
+    }
+
+    /// 即時モードの表示。一覧と検索を組み立て、その loading をまだ待っている窓だけに表示する。
+    private func displayImmediate(_ snapshot: (entries: [ArchiveEntry], generation: UInt64),
+                                  session: ArchiveSession, loading: ListLoading) async {
         let configurations = Set(loading.map { $0.controller.filterConfiguration }.filter { !$0.query.isEmpty })
         let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
         let filters = await Self.prepareFilters(tree, configurations: configurations)
-        guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
+        guard !closed, self.session === session, session.generation == snapshot.generation else { return }
         for (controller, token) in loading where controller.isCurrentListLoading(token) {
             controller.display(tree, session: session, generation: snapshot.generation,
                                materializationController: materializationController(),
                                preparedFilter: filters[controller.filterConfiguration], indexingRenames: true)
+        }
+    }
+
+    /// 保存前モードの表示。予約が空なら公開後の一覧を先に表示し、編集の準備は背景の Task に渡す
+    /// （true を返し、loading の終了もその Task が担う）。予約がある間は予約を重ねた一覧を表示して false を返す。
+    private func displayDeferred(_ snapshot: (entries: [ArchiveEntry], generation: UInt64),
+                                 session: ArchiveSession, loading: ListLoading) async -> Bool {
+        do {
+            if let editor = pendingEditor, editor.changes.isEmpty {
+                let revision = editor.changes.revision
+                let configurations = Set(loading.map { $0.controller.filterConfiguration })
+                // 公開後の一覧は取消しに左右されず、編集の準備だけを背景へ渡す。
+                let tree = await EntryNode.build(from: snapshot.entries, format: session.reservationFormat, indexingEdits: false)
+                let filters = await Self.prepareFilters(tree, configurations: configurations)
+                guard !closed, self.session === session, session.generation == snapshot.generation,
+                      pendingEditor === editor, editor.changes.isEmpty, editor.changes.revision == revision else { return false }
+                session.setPendingReadSnapshot(try .init(deferredBase: snapshot.entries, generation: snapshot.generation,
+                                                        changes: editor.changes, staging: nil, nameSyntax: .init(session.reservationFormat)))
+                for (controller, token) in loading where controller.isCurrentListLoading(token) {
+                    controller.display(tree, session: session, generation: snapshot.generation,
+                        materializationController: materializationController(), preparedFilter: filters[controller.filterConfiguration], loadingToken: token)
+                }
+                let previous = loadingTask
+                previous?.cancel()
+                let preparationID = UUID()
+                deferredPreparationID = preparationID
+                loadingTask = Task {
+                    defer { finishListLoading(loading) }
+                    @MainActor func isCurrent() -> Bool {
+                        !closed && self.session === session && session.generation == snapshot.generation
+                            && pendingEditor === editor && editor.changes.revision == revision
+                            && deferredPreparationID == preparationID
+                    }
+                    do {
+                        await previous?.value
+                        guard !Task.isCancelled, isCurrent() else { return }
+                        await session.prepareDeferredEditing()
+                        guard !Task.isCancelled, isCurrent() else { return }
+                        #if DEBUG
+                        if let error = Self.preparationFailureForTesting.get() { throw error }
+                        #endif
+                        try await installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session, checksCancellation: true)
+                        guard !Task.isCancelled, isCurrent() else { return }
+                        let prepared = try await editor.prepare(generation: snapshot.generation, filters: configurations,
+                                                                baseTree: tree, checksCancellation: true)
+                        guard !Task.isCancelled, isCurrent() else { return }
+                        session.setPendingReadSnapshot(prepared.reading)
+                    } catch {
+                        finishListLoading(loading)
+                        if isCurrent(), !(error is CancellationError) { presentPreparationError(error) }
+                    }
+                }
+                return true
+            }
+            await session.prepareDeferredEditing()
+            guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
+            if let editor = pendingEditor {
+                try await installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session, checksCancellation: false)
+            }
+            guard !closed, self.session === session, session.generation == snapshot.generation else { return false }
+            try await displayPending(checksCancellation: false)
+        } catch {
+            finishListLoading(loading)
+            if !closed { presentPreparationError(error) }
         }
         return false
     }
@@ -1027,8 +1053,7 @@ import Synchronization
     }
 
     private func disposeUndoStack() {
-        undoManager?.removeAllActions()
-        undoActions.removeAll()
+        clearUndoHistory()
         (undoManager as? ArchiveUndoManager)?.isSuspended = true
         if mutationProgress?.isCancellable == true { mutationProgress?.cancel() }
         cancelMutation?()
@@ -1093,9 +1118,7 @@ extension ArchiveDocument {
         let temporaryStaging = immediate ? try StagingRegistry.temporary(beside: session.sourceURL) : nil
         defer { temporaryStaging?.remove() }
         let editor = pendingEditor ?? ArchivePendingEditor(registry: temporaryStaging?.registry ?? .shared)
-        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
-            index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
-        session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
+        try await installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session)
         let previous = editor.changes
         let stagingCheckpoint = editor.stagingCheckpoint
         var state: ArchiveReservationState? = try await editor.prepare(generation: snapshot.generation)
@@ -1142,7 +1165,7 @@ extension ArchiveDocument {
                 recordSplitSaveFailure(failure)
                 if immediate, failure.requiresReopen || failure.kind == .rolledBack {
                     await archiveUndoStack.finishMutation(nil, published: true)
-                    undoManager?.removeAllActions(); undoActions.removeAll()
+                    clearUndoHistory()
                 }
             }
             await editor.discardStaging(after: stagingCheckpoint)
@@ -1227,13 +1250,20 @@ extension ArchiveDocument {
         guard let editor = pendingEditor else { return snapshot.entries }
         await session.prepareDeferredEditing()
         guard !closed, self.session === session else { throw CancellationError() }
-        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
-            index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
-        session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
+        try await installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session)
         let prepared = try await editor.prepare(generation: snapshot.generation)
         guard self.session === session, editor.baseSession == ObjectIdentifier(session), session.generation == snapshot.generation else { throw ArchiveEditError.staleSelection }
         session.setPendingReadSnapshot(prepared.reading)
         return prepared.projection.entries
+    }
+
+    /// 予約用 editor に現在の一覧を据え、その検証結果を session の名前索引へ引き継ぐ。
+    private func installEditor(_ editor: ArchivePendingEditor, base: [ArchiveEntry], generation: UInt64,
+                               session: ArchiveSession, checksCancellation: Bool = true) async throws {
+        let format = session.reservationFormat
+        try await editor.install(base: base, generation: generation, format: format, sessionID: ObjectIdentifier(session),
+                                 checksCancellation: checksCancellation, index: session.nameIndex(generation: generation, format: format))
+        session.adoptNameIndex(validation: editor.validation, generation: generation)
     }
 
     private func displayPending(checksCancellation: Bool = true) async throws {
@@ -1485,12 +1515,7 @@ extension ArchiveDocument {
         if let warning = result.published.warning {
             splitSaveNotice = (splitSaveNotice.map { $0 + "\n" } ?? "") + warning
         }
-        if pending.outputEncryption != nil {
-            if let stored = await passwordVault.password(for: .file(session.sourceURL)) {
-                await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
-            }
-            rememberedPayloadPassword = nil
-        }
+        if pending.outputEncryption != nil { await forgetRememberedPassword(for: session) }
         refreshPendingNotices()
         return result
     }
@@ -1507,9 +1532,7 @@ extension ArchiveDocument {
         splitSaveNotice = nil
         var committedDate: Date?
         let snapshot = await session.snapshot()
-        try await editor.install(base: snapshot.entries, generation: snapshot.generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
-            index: session.nameIndex(generation: snapshot.generation, format: session.reservationFormat))
-        session.adoptNameIndex(validation: editor.validation, generation: snapshot.generation)
+        try await installEditor(editor, base: snapshot.entries, generation: snapshot.generation, session: session)
         let pending = editor.changes
         if try await pending.requiresReplay(base: snapshot.entries, generation: snapshot.generation) {
             // AppKit の外部変更シートを Save anyway で越えても、この照合は省かない。
@@ -1529,23 +1552,22 @@ extension ArchiveDocument {
                     progress: progress, publication: publication, willPublish: deferredWillPublish, willReload: deferredWillReload)
                 deferredReloadFailure = result.reloadFailure
             }
-            if pending.outputEncryption != nil {
-                if let stored = await passwordVault.password(for: .file(session.sourceURL)) {
-                    await passwordVault.remove(for: .file(session.sourceURL), matching: stored)
-                }
-                rememberedPayloadPassword = nil
-            }
+            if pending.outputEncryption != nil { await forgetRememberedPassword(for: session) }
         }
-        let modificationDate = try committedDate ?? (FileManager.default.attributesOfItem(atPath: session.sourceURL.path)[.modificationDate] as? Date)
+        let modificationDate = try committedDate ?? Self.modificationDate(atPath: session.sourceURL.path)
         // 予約入口は保存中閉じている。AppKit に後着した変更数は token で保持する。
         disposePending()
-        undoManager?.removeAllActions()
-        undoActions.removeAll()
+        clearUndoHistory()
         await stagingCleanup?.value
         await displayAfterMutation()
         updateChangeCount(withToken: token, for: .saveOperation)
         fileModificationDate = modificationDate
         refreshPendingNotices()
+    }
+
+    /// 公開後に fileModificationDate へ据える値。AppKit の外部変更検出と揃えるため、公開直後の mtime を読む。
+    private static func modificationDate(atPath path: String) throws -> Date? {
+        try FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date
     }
 
     private static func deferredSaveError(_ error: any Error) -> NSError {
@@ -1598,10 +1620,9 @@ extension ArchiveDocument {
         do { try await session.verifyDeferredIdentity() }
         catch { changed = true }
         if changed { try await session.reloadAfterMutation() }
-        let modificationDate = try FileManager.default.attributesOfItem(atPath: session.sourceURL.path)[.modificationDate] as? Date
+        let modificationDate = try Self.modificationDate(atPath: session.sourceURL.path)
         disposePending()
-        undoManager?.removeAllActions()
-        undoActions.removeAll()
+        clearUndoHistory()
         await stagingCleanup?.value
         updateChangeCount(withToken: token, for: .saveOperation)
         handedOff = await displayAfterMutation(loading: loading)
@@ -1643,21 +1664,19 @@ extension ArchiveDocument {
                 throw Self.deferredExternalChangeError
             }
             var existing = try await ArchiveCreationController.existingArchive(from: session, progress: progress)
-            try await editor.install(base: existing.entries, generation: generation, format: session.reservationFormat, sessionID: ObjectIdentifier(session),
-                index: session.nameIndex(generation: generation, format: session.reservationFormat))
-            session.adoptNameIndex(validation: editor.validation, generation: generation)
+            try await installEditor(editor, base: existing.entries, generation: generation, session: session)
             existing.pending = try await ArchiveSaveReplayPlan.build(base: existing.entries, generation: generation,
                 pending: editor.changes, format: session.reservationFormat, progress: progress)
             existing.publication = publication
             existing.encryption = await deferredEncryptionSettings()
             guard let destination = try await creator.create(sources: [], existing: existing, on: window, progress: progress,
                                                             willPublish: deferredWillPublish) else { return }
-            let modificationDate = try FileManager.default.attributesOfItem(atPath: destination.path)[.modificationDate] as? Date
+            let modificationDate = try Self.modificationDate(atPath: destination.path)
             // switchBackingFile の display が新しい世代へ旧予約を重ねないよう、切り替え時にだけ外す。
             try await switchBackingFile(to: destination, password: creator.createdEncryption.password)
             adoptSplitCreationNotice(creator)
             disposePending()
-            undoManager?.removeAllActions()
+            clearUndoHistory()
             await stagingCleanup?.value
             await displayAfterMutation()
             updateChangeCount(withToken: token, for: .saveOperation)
