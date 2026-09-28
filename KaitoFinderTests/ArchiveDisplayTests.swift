@@ -34,7 +34,7 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory.url.appendingPathComponent("a/b"), withIntermediateDirectories: true)
         try Data("nested".utf8).write(to: directory.url.appendingPathComponent("a/b/c.txt"))
         try Data("note".utf8).write(to: directory.url.appendingPathComponent("note.txt"))
-        try directory.run("/usr/bin/zip", ["-q", "-D", archive.path, "a/b/c.txt", "note.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-D", archive.path, "a/b/c.txt", "note.txt"])
         let document = try ArchiveDocument(contentsOf: archive, ofType: "public.zip-archive")
         let controller = ArchiveWindowController()
         document.addWindowController(controller)

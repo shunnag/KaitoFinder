@@ -2,79 +2,13 @@ import Darwin
 import Foundation
 import GyoshukuKit
 import KaitoKit
-import Synchronization
 import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ScenarioDiskTests: XCTestCase {
-    /// hdiutilだけは失敗をアサーションにせず、ディスク作成が許可されない環境をスキップする。
-    private final class Volume: Sendable {
-        let directory: ArchiveTestDirectory
-        let image: URL
-        let mount: URL
-        private let attached = Mutex(false)
-
-        init() throws {
-            directory = try ArchiveTestDirectory()
-            image = directory.url.appendingPathComponent("disk.dmg")
-            mount = directory.url.appendingPathComponent("mount")
-            try command(["create", "-size", "8m", "-fs", "APFS", "-volname", "KFTest", image.path])
-            try attach(readOnly: false)
-        }
-
-        private func command(_ arguments: [String]) throws {
-            let process = Process(), output = Pipe()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-            process.arguments = arguments
-            process.currentDirectoryURL = directory.url
-            process.standardOutput = output
-            process.standardError = output
-            do { try process.run() }
-            catch { throw XCTSkip("hdiutilを起動できない: \(error)") }
-            let bytes = output.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else {
-                throw XCTSkip("hdiutil \(arguments.first ?? "")が利用できない (\(process.terminationStatus)): \(String(decoding: bytes, as: UTF8.self))")
-            }
-        }
-
-        func attach(readOnly: Bool) throws {
-            try attached.withLock { value in
-                try command(["attach", "-nobrowse", "-mountpoint", mount.path] + (readOnly ? ["-readonly"] : []) + [image.path])
-                value = true
-            }
-        }
-
-        func detach() throws {
-            try attached.withLock { value in
-                guard value else { return }
-                try command(["detach", "-force", mount.path])
-                value = false
-            }
-        }
-
-        deinit { try? detach() }
-
-        func fill() throws {
-            let descriptor = open(mount.appendingPathComponent("filler").path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
-            guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
-            defer { close(descriptor) }
-            let bytes = [UInt8](repeating: 0xa5, count: 4096)
-            // 疎ファイルは容量不足を起こさない。小さいブロックで実際に空きを使い切る。
-            for _ in 0..<8192 {
-                let count = bytes.withUnsafeBytes { Darwin.write(descriptor, $0.baseAddress!, $0.count) }
-                if count < 0 {
-                    XCTAssertEqual(errno, ENOSPC)
-                    guard errno == ENOSPC else { throw ExtractionFailure.system(errno) }
-                    return
-                }
-            }
-            XCTFail("8 MiBのテストボリュームで32 MiBを書き込めました")
-        }
-    }
-
-    private func volume() throws -> Volume {
-        let volume = try Volume()
+    /// 容量不足を起こせるよう 8 MiB の APFS を作る。hdiutil が使えない環境ではスキップする。
+    private func volume() throws -> VolumePublishTestDisk {
+        let volume = try VolumePublishTestDisk("APFS", size: "8m")
         addTeardownBlock { try volume.detach() }
         return volume
     }
@@ -263,5 +197,25 @@ extension ScenarioDiskTests {
             work.map { $0.standardizedFileURL.resolvingSymlinksInPath().path },
                        "Failed cleanup must remain registered")
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+}
+
+private extension VolumePublishTestDisk {
+    /// 空きを使い切り、書き込みが ENOSPC になることを確かめる。
+    nonisolated func fill() throws {
+        let descriptor = open(mount.appendingPathComponent("filler").path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+        guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
+        defer { close(descriptor) }
+        let bytes = [UInt8](repeating: 0xa5, count: 4096)
+        // 疎ファイルは容量不足を起こさない。小さいブロックで実際に空きを使い切る。
+        for _ in 0..<8192 {
+            let count = bytes.withUnsafeBytes { Darwin.write(descriptor, $0.baseAddress!, $0.count) }
+            if count < 0 {
+                XCTAssertEqual(errno, ENOSPC)
+                guard errno == ENOSPC else { throw ExtractionFailure.system(errno) }
+                return
+            }
+        }
+        XCTFail("8 MiBのテストボリュームで32 MiBを書き込めました")
     }
 }

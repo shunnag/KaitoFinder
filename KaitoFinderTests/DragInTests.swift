@@ -14,7 +14,7 @@ nonisolated final class DragInTests: XCTestCase {
             root = FileManager.default.temporaryDirectory.appendingPathComponent("KaitoFinder-DragIn-" + UUID().uuidString)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
             archive = root.appendingPathComponent(filename)
-            try run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct\np=sys.argv[1]\n" + script, archive.path])
+            try run(ExternalTool.python3, ["-c", "import sys, zipfile, tarfile, io, struct\np=sys.argv[1]\n" + script, archive.path])
         }
         deinit { try? FileManager.default.removeItem(at: root) }
         func file(_ name: String, _ text: String = "added") throws -> URL {
@@ -68,7 +68,7 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertNil(result.reloadFailure)
         let bytes = try ArchiveOracle.contents(ArchiveReader.open(url: fixture.archive), including: .all)
         XCTAssertEqual(bytes, ["old.txt": Data("original".utf8), "sub/deep/old.txt": Data("nested".utf8), "new.txt": Data("added".utf8)])
-        print(try fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path]))
+        print(try fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
     }
 
     func testAppendDirectoryPreservesSubtreeAndEmptyDirectoryUnderVirtualFolder() async throws {
@@ -83,7 +83,7 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(bytes["sub/deep/tree/empty/"], Data())
         XCTAssertNil(bytes["tree/a.txt"])
         XCTAssertEqual(bytes.count, 7)
-        print(try fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path]))
+        print(try fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]))
     }
 
     @MainActor func testDropTargetFolderFileEmptyAndVirtualRows() throws {

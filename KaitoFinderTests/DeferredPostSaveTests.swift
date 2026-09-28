@@ -236,7 +236,7 @@ nonisolated final class DeferredPostSaveTests: XCTestCase {
         let input = directory.url.appendingPathComponent("input")
         try FileManager.default.createDirectory(at: input, withIntermediateDirectories: false)
         try Data(repeating: 42, count: 1024).write(to: input.appendingPathComponent("a"))
-        try directory.run("/usr/bin/ditto", ["-c", "-k", "--keepParent", input.path, url.path])
+        try directory.run(ExternalTool.ditto, ["-c", "-k", "--keepParent", input.path, url.path])
         let session = try ArchiveSession(url: url), events = Mutex<[ArchiveReaderAdoption]>([])
         _ = try await session.deferredSnapshot()
         var pending = ArchivePendingChanges(); pending.createdFolders = [.init(id: UUID(), path: "new/")]

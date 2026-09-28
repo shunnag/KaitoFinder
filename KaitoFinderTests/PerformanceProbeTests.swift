@@ -229,7 +229,7 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
         // Set both timestamps together: GK's source identity guard requires atime >= mtime.
         for offset in stride(from: 0, to: paths.count, by: 500) {
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/touch")
+            process.executableURL = URL(fileURLWithPath: ExternalTool.touch)
             process.arguments = ["-t", "202609260000"] + paths[offset..<min(paths.count, offset + 500)].map(\.path)
             try process.run(); process.waitUntilExit()
             guard process.terminationStatus == 0 else { throw CocoaError(.fileWriteUnknown) }

@@ -130,7 +130,7 @@ nonisolated final class ArchiveImportConflictTests: XCTestCase {
         document.redo(nil)
         await document.undoTask?.value
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), contents)
-        try fixture.directory.run("/usr/bin/unzip", ["-tqq", fixture.archive.path])
+        try fixture.directory.run(ExternalTool.unzip, ["-tqq", fixture.archive.path])
     }
 
     @MainActor func testCancelAfterAcceptingOneReplacementLeavesWholeBatchAndUndoUntouched() async throws {

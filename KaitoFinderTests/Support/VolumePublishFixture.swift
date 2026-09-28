@@ -14,6 +14,8 @@ nonisolated func volumePublishTestURL(_ url: URL) throws -> URL {
     return URL(fileURLWithPath: String(cString: path), isDirectory: true)
 }
 
+/// hdiutil で作って mount する検査用のボリューム。hdiutil の失敗はアサーションにせず、
+/// ディスク作成が許可されない環境ではテストを XCTSkip にする。
 nonisolated final class VolumePublishTestDisk: Sendable {
     let directory: ArchiveTestDirectory
     let image: URL
@@ -22,13 +24,14 @@ nonisolated final class VolumePublishTestDisk: Sendable {
     let fileSystem: String
     private let attached = Mutex(false)
 
-    init(_ fileSystem: String) throws {
+    /// `size` は hdiutil create -size の値。APFS と HFS+ には各利用者の .Trashes も用意する。
+    init(_ fileSystem: String, size: String = "128m") throws {
         directory = try ArchiveTestDirectory()
         let base = try volumePublishTestURL(directory.url)
         image = base.appendingPathComponent("volume.dmg")
         mountLocation = Mutex(base.appendingPathComponent("mount"))
         self.fileSystem = fileSystem
-        try command(["create", "-size", "128m", "-fs", fileSystem, "-volname", "KFPUBLISH", image.path])
+        try command(["create", "-size", size, "-fs", fileSystem, "-volname", "KFPUBLISH", image.path])
         try attach()
         do {
             if fileSystem == "APFS" || fileSystem == "HFS+" {
@@ -42,7 +45,7 @@ nonisolated final class VolumePublishTestDisk: Sendable {
     }
     private func command(_ arguments: [String]) throws {
         let process = Process(), output = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.executableURL = URL(fileURLWithPath: ExternalTool.hdiutil)
         process.arguments = arguments
         process.standardOutput = output; process.standardError = output
         do { try process.run() } catch { throw XCTSkip("hdiutil を起動できません: \(error)") }
@@ -52,10 +55,10 @@ nonisolated final class VolumePublishTestDisk: Sendable {
             throw XCTSkip("hdiutil \(arguments.first ?? "") を実行できません: \(String(decoding: bytes, as: UTF8.self))")
         }
     }
-    func attach(at location: URL? = nil) throws {
+    func attach(at location: URL? = nil, readOnly: Bool = false) throws {
         try attached.withLock { attached in
             let destination = location ?? mount
-            try command(["attach", "-nobrowse", "-mountpoint", destination.path, image.path])
+            try command(["attach", "-nobrowse", "-mountpoint", destination.path] + (readOnly ? ["-readonly"] : []) + [image.path])
             mountLocation.withLock { $0 = destination }
             attached = true
         }

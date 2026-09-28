@@ -119,7 +119,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         """#) throws {
             directory = try ArchiveTestDirectory()
             archive = directory.url.appendingPathComponent(filename)
-            try directory.run("/usr/bin/python3", ["-c", "import sys, zipfile, tarfile, io, struct, zlib\np=sys.argv[1]\n" + script, archive.path])
+            try directory.run(ExternalTool.python3, ["-c", "import sys, zipfile, tarfile, io, struct, zlib\np=sys.argv[1]\n" + script, archive.path])
         }
 
         @discardableResult static func run(_ tool: String, _ arguments: [String], allowed: [Int32] = [0]) throws -> String {
@@ -133,7 +133,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         let before = try Data(contentsOf: independent.archive)
         let carried = try records(independent.archive)
         let scratch = "import os, pathlib; pathlib.Path('scratch').write_text(os.environ['TMPDIR'])"
-        try damaged.directory.run("/usr/bin/python3", ["-c", scratch])
+        try damaged.directory.run(ExternalTool.python3, ["-c", scratch])
         XCTAssertEqual(try String(contentsOf: damaged.root.appendingPathComponent("scratch"), encoding: .utf8),
                        damaged.root.appendingPathComponent("tmp").path)
         XCTAssertFalse(FileManager.default.fileExists(atPath: independent.root.appendingPathComponent("scratch").path))
@@ -318,7 +318,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertNil(result.reloadFailure)
         XCTAssertEqual(session.generation, 1)
         try assertCarried(before, to: fixture.archive, removed: ["remove.txt"])
-        XCTAssertTrue(try Fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path]).contains("No errors detected"))
+        XCTAssertTrue(try Fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 
     @MainActor func testDeletingVirtualFolderRemovesExactlyItsDescendants() async throws {
@@ -356,7 +356,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         try assertCarried(before, to: fixture.archive, renamed: changed)
         let directories = try ArchiveReader.open(url: fixture.archive).entries.filter { $0.kind == .directory }.map(\.name)
         XCTAssertEqual(directories, ["renamed/", "renamed/deep/"])
-        XCTAssertTrue(try Fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path]).contains("No errors detected"))
+        XCTAssertTrue(try Fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 
     @MainActor func testRenamingVirtualFolderRewritesDescendantsWithoutInventingDirectoryRecord() async throws {
@@ -602,9 +602,9 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertNil(result.reloadFailure)
         XCTAssertTrue(try ArchiveReader.open(url: fixture.archive).entries.isEmpty)
         XCTAssertEqual(try Data(contentsOf: fixture.archive).count, 22)
-        let unzip = try Fixture.run("/usr/bin/unzip", ["-t", fixture.archive.path], allowed: [1])
+        let unzip = try Fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path], allowed: [1])
         XCTAssertTrue(unzip.contains("zipfile is empty"), unzip)
-        let seven = try Fixture.run("/opt/homebrew/bin/7zz", ["t", fixture.archive.path])
+        let seven = try Fixture.run(ExternalTool.sevenZip, ["t", fixture.archive.path])
         XCTAssertTrue(seven.contains("Everything is Ok"), seven)
         XCTAssertTrue(seven.contains("Files: 0"), seven)
         try await undo(document)
@@ -748,7 +748,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertEqual(session.generation, 1)
         XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
         XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
-        XCTAssertTrue(try fixture.directory.run("/usr/bin/unzip", ["-t", fixture.archive.path]).contains("No errors detected"))
+        XCTAssertTrue(try fixture.directory.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 
     @MainActor func testNewFolderCollisionNumbersIncludeFilesAndVirtualFolders() async throws {

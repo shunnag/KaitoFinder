@@ -27,8 +27,8 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
             for name in images + ["encrypted.png"] { try png.write(to: directory.url.appendingPathComponent(name)) }
             try Data(repeating: 0, count: 9 * 1024 * 1024).write(to: directory.url.appendingPathComponent("big.png"))
             try Data("not an image".utf8).write(to: directory.url.appendingPathComponent("note.txt"))
-            try directory.run("/usr/bin/zip", ["-q", "-D", archive.path] + images + ["big.png", "note.txt"])
-            try directory.run("/usr/bin/zip", ["-q", "-P", "secret", archive.path, "encrypted.png"])
+            try directory.run(ExternalTool.zip, ["-q", "-D", archive.path] + images + ["big.png", "note.txt"])
+            try directory.run(ExternalTool.zip, ["-q", "-P", "secret", archive.path, "encrypted.png"])
         }
 
         func files() -> [URL] {
@@ -349,7 +349,7 @@ nonisolated final class ArchiveThumbnailTests: XCTestCase {
         XCTAssertTrue(fixture.files().isEmpty)
         try Data(contentsOf: fixture.directory.url.appendingPathComponent("small.png"))
             .write(to: fixture.directory.url.appendingPathComponent("missing.png"))
-        try fixture.directory.run("/usr/bin/zip", ["-q", fixture.archive.path, "missing.png"])
+        try fixture.directory.run(ExternalTool.zip, ["-q", fixture.archive.path, "missing.png"])
         try await session.reloadAfterMutation()
         XCTAssertNil(provider.thumbnail(for: missing))
         XCTAssertTrue(provider.isIdle)

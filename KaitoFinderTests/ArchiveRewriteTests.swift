@@ -75,17 +75,17 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
             switch format {
             case .tar, .tgz:
                 let tar = format == .tar ? archive : directory.url.appendingPathComponent("seed.tar")
-                try directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", "-cf", tar.path,
+                try directory.run(ExternalTool.bsdtar, ["--no-mac-metadata", "--no-xattrs", "-cf", tar.path,
                                                        "-C", seed.path, "original.txt", "existing"])
                 if format == .tgz {
-                    try directory.run("/usr/bin/gzip", ["-n", tar.path])
+                    try directory.run(ExternalTool.gzip, ["-n", tar.path])
                     try FileManager.default.moveItem(at: tar.appendingPathExtension("gz"), to: archive)
                 }
             case .tbz2, .txz:
-                try directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs",
+                try directory.run(ExternalTool.bsdtar, ["--no-mac-metadata", "--no-xattrs",
                     format == .tbz2 ? "-cjf" : "-cJf", archive.path, "-C", seed.path, "original.txt", "existing"])
             case .sevenZip:
-                try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-t7z", archive.path, "original.txt", "existing"])
+                try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-t7z", archive.path, "original.txt", "existing"])
             case .lha:
                 let writer = try ArchiveWriter.create(url: archive, format: .lha)
                 try writer.add(contentsOf: seed.appendingPathComponent("original.txt"), as: "original.txt")
@@ -152,7 +152,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         for (flag, name, format) in [("-cjf", "tar.bz2", GyoshukuKit.ArchiveFormat.tarBzip2), ("-cJf", "tar.xz", .tarXZ)] {
             let fixture = try Fixture(.tar)
             let archive = fixture.directory.url.appendingPathComponent("wrapped." + name)
-            try fixture.directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", flag, archive.path,
+            try fixture.directory.run(ExternalTool.bsdtar, ["--no-mac-metadata", "--no-xattrs", flag, archive.path,
                                                           "-C", fixture.directory.url.path,
                                                           "original.txt"])
             let reader = try ArchiveReader.open(url: archive)
@@ -183,7 +183,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     private func zip(in directory: ArchiveTestDirectory, encrypted: Bool = false) throws -> URL {
         let archive = directory.url.appendingPathComponent("archive.zip")
         try Data("secret contents".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-        try directory.run("/usr/bin/zip", ["-q"] + (encrypted ? ["-P", "rewrite-test-password"] : [])
+        try directory.run(ExternalTool.zip, ["-q"] + (encrypted ? ["-P", "rewrite-test-password"] : [])
                           + [archive.path, "secret.txt"])
         return archive
     }
@@ -207,7 +207,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     private func encryptedSevenZip(in directory: ArchiveTestDirectory, headers: Bool) throws -> URL {
         let archive = directory.url.appendingPathComponent("encrypted.7z")
         try Data("secret contents".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-        try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-prewrite-test-password"]
+        try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-prewrite-test-password"]
                           + (headers ? ["-mhe=on"] : []) + [archive.path, "secret.txt"])
         return archive
     }
@@ -257,7 +257,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let entries = await session.entries()
         let nodes = EntryNode.tree(from: entries).children
         let encrypted = fixture.directory.url.appendingPathComponent("encrypted.7z")
-        try fixture.directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-t7z", "-prewrite-test-password",
+        try fixture.directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-t7z", "-prewrite-test-password",
                                                             encrypted.path, "original.txt", "existing"])
         let replacement = try ArchiveReader.open(url: encrypted)
         XCTAssertEqual(replacement.entries.map(\.name), entries.map(\.name))
@@ -302,7 +302,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
     func testUnrepresentableTarEntryRefusesWithEntryAndReasonWithoutCreatingWork() throws {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("fifo.tar")
         XCTAssertEqual(mkfifo(directory.url.appendingPathComponent("pipe").path, 0o600), 0)
-        try directory.run("/usr/bin/bsdtar", ["--no-mac-metadata", "--no-xattrs", "-cf", archive.path, "pipe"])
+        try directory.run(ExternalTool.bsdtar, ["--no-mac-metadata", "--no-xattrs", "-cf", archive.path, "pipe"])
         let before = try ArchiveOracle.digest(archive)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
         let reason = "pipe: この entry 種別は書き込めません"
@@ -407,14 +407,14 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         let expected = Set(names.map(nameWithoutTrailingSlash))
         switch fixture.format {
         case .tar, .tbz2, .txz:
-            let listing = try fixture.directory.run("/usr/bin/bsdtar", ["-tf", fixture.archive.path])
+            let listing = try fixture.directory.run(ExternalTool.bsdtar, ["-tf", fixture.archive.path])
             XCTAssertEqual(Set(listing.split(separator: "\n").map { nameWithoutTrailingSlash(String($0)) }), expected)
         case .tgz:
             XCTAssertEqual(Array(try Data(contentsOf: fixture.archive).prefix(2)), [0x1f, 0x8b])
-            let listing = try fixture.directory.run("/usr/bin/tar", ["-tzf", fixture.archive.path])
+            let listing = try fixture.directory.run(ExternalTool.tar, ["-tzf", fixture.archive.path])
             XCTAssertEqual(Set(listing.split(separator: "\n").map { nameWithoutTrailingSlash(String($0)) }), expected)
         case .sevenZip:
-            let listing = try fixture.directory.run("/opt/homebrew/bin/7zz", ["l", "-slt", "-ba", fixture.archive.path])
+            let listing = try fixture.directory.run(ExternalTool.sevenZip, ["l", "-slt", "-ba", fixture.archive.path])
             let listed = listing.split(separator: "\n").filter { $0.hasPrefix("Path = ") }.map { String($0.dropFirst(7)) }
             XCTAssertEqual(Set(listed.map(nameWithoutTrailingSlash)), expected)
         case .lha: break
@@ -773,7 +773,7 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
 
         let fixture = try Fixture(.tar)
         let readOnlyArchive = fixture.directory.url.appendingPathComponent("archive.tar.zst")
-        try fixture.directory.run("/opt/homebrew/bin/zstd", ["-q", fixture.archive.path, "-o", readOnlyArchive.path])
+        try fixture.directory.run(ExternalTool.zstd, ["-q", fixture.archive.path, "-o", readOnlyArchive.path])
         let readOnlySession = try ArchiveSession(url: readOnlyArchive), readOnlySnapshot = await readOnlySession.snapshot()
         let readOnlyReason = try XCTUnwrap(readOnlySession.capabilities.readOnlyReason)
         controller.display(EntryNode.tree(from: readOnlySnapshot.entries), session: readOnlySession,

@@ -40,7 +40,7 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         }
         func run(_ script: String) throws {
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
             process.arguments = ["-c", "import sys, zipfile, tarfile, io\np=sys.argv[1]\n" + script, archive.path]
             try process.run()
             process.waitUntilExit()
@@ -329,7 +329,7 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         import subprocess, os
         secret = os.path.join(os.path.dirname(p), 'secret')
         open(secret, 'wb').write(b'protected')
-        subprocess.run(['/usr/bin/zip', '-q', '-j', '-P', 'key', p, secret], check=True)
+        subprocess.run(['\(ExternalTool.zip)', '-q', '-j', '-P', 'key', p, secret], check=True)
         """)
         let session = try ArchiveSession(url: fixture.archive), queue = ArchivePromiseExtractionQueue()
         session.setPasswordPrompt(PasswordPrompts.fixed("key"))

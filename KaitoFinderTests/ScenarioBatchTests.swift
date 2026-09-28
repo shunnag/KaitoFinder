@@ -18,9 +18,9 @@ nonisolated final class ScenarioBatchTests: XCTestCase {
                 let source = try fixture.file("input-\(n)/payload.txt", bytes: bytes)
                 url = fixture.root.appendingPathComponent(stem + (n == 13 ? ".zip" : ".7z"))
                 if n == 13 {
-                    try fixture.directory.run("/usr/bin/zip", ["-q", "-j", "-P", "secret", url.path, source.path])
+                    try fixture.directory.run(ExternalTool.zip, ["-q", "-j", "-P", "secret", url.path, source.path])
                 } else {
-                    try fixture.directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-psecret", "-mhe=on", url.path, source.path])
+                    try fixture.directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-psecret", "-mhe=on", url.path, source.path])
                 }
             } else {
                 let source = try fixture.file("input-\(n)/payload.txt", bytes: bytes)
@@ -35,7 +35,7 @@ nonisolated final class ScenarioBatchTests: XCTestCase {
                         + "with tarfile.open(p, 'w:gz') as t: t.add(source, arcname='payload.txt')")
                 case 2:
                     url = fixture.root.appendingPathComponent(stem + ".7z")
-                    try fixture.directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", url.path, source.path])
+                    try fixture.directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", url.path, source.path])
                 default:
                     url = fixture.root.appendingPathComponent(stem + ".lzh")
                     let writer = try ArchiveWriter.create(url: url, format: .lha)

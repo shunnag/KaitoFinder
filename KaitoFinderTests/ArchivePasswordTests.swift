@@ -22,18 +22,18 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
             if publicEntry {
                 XCTAssertTrue(isZIP)
                 try Data("public".utf8).write(to: directory.url.appendingPathComponent("public.txt"))
-                try directory.run("/usr/bin/zip", ["-q", archive.path, "public.txt"])
+                try directory.run(ExternalTool.zip, ["-q", archive.path, "public.txt"])
             }
             switch format {
             case .pkware:
-                try directory.run("/usr/bin/zip", ["-q", "-P", password, archive.path, "secret.bin"])
+                try directory.run(ExternalTool.zip, ["-q", "-P", password, archive.path, "secret.bin"])
             case .aes:
-                try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-tzip", "-p" + password,
+                try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-tzip", "-p" + password,
                                                            "-mem=AES256", archive.path, "secret.bin"])
             case .sevenZip, .encryptedHeaders:
                 var arguments = ["a", "-bd", "-y", "-p" + password]
                 if format == .encryptedHeaders { arguments.append("-mhe=on") }
-                try directory.run("/opt/homebrew/bin/7zz", arguments + [archive.path, "secret.bin"])
+                try directory.run(ExternalTool.sevenZip, arguments + [archive.path, "secret.bin"])
             }
         }
 
@@ -204,7 +204,7 @@ nonisolated final class ArchivePasswordTests: XCTestCase {
         let secondPassword = "different-fixture-password-2026"
         let secondBytes = Data("second encrypted entry".utf8)
         try secondBytes.write(to: fixture.directory.url.appendingPathComponent("second.bin"))
-        try fixture.directory.run("/usr/bin/zip", ["-q", "-P", secondPassword, fixture.archive.path, "second.bin"])
+        try fixture.directory.run(ExternalTool.zip, ["-q", "-P", secondPassword, fixture.archive.path, "second.bin"])
         let original = try Data(contentsOf: fixture.archive)
         // 正しい entry が検証順の先・後のどちらでも、部分成功を認識する。
         for password in [fixture.password, secondPassword] {

@@ -226,9 +226,9 @@ nonisolated final class EntryTreeTests: XCTestCase {
         let list = fixture.appendingPathComponent("files.txt")
         try Data("./a.txt\n./sub/b.txt\n./sub/deep/c.txt\n".utf8).write(to: list)
         let cases: [(String, String, [String], Bool)] = [
-            ("nodirs.zip", "/usr/bin/zip", ["-D", "-q", "-r", fixture.appendingPathComponent("nodirs.zip").path, "."], true),
-            ("dirs.zip", "/usr/bin/zip", ["-q", "-r", fixture.appendingPathComponent("dirs.zip").path, "."], false),
-            ("nodirs.tar", "/usr/bin/tar", ["--no-recursion", "-cf", fixture.appendingPathComponent("nodirs.tar").path, "-T", list.path], true)
+            ("nodirs.zip", ExternalTool.zip, ["-D", "-q", "-r", fixture.appendingPathComponent("nodirs.zip").path, "."], true),
+            ("dirs.zip", ExternalTool.zip, ["-q", "-r", fixture.appendingPathComponent("dirs.zip").path, "."], false),
+            ("nodirs.tar", ExternalTool.tar, ["--no-recursion", "-cf", fixture.appendingPathComponent("nodirs.tar").path, "-T", list.path], true)
         ]
         for (filename, executable, arguments, virtual) in cases {
             let process = Process()

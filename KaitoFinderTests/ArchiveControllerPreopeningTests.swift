@@ -326,7 +326,7 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), controller = try makeController()
         let archive = directory.url.appendingPathComponent("locked.7z")
         try Data("secret".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-        try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-pfixture-password", "-mhe=on", archive.path, "secret.txt"])
+        try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-pfixture-password", "-mhe=on", archive.path, "secret.txt"])
         let before = ReaderOptions.kaitoFinderOpenCount.withLock { $0 }
         let (opened, wasOpen, error) = await open(controller, archive, display: true)
         XCTAssertNil(error)

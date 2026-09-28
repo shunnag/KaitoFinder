@@ -44,3 +44,23 @@ nonisolated final class ArchiveTestDirectory: Sendable {
         return text
     }
 }
+
+/// fixture を作る外部ツールの path。Homebrew のツール（7zz・xz・zstd）は Apple silicon の既定の prefix
+/// （/opt/homebrew）にある前提で、それ以外は macOS 付属のもの。別の場所に入れた環境ではここだけを変える。
+/// `ArchiveTestDirectory.run` は実行できないツールを要求したテストを XCTSkip にする。
+nonisolated enum ExternalTool {
+    static let python3 = "/usr/bin/python3"
+    static let zip = "/usr/bin/zip"
+    static let unzip = "/usr/bin/unzip"
+    static let ditto = "/usr/bin/ditto"
+    static let bsdtar = "/usr/bin/bsdtar"
+    static let tar = "/usr/bin/tar"
+    static let gzip = "/usr/bin/gzip"
+    static let bzip2 = "/usr/bin/bzip2"
+    static let touch = "/usr/bin/touch"
+    static let chmod = "/bin/chmod"
+    static let hdiutil = "/usr/bin/hdiutil"
+    static let sevenZip = "/opt/homebrew/bin/7zz"
+    static let xz = "/opt/homebrew/bin/xz"
+    static let zstd = "/opt/homebrew/bin/zstd"
+}

@@ -60,11 +60,11 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         let archive = directory.url.appendingPathComponent(readOnly ? "original.tar.lzma" : (gzip ? "original.tgz" : "original.zip"))
         if readOnly {
             try Data("read-only contents".utf8).write(to: directory.url.appendingPathComponent("file.txt"))
-            try directory.run("/usr/bin/tar", ["-cf", archive.path, "file.txt"])
-            try directory.run("/usr/bin/python3", ["-c", "import sys; p=sys.argv[1]; import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", archive.path])
+            try directory.run(ExternalTool.tar, ["-cf", archive.path, "file.txt"])
+            try directory.run(ExternalTool.python3, ["-c", "import sys; p=sys.argv[1]; import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", archive.path])
         } else if encrypted {
             try Data("decrypted contents".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
-            try directory.run("/usr/bin/zip", ["-q", "-P", "known-password", archive.path, "secret.txt"])
+            try directory.run(ExternalTool.zip, ["-q", "-P", "known-password", archive.path, "secret.txt"])
         } else {
             let writer = try ArchiveWriter.create(url: archive, format: gzip ? .tarGzip : .zip)
             try writer.add(data: Data("original contents".utf8), as: "folder/file.txt")

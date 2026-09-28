@@ -167,7 +167,7 @@ nonisolated final class ScenarioExternalChangeTests: XCTestCase {
     @MainActor func testReloadOfEncryptedReplacementUpdatesFormatAndReadOnlyCapability() async throws {
         let fixture = try ScenarioFixture(), (document, controller) = try await scenarioDocument(fixture)
         let source = try fixture.file("secret.txt"), replacement = fixture.root.appendingPathComponent("encrypted.7z")
-        try fixture.directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-psecret", "-mhe=off", replacement.path, source.path])
+        try fixture.directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-psecret", "-mhe=off", replacement.path, source.path])
         XCTAssertEqual(Darwin.rename(replacement.path, fixture.archive.path), 0)
         try await document.reloadAfterMutation()
         let session = try XCTUnwrap(document.session)

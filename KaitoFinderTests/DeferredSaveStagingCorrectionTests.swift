@@ -44,10 +44,10 @@ nonisolated final class DeferredSaveStagingCorrectionTests: XCTestCase {
             let source = try fixture.file("locked.txt", contents: "keep")
             defer {
                 _ = lchflags(source.path, 0)
-                _ = try? fixture.directory.run("/bin/chmod", ["-N", source.path])
+                _ = try? fixture.directory.run(ExternalTool.chmod, ["-N", source.path])
                 document.close()
             }
-            try fixture.directory.run("/bin/chmod", ["+a", "everyone deny delete", source.path])
+            try fixture.directory.run(ExternalTool.chmod, ["+a", "everyone deny delete", source.path])
             XCTAssertEqual(lchflags(source.path, UInt32(UF_IMMUTABLE)), 0)
             _ = try await document.append(urls: [source], to: "", progress: Progress())
             let staged = try XCTUnwrap(document.pendingChanges.additions.first?.stagedURL)
@@ -78,7 +78,7 @@ nonisolated final class DeferredSaveStagingCorrectionTests: XCTestCase {
         try FileManager.default.createSymbolicLink(atPath: lease.directory.appendingPathComponent("link").path,
                                                   withDestinationPath: outside.path)
         defer { _ = lchflags(file.path, 0); _ = lchflags(outside.path, 0); lease.remove() }
-        try directory.run("/bin/chmod", ["+a", "everyone deny delete", file.path])
+        try directory.run(ExternalTool.chmod, ["+a", "everyone deny delete", file.path])
         XCTAssertEqual(lchflags(file.path, UInt32(UF_IMMUTABLE)), 0)
         XCTAssertEqual(lchflags(outside.path, UInt32(UF_IMMUTABLE)), 0)
         lease.remove()

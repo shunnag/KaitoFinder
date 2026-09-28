@@ -42,7 +42,7 @@ nonisolated enum CompressedTarFixture {
                          arguments: [String] = [], name: String = "external") throws -> URL {
         let raw = directory.url.appendingPathComponent(name + ".tar")
         try bytes.write(to: raw)
-        let tool = format == .tarGzip ? "/usr/bin/gzip" : format == .tarBzip2 ? "/usr/bin/bzip2" : "/opt/homebrew/bin/xz"
+        let tool = format == .tarGzip ? ExternalTool.gzip : format == .tarBzip2 ? ExternalTool.bzip2 : ExternalTool.xz
         try directory.run(tool, ["-k", "-f"] + arguments + [raw.path])
         return raw.appendingPathExtension(format == .tarGzip ? "gz" : format == .tarBzip2 ? "bz2" : "xz")
     }
@@ -78,11 +78,11 @@ nonisolated enum CompressedTarFixture {
         XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: root.path).contains { $0.hasPrefix(".KaitoFinder-add-") || $0.hasPrefix(".gyoshuku-") }, file: file, line: line)
     }
     static func interop(_ url: URL, format: Format, directory: ArchiveTestDirectory) throws {
-        let tool = format == .tarGzip ? "/usr/bin/gzip" : format == .tarBzip2 ? "/usr/bin/bzip2" : "/opt/homebrew/bin/xz"
+        let tool = format == .tarGzip ? ExternalTool.gzip : format == .tarBzip2 ? ExternalTool.bzip2 : ExternalTool.xz
         try directory.run(tool, ["-t", url.path])
-        try directory.run("/usr/bin/bsdtar", ["-tvf", url.path])
-        try directory.run("/opt/homebrew/bin/7zz", ["t", url.path])
-        try directory.run("/usr/bin/python3", ["-c", "import tarfile,sys\nwith tarfile.open(sys.argv[1]) as t:\n for m in t:\n  if m.isfile(): t.extractfile(m).read()", url.path])
+        try directory.run(ExternalTool.bsdtar, ["-tvf", url.path])
+        try directory.run(ExternalTool.sevenZip, ["t", url.path])
+        try directory.run(ExternalTool.python3, ["-c", "import tarfile,sys\nwith tarfile.open(sys.argv[1]) as t:\n for m in t:\n  if m.isfile(): t.extractfile(m).read()", url.path])
     }
 }
 

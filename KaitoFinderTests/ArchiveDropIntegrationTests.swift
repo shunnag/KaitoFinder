@@ -118,7 +118,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
         document.redo(nil)
         await document.undoTask?.value
         XCTAssertEqual(try ScenarioFixture.contents(fixture.archive), expected)
-        XCTAssertEqual(try fixture.directory.run("/usr/bin/unzip", ["-tqq", fixture.archive.path]), "")
+        XCTAssertEqual(try fixture.directory.run(ExternalTool.unzip, ["-tqq", fixture.archive.path]), "")
     }
 
     func testBulkAppendAcrossEveryWritableFormatPreservesAllFileContents() async throws {
@@ -193,7 +193,7 @@ nonisolated final class ArchiveDropIntegrationTests: XCTestCase {
             for i in range(100): z.writestr(f'file-{i:03}.txt', f'contents {i}'.encode())
         """)
         if corruptSource {
-            try fixture.directory.run("/usr/bin/python3", ["-c", """
+            try fixture.directory.run(ExternalTool.python3, ["-c", """
             import sys, struct
             p = sys.argv[1]
             raw = bytearray(open(p, 'rb').read())

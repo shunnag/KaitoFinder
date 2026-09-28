@@ -496,7 +496,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             let directory = try ArchiveTestDirectory()
             try payload.write(to: directory.url.appendingPathComponent(entryName))
             let url = directory.url.appendingPathComponent("fixture.zip")
-            try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-tzip", "-pfixture-key",
+            try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-tzip", "-pfixture-key",
                 method == .zipCrypto ? "-mem=ZipCrypto" : "-mem=AES256", url.path, entryName])
             let before = try ArchiveReader.open(url: url, options: ReaderOptions(password: "fixture-key"))
             let record = try XCTUnwrap(before.rawRecord(of: XCTUnwrap(before.entries.first)))
@@ -530,7 +530,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
             let directory = try ArchiveTestDirectory()
             try payload.write(to: directory.url.appendingPathComponent(entryName))
             let url = directory.url.appendingPathComponent("fixture.7z")
-            try directory.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-t7z", "-pfixture-key",
+            try directory.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-t7z", "-pfixture-key",
                 headers ? "-mhe=on" : "-mhe=off", url.path, entryName])
             let session = try ArchiveSession(url: url, password: "fixture-key")
             let added = directory.url.appendingPathComponent("added.txt")
@@ -584,7 +584,7 @@ nonisolated final class ArchivePasswordEditingTests: XCTestCase {
         XCTAssertTrue(locked.isPasswordLocked)
         XCTAssertEqual(items.map(lockedController.validateMenuItem), [false, false, false])
         let rarDirectory = try ArchiveTestDirectory(), rar = rarDirectory.url.appendingPathComponent("empty.rar")
-        try rarDirectory.run("/usr/bin/python3", ["-c", "import struct,zlib; h=lambda t,n: struct.pack('<H',zlib.crc32(t)&65535)+t; main=struct.pack('<BHHHI',0x73,0,13,0,0); end=struct.pack('<BHH',0x7b,0,7); open('empty.rar','wb').write(b'Rar!\\x1a\\x07\\x00'+h(main,0)+h(end,0))"])
+        try rarDirectory.run(ExternalTool.python3, ["-c", "import struct,zlib; h=lambda t,n: struct.pack('<H',zlib.crc32(t)&65535)+t; main=struct.pack('<BHHHI',0x73,0,13,0,0); end=struct.pack('<BHH',0x7b,0,7); open('empty.rar','wb').write(b'Rar!\\x1a\\x07\\x00'+h(main,0)+h(end,0))"])
         XCTAssertEqual(try ArchiveReader.open(url: rar).format, .rar)
         let (_, rarController) = try await document(at: rar, directory: rarDirectory)
         XCTAssertEqual(items.map(rarController.validateMenuItem), [false, false, false])

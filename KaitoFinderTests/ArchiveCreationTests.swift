@@ -137,12 +137,12 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
             let listing: String
             if format == .tarGzip {
                 XCTAssertEqual(try Data(contentsOf: result).prefix(2), Data([0x1f, 0x8b]), file: file, line: line)
-                listing = try fixture.directory.run("/usr/bin/tar", ["-tzf", result.path])
-            } else { listing = try fixture.directory.run("/usr/bin/bsdtar", ["-tf", result.path]) }
+                listing = try fixture.directory.run(ExternalTool.tar, ["-tzf", result.path])
+            } else { listing = try fixture.directory.run(ExternalTool.bsdtar, ["-tf", result.path]) }
             let listed = Set(listing.split(separator: "\n").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "/")) })
             XCTAssertEqual(listed, names, file: file, line: line)
         case .sevenZip:
-            let listing = try fixture.directory.run("/opt/homebrew/bin/7zz", ["l", result.path])
+            let listing = try fixture.directory.run(ExternalTool.sevenZip, ["l", result.path])
             for name in names { XCTAssertTrue(listing.contains(name), listing, file: file, line: line) }
         case .zip, .lha: break
         }
@@ -338,7 +338,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         let fixture = try Fixture(), archive = fixture.directory.url.appendingPathComponent("original.tar.bz2")
         let old = fixture.directory.url.appendingPathComponent("old.txt"), original = Data("original content".utf8)
         try original.write(to: old)
-        try fixture.directory.run("/usr/bin/tar", ["--no-mac-metadata", "--no-xattrs", "-cjf", archive.path, "old.txt"])
+        try fixture.directory.run(ExternalTool.tar, ["--no-mac-metadata", "--no-xattrs", "-cjf", archive.path, "old.txt"])
         let reader = try ArchiveReader.open(url: archive)
         XCTAssertEqual(reader.format, .tar)
         let before = try ArchiveOracle.digest(archive), progress = Progress(), output = fixture.output()
@@ -356,7 +356,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         let archive = directory.url.appendingPathComponent("encrypted.zip")
         try Data("first secret".utf8).write(to: directory.url.appendingPathComponent("first.txt"))
         try Data("second secret".utf8).write(to: directory.url.appendingPathComponent("second.txt"))
-        try directory.run("/usr/bin/zip", ["-q", "-P", "creation-test-password", archive.path, "first.txt", "second.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-P", "creation-test-password", archive.path, "first.txt", "second.txt"])
         return archive
     }
 

@@ -30,7 +30,7 @@ nonisolated final class ArchivePasswordPersistenceTests: XCTestCase {
         func encrypt(password: String) throws {
             if FileManager.default.fileExists(atPath: archive.path) { try FileManager.default.removeItem(at: archive) }
             let options = format == .zip ? ["-tzip", "-mem=AES256"] : ["-mhe=on"]
-            try root.run("/opt/homebrew/bin/7zz", ["a", "-bd", "-y", "-p" + password] + options + [archive.path, "secret.bin"])
+            try root.run(ExternalTool.sevenZip, ["a", "-bd", "-y", "-p" + password] + options + [archive.path, "secret.bin"])
         }
     }
 

@@ -18,7 +18,7 @@ nonisolated final class ScenarioFixture {
     }
 
     private static func python(_ directory: ArchiveTestDirectory, archive: URL, script: String) throws {
-        try directory.run("/usr/bin/python3", ["-c",
+        try directory.run(ExternalTool.python3, ["-c",
             "import sys, zipfile, tarfile, io, stat, struct, os\np = sys.argv[1]\n" + script, archive.path])
     }
 

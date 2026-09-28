@@ -99,7 +99,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
                     default: codec = "tar"
                     }
                     XCTAssertThrowsError(try ArchiveImportTransaction.didCommitForTesting.withValue({ work in
-                        try directory.run("/usr/bin/python3", ["-c", #"""
+                        try directory.run(ExternalTool.python3, ["-c", #"""
                         import sys, pathlib, tarfile, io, gzip, bz2, lzma
                         p = pathlib.Path(sys.argv[1])
                         codec = {'gzip': gzip, 'bz2': bz2, 'lzma': lzma}.get(sys.argv[2])
@@ -331,7 +331,7 @@ nonisolated final class ArchiveImportTransactionVerificationTests: XCTestCase {
 
     func testZIPVerificationCostAt100kEntries() throws {
         let directory = try ArchiveTestDirectory(), url = directory.url.appendingPathComponent("100k.zip")
-        try directory.run("/usr/bin/python3", ["-c", #"""
+        try directory.run(ExternalTool.python3, ["-c", #"""
         import sys, zipfile
         with zipfile.ZipFile(sys.argv[1], 'w', compression=zipfile.ZIP_STORED) as archive:
             for i in range(100000):

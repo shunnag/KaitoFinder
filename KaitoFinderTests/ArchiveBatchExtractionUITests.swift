@@ -144,7 +144,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults(), bytes = Data("secret contents".utf8)
         let source = directory.url.appendingPathComponent("secret.txt"), archive = directory.url.appendingPathComponent("locked.zip")
         try bytes.write(to: source)
-        try directory.run("/usr/bin/zip", ["-q", "-P", "batch-password", archive.path, "secret.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-P", "batch-password", archive.path, "secret.txt"])
         let store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.folderPolicy = .always
         store.preferences.revealsExtractedItemsInFinder = true
@@ -189,7 +189,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         let directory = try ArchiveTestDirectory(), suite = try ArchivePreferencesTestDefaults()
         let source = directory.url.appendingPathComponent("secret.txt"), archive = directory.url.appendingPathComponent("locked.zip")
         try Data("secret".utf8).write(to: source)
-        try directory.run("/usr/bin/zip", ["-q", "-P", "batch-password", archive.path, "secret.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-P", "batch-password", archive.path, "secret.txt"])
         let store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.folderPolicy = .always
         let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256), directory: directory.url.appendingPathComponent("vault"))
@@ -220,7 +220,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
             let source = directory.url.appendingPathComponent("secret.txt")
             let archive = directory.url.appendingPathComponent("locked.zip")
             try bytes.write(to: source)
-            try directory.run("/usr/bin/zip", ["-q", "-P", password, archive.path, "secret.txt"])
+            try directory.run(ExternalTool.zip, ["-q", "-P", password, archive.path, "secret.txt"])
             let store = ArchivePreferencesStore(defaults: suite.defaults)
             store.preferences.folderPolicy = .always
             let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),
@@ -255,7 +255,7 @@ nonisolated final class ArchiveBatchExtractionUITests: XCTestCase {
         let source = directory.url.appendingPathComponent("secret.txt")
         let archive = directory.url.appendingPathComponent("locked.zip")
         try Data("secret contents".utf8).write(to: source)
-        try directory.run("/usr/bin/zip", ["-q", "-P", "batch-password", archive.path, "secret.txt"])
+        try directory.run(ExternalTool.zip, ["-q", "-P", "batch-password", archive.path, "secret.txt"])
         let store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.folderPolicy = .always
         let vault = ArchivePasswordVault(key: SymmetricKey(size: .bits256),

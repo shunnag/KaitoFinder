@@ -238,7 +238,7 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         detail.frame = NSRect(x: 30, y: 220, width: 300, height: 160)
         page.addSubview(detail)
         _ = try fixture.file("Document.pdf", bytes: page.dataWithPDF(inside: page.bounds))
-        try fixture.directory.run("/usr/bin/zip", ["-q", fixture.archive.path, "Preview.png", "Read Me.txt", "Document.pdf"])
+        try fixture.directory.run(ExternalTool.zip, ["-q", fixture.archive.path, "Preview.png", "Read Me.txt", "Document.pdf"])
         let (_, controller) = try await scenarioDocument(fixture)
         let window = try XCTUnwrap(controller.window)
         window.setFrameAutosaveName("")

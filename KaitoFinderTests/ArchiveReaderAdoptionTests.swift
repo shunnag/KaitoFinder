@@ -116,7 +116,7 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         try Data("body".utf8).write(to: file)
         try Data("resource".utf8).write(to: URL(fileURLWithPath: file.path + "/..namedfork/rsrc"))
         let url = directory.url.appendingPathComponent("ditto.zip")
-        try directory.run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", folder.path, url.path])
+        try directory.run(ExternalTool.ditto, ["-c", "-k", "--sequesterRsrc", "--keepParent", folder.path, url.path])
         let session = try ArchiveSession(url: url), entries = await session.entries()
         XCTAssertTrue(entries.contains { $0.name.contains("__MACOSX/") && $0.name.contains("._file") })
         try await adopting { check(try await session.createFolder(in: "", baseName: "new", progress: Progress())) }

@@ -19,7 +19,7 @@ nonisolated final class ExtractionTests: XCTestCase {
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
             guard chmod(parent.path, 0o700) == 0 else { throw ExtractionFailure.system(errno) }
             let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
             process.arguments = ["-c", "import sys, zipfile, tarfile, io, stat, struct\np = sys.argv[1]\n" + script, archive.path]
             try process.run()
             process.waitUntilExit()

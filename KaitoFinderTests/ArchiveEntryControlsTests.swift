@@ -17,7 +17,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
             archive = directory.appendingPathComponent(tar ? "archive.tar.lzma" : "archive.zip")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let process = Process(), output = Pipe()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.executableURL = URL(fileURLWithPath: ExternalTool.python3)
             process.arguments = ["-c", """
             import io, sys, tarfile, zipfile
             p, *names = sys.argv[1:]
