@@ -135,6 +135,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private var hasShownWindow = false
     private let formatter: ArchiveEntryFormatter
 
+    // MARK: - 初期化
+
     init(bundle: Bundle = .main, preferencesStore: ArchivePreferencesStore = .shared) {
         self.bundle = bundle
         self.preferencesStore = preferencesStore
@@ -375,6 +377,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         ArchiveMenuSymbols.apply(to: blankAreaMenu)
     }
 
+    // MARK: - ツールバー（NSToolbarDelegate）
+
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         ArchiveToolbarItem.defaultOrder
     }
@@ -417,6 +421,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return enabled
     }
 
+    // MARK: - プレビューサイドバー
+
     @objc func togglePreviewSidebar(_ sender: Any?) {
         guard archiveSession != nil, !isLocked, !operationInFlight else { return }
         // ウインドウの大きさを変えず、一覧との境界だけを切り替える。
@@ -440,6 +446,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if !canReadEntries { previewSidebar.reset(); return }
         previewSidebar.display(selectedNodes, session: session, generation: generation)
     }
+
+    // MARK: - ウインドウの表示
 
     static func cascadeReferenceWindow(excluding window: NSWindow) -> NSWindow? {
         NSApp.orderedWindows.first(where: {
@@ -472,6 +480,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         window?.tabbingMode = .automatic
         if (document as? ArchiveDocument)?.isPasswordLocked == true { unlockArchive(sender) }
     }
+
+    // MARK: - ロックとパスワードの入力
 
     func displayLocked() {
         defer { NotificationCenter.default.post(name: Self.viewOptionsDidChange, object: self) }
@@ -546,6 +556,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             })
     }
 
+    // MARK: - 操作の取消しと後始末
+
     private func watchCancellation(_ progress: Progress, task: Task<Void, Never>?) -> ArchiveProgressCancellation {
         ArchiveProgressCancellation(progress: progress) { _ in task?.cancel() }
     }
@@ -557,6 +569,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionProgress = nil
         extractionTask = nil
     }
+
+    // MARK: - 一覧の読み込みと表示
 
     @discardableResult func beginListLoading() -> UUID {
         let token = listLoading.begin()
@@ -756,6 +770,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         capabilityNotice.isHidden = notice.isEmpty
     }
 
+    // MARK: - フォルダの移動
+
     private func pathNodes(to node: EntryNode) -> [EntryNode] {
         var components: [EntryNode] = []
         var current = node
@@ -905,6 +921,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         String(localized: "追加先フォルダが見つからないか、ファイルと衝突しています: \(folder)。", bundle: bundle)
     }
 
+    // MARK: - パスバーとステータスバー
+
     private func updatePathControl() {
         updateStatusBar()
         let archive = NSPathControlItem()
@@ -976,6 +994,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         outlineView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         outlineView.scrollRowToVisible(row)
     }
+
+    // MARK: - 検索と表示設定
 
     @objc func filterEntries(_ sender: NSSearchField) {
         guard !operationInFlight else { sender.stringValue = requestedFilterQuery; return }
@@ -1149,6 +1169,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         window?.toolbar?.validateVisibleItems()
     }
 
+    // MARK: - ドラッグ元（NSOutlineViewDataSource）
+
     private func selectionRoots(_ nodes: [EntryNode]) -> [EntryNode] {
         // 選択された親フォルダが子も運ぶので、子の URL を重ねない。
         let selected = Set(nodes.map(ObjectIdentifier.init))
@@ -1224,6 +1246,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         draggedNodes = []
         FilePromiseRegistry.shared.ended(sessionID: session.draggingSequenceNumber)
     }
+
+    // MARK: - メニューの検証と操作の可否
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         // 列の表示切替は実行中の処理と干渉しないため、処理中も選べる。
@@ -1325,6 +1349,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard !operationInFlight, let url = archiveURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
+
+    // MARK: - 新規フォルダ・削除・改名・移動
 
     @objc func newFolder(_ sender: Any?) {
         guard canPerformEdit(#selector(newFolder(_:))), let document = document as? ArchiveDocument,
@@ -1615,6 +1641,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return alert
     }
 
+    // MARK: - 表示状態の保存と復元
+
     private func viewStateAfterRemoving(_ nodes: [EntryNode]) -> ArchiveViewState {
         var state = captureViewState()
         let removed = Set(ExtractionSelection(nodes: nodes).entries.map(\.index))
@@ -1705,6 +1733,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         // 行番号の集合が同じでも、ソート後は先頭の選択項目が変わり得る。
         updatePathControl()
     }
+
+    // MARK: - 追加とドロップ先（NSOutlineViewDataSource）
 
     private var displayedFolder: String { displayedRoot.path }
 
@@ -1802,6 +1832,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             return true
         } catch { reportImportFailure(ArchiveErrorText.describe(error, bundle: bundle)); return false }
     }
+
+    // MARK: - 追加の実行と形式の変換
 
     func startImport(urls: [URL], incoming: ArchiveIncomingFiles?, folder: String, incomingLocation: String? = nil) {
         guard let window, let session = archiveSession, !operationInFlight,
@@ -1932,6 +1964,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         extractionCancellation = watchCancellation(progress, task: extractionTask)
     }
 
+    // MARK: - 別名で保存とパスワードの変更
+
     @objc func saveArchiveAs(_ sender: Any?) {
         guard outlineView.commitRenaming(), canPerformEdit(#selector(saveArchiveAs(_:))) else { return }
         let progress = Progress(totalUnitCount: 0)
@@ -2040,6 +2074,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         thumbnailProvider = nil
     }
 
+    // MARK: - 追加の失敗の報告
+
     private func reportImportFailure(_ reason: String, added: Bool = false) {
         guard let window else { return }
         let alert = Self.makeImportFailureAlert(reason, added: added, bundle: bundle)
@@ -2053,6 +2089,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         alert.informativeText = ArchiveAlertText.informativeText(reason, bundle: bundle)
         return alert
     }
+
+    // MARK: - コピーと展開
 
     @objc func copy(_ sender: Any?) {
         guard !operationInFlight else { return }
@@ -2166,6 +2204,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         return alert
     }
 
+    // MARK: - 開く
+
     func selectionOpenRefusal(skippingDirectories: Bool = false) -> String? {
         guard let session = archiveSession else { return nil }
         for row in outlineView.selectedRowIndexes {
@@ -2272,6 +2312,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
+    // MARK: - 列と「このアプリケーションで開く」のメニュー（NSMenuDelegate）
+
     @objc func toggleColumn(_ sender: NSMenuItem) {
         guard let column = toggleableColumn(for: sender) else { return }
         column.isHidden.toggle()
@@ -2319,6 +2361,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
             }
         }
     }
+
+    // MARK: - Quick Look（QLPreviewPanelDataSource / QLPreviewPanelDelegate）
 
     @objc func togglePreviewPanel(_ sender: Any?) {
         if let panel = previewPanel, panel.isVisible { closePreview(); return }
@@ -2439,6 +2483,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
+    // MARK: - ウインドウの通知（NSWindowDelegate / QLPreviewPanelDelegate）
+
     func windowDidBecomeKey(_ notification: Notification) {
         (document as? ArchiveDocument)?.checkDeferredIdentityWhenKey()
     }
@@ -2459,6 +2505,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         if event.type == .keyDown, event.charactersIgnoringModifiers == " " { closePreview(); return true }
         return false
     }
+
+    // MARK: - 一覧のデータと行の表示（NSOutlineViewDataSource / NSOutlineViewDelegate）
 
     private func children(of item: Any?) -> [EntryNode] {
         let node = (item as? EntryNode) ?? displayedRoot
