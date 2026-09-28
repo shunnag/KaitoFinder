@@ -65,6 +65,21 @@ nonisolated final class ScenarioFixture {
         }
     }
 
+    /// `root/` の下の 20 フォルダへ `count` 個のファイル（各 `size` バイト、mode と日時つき）を分けて入れる ZIP の script。
+    static func zipScript(count: Int, size: Int) -> String {
+        """
+        with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z:
+            names = ['root/'] + ['root/d%02d/' % n for n in range(20)]
+            names += ['root/d%02d/f%05d' % (n % 20, n) for n in range(\(count))]
+            for n, name in enumerate(names):
+                i = zipfile.ZipInfo(name, (2020, 1, 2, 3, 4, 6))
+                i.create_system = 3
+                i.compress_type = zipfile.ZIP_DEFLATED
+                i.external_attr = ((stat.S_IFDIR | 0o755) if name.endswith('/') else (stat.S_IFREG | 0o640)) << 16
+                z.writestr(i, b'' if name.endswith('/') else bytes([n % 251]) * \(size))
+        """
+    }
+
     func extract(to destination: URL, session: ArchiveSession? = nil) async throws -> ExtractionResult {
         let source = try session ?? ArchiveSession(url: archive)
         return try await ExtractionService.extract(ExtractionSelection(entries: await source.entries()), from: source, to: destination)

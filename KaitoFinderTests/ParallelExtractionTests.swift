@@ -87,7 +87,7 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
     }
 
     func testTwoThousandNestedZIPFilesMatchSerialIncludingMetadata() throws {
-        let fixture = try ScenarioFixture(script: Self.zipScript(count: 2000, size: 8192))
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 2000, size: 8192))
         let result = try compare(fixture)
         XCTAssertTrue(result.failures.isEmpty)
         XCTAssertEqual(result.written.count, 2021)
@@ -170,7 +170,7 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
     }
 
     func testSubtreeAndFileMappingsMatchSerial() throws {
-        let fixture = try ScenarioFixture(script: Self.zipScript(count: 80, size: 131072))
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 131072))
         let entries = try ArchiveReader.open(url: fixture.archive).entries
         let virtual = ArchiveEntryPayload(archiveURL: fixture.archive, generation: 0, entryIndex: nil,
                                           path: "root", isDirectory: true)
@@ -223,7 +223,7 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
     }
 
     func testSourcesKeepTheSerialPathEvenWhenParallelIsForced() throws {
-        let fixture = try ScenarioFixture(script: Self.zipScript(count: 80, size: 131072))
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 131072))
         let root = fixture.root.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         let reader = try ArchiveReader.open(url: fixture.archive), processed = Mutex<[Int]>([])
@@ -235,14 +235,14 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
     }
 
     func testEligibilityAndSmallOrNonPlainRunsStaySerial() throws {
-        let fixture = try ScenarioFixture(script: Self.zipScript(count: 80, size: 131072))
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 131072))
         let entries = try ArchiveReader.open(url: fixture.archive).entries
         let automatic = ExtractionExecution.automatic
         XCTAssertEqual(automatic.workerCount(entries: entries, hasSources: false), min(ProcessInfo.processInfo.activeProcessorCount, 8))
         XCTAssertEqual(automatic.workerCount(entries: entries, hasSources: true), 1)
         XCTAssertEqual(automatic.workerCount(entries: Array(entries.suffix(63)), hasSources: false), 1)
         XCTAssertEqual(ExtractionExecution.parallel(workers: 0).workerCount(entries: entries, hasSources: false), 1)
-        let tiny = try ScenarioFixture(script: Self.zipScript(count: 80, size: 1))
+        let tiny = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 1))
         XCTAssertEqual(automatic.workerCount(entries: try ArchiveReader.open(url: tiny.archive).entries, hasSources: false), 1)
         let solid = try ScenarioFixture(script: Self.sevenZipScript, suffix: "7z")
         let group = Array(try ArchiveReader.open(url: solid.archive).entries.prefix(4))
@@ -287,7 +287,7 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
     }
 
     @MainActor private func cancellation(cancelTask: Bool) async throws {
-        let fixture = try ScenarioFixture(script: Self.zipScript(count: 80, size: 512 * 1024))
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 512 * 1024))
         let root = fixture.root.appendingPathComponent("out")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
         let archive = fixture.archive, progress = Progress(), gates = (0..<4).map { _ in ScenarioGate() }
@@ -323,20 +323,6 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
             XCTAssertEqual(Double(info.st_mtimespec.tv_sec), try XCTUnwrap(entry.modificationDate).timeIntervalSince1970)
         }
         XCTAssertEqual(try tree(root, ignoringDates: []).count, 21)
-    }
-
-    static func zipScript(count: Int, size: Int) -> String {
-        """
-        with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as z:
-            names = ['root/'] + ['root/d%02d/' % n for n in range(20)]
-            names += ['root/d%02d/f%05d' % (n % 20, n) for n in range(\(count))]
-            for n, name in enumerate(names):
-                i = zipfile.ZipInfo(name, (2020, 1, 2, 3, 4, 6))
-                i.create_system = 3
-                i.compress_type = zipfile.ZIP_DEFLATED
-                i.external_attr = ((stat.S_IFDIR | 0o755) if name.endswith('/') else (stat.S_IFREG | 0o640)) << 16
-                z.writestr(i, b'' if name.endswith('/') else bytes([n % 251]) * \(size))
-        """
     }
 
     private static let sevenZipScript = """
