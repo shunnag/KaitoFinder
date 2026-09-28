@@ -7,24 +7,9 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class DeferredSplitSaveInteropTests: XCTestCase {
-    private static func require(_ executable: String) throws {
-        guard FileManager.default.isExecutableFile(atPath: executable) else { throw XCTSkip("Missing \(executable)") }
-    }
-    private static func command(_ executable: String, _ arguments: [String], at directory: URL) throws -> String {
-        try require(executable)
-        let process = Process(), output = Pipe()
-        process.executableURL = URL(fileURLWithPath: executable); process.arguments = arguments
-        process.currentDirectoryURL = directory; process.standardOutput = output; process.standardError = output
-        try process.run()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let text = String(decoding: data, as: UTF8.self)
-        XCTAssertEqual(process.terminationStatus, 0, text)
-        return text
-    }
     @MainActor func testSevenZipVolumeCreatorAndInfoZIPByteSplitInteroperateAfterSave() async throws {
-        try Self.require(ExternalTool.sevenZip)
-        try Self.require(ExternalTool.zip)
+        try ExternalTool.require(ExternalTool.sevenZip)
+        try ExternalTool.require(ExternalTool.zip)
         for format: GyoshukuKit.ArchiveFormat in [.sevenZip, .tar, .zip] {
             let fixture = try DeferredSplitSaveFixture(format: format, volumeSize: 16 * 1024, external: { whole, directory in
                 let names = (0..<4).map { "file\($0).txt" }
@@ -34,10 +19,10 @@ nonisolated final class DeferredSplitSaveInteropTests: XCTestCase {
                 let output = directory.appendingPathComponent("interop." + ArchiveCreationPlan.filenameExtension(for: format))
                 let data: Data
                 if format == .zip {
-                    _ = try Self.command(ExternalTool.zip, ["-0", output.path] + names, at: directory)
+                    _ = try ArchiveTestDirectory.run(ExternalTool.zip, ["-0", output.path] + names, in: directory)
                     data = try Data(contentsOf: output)
                 } else {
-                    _ = try Self.command(ExternalTool.sevenZip, ["a", format == .tar ? "-ttar" : "-t7z", "-v16k", output.path] + names, at: directory)
+                    _ = try ArchiveTestDirectory.run(ExternalTool.sevenZip, ["a", format == .tar ? "-ttar" : "-t7z", "-v16k", output.path] + names, in: directory)
                     var joined = Data()
                     for i in 1...128 {
                         let part = output.appendingPathExtension(String(format: "%03d", i))
@@ -57,10 +42,10 @@ nonisolated final class DeferredSplitSaveInteropTests: XCTestCase {
             expected.removeValue(forKey: "file0.txt"); expected["renamed.txt"] = expected.removeValue(forKey: "file1.txt")
             expected["added.txt"] = DeferredSplitSaveFixture.bytes(30_000)
             try fixture.assertSaved(expected: expected)
-            let test = try Self.command(ExternalTool.sevenZip, ["t", fixture.gate.path], at: fixture.root)
+            let test = try ArchiveTestDirectory.run(ExternalTool.sevenZip, ["t", fixture.gate.path], in: fixture.root)
             XCTAssertFalse(test.lowercased().contains("data after the end"), test)
             XCTAssertFalse(test.contains("Tail"), test)
-            let listing = try Self.command(ExternalTool.sevenZip, ["l", fixture.gate.path], at: fixture.root)
+            let listing = try ArchiveTestDirectory.run(ExternalTool.sevenZip, ["l", fixture.gate.path], in: fixture.root)
             XCTAssertTrue(listing.contains("Volumes: \(try fixture.parts().count)"), listing)
         }
     }
@@ -94,12 +79,12 @@ nonisolated final class DeferredSplitSaveInteropTests: XCTestCase {
     }
 
     @MainActor func testInfoZIPNativeSplitRemainsReadOnlyInOnSaveMode() async throws {
-        try Self.require(ExternalTool.sevenZip)
-        try Self.require(ExternalTool.zip)
+        try ExternalTool.require(ExternalTool.sevenZip)
+        try ExternalTool.require(ExternalTool.zip)
         let directory = try ArchiveTestDirectory(), root = try volumePublishTestURL(directory.url)
         let source = root.appendingPathComponent("payload.bin"), gate = root.appendingPathComponent("native.zip")
         try DeferredSplitSaveFixture.bytes(180_000).write(to: source)
-        _ = try Self.command(ExternalTool.zip, ["-0", "-s", "64k", gate.path, source.lastPathComponent], at: root)
+        _ = try ArchiveTestDirectory.run(ExternalTool.zip, ["-0", "-s", "64k", gate.path, source.lastPathComponent], in: root)
         let defaults = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: defaults.defaults)
         store.preferences.saveBehavior = .onSave
         let document = ArchiveDocument(undoStack: ArchiveUndoStack(), preferencesStore: store)

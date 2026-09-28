@@ -23,15 +23,22 @@ nonisolated final class ArchiveTestDirectory: Sendable {
 
     private enum Failure: Error { case commandFailed(Int32) }
 
+    /// fixture の中を作業ディレクトリにし、`LC_ALL=C` と fixture 専用の `TMPDIR` で `tool` を実行する。
     @discardableResult func run(_ tool: String, _ arguments: [String], allowed: [Int32] = [0]) throws -> String {
-        guard FileManager.default.isExecutableFile(atPath: tool) else {
-            throw XCTSkip("Required fixture tool is unavailable: \(tool)")
-        }
+        try Self.run(tool, arguments, in: url, environment: ["LC_ALL": "C", "TMPDIR": temporary.path], allowed: allowed)
+    }
+
+    /// `directory` を作業ディレクトリにして `tool` を実行し、標準出力と標準エラーをまとめて返す。
+    /// `environment` はテストプロセスの環境へ上書きで足す。ツールがなければ XCTSkip にし、
+    /// 終了状態が `allowed` になければ出力をメッセージに失敗を記録して投げる。
+    @discardableResult static func run(_ tool: String, _ arguments: [String], in directory: URL,
+                                       environment: [String: String] = [:], allowed: [Int32] = [0]) throws -> String {
+        try ExternalTool.require(tool)
         let process = Process(), output = Pipe()
         process.executableURL = URL(fileURLWithPath: tool)
         process.arguments = arguments
-        process.currentDirectoryURL = url
-        process.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C", "TMPDIR": temporary.path]) { _, new in new }
+        process.currentDirectoryURL = directory
+        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
         process.standardOutput = output
         process.standardError = output
         try process.run()
@@ -63,4 +70,11 @@ nonisolated enum ExternalTool {
     static let sevenZip = "/opt/homebrew/bin/7zz"
     static let xz = "/opt/homebrew/bin/xz"
     static let zstd = "/opt/homebrew/bin/zstd"
+
+    /// `tool` を実行できない環境では、テストを失敗ではなく XCTSkip にする。
+    static func require(_ tool: String) throws {
+        guard FileManager.default.isExecutableFile(atPath: tool) else {
+            throw XCTSkip("Required fixture tool is unavailable: \(tool)")
+        }
+    }
 }

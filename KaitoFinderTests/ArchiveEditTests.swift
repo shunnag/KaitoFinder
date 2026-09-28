@@ -121,10 +121,6 @@ nonisolated final class ArchiveEditTests: XCTestCase {
             archive = directory.url.appendingPathComponent(filename)
             try directory.run(ExternalTool.python3, ["-c", "import sys, zipfile, tarfile, io, struct, zlib\np=sys.argv[1]\n" + script, archive.path])
         }
-
-        @discardableResult static func run(_ tool: String, _ arguments: [String], allowed: [Int32] = [0]) throws -> String {
-            try ArchiveTestDirectory().run(tool, arguments, allowed: allowed)
-        }
     }
 
     @MainActor func testFixtureDamageAndToolScratchFilesAreIsolated() async throws {
@@ -318,7 +314,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertNil(result.reloadFailure)
         XCTAssertEqual(session.generation, 1)
         try assertCarried(before, to: fixture.archive, removed: ["remove.txt"])
-        XCTAssertTrue(try Fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
+        XCTAssertTrue(try fixture.directory.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 
     @MainActor func testDeletingVirtualFolderRemovesExactlyItsDescendants() async throws {
@@ -356,7 +352,7 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         try assertCarried(before, to: fixture.archive, renamed: changed)
         let directories = try ArchiveReader.open(url: fixture.archive).entries.filter { $0.kind == .directory }.map(\.name)
         XCTAssertEqual(directories, ["renamed/", "renamed/deep/"])
-        XCTAssertTrue(try Fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
+        XCTAssertTrue(try fixture.directory.run(ExternalTool.unzip, ["-t", fixture.archive.path]).contains("No errors detected"))
     }
 
     @MainActor func testRenamingVirtualFolderRewritesDescendantsWithoutInventingDirectoryRecord() async throws {
@@ -602,9 +598,9 @@ nonisolated final class ArchiveEditTests: XCTestCase {
         XCTAssertNil(result.reloadFailure)
         XCTAssertTrue(try ArchiveReader.open(url: fixture.archive).entries.isEmpty)
         XCTAssertEqual(try Data(contentsOf: fixture.archive).count, 22)
-        let unzip = try Fixture.run(ExternalTool.unzip, ["-t", fixture.archive.path], allowed: [1])
+        let unzip = try fixture.directory.run(ExternalTool.unzip, ["-t", fixture.archive.path], allowed: [1])
         XCTAssertTrue(unzip.contains("zipfile is empty"), unzip)
-        let seven = try Fixture.run(ExternalTool.sevenZip, ["t", fixture.archive.path])
+        let seven = try fixture.directory.run(ExternalTool.sevenZip, ["t", fixture.archive.path])
         XCTAssertTrue(seven.contains("Everything is Ok"), seven)
         XCTAssertTrue(seven.contains("Files: 0"), seven)
         try await undo(document)
