@@ -3,6 +3,9 @@ import Foundation
 nonisolated enum ArchiveSplitScheduleChoice: Sendable, Equatable {
     case original, mostCommon, single, size(UInt64)
 
+    /// 利用者が指定できる巻サイズの下限（64 KiB）。`size` の選択と分割保存のシートの入力が同じ値で検査する。
+    static let minimumVolumeSize: UInt64 = 64 * 1024
+
     func schedule(for layout: ArchiveVolumeLayout) throws -> VolumePlan.Schedule {
         switch self {
         case .original: return .explicit(layout.volumes.map(\.length))
@@ -13,7 +16,7 @@ nonisolated enum ArchiveSplitScheduleChoice: Sendable, Equatable {
             return .uniform(size: size)
         case .single: return .single
         case .size(let size):
-            guard size >= 64 * 1024, size <= UInt64(Int64.max) else { throw VolumePublishError.invalidPlan }
+            guard size >= Self.minimumVolumeSize, size <= UInt64(Int64.max) else { throw VolumePublishError.invalidPlan }
             return .uniform(size: size)
         }
     }

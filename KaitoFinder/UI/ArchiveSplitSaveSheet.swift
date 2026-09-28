@@ -51,7 +51,7 @@ import AppKit
             throw VolumePublishError.invalidPlan
         }
         let bytes = value * pow(1024, Double(unit + 1))
-        guard bytes >= 65536, bytes < Double(Int64.max) else { throw VolumePublishError.invalidPlan }
+        guard bytes >= Double(ArchiveSplitScheduleChoice.minimumVolumeSize), bytes < Double(Int64.max) else { throw VolumePublishError.invalidPlan }
         return UInt64(bytes)
     }
 
