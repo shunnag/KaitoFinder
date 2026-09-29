@@ -212,7 +212,6 @@ nonisolated final class ImmediateSplitSaveTests: XCTestCase {
         XCTAssertEqual(document.fileModificationDate, try FileManager.default.attributesOfItem(atPath: fixture.gate.path)[.modificationDate] as? Date)
     }
 
-    // 旧名: M6bReviewTests
     @MainActor func testImmediateSplitStagingUsesDestinationVolumeAndRemovesItsLedger() async throws {
         let fixture = try DeferredSplitSaveFixture(format: .tar, behavior: .immediate), document = fixture.document
         defer { document.close() }

@@ -78,11 +78,6 @@ nonisolated struct ArchiveCapabilities: Sendable {
     var editRefusal: ExtractionFailure {
         .refused(readOnlyReason ?? String(localized: "このアーカイブは変更できません。"))
     }
-    var rewriteNotice: String? {
-        guard case .rewrite = mode else { return nil }
-        return String(localized: "編集するとアーカイブ全体を再圧縮します")
-    }
-
     func editNotice(options: WriterOptions, onSave: Bool) -> String? {
         switch mode?.resolved(with: options) {
         case .rewrite where mode != .update(.tar):
@@ -125,15 +120,6 @@ nonisolated struct ArchiveCapabilities: Sendable {
         case .mixedVolumes: String(localized: "分割アーカイブの巻が混在しています。", bundle: bundle)
         case .unrepresentable(let reason): String(localized: "このアーカイブには、書き直せない項目があります。\(reason)", bundle: bundle)
         case .unavailable(let reason): String(localized: "このアーカイブは変更できません。\(reason)", bundle: bundle)
-        }
-    }
-
-    /// テストだけが使う入口。製品コードは actor が所有する reader を渡す `inspect(reader:url:…)` を使う。
-    /// 形式の判定と書き込み権限を先に確かめてから一度だけ開く（書き込めない形式・権限のない場所・
-    /// 圧縮 tar の外側の判定に、書庫の解析や一時展開を要しない）。
-    static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String? = nil) -> Self {
-        inspect(url: url, format: format, password: password) {
-            try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
         }
     }
 
@@ -282,4 +268,25 @@ nonisolated struct ArchiveCapabilities: Sendable {
         default: .unavailable(ArchiveErrorText.describe(error))
         }
     }
+
+    /// 再圧縮を伴う編集の通知文。`String(localized:)` の key を Release でも参照するため常時 compile する（呼び手は test だけ）。
+    var rewriteNotice: String? {
+        guard case .rewrite = mode else { return nil }
+        return String(localized: "編集するとアーカイブ全体を再圧縮します")
+    }
+
 }
+
+#if DEBUG
+/// 試験用の書庫検査。
+nonisolated extension ArchiveCapabilities {
+    /// テストだけが使う入口。製品コードは actor が所有する reader を渡す `inspect(reader:url:…)` を使う。
+    /// 形式の判定と書き込み権限を先に確かめてから一度だけ開く（書き込めない形式・権限のない場所・
+    /// 圧縮 tar の外側の判定に、書庫の解析や一時展開を要しない）。
+    static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String? = nil) -> Self {
+        inspect(url: url, format: format, password: password) {
+            try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+        }
+    }
+}
+#endif

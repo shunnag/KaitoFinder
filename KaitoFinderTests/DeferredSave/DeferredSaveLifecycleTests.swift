@@ -7,7 +7,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class DeferredSaveLifecycleTests: XCTestCase {
-    // 旧名: DeferredSaveCorrectionTests
     // 改名で空いたフォルダ名を作り直し、その下の元のパスへ項目を戻せる（全形式で、保存後の一覧と内容を確かめる）。
     // P1 は改名だけ、P1b は戻す前に改名先へ同じ名前の別の file を足す、P2 は 2 つのフォルダ名を一時名経由で入れ替える
     // （退避名の重複・循環）。file だけでなく明示 directory の項目も検査する。

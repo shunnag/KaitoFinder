@@ -6,7 +6,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class EntryNameRuleTests: XCTestCase {
-    // 旧名: M6cNameRuleTests
     private let files = [("man3/File::Spec.3pm", "manual"), ("Maildir/cur/msg:2,S", "message"),
                          ("other.txt", "other"), ("back\\slash.txt", "backslash")]
     private let tarFormats: [GyoshukuKit.ArchiveFormat] = [.tar, .tarGzip]

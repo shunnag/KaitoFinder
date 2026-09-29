@@ -29,7 +29,7 @@ nonisolated final class ExtractionProgressSheetTests: XCTestCase {
         XCTAssertFalse(document.pendingChanges.createdFolders.isEmpty)
         XCTAssertEqual(panel.alphaValue, 0)
         XCTAssertFalse(revealed.withLock { $0 })
-        try await Task.sleep(for: ExtractionProgressSheet.revealDelay)
+        try await Task.sleep(for: ArchiveProgressTiming.revealDelay)
         XCTAssertEqual(panel.alphaValue, 0)
         XCTAssertFalse(revealed.withLock { $0 })
         withExtendedLifetime(observation) {}
@@ -62,7 +62,7 @@ nonisolated final class ExtractionProgressSheetTests: XCTestCase {
         XCTAssertFalse(panel.isVisible)
         XCTAssertEqual(panel.alphaValue, 0)
         sheet.finish()
-        try await Task.sleep(for: ExtractionProgressSheet.revealDelay)
+        try await Task.sleep(for: ArchiveProgressTiming.revealDelay)
         XCTAssertFalse(panel.isVisible)
         XCTAssertEqual(panel.alphaValue, 0)
     }
@@ -77,7 +77,7 @@ nonisolated final class ExtractionProgressSheetTests: XCTestCase {
         XCTAssertNil(parent.attachedSheet)
         XCTAssertEqual(panel.alphaValue, 0)
         sheet.finish()
-        try await Task.sleep(for: ExtractionProgressSheet.revealDelay)
+        try await Task.sleep(for: ArchiveProgressTiming.revealDelay)
         XCTAssertEqual(panel.alphaValue, 0)
         sheet.begin(on: parent)
         XCTAssertTrue(parent.attachedSheet === panel)

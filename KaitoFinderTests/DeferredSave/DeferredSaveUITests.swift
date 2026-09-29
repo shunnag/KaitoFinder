@@ -142,7 +142,7 @@ nonisolated final class DeferredSaveUITests: XCTestCase {
         XCTAssertEqual(sheet.window?.alphaValue, 0)
         try await scenarioWait { window.attachedSheet != nil && window.attachedSheet !== sheet.window }
         let alert = try XCTUnwrap(window.attachedSheet)
-        try await Task.sleep(for: ExtractionProgressSheet.revealDelay)
+        try await Task.sleep(for: ArchiveProgressTiming.revealDelay)
         XCTAssertEqual(sheet.window?.alphaValue, 0)
         XCTAssertTrue(window.attachedSheet === alert)
         window.endSheet(alert, returnCode: .alertFirstButtonReturn)

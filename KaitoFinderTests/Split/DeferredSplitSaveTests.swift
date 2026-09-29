@@ -109,7 +109,6 @@ nonisolated final class DeferredSplitSaveTests: XCTestCase {
         }
     }
 
-    // 旧名: M6bReviewTests
     @MainActor func testSplitProgressCountsRemovalsAndOnlyFinalCarryPass() async throws {
         for format: GyoshukuKit.ArchiveFormat in [.zip, .sevenZip, .tar, .tarGzip] {
             for ownerIDs in (format == .tar || format == .tarGzip ? [false, true] : [false]) {

@@ -447,11 +447,6 @@ actor ArchiveSession {
                         progress: progress, willPublish: willPublish)
     }
 
-    func remove(_ selections: [ArchiveEditSelection], progress: Progress,
-                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
-        try edit(removing: selections, progress: progress, willPublish: willPublish)
-    }
-
     func createFolder(in folder: String, baseName: String = String(localized: "名称未設定フォルダ"), progress: Progress,
                       willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                       willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveImportResult {
@@ -473,12 +468,6 @@ actor ArchiveSession {
         do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(appended: [(plan.path, true)], mode: publishedMode)) }
         catch { result.reloadFailure = Self.reloadFailureMessage }
         return result
-    }
-
-    func rename(_ selection: ArchiveEditSelection, to name: String, progress: Progress,
-                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
-        try edit(renaming: [ArchiveEditRename(selection: selection, name: name)],
-                 progress: progress, willPublish: willPublish)
     }
 
     // 部分木の検証から公開後の再読込まで await を挟まず、一操作を一世代にまとめる。
@@ -1096,10 +1085,6 @@ actor ArchiveSession {
         let savedQuarantine = try quarantine ?? ExtractionQuarantine.firstValue(from: snapshot.stagedURLs) { try Task.checkCancellation() }
         return (try requireCurrentReader().reopen(), .init(entries: entries), savedQuarantine, snapshot, lease)
     }
-
-    func entries() -> [ArchiveEntry] {
-        invalidated ? [] : reader?.entries ?? []
-    }
 }
 
 nonisolated extension ArchiveSession {
@@ -1107,3 +1092,23 @@ nonisolated extension ArchiveSession {
         capabilities.mode?.outputFormat ?? .zip
     }
 }
+
+#if DEBUG
+/// 試験から単独の編集と一覧の取得を行う入口。
+extension ArchiveSession {
+    func remove(_ selections: [ArchiveEditSelection], progress: Progress,
+                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
+        try edit(removing: selections, progress: progress, willPublish: willPublish)
+    }
+
+    func rename(_ selection: ArchiveEditSelection, to name: String, progress: Progress,
+                willPublish: (@Sendable () throws -> Void)? = nil) throws -> ArchiveEditResult {
+        try edit(renaming: [ArchiveEditRename(selection: selection, name: name)],
+                 progress: progress, willPublish: willPublish)
+    }
+
+    func entries() -> [ArchiveEntry] {
+        invalidated ? [] : reader?.entries ?? []
+    }
+}
+#endif

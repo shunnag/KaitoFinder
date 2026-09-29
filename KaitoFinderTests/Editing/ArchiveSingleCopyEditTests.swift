@@ -123,17 +123,24 @@ nonisolated final class ArchiveSingleCopyEditTests: XCTestCase {
                 pending.createdFolders = [.init(id: UUID(), path: "new-folder/", date: Self.date)]
             }
             let plan = try ArchiveSaveReplayPlan(base: entries, generation: 0, pending: pending)
+            let progress = Progress()
+            let counted = plan.edits.removals.count + plan.edits.renames.count + plan.folders.count
+            let ledger = ArchiveWriteProgress.forTesting(progress: progress, plan: .init(counted: counted,
+                additions: plan.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 },
+                itemCount: counted + plan.additions.count, carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected),
+                changesExisting: !plan.edits.removals.isEmpty || !plan.edits.renames.isEmpty || plan.outputEncryption != nil))
             let old = try ArchiveUpdater.open(url: conventional)
             try plan.replay(on: old, progress: Progress()); try old.commit()
             try ArchiveImportTransaction.didCommitForTesting.withValue({ work in
                 try Self.checkWork(work, archive: app, original: original, identity: identity)
             }) {
-                _ = try ArchiveImportTransaction.publish(archive: app, mode: .inPlace, options: .init(), progress: Progress(),
+                _ = try ArchiveImportTransaction.publish(archive: app, mode: .inPlace, options: .init(), progress: progress,
+                    ledger: ledger,
                     willPublish: {
                         XCTAssertEqual(try ArchiveFileIdentity.capture(url: app), identity)
                         XCTAssertEqual(try Data(contentsOf: app), original)
                     }, deferredPlan: plan, expectedOutput: .init(plan: plan, mode: .inPlace)) {
-                        try plan.replay(on: $0, progress: Progress())
+                        try plan.replay(on: $0, progress: progress, ledger: ledger)
                     }
             }
             XCTAssertEqual(try Data(contentsOf: app), try Data(contentsOf: conventional), "\(kind) operation=\(operation)")

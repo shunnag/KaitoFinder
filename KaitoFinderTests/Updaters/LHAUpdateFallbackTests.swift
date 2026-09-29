@@ -28,6 +28,11 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
                 let plan = try ArchiveSaveReplayPlan(base: entries, generation: 0, pending: pending, format: .lha)
                 let openings = ArchiveTestCounter(), mutations = ArchiveTestCounter(), fallbacks = ArchiveTestCounter()
                 let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([]), progress = Progress(totalUnitCount: 2)
+                let counted = plan.edits.removals.count + plan.edits.renames.count + plan.folders.count
+                let ledger = ArchiveWriteProgress.forTesting(progress: progress, plan: .init(counted: counted,
+                    additions: plan.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 },
+                    itemCount: counted + plan.additions.count, carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected),
+                    changesExisting: !plan.edits.removals.isEmpty || !plan.edits.renames.isEmpty || plan.outputEncryption != nil))
                 try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                     try ArchiveStageDiagnostics.observer.withValue({ event in
                         if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
@@ -36,9 +41,10 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
                             try LHAUpdateFixture.assertWork(work, archive: archive, bytes: original, identity: identity)
                         }) {
                             try ArchiveImportTransaction.publish(archive: archive, mode: .update(.lha), options: .init(), progress: progress,
+                                ledger: ledger,
                                 willOpenUpdater: { openings.increment() }, willPublish: nil, deferredPlan: deferred ? plan : nil,
                                 expectedOutput: .init(plan: plan, mode: .update(.lha))) { editor in
-                                    mutations.increment(); try plan.replay(on: editor, progress: progress)
+                                    mutations.increment(); try plan.replay(on: editor, progress: progress, ledger: ledger)
                                 }
                         }
                     }
@@ -47,7 +53,10 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
                 XCTAssertEqual(stages.withLock { $0.filter { $0 == .updaterOpen || $0 == .rewriterOpen || $0 == .workCopy } }, [.updaterOpen, .rewriterOpen], name)
                 XCTAssertEqual(stages.withLock { $0.filter { $0 == .mutate || $0 == .replay } }, [deferred ? .replay : .mutate])
                 XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount, name)
-                XCTAssertEqual(progress.totalUnitCount, Int64(entries.count + 1), name)
+                let carriedBytes = ArchiveWriteProgress.carriedBytes(plan.projected)
+                let pendingBytes = min(carriedBytes, WriterOptions().maximumPendingInputBytes(for: .lha))
+                let expectedUnits = Int64(counted + 1) + Int64(max(1_000, carriedBytes + pendingBytes))
+                XCTAssertEqual(progress.totalUnitCount, expectedUnits, name)
                 let saved = try ArchiveReader.open(url: archive)
                 try ArchiveOutputProjection(plan: plan, mode: .rewrite(.lha)).validate(saved, format: .lha)
                 XCTAssertEqual(saved.entries.map(\.name), entries.dropFirst().map { $0.kind == .directory ? ArchiveEditPlan.key($0.name) + "/" : $0.name }, name)
@@ -109,6 +118,9 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
             if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
         }) {
             try ArchiveImportTransaction.publish(archive: archive, mode: mode, options: options, progress: progress,
+                ledger: .forTesting(progress: progress, plan: .init(counted: 1,
+                    additions: [], itemCount: 1,
+                    carriedBytes: ArchiveWriteProgress.carriedBytes(reader.entries), changesExisting: false)),
                 willOpenUpdater: { openings.increment() }, willPublish: nil,
                 expectedOutput: .init(existing: reader.entries, additions: [.init(adding: "added/", kind: .directory)], mode: mode)) { editor in
                     mutations.increment(); try editor.addDirectory("added"); progress.completedUnitCount += 1
@@ -169,7 +181,6 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
         return bytes
     }
 
-    // 旧名: ArchiveImportCorrectionTests
     @MainActor func testMacBinaryAndUnsupportedLHAAreReadOnlyAndShowTheProbeReason() async throws {
         let directory = try ArchiveTestDirectory(), controller = ArchiveWindowController()
         defer { controller.close() }
@@ -199,7 +210,6 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveImportCorrectionTests
     func testPlainMacLHAAndEmptyLHADirectoryStillPublish() async throws {
         for directoryEntry in [false, true] {
             let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("original.lzh")
@@ -221,7 +231,6 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveImportCorrectionTests
     func testNonemptyLHADirectoryCannotReachTheEditPath() throws {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("original.lzh")
         try lha(Data("payload".utf8), name: "directory/", method: "-lhd-").write(to: archive)

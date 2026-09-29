@@ -116,7 +116,7 @@ nonisolated enum ArchiveImportTransaction {
     // 追加・削除・改名で公開境界を共有し、undo が退避する原本を必ず一致させる。
     // 段階は prepareWorkDirectory → produceWork → verifyWork → publishWork。原本へ触るのは publishWork の rename だけ。
     @discardableResult static func publish(archive: URL, mode: ArchiveCapabilities.Mode, options: WriterOptions, password: String? = nil, progress: Progress,
-                        ledger: ArchiveWriteProgress? = nil,
+                        ledger: ArchiveWriteProgress,
                         commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)? = nil,
                         willOpenUpdater: (@Sendable () throws -> Void)? = nil,
                         willPublish: (@Sendable () throws -> Void)?,
@@ -143,7 +143,7 @@ nonisolated enum ArchiveImportTransaction {
             work: directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: outputFormat)),
             outputFormat: outputFormat, password: password, options: options, progress: progress, ledger: ledger,
             archiveBytes: archiveBytes, deferredPlan: deferredPlan, expectedOutput: expectedOutput)
-        let produced = try produceWork(mode: mode, context: context, commitProgress: commitProgress,
+        let produced = try produceWork(mode: mode, context: context,
                                        willOpenUpdater: willOpenUpdater, sessionReader: sessionReader, mutate: mutate)
         if let additionalQuarantine {
             // 新規作成と同じく追加元の印も伝播する。原本の印があればそちらを保つ。
@@ -171,7 +171,7 @@ nonisolated enum ArchiveImportTransaction {
         let password: String?
         let options: WriterOptions
         let progress: Progress
-        let ledger: ArchiveWriteProgress?
+        let ledger: ArchiveWriteProgress
         let archiveBytes: UInt64
         let deferredPlan: ArchiveSaveReplayPlan?
         let expectedOutput: ArchiveOutputProjection
@@ -208,21 +208,6 @@ nonisolated enum ArchiveImportTransaction {
         return directory
     }
 
-    /// ledger を渡さない呼び出しでは、commit の進捗を 1,000 単位の擬似 unit として progress に足す。
-    private static func commitProgressCallback(ledger: ArchiveWriteProgress?, progress: Progress) -> (ArchiveUpdater.CommitProgress) throws -> Void {
-        if let ledger { return ledger.commit }
-        progress.totalUnitCount += 1_000
-        var completed: Int64 = 0
-        return { value in
-            try ArchiveImportPlan.checkCancellation(progress)
-            let units: Int64 = value.totalBytes == 0 ? 1_000
-                : Int64(min(1, Double(value.completedBytes) / Double(value.totalBytes)) * 1_000)
-            let next = max(completed, units)
-            progress.completedUnitCount += next - completed
-            completed = next
-        }
-    }
-
     /// rewriter 経路。作業ファイルが既にあれば EEXIST として拒否し、最後に原本の属性を写す。
     private static func rewrite(format: GyoshukuKit.ArchiveFormat, context: PublishContext,
                                 mutate: (any ArchiveEditing) throws -> Void) throws {
@@ -237,19 +222,13 @@ nonisolated enum ArchiveImportTransaction {
         guard !rewriter.hasEncryptedEntries || context.password != nil else {
             throw ExtractionFailure.refused(ArchiveCapabilities(refusal: .encrypted).readOnlyReason!)
         }
-        ledger?.begin(.rewriter(format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit), archiveBytes: context.archiveBytes, options: context.options)
+        ledger.begin(.rewriter(format, readsAdditionsDuringCommit: rewriter.readsAdditionsDuringCommit), archiveBytes: context.archiveBytes, options: context.options)
         try ArchiveStageDiagnostics.measure(context.deferredPlan == nil ? .mutate : .replay) { try mutate(rewriter) }
         try ArchiveImportPlan.checkCancellation(progress)
-        if let ledger { try rewriter.finishAdditions(progress: ledger.finishAdditions) }
-        // LHA・7z の fallback は、削除済みの項目と root を carry の予算に含めない。
-        let carryCount = [.lha, .sevenZip].contains(format)
-            ? context.expectedOutput.resolving(.rewrite(format)).entries.filter { !$0.isAddition }.count
-            : rewriter.entryNames.count
-        if ledger == nil { progress.totalUnitCount += Int64(carryCount) }
+        try rewriter.finishAdditions(progress: ledger.finishAdditions)
         try ArchiveStageDiagnostics.measure(.commit) {
-            try rewriter.commit(progress: ledger?.commit) { done, total in
-                if let ledger { ledger.didCarry(done, total) }
-                else { progress.completedUnitCount += 1 }
+            try rewriter.commit(progress: ledger.commit) { done, total in
+                ledger.didCarry(done, total)
                 try ArchiveImportPlan.checkCancellation(progress)
             }
         }
@@ -258,7 +237,6 @@ nonisolated enum ArchiveImportTransaction {
 
     /// mode ごとの updater / rewriter で作業ファイルを作る。updater が requiresRewrite で拒否したら rewrite に切り替える。
     private static func produceWork(mode: ArchiveCapabilities.Mode, context: PublishContext,
-                                    commitProgress: ((ArchiveUpdater.CommitProgress) throws -> Void)?,
                                     willOpenUpdater: (@Sendable () throws -> Void)?,
                                     sessionReader: sending ArchiveReader?,
                                     mutate: (any ArchiveEditing) throws -> Void) throws -> ProducedWork {
@@ -269,15 +247,15 @@ nonisolated enum ArchiveImportTransaction {
         case .inPlace:
             try willOpenUpdater?()
             let updater = try ArchiveStageDiagnostics.measure(.updaterOpen) { try ArchiveUpdater.open(url: archive, output: work, options: options) }
-            ledger?.begin(.updater(.zip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
+            ledger.begin(.updater(.zip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
             try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
             try ArchiveImportPlan.checkCancellation(progress)
-            if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
+            try updater.finishAdditions(progress: ledger.finishAdditions)
             try ArchiveStageDiagnostics.measure(.commit) {
                 #if DEBUG
                 try willCommitUpdaterForTesting.get()?()
                 #endif
-                try updater.commit(progress: ledger?.commit ?? commitProgress)
+                try updater.commit(progress: ledger.commit)
             }
             #if DEBUG
             try didCommitUpdaterForTesting.get()?(updater)
@@ -289,161 +267,140 @@ nonisolated enum ArchiveImportTransaction {
         case .update(let format) where [.tarGzip, .tarBzip2, .tarXZ].contains(format):
             guard let reader = sessionReader else { throw ArchiveEditError.staleSelection }
             // 同じ独立 reader から Sendable な base を採り、reader の所有権は GK へ渡す。
-            produced.spliceBase = reader.tarEditingSnapshot()
+            let spliceBase = reader.tarEditingSnapshot()
             try willOpenUpdater?()
-            var updater: CompressedTarUpdater?
+            let updater: Result<CompressedTarUpdater, any Error>
             do {
                 // sending の reader を計測 closure に捕捉せず、一度だけ移す。
                 #if DEBUG
                 let span = ArchiveStageDiagnostics.begin(.updaterOpen)
                 defer { span?.end() }
                 #endif
-                updater = try CompressedTarUpdater.open(reader: reader, output: work, format: format, options: options)
-            } catch TarUpdaterError.requiresRewrite(let reason) {
-                #if DEBUG
-                didFallBackToRewriteForTesting.get()?(reason)
-                #endif
-            }
-            if let updater {
-                ledger?.begin(.updater(format, processesAdditionsAtCommit: true), archiveBytes: archiveBytes, options: options)
-                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
-                try ArchiveImportPlan.checkCancellation(progress)
-                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
-                do {
-                    produced.spliced = try ArchiveStageDiagnostics.measure(.commit) {
-                        #if DEBUG
-                        try willCommitUpdaterForTesting.get()?()
-                        #endif
-                        return try updater.commit(progress: commitCallback)
-                    }
-                } catch let error as TarUpdaterError {
-                    guard case .outputVerificationFailed = error else { throw error }
-                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
-                }
-                #if DEBUG
-                try didCommitCompressedTarUpdaterForTesting.get()?(updater)
-                #endif
-                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
-            } else {
-                produced.spliceBase = nil
-                produced.publishedMode = .rewrite(format)
-                try rewrite(format: format, context: context, mutate: mutate)
-            }
+                updater = .success(try CompressedTarUpdater.open(reader: reader, output: work, format: format, options: options))
+            } catch { updater = .failure(error) }
+            produced = try runUpdaterRoute(updater: updater, format: format, context: context,
+                processesAdditionsAtCommit: true, spliceBase: spliceBase,
+                requiresRewrite: tarRewriteReason, commit: { try $0.commit(progress: $1) },
+                mapVerificationFailure: tarVerificationFailure, didCommit: { updater in
+                    #if DEBUG
+                    try didCommitCompressedTarUpdaterForTesting.get()?(updater)
+                    #endif
+                }, mutate: mutate)
         case .update(.tar):
             try willOpenUpdater?()
-            var updater: TarUpdater?
-            do {
-                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+            let updater = Result {
+                try ArchiveStageDiagnostics.measure(.updaterOpen) {
                     try TarUpdater.open(url: archive, output: work, options: options)
                 }
-            } catch TarUpdaterError.requiresRewrite(let reason) {
-                #if DEBUG
-                didFallBackToRewriteForTesting.get()?(reason)
-                #endif
             }
-            if let updater {
-                ledger?.begin(.updater(.tar, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
-                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
-                try ArchiveImportPlan.checkCancellation(progress)
-                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
-                do {
-                    try ArchiveStageDiagnostics.measure(.commit) {
-                        #if DEBUG
-                        try willCommitUpdaterForTesting.get()?()
-                        #endif
-                        try updater.commit(progress: commitCallback)
-                    }
-                } catch let error as TarUpdaterError {
-                    guard case .outputVerificationFailed = error else { throw error }
-                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
-                }
-                #if DEBUG
-                try didCommitTarUpdaterForTesting.get()?(updater)
-                #endif
-                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
-            } else {
-                produced.publishedMode = .rewrite(.tar)
-                try rewrite(format: .tar, context: context, mutate: mutate)
-            }
+            produced = try runUpdaterRoute(updater: updater, format: .tar, context: context,
+                requiresRewrite: tarRewriteReason,
+                commit: { try $0.commit(progress: $1); return nil },
+                mapVerificationFailure: tarVerificationFailure, didCommit: { updater in
+                    #if DEBUG
+                    try didCommitTarUpdaterForTesting.get()?(updater)
+                    #endif
+                }, mutate: mutate)
         case .update(.lha):
             try willOpenUpdater?()
-            var updater: LHAUpdater?
-            do {
-                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+            let updater = Result {
+                try ArchiveStageDiagnostics.measure(.updaterOpen) {
                     try LHAUpdater.open(url: archive, output: work, options: options)
                 }
-            } catch UpdaterRouteError.requiresRewrite(let reason) {
-                #if DEBUG
-                didFallBackToRewriteForTesting.get()?(reason)
-                #endif
             }
-            if let updater {
-                ledger?.begin(.updater(.lha, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
-                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
-                try ArchiveImportPlan.checkCancellation(progress)
-                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
-                do {
-                    try ArchiveStageDiagnostics.measure(.commit) {
-                        #if DEBUG
-                        try willCommitUpdaterForTesting.get()?()
-                        #endif
-                        try updater.commit(progress: commitCallback)
-                    }
-                } catch let error as UpdaterRouteError {
-                    guard case .outputVerificationFailed = error else { throw error }
-                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
-                }
-                #if DEBUG
-                try didCommitLHAUpdaterForTesting.get()?(updater)
-                #endif
-                try preserveAttributes(from: archive, to: work, includingCreationDate: true)
-            } else {
-                produced.publishedMode = .rewrite(.lha)
-                try rewrite(format: .lha, context: context, mutate: mutate)
-            }
+            produced = try runUpdaterRoute(updater: updater, format: .lha, context: context,
+                requiresRewrite: routeRewriteReason,
+                commit: { try $0.commit(progress: $1); return nil },
+                mapVerificationFailure: routeVerificationFailure, didCommit: { updater in
+                    #if DEBUG
+                    try didCommitLHAUpdaterForTesting.get()?(updater)
+                    #endif
+                }, mutate: mutate)
         case .update(.sevenZip):
             try willOpenUpdater?()
-            var updater: SevenZipUpdater?
-            do {
-                updater = try ArchiveStageDiagnostics.measure(.updaterOpen) {
+            let updater = Result {
+                try ArchiveStageDiagnostics.measure(.updaterOpen) {
                     try SevenZipUpdater.open(url: archive, password: password, output: work, options: options)
                 }
-            } catch UpdaterRouteError.requiresRewrite(let reason) {
-                #if DEBUG
-                didFallBackToRewriteForTesting.get()?(reason)
-                #endif
             }
-            if let updater {
-                ledger?.begin(.updater(.sevenZip, processesAdditionsAtCommit: false), archiveBytes: archiveBytes, options: options)
-                try ArchiveStageDiagnostics.measure(deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
-                try ArchiveImportPlan.checkCancellation(progress)
-                if let ledger { try updater.finishAdditions(progress: ledger.finishAdditions) }
-                let commitCallback = commitProgressCallback(ledger: ledger, progress: progress)
-                do {
-                    try ArchiveStageDiagnostics.measure(.commit) {
-                        #if DEBUG
-                        try willCommitUpdaterForTesting.get()?()
-                        #endif
-                        try updater.commit(progress: commitCallback)
-                    }
-                } catch let error as UpdaterRouteError {
-                    guard case .outputVerificationFailed = error else { throw error }
-                    throw ArchiveVerificationFailure.updaterVerification(.init(error)).reported(file: archive)
-                }
-                #if DEBUG
-                try didCommitSevenZipUpdaterForTesting.get()?(updater)
-                #endif
-                try preserveAttributes(from: archive, to: work, includingCreationDate: true, copyingExtendedAttributes: false)
-            } else {
-                produced.publishedMode = .rewrite(.sevenZip)
-                try rewrite(format: .sevenZip, context: context, mutate: mutate)
-            }
+            produced = try runUpdaterRoute(updater: updater, format: .sevenZip, context: context,
+                copyingExtendedAttributes: false, requiresRewrite: routeRewriteReason,
+                commit: { try $0.commit(progress: $1); return nil },
+                mapVerificationFailure: routeVerificationFailure, didCommit: { updater in
+                    #if DEBUG
+                    try didCommitSevenZipUpdaterForTesting.get()?(updater)
+                    #endif
+                }, mutate: mutate)
         case .update: throw ArchiveEditError.staleSelection
         }
         return produced
+    }
+
+    /// open の拒否だけを rewrite に切り替え、変更・commit・検証失敗の境界を共通に保つ。
+    private static func runUpdaterRoute<U: ArchiveEditing>(updater opened: Result<U, any Error>,
+        format: GyoshukuKit.ArchiveFormat, context: PublishContext,
+        processesAdditionsAtCommit: Bool = false, spliceBase: TarEditingSnapshot? = nil,
+        copyingExtendedAttributes: Bool = true,
+        requiresRewrite: (any Error) -> String?,
+        commit: (U, @escaping (ArchiveUpdater.CommitProgress) throws -> Void) throws -> CompressedTarCommitResult?,
+        mapVerificationFailure: (any Error) -> ArchiveVerificationFailure?,
+        didCommit: (U) throws -> Void, mutate: (any ArchiveEditing) throws -> Void) throws -> ProducedWork {
+        let updater: U
+        switch opened {
+        case .success(let value): updater = value
+        case .failure(let error):
+            guard let reason = requiresRewrite(error) else { throw error }
+            #if DEBUG
+            didFallBackToRewriteForTesting.get()?(reason)
+            #endif
+            try rewrite(format: format, context: context, mutate: mutate)
+            return ProducedWork(publishedMode: .rewrite(format))
+        }
+        let ledger = context.ledger
+        ledger.begin(.updater(format, processesAdditionsAtCommit: processesAdditionsAtCommit),
+                     archiveBytes: context.archiveBytes, options: context.options)
+        try ArchiveStageDiagnostics.measure(context.deferredPlan == nil ? .mutate : .replay) { try mutate(updater) }
+        try ArchiveImportPlan.checkCancellation(context.progress)
+        try updater.finishAdditions(progress: ledger.finishAdditions)
+        let commitCallback = ledger.commit
+        var produced = ProducedWork(publishedMode: .update(format), spliceBase: spliceBase)
+        do {
+            produced.spliced = try ArchiveStageDiagnostics.measure(.commit) {
+                #if DEBUG
+                try willCommitUpdaterForTesting.get()?()
+                #endif
+                return try commit(updater, commitCallback)
+            }
+        } catch {
+            guard let failure = mapVerificationFailure(error) else { throw error }
+            throw failure.reported(file: context.archive)
+        }
+        #if DEBUG
+        try didCommit(updater)
+        #endif
+        try preserveAttributes(from: context.archive, to: context.work, includingCreationDate: true,
+                               copyingExtendedAttributes: copyingExtendedAttributes)
+        return produced
+    }
+
+    private static func tarRewriteReason(_ error: any Error) -> String? {
+        guard let error = error as? TarUpdaterError, case .requiresRewrite(let reason) = error else { return nil }
+        return reason
+    }
+
+    private static func routeRewriteReason(_ error: any Error) -> String? {
+        guard let error = error as? UpdaterRouteError, case .requiresRewrite(let reason) = error else { return nil }
+        return reason
+    }
+
+    private static func tarVerificationFailure(_ error: any Error) -> ArchiveVerificationFailure? {
+        guard let error = error as? TarUpdaterError, case .outputVerificationFailed = error else { return nil }
+        return .updaterVerification(.init(error))
+    }
+
+    private static func routeVerificationFailure(_ error: any Error) -> ArchiveVerificationFailure? {
+        guard let error = error as? UpdaterRouteError, case .outputVerificationFailed = error else { return nil }
+        return .updaterVerification(.init(error))
     }
 
     /// 作業ファイルを reader で開き直し、ZIP の件数と投影（expectedOutput）で検証する。原本にはまだ触れない。
@@ -536,8 +493,7 @@ nonisolated enum ArchiveImportTransaction {
             verifiedOutput?.output = ArchiveVerifiedOutput(identity: verified.identity, reader: verified.reader, source: verified.source,
                 hint: verified.hint, verificationPassword: context.options.password, format: context.outputFormat)
         }
-        if let ledger = context.ledger { ledger.didPublish() }
-        else { progress.completedUnitCount += 1 }
+        context.ledger.didPublish()
     }
 
     private static func kaitoKitSegment(_ segment: CompressedTarOutputSegment) -> CompressedTarSplice.Segment {

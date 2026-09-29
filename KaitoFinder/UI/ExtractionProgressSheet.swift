@@ -31,7 +31,6 @@ final class ExtractionProgressSheet: NSWindowController {
         var isRevealed = false
         override var canBecomeKey: Bool { isRevealed && super.canBecomeKey }
     }
-    static let revealDelay = ArchiveProgressTiming.revealDelay
     private static let pendingSheets = NSMapTable<NSWindow, ExtractionProgressSheet>.weakToWeakObjects()
     let progress: Progress
     private let bundle: Bundle
@@ -51,7 +50,7 @@ final class ExtractionProgressSheet: NSWindowController {
     var detail: String { didSet { refresh() } }
 
     init(progress: Progress, title: String? = nil, detail: String = "", bundle: Bundle = .main,
-         revealDelay: Duration = ExtractionProgressSheet.revealDelay) {
+         revealDelay: Duration = ArchiveProgressTiming.revealDelay) {
         self.progress = progress
         self.bundle = bundle
         self.detail = detail

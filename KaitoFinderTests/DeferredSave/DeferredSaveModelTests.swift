@@ -51,12 +51,19 @@ nonisolated final class DeferredSaveModelTests: XCTestCase {
             pending.renames[.init(index: 0, expectedName: "a", baseGeneration: 0)] = "b"
             pending.renames[.init(index: 1, expectedName: "b", baseGeneration: 0)] = "a"
             let plan = try ArchiveSaveReplayPlan(base: base, generation: 0, pending: pending)
+            let progress = Progress()
+            let counted = plan.edits.removals.count + plan.edits.renames.count + plan.folders.count
+            let ledger = ArchiveWriteProgress.forTesting(progress: progress, plan: .init(counted: counted,
+                additions: plan.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 },
+                itemCount: counted + plan.additions.count, carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected),
+                changesExisting: !plan.edits.removals.isEmpty || !plan.edits.renames.isEmpty || plan.outputEncryption != nil))
             XCTAssertEqual(plan.edits.renames.count, 3)
             XCTAssertTrue(plan.edits.renames[0].path.hasPrefix(".KaitoFinder-rename-"))
             try ArchiveImportTransaction.publish(archive: archive, mode: format == .zip ? .inPlace : .rewrite(format),
-                options: .init(), progress: Progress(), willPublish: nil,
+                options: .init(), progress: progress,
+                ledger: ledger, willPublish: nil,
                 expectedOutput: .init(plan: plan, mode: format == .zip ? .inPlace : .rewrite(format))) { editor in
-                try plan.replay(on: editor, progress: Progress())
+                try plan.replay(on: editor, progress: progress, ledger: ledger)
             }
             XCTAssertEqual(try DeferredSaveFixture.contents(archive), ["a": Data("B".utf8), "b": Data("A".utf8)])
         }

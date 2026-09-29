@@ -885,7 +885,6 @@ nonisolated final class ExtractionTests: XCTestCase {
     }
 
 
-    // 旧名: M6bReviewTests
     @MainActor func testUnsafeTopLevelSelectionsReportEachEntryAndStillExtractSafeFiles() async throws {
         let fixture = try ScenarioFixture(script: """
         with zipfile.ZipFile(p, 'w') as z:

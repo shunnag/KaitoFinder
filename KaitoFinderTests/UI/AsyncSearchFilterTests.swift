@@ -441,7 +441,6 @@ nonisolated final class AsyncSearchFilterTests: XCTestCase {
         await controller.renameIndexTask?.value
     }
 
-    // 旧名: M6bSearchTests
     @MainActor func testSearchTypingCostAt100kEntries() async throws {
         let defaults = try ArchivePreferencesTestDefaults()
         let controller = ArchiveWindowController(preferencesStore: ArchivePreferencesStore(defaults: defaults.defaults))

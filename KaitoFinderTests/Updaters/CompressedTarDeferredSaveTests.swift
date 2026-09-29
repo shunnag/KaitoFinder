@@ -65,22 +65,31 @@ nonisolated final class CompressedTarDeferredSaveTests: XCTestCase {
             let plan = try ArchiveSaveReplayPlan(base: entries, generation: 0, pending: pending, format: .tarGzip)
             let openings = ArchiveTestCounter(), replays = ArchiveTestCounter(), fallbacks = ArchiveTestCounter()
             let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([]), progress = Progress(totalUnitCount: 2)
+            let counted = plan.edits.removals.count + plan.edits.renames.count + plan.folders.count
+            let ledger = ArchiveWriteProgress.forTesting(progress: progress, plan: .init(counted: counted,
+                additions: plan.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 },
+                itemCount: counted + plan.additions.count, carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected),
+                changesExisting: !plan.edits.removals.isEmpty || !plan.edits.renames.isEmpty || plan.outputEncryption != nil))
             try ArchiveStageDiagnostics.observer.withValue({ event in
                 if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
             }) {
                 try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                     try ArchiveImportTransaction.publish(archive: target, mode: .update(.tarGzip), options: .init(), progress: progress,
+                        ledger: ledger,
                         willOpenUpdater: { openings.increment() }, willPublish: nil, sessionReader: CompressedTarFixture.open(target),
                         deferredPlan: deferred ? plan : nil, expectedOutput: .init(plan: plan, mode: .update(.tarGzip))) { editor in
-                            replays.increment(); try plan.replay(on: editor, progress: progress)
+                            replays.increment(); try plan.replay(on: editor, progress: progress, ledger: ledger)
                         }
                 }
             }
             XCTAssertEqual(openings.value, 1); XCTAssertEqual(replays.value, 1); XCTAssertEqual(fallbacks.value, 1)
             XCTAssertEqual(stages.withLock { $0.filter { [.updaterOpen, .rewriterOpen, .mutate, .replay, .commit].contains($0) } }, [.updaterOpen, .rewriterOpen, deferred ? .replay : .mutate, .commit])
             let saved = try ArchiveReader.open(url: target)
-            XCTAssertEqual(progress.completedUnitCount, Int64(saved.entries.count + 2))
-            XCTAssertEqual(progress.totalUnitCount, Int64(entries.count + 2))
+            let carriedBytes = ArchiveWriteProgress.carriedBytes(plan.projected)
+            let pendingBytes = min(carriedBytes, WriterOptions().maximumPendingInputBytes(for: .tarGzip))
+            let expectedUnits = Int64(counted + 1) + Int64(max(1_000, carriedBytes + pendingBytes))
+            XCTAssertEqual(progress.completedUnitCount, expectedUnits)
+            XCTAssertEqual(progress.totalUnitCount, expectedUnits)
             XCTAssertEqual(saved.entries.map(\.name), ["keep"])
             try ArchiveOracle.assertNoWorkFiles(in: directory.url)
         }
@@ -95,6 +104,9 @@ nonisolated final class CompressedTarDeferredSaveTests: XCTestCase {
                 XCTAssertThrowsError(try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                     try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({ throw TarUpdaterError.requiresRewrite(reason: "commit") }) {
                         try ArchiveImportTransaction.publish(archive: archive, mode: .update(format), options: .init(), progress: Progress(),
+                            ledger: .forTesting(plan: .init(counted: 0,
+                                additions: [], itemCount: 0,
+                                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                             willPublish: nil, sessionReader: CompressedTarFixture.open(archive), expectedOutput: .init(existing: entries, mode: .update(format))) { _ in
                                 calls.increment()
                                 if !duringCommit { throw TarUpdaterError.requiresRewrite(reason: "mutate") }

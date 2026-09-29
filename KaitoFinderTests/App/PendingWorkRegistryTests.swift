@@ -207,7 +207,6 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         XCTAssertTrue(try Self.entries(in: file).isEmpty)
     }
 
-    // 旧名: ArchiveEditTests
     @MainActor func testPendingRegistryTracksDocumentAppendUntilSuccessOrCancellation() async throws {
         for cancel in [false, true] {
             let fixture = try ScenarioFixture(), source = try fixture.file("appended.txt")
@@ -247,7 +246,6 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveEditTests
     @MainActor func testPendingRegistryTracksPublicationUntilSuccessOrFailure() async throws {
         enum Failure: Error { case injected }
         for fail in [false, true] {
@@ -258,11 +256,15 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
             let archive = fixture.archive, before = try Data(contentsOf: archive)
             defer { gate.release() }
             let task = Task.detached {
+                let entries = try ArchiveReader.open(url: archive).entries
                 try ArchiveImportTransaction.publish(archive: archive, mode: .inPlace, options: .init(), progress: Progress(),
+                    ledger: .forTesting(plan: .init(counted: 0,
+                        additions: [try ArchiveImportSourceStamp(source).size], itemCount: 1,
+                        carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                     willPublish: {
                         gate.pauseOnce()
                         if fail { throw Failure.injected }
-                    }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+                    }, registry: registry, expectedOutput: .init(existing: entries,
                         additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
                         try updater.add(contentsOf: source, as: "added.txt")
                     }
@@ -291,14 +293,17 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveEditTests
     func testRegistryWriteFailureDoesNotPreventPublication() throws {
         let fixture = try ScenarioFixture(), source = try fixture.file("added.txt")
         let blocker = try fixture.file("registry-parent")
         let registry = PendingWorkRegistry(fileURL: blocker.appendingPathComponent("pending.json"))
         XCTAssertThrowsError(try registry.register(fixture.root.appendingPathComponent(".KaitoFinder-add-probe")))
+        let entries = try ArchiveReader.open(url: fixture.archive).entries
         try ArchiveImportTransaction.publish(archive: fixture.archive, mode: .inPlace, options: .init(), progress: Progress(),
-            willPublish: nil, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: fixture.archive).entries,
+            ledger: .forTesting(plan: .init(counted: 0,
+                additions: [try ArchiveImportSourceStamp(source).size], itemCount: 1,
+                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
+            willPublish: nil, registry: registry, expectedOutput: .init(existing: entries,
                 additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace)) { updater in
                 try updater.add(contentsOf: source, as: "added.txt")
             }

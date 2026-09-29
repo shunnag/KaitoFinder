@@ -7,7 +7,6 @@ import XCTest
 /// 言語ごとの bundle と文言の正規化には LocalizationAcceptance（Support/）を使う。書き換えた NSApplication のメニューは
 /// 各テストが元に戻す（preserveApplicationMenus、または defer での復元）。
 nonisolated final class MenuWordingTests: XCTestCase {
-    // 旧名: WordingAcceptanceTests
     @MainActor func testJapaneseMenuCorrectionsAndNamedProgressTitle() throws {
         preserveApplicationMenus()
         let bundle = try LocalizationAcceptance.bundle("ja")
@@ -21,7 +20,6 @@ nonisolated final class MenuWordingTests: XCTestCase {
         XCTAssertEqual(ArchiveProgressOperation.expandingArchive("旅行の写真.zip").title(bundle: bundle), "“旅行の写真.zip”を展開中…")
     }
 
-    // 旧名: WordingAcceptanceTests
     @MainActor func testStandardMenusHaveLocalizedTitlesActionsShortcutsAndApplicationBindings() throws {
         let application = NSApplication.shared
         let previousServices = application.servicesMenu

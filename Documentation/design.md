@@ -135,12 +135,12 @@ cooViewer 側の framework 経路は、その script のコメントどおり「
 | `Model/Listing/` | 「利用者に何が見え、何が読めるか」。entry の木、名前の一致、読取可否、path の分割、形式名 |
 | `Model/Preferences/` | 設定の store と機器の値 |
 | `Diagnostics/` | 計測と試験の観測点。区間の時間、予約の event、DEBUG の計数。本番の判断には使わない |
-| `Editing/` | 既存書庫の変更。追加・削除・改名・新規フォルダの計画、取り込みの衝突、公開境界、保存の再生、出力の照合と進捗 |
+| `Editing/` | 既存書庫の変更。追加・削除・改名・新規フォルダの計画、取り込みの衝突、公開境界、保存の再生、出力の照合と進捗。updater の四経路（圧縮 tar・tar・LHA・7z）は一つの骨格 `runUpdaterRoute` に形式ごとの open・commit・失敗の読み替えだけを渡す。進捗の ledger は必須で、擬似 progress の経路は無い |
 | `Creation/` | 新しい書庫の作成 |
 | `Extraction/` | 取り出し。展開先の生成、file promise、一括展開、並列展開、一時領域、隔離属性 |
 | `SplitVolumes/` | 分割書庫の公開部品。staging と journal、臨界区間、回復、巻の計画と分割、分割保存の pipeline と失敗 |
 | `Persistence/` | Application Support に残す台帳と vault。未完了の作業、回復索引、staging の台帳、巻の metadata、パスワード。台帳の排他と JSON の読み書きは `LockedJSONFile` |
-| `UI/` | AppKit。ウインドウとシート、outline、toolbar、履歴、書式、プレビュー、ようこそ画面 |
+| `UI/` | AppKit。ウインドウとシート、outline、toolbar、履歴、書式、プレビュー（Quick Look の panel 制御と polling は `ArchiveQuickLookCoordinator`）、ようこそ画面 |
 
 依存の向きは `UI/`・`Documents/` → `Editing/`・`Extraction/`・`Creation/`・`SplitVolumes/` → `Model/`・`Persistence/` を基本とし、
 `Model/` は AppKit と QuickLookUI を import しない。`Persistence/` は `SplitVolumes/` の fd ベースの
@@ -156,6 +156,8 @@ fd 系（`RecoverableWorkIndex`・`ArchiveVolumeMetadataStore`）は `VolumePubl
 
 試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置く。一つの型に hook が多いときは
 `+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。
+試験だけが呼ぶ薄い wrapper（`ArchiveSession.remove` / `rename` / `entries()`、`ArchiveCapabilities.inspect(url:…)`）は、
+可視性を広げずに済むよう、その型の file の末尾に `#if DEBUG` の extension として置く。
 `ArchiveSession.willProbeEncryptedHeadersForTesting` は 7z の header 暗号化プローブに error を差し込む。プローブの失敗は
 開くときは open の失敗、公開後の再読込では公開前に決めた出力方針の維持として扱う。
 
@@ -546,7 +548,7 @@ macOS 26 / 27 の標準ツールバーがグループのマテリアルを描く
 保存フォーム・ウインドウ・ようこそ画面の macOS 26 / 27 対応と検証範囲は
 [インターフェース検証記録](verification/2026-09-17-interface-polish.md) を参照。
 
-Quick Look は `QuickLookUI.QLPreviewPanel` を window controller の responder chain から
+Quick Look は `QuickLookUI.QLPreviewPanel` を window controller の responder chain から（data source と delegate、制御期間の監視は `ArchiveQuickLookCoordinator` が担い、controller は forwarding だけ）
 制御する。Space は `NSOutlineView` の `keyDown(with:)` で受ける。独自の
 `QLPreviewItem` は書庫内パスをタイトルにし、未展開時の URL は nil とする。
 選択全体を data source に公開しても、実体化するのは `currentPreviewItemIndex` の一項目
