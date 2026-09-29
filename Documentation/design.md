@@ -553,6 +553,9 @@ Quick Look は `QuickLookUI.QLPreviewPanel` を window controller の responder 
 `QLPreviewItem` は書庫内パスをタイトルにし、未展開時の URL は nil とする。
 選択全体を data source に公開しても、実体化するのは `currentPreviewItemIndex` の一項目
 だけ。solid 群の先読みを避け、移動・選択変更・終了で古い要求を取り消す。
+panel が key window の間の上下矢印は、単一選択なら coordinator が一覧の `keyDown(with:)` へ渡して
+選択を動かし（Finder と同じ）、選択変更の通知で panel を組み直す。複数選択では panel 自身の
+項目移動に任せ、修飾キー付きの矢印と Space 以外は panel に返す。
 成功したコピーは generation / index / path を含む payload をキーに文書内でキャッシュし、
 選択やパネルを閉じる操作をまたいで再利用する。文書の終了・世代変更時には要求を停止して
 終了を待ち、文書の一時コピーを background で削除する。コピー用 pasteboard の寿命とは別に扱う。
@@ -580,7 +583,10 @@ Cancel を使う。詳細と自動検証・手動確認の境界は
 > Space is handled by NSOutlineView.keyDown. A custom preview item reports its
 > archive path as title and nil URL until ready. The data source exposes the full
 > selection but materializes only currentPreviewItemIndex, cancelling old work on
-> navigation, selection changes and closure. Successful copies are cached by the
+> navigation, selection changes and closure. While the panel is key, Up/Down with a
+> single selection are forwarded to the outline view's keyDown so the selection moves
+> and the panel follows (as in Finder); a multi-selection keeps the panel's own item
+> navigation. Successful copies are cached by the
 > document using the generation/index/path payload, surviving selection and panel
 > changes. Document closure or generation replacement drains work and deletes the
 > document's copies in the background, independently of pasteboard lifetime. Passive

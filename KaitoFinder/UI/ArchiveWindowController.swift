@@ -122,7 +122,8 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         selection: { [weak self] in self?.readableSelection() },
         controller: { [weak self] in self },
         canPreview: { [weak self] in self?.archiveSession != nil && self?.materialization != nil },
-        didBecomeKey: { [weak self] in (self?.document as? ArchiveDocument)?.checkDeferredIdentityWhenKey() })
+        didBecomeKey: { [weak self] in (self?.document as? ArchiveDocument)?.checkDeferredIdentityWhenKey() },
+        forwardKey: { [weak self] event in self?.forwardQuickLookKey(event) ?? false })
     private var materializationSheet: ExtractionProgressSheet?
     private let openWithMenu: NSMenu
     private var root: EntryNode
@@ -2390,6 +2391,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     }
 
     private func closePreview() { quickLook.closePreview() }
+
+    @MainActor private func forwardQuickLookKey(_ event: NSEvent) -> Bool {
+        guard outlineView.selectedRowIndexes.count == 1,
+              outlineView.permitsInteraction(), !outlineView.isRenaming else { return false }
+        outlineView.keyDown(with: event)
+        return true
+    }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
         outlineView.cancelClickRenameIfSelectionChanged()
