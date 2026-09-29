@@ -156,6 +156,8 @@ fd 系（`RecoverableWorkIndex`・`ArchiveVolumeMetadataStore`）は `VolumePubl
 
 試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置く。一つの型に hook が多いときは
 `+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。
+試験だけが呼ぶ薄い wrapper（`ArchiveSession.remove` / `rename` / `entries()`、`ArchiveCapabilities.inspect(url:…)`）は、
+可視性を広げずに済むよう、その型の file の末尾に `#if DEBUG` の extension として置く。
 `ArchiveSession.willProbeEncryptedHeadersForTesting` は 7z の header 暗号化プローブに error を差し込む。プローブの失敗は
 開くときは open の失敗、公開後の再読込では公開前に決めた出力方針の維持として扱う。
 
