@@ -525,7 +525,6 @@ nonisolated final class ArchiveDisplayTests: XCTestCase {
     }
 
 
-    // 旧名: M6bReviewTests
     func testVisibleStatusSizeIgnoresHiddenUnknownSizesAndOverflow() {
         let root = EntryNode.tree(from: [archiveColumnEntry("visible.txt", size: 7),
             archiveColumnEntry("folder/file.txt", index: 1, size: 11),

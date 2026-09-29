@@ -635,7 +635,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 fields.view.isHidden = !checkbox.isEnabled
                 fixedNote.isHidden = format != .sevenZip && format != .lha
                 encryptionNote.isHidden = checkbox.isEnabled
-                ArchivePasswordLayout.size(accessory)
+                ArchiveAccessoryLayout.size(accessory)
                 XCTAssertEqual(accessory.frame.width, width, accuracy: 0.5, language)
                 XCTAssertTrue(fields.passwordField.stringValue == "snapshot")
                 XCTAssertTrue(fields.verifyField.stringValue == "snapshot")

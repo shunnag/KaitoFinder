@@ -6,7 +6,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class VolumePublishStagingLockTests: XCTestCase {
-    // 旧名: VolumePublishRound4Tests
     private func lockURL(_ staging: URL, index: RecoverableWorkIndex) -> URL {
         index.stagingLocksURL.appendingPathComponent(staging.lastPathComponent + ".lock")
     }

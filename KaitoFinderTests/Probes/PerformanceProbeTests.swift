@@ -109,7 +109,6 @@ nonisolated final class PerformanceProbeTests: XCTestCase {
     }
     #endif
 
-    // 旧名: ArchiveFolderNavigationTests
     @MainActor func testNavigationScaleWhenEnabled() async throws {
         guard TestEnvironment.isEnabled(.performanceProbes) else {
             throw XCTSkip("Set KAITOFINDER_PERFORMANCE_PROBES=1 for the optimized 500k navigation measurement")

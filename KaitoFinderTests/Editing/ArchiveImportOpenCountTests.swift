@@ -5,7 +5,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchiveImportOpenCountTests: XCTestCase {
-    // 旧名: ArchiveImportCorrectionTests
     func testDeferredTarPreservingOwnersUsesOneVerificationOpen() async throws {
         let directory = try ArchiveTestDirectory(), archive = try TarUpdateFixture.archive(directory.url)
         let session = try ArchiveSession(url: archive, writerOptions: { _ in .init(preserveOwnerIDs: true) })

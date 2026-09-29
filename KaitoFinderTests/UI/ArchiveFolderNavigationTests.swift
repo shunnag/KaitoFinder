@@ -79,7 +79,6 @@ nonisolated final class ArchiveFolderNavigationTests: XCTestCase {
         XCTAssertEqual(controller.currentFolderPath, "a")
     }
 
-    // 旧名: M6bReviewTests
     @MainActor func testOpenValidationStopsAtFirstRefusalInLargeSelection() async throws {
         let fixture = try DeferredSaveFixture(behavior: .immediate), document = fixture.document
         defer { document.close() }

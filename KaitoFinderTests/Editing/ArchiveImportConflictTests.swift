@@ -301,7 +301,6 @@ nonisolated final class ArchiveImportConflictTests: XCTestCase {
         XCTAssertEqual(conflicts, 0)
     }
 
-    // 旧名: M6bReviewTests
     @MainActor func testDeferredDotPrefixConflictUsesNormalizedGroupForImportAndMove() async throws {
         let fixture = try ScenarioFixture(), date = Date(timeIntervalSince1970: 1_700_000_000)
         let entries = [
