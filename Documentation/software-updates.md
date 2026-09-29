@@ -80,6 +80,7 @@ python3 Tools/prepare_update.py \
 0.3.0 (build 4) は 2026-09-24 に公開済み（`verification/2026-09-24-release-0.3.0.md`）。
 0.4.0 (build 5) は 2026-09-28 に公開済み（`verification/2026-09-28-release-0.4.0.md`）。
 0.5.0 (build 6) は 2026-09-30 に公開済み（`verification/2026-09-30-release-0.5.0.md`）。
+0.5.1 (build 7) は 2026-09-30 に公開済み（`verification/2026-09-30-release-0.5.1.md`）。
 
 ## ローカルの検証
 
