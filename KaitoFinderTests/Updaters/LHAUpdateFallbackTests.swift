@@ -169,7 +169,6 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
         return bytes
     }
 
-    // 旧名: ArchiveImportCorrectionTests
     @MainActor func testMacBinaryAndUnsupportedLHAAreReadOnlyAndShowTheProbeReason() async throws {
         let directory = try ArchiveTestDirectory(), controller = ArchiveWindowController()
         defer { controller.close() }
@@ -199,7 +198,6 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveImportCorrectionTests
     func testPlainMacLHAAndEmptyLHADirectoryStillPublish() async throws {
         for directoryEntry in [false, true] {
             let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("original.lzh")
@@ -221,7 +219,6 @@ nonisolated final class LHAUpdateFallbackTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveImportCorrectionTests
     func testNonemptyLHADirectoryCannotReachTheEditPath() throws {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("original.lzh")
         try lha(Data("payload".utf8), name: "directory/", method: "-lhd-").write(to: archive)

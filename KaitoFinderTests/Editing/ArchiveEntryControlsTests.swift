@@ -176,7 +176,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(panel.alphaValue, 0)
         try await waitUntil { gate.isEntered }
         try await waitUntil { panel.alphaValue == 1 }
-        XCTAssertGreaterThanOrEqual(started.duration(to: .now), ExtractionProgressSheet.revealDelay)
+        XCTAssertGreaterThanOrEqual(started.duration(to: .now), ArchiveProgressTiming.revealDelay)
         XCTAssertTrue(controller.window?.attachedSheet === panel)
         gate.release()
         await task.value

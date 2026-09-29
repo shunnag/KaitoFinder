@@ -109,9 +109,9 @@ nonisolated final class SplitSavePassTests: XCTestCase {
         XCTAssertEqual(after.st_ino, before.st_ino)
         switch mtime {
         case .natural:
-            XCTAssertNotEqual(VolumePublishTransaction.Stamp(before), VolumePublishTransaction.Stamp(after))
+            XCTAssertNotEqual(VolumeFileStamp(before), VolumeFileStamp(after))
         case .restore:
-            XCTAssertEqual(VolumePublishTransaction.Stamp(before), VolumePublishTransaction.Stamp(after))
+            XCTAssertEqual(VolumeFileStamp(before), VolumeFileStamp(after))
         case .advance:
             XCTAssertEqual(after.st_mtimespec.tv_sec, before.st_mtimespec.tv_sec + 1)
             XCTAssertEqual(after.st_mtimespec.tv_nsec, before.st_mtimespec.tv_nsec)

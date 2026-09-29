@@ -16,10 +16,9 @@ nonisolated struct VolumePublishTransaction: Sendable {
     var stampsProveContent = false
     var metadataStore = ArchiveVolumeMetadataStore.shared
     var indexedURL: URL? = nil
-    var oldProof: [String: Stamp] = [:]
-    var newProof: [String: Stamp] = [:]
+    var oldProof: [String: VolumeFileStamp] = [:]
+    var newProof: [String: VolumeFileStamp] = [:]
 
-    typealias Stamp = VolumeFileStamp
     struct Contents: Sendable {
         let oldAtFinal: [Bool]
         let oldRetired: [Bool]
@@ -146,23 +145,23 @@ nonisolated struct VolumePublishTransaction: Sendable {
             guard try volume.matches(in: parent, useHash: record.hashesOldVolumes),
                   let info = try parent.info(volume.name) else { throw VolumePublishError.setChanged }
             if record.hashesOldVolumes { operations.didHash(parent.url.appendingPathComponent(volume.name)) }
-            oldProof[volume.name] = Stamp(info)
+            oldProof[volume.name] = VolumeFileStamp(info)
         }
     }
     mutating func oldMatches(_ volume: VolumePublishJournalRecord.OldVolume, in directory: VolumePublishDirectory) throws -> Bool {
         guard let info = try directory.info(volume.name), info.isRegularFile else { return false }
-        if oldProof[volume.name] == Stamp(info) { return true }
+        if oldProof[volume.name] == VolumeFileStamp(info) { return true }
         let matches = try volume.matches(in: directory, useHash: record.hashesOldVolumes)
         if record.hashesOldVolumes { operations.didHash(directory.url.appendingPathComponent(volume.name)) }
-        if matches { oldProof[volume.name] = Stamp(info) }
+        if matches { oldProof[volume.name] = VolumeFileStamp(info) }
         return matches
     }
     mutating func newMatches(_ volume: VolumePublishJournalRecord.NewVolume, in directory: VolumePublishDirectory) throws -> Bool {
         guard let info = try directory.info(volume.name), info.isRegularFile else { return false }
-        if newProof[volume.name] == Stamp(info) { return true }
+        if newProof[volume.name] == VolumeFileStamp(info) { return true }
         let matches = try volume.matches(in: directory)
         operations.didHash(directory.url.appendingPathComponent(volume.name))
-        if matches { newProof[volume.name] = Stamp(info) }
+        if matches { newProof[volume.name] = VolumeFileStamp(info) }
         return matches
     }
     mutating func retireOld(hook: (VolumePublishStep) throws -> Void) throws {
@@ -208,7 +207,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
               held.st_mtimespec.tv_sec == before.st_mtimespec.tv_sec,
               held.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec,
               record.hashesOldVolumes || held.st_ino == before.st_ino else { throw VolumePublishError.setChanged }
-        oldProof[volume.name] = Stamp(after)
+        oldProof[volume.name] = VolumeFileStamp(after)
     }
     mutating func placeNew(hook: (VolumePublishStep) throws -> Void) throws -> [String: UInt64] {
         guard record.phase != .done else { throw VolumePublishError.alreadyUsed }
@@ -248,7 +247,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             guard try volume.matches(in: directory), let info = try directory.info(volume.name) else { throw VolumePublishError.contentMismatch(volume.name) }
             if let inodes, inodes[volume.name] != info.st_ino { identityChanged = true }
             operations.didHash(directory.url.appendingPathComponent(volume.name))
-            newProof[volume.name] = Stamp(info)
+            newProof[volume.name] = VolumeFileStamp(info)
         }
         try directory.requireAbsent(record.nextName) // 非協調の writer が hash の間に次巻を足したかもしれない。
         if identityChanged {
@@ -256,7 +255,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
                 diagnostic: "Published and verified by hash; placed inode changed")
         }
     }
-    mutating func recheckStamps(in directory: VolumePublishDirectory, beforeProof: [String: Stamp],
+    mutating func recheckStamps(in directory: VolumePublishDirectory, beforeProof: [String: VolumeFileStamp],
                                inodes: [String: UInt64]? = nil) throws {
         try record.validate(stagingName: staging.url.lastPathComponent)
         try directory.verifyPath()
@@ -265,7 +264,7 @@ nonisolated struct VolumePublishTransaction: Sendable {
             // hash の最終 path 検査と証拠の stat の間も、mtime 等の変化は全文で照合し直す。
             guard let info = try directory.info(volume.name), info.isRegularFile,
                   info.st_size == volume.length, beforeProof[volume.name] == newProof[volume.name],
-                  newProof[volume.name] == Stamp(info),
+                  newProof[volume.name] == VolumeFileStamp(info),
                   inodes == nil || inodes?[volume.name] == info.st_ino else {
                 try validateHashes(in: directory, inodes: inodes)
                 return
@@ -276,12 +275,12 @@ nonisolated struct VolumePublishTransaction: Sendable {
     }
     mutating func validateNew(in directory: VolumePublishDirectory, inodes: [String: UInt64]? = nil,
                              options: ReaderOptions = .kaitoFinder(), validation: (@Sendable (ArchiveReader) throws -> Void)? = nil) throws {
-        var beforeProof: [String: Stamp] = [:]
+        var beforeProof: [String: VolumeFileStamp] = [:]
         try ArchiveStageDiagnostics.measure(directory.url != parent.url ? .splitStagedProof : .splitPlacedProof) {
             if stampsProveContent, validation != nil {
                 // 採取できない巻は近道を使わず、従来の全文 hash に判定を任せる。
                 for volume in record.newVolumes {
-                    if let info = try? directory.info(volume.name) { beforeProof[volume.name] = Stamp(info) }
+                    if let info = try? directory.info(volume.name) { beforeProof[volume.name] = VolumeFileStamp(info) }
                 }
             }
             try validateHashes(in: directory, inodes: inodes)

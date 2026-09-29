@@ -9,7 +9,6 @@ import XCTest
 /// 差し込み、公開した新しいセットか元のセットのどちらかが必ず残ることを確かめる。セットは VolumePublishFixture で作り、
 /// FAT・exFAT は attachedTestDisk の検査用ボリュームで試す。
 nonisolated final class VolumePublishFaultInjectionTests: XCTestCase {
-    // 旧名: VolumePublishCorrectionTests
     private enum Injected: Error { case failure, trashUnavailable, readerUnavailable }
     private func crash(_ fixture: VolumePublishFixture, at step: VolumePublishStep,
                        operations: VolumePublishOperations = .init(), consent: Bool = false) throws -> URL {

@@ -179,7 +179,7 @@ nonisolated final class ArchiveSplitSaveAsTests: XCTestCase {
                 encryptionCheckbox: NSButton(checkboxWithTitle: String(localized: "暗号化", bundle: bundle), target: nil, action: nil),
                 passwordFields: fields, encryptionNote: ArchiveSavePanel.makeNote("", width: fields.width),
                 splitControls: controls, bundle: bundle)
-            ArchivePasswordLayout.size(accessory)
+            ArchiveAccessoryLayout.size(accessory)
             try UISnapshot.render(accessory, name: "save-split-" + language)
             XCTAssertTrue(UISnapshot.overflowViolations(in: accessory).isEmpty, language)
         }

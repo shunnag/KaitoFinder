@@ -7,7 +7,7 @@ class ArchiveDocumentController: NSDocumentController {
     var volumeMetadataStore = ArchiveVolumeMetadataStore.shared
     var volumeRecoveryError: (ArchiveVolumeOpenRecovery) -> NSError = { ArchiveVolumeOpenError(recovery: $0).presentedError }
     nonisolated static let splitVolumeType = "com.shunnag.KaitoFinder.split-volume"
-    var openingRevealDelay = ExtractionProgressSheet.revealDelay
+    var openingRevealDelay = ArchiveProgressTiming.revealDelay
     #if DEBUG
     var preopenWillStart: (@Sendable () async throws -> Void)?
     var preopenDidFinish: ((ArchiveDocument.PreopenedArchive) throws -> Void)?

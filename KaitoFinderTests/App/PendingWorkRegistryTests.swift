@@ -207,7 +207,6 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         XCTAssertTrue(try Self.entries(in: file).isEmpty)
     }
 
-    // 旧名: ArchiveEditTests
     @MainActor func testPendingRegistryTracksDocumentAppendUntilSuccessOrCancellation() async throws {
         for cancel in [false, true] {
             let fixture = try ScenarioFixture(), source = try fixture.file("appended.txt")
@@ -247,7 +246,6 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveEditTests
     @MainActor func testPendingRegistryTracksPublicationUntilSuccessOrFailure() async throws {
         enum Failure: Error { case injected }
         for fail in [false, true] {
@@ -291,7 +289,6 @@ nonisolated final class PendingWorkRegistryTests: XCTestCase {
         }
     }
 
-    // 旧名: ArchiveEditTests
     func testRegistryWriteFailureDoesNotPreventPublication() throws {
         let fixture = try ScenarioFixture(), source = try fixture.file("added.txt")
         let blocker = try fixture.file("registry-parent")

@@ -6,7 +6,6 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class DeferredSaveStagingTests: XCTestCase {
-    // 旧名: DeferredSaveStagingCorrectionTests
     private func aclText(_ url: URL) throws -> String {
         guard let acl = acl_get_link_np(url.path, ACL_TYPE_EXTENDED) else {
             let code = errno

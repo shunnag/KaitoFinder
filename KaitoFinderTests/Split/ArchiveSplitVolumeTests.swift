@@ -370,7 +370,6 @@ nonisolated final class ArchiveSplitVolumeTests: XCTestCase {
         }
     }
 
-    // 旧名: M6bReviewTests
     @MainActor func testSplitDiscoveryFailureUsesOpenWordingAndPreservesErrno() throws {
         let fixture = try ArchiveTestDirectory(), parent = fixture.url.appendingPathComponent("blocked")
         try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
