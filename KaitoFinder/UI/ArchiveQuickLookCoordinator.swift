@@ -12,19 +12,22 @@ import QuickLookUI
     private let controller: () -> AnyObject?
     private let canPreview: () -> Bool
     private let didBecomeKey: () -> Void
+    private let forwardKey: (NSEvent) -> Bool
     private var materialization: ArchiveMaterializationController? { materializationController() }
 
     init(materialization: @escaping () -> ArchiveMaterializationController?,
          previewItems: @escaping () -> [ArchivePreviewItem],
          selection: @escaping () -> [ArchivePreviewItem]?,
          controller: @escaping () -> AnyObject?,
-         canPreview: @escaping () -> Bool, didBecomeKey: @escaping () -> Void) {
+         canPreview: @escaping () -> Bool, didBecomeKey: @escaping () -> Void,
+         forwardKey: @escaping (NSEvent) -> Bool) {
         materializationController = materialization
         self.previewItems = previewItems
         readableSelection = selection
         self.controller = controller
         self.canPreview = canPreview
         self.didBecomeKey = didBecomeKey
+        self.forwardKey = forwardKey
         super.init()
     }
 
@@ -145,6 +148,13 @@ import QuickLookUI
 
     func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
         if event.type == .keyDown, event.charactersIgnoringModifiers == " " { closePreview(); return true }
+        if event.type == .keyDown,
+           event.charactersIgnoringModifiers == "\u{f700}" || event.charactersIgnoringModifiers == "\u{f701}",
+           event.modifierFlags.intersection([.command, .shift, .option, .control]).isEmpty {
+            // 単一選択では panel が矢印を飲み込むので、Finder と同じく一覧へ渡して選択を動かす。
+            // 複数選択は panel 内の項目移動のまま。
+            return forwardKey(event)
+        }
         return false
     }
 }
