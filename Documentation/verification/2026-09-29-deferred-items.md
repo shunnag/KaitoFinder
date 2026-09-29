@@ -25,6 +25,8 @@
 |---|---|---|
 | KF-A F14 (b) `ResizeTransition` | 保存 panel の XPC sheet の animation は目視でしか検証できず、struct 化の利得が検証費用に釣り合わない | Fable・Codex 一致 |
 | KF-T F14 stage 2 `interface(...)` の共通化 | 各 file の 5〜7 行の helper は読みやすさを保っており、options struct の抽象を足す利得が小さい。stage 1 で teardown の不揃いは直っている | 一致 |
+| design.md 「ソースの配置」の見出しの日付と「基本とし」の語 | 日付は配置規則を決めた時点の記録、依存方向は例外を許す基準として書いた意図どおり | Fable |
+| Quick Look coordinator の GUI 確認 | test は controller を直接叩く。実運用の経路（panel の delegate）は `Tools/verify_ui_integration.py` / `verify_finder_interactions.py` で利用者が確認する | Fable |
 
 ## 検証
 
