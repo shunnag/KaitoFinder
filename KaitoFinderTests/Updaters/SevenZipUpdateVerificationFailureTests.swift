@@ -82,6 +82,9 @@ nonisolated final class SevenZipUpdateVerificationFailureTests: XCTestCase {
             XCTAssertThrowsError(try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                 try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({ throw UpdaterRouteError.requiresRewrite(reason: "commit") }) {
                     try ArchiveImportTransaction.publish(archive: archive, mode: .update(.sevenZip), options: .init(), progress: Progress(),
+                        ledger: .forTesting(plan: .init(counted: 0,
+                            additions: [], itemCount: 0,
+                            carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                         willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.sevenZip))) { _ in
                             mutations.increment()
                             if !duringCommit { throw UpdaterRouteError.requiresRewrite(reason: "mutate") }
@@ -97,12 +100,18 @@ nonisolated final class SevenZipUpdateVerificationFailureTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.make(directory.url)
         let entries = try SevenZipUpdateFixture.reader(archive).entries, progress = Progress(totalUnitCount: 1)
         try ArchiveImportTransaction.publish(archive: archive, mode: .update(.sevenZip), options: .init(), progress: progress,
+            ledger: .forTesting(progress: progress, plan: .init(counted: 0,
+                additions: [], itemCount: 0,
+                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
             commitProgress: { _ in XCTFail("7z must use its own meter") },
             willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.sevenZip))) { _ in }
         XCTAssertEqual(progress.totalUnitCount, 1001); XCTAssertEqual(progress.completedUnitCount, 1001)
         let original = try Data(contentsOf: archive), cancelled = Progress(totalUnitCount: 1)
         XCTAssertThrowsError(try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({ cancelled.cancel() }) {
             try ArchiveImportTransaction.publish(archive: archive, mode: .update(.sevenZip), options: .init(), progress: cancelled,
+                ledger: .forTesting(progress: cancelled, plan: .init(counted: 0,
+                    additions: [], itemCount: 0,
+                    carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                 willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.sevenZip))) { _ in }
         }) { XCTAssertTrue($0 is CancellationError) }
         XCTAssertEqual(try Data(contentsOf: archive), original)

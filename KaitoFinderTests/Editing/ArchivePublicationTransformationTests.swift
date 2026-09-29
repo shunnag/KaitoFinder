@@ -163,7 +163,10 @@ nonisolated final class ArchivePublicationTransformationTests: XCTestCase {
             """#, suffix: "tar")
             let entries = try ArchiveReader.open(url: fixture.archive).entries
             try ArchiveImportTransaction.publish(archive: fixture.archive, mode: .rewrite(format), options: .init(),
-                progress: Progress(), willPublish: nil, expectedOutput: .init(projected: entries, mode: .rewrite(format))) { _ in }
+                progress: Progress(),
+                ledger: .forTesting(plan: .init(counted: 0,
+                    additions: [], itemCount: 0,
+                    carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)), willPublish: nil, expectedOutput: .init(projected: entries, mode: .rewrite(format))) { _ in }
             let reader = try ArchiveReader.open(url: fixture.archive)
             let hard = try XCTUnwrap(reader.entries.first { $0.name == "hard" })
             XCTAssertEqual(hard.kind, format == .tar ? .hardlink : .file)

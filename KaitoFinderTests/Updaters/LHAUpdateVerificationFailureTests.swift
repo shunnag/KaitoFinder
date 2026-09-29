@@ -51,6 +51,9 @@ nonisolated final class LHAUpdateVerificationFailureTests: XCTestCase {
             XCTAssertThrowsError(try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                 try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({ throw UpdaterRouteError.requiresRewrite(reason: "commit") }) {
                     try ArchiveImportTransaction.publish(archive: archive, mode: .update(.lha), options: .init(), progress: Progress(),
+                        ledger: .forTesting(plan: .init(counted: 0,
+                            additions: [], itemCount: 0,
+                            carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                         willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.lha))) { _ in
                             mutations.increment()
                             if !duringCommit { throw UpdaterRouteError.requiresRewrite(reason: "mutate") }
@@ -66,11 +69,17 @@ nonisolated final class LHAUpdateVerificationFailureTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), archive = try LHAUpdateFixture.make(directory.url)
         let entries = try ArchiveReader.open(url: archive).entries, progress = Progress(totalUnitCount: 1)
         try ArchiveImportTransaction.publish(archive: archive, mode: .update(.lha), options: .init(), progress: progress,
+            ledger: .forTesting(progress: progress, plan: .init(counted: 0,
+                additions: [], itemCount: 0,
+                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
             willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.lha))) { _ in }
         XCTAssertEqual(progress.totalUnitCount, 1001); XCTAssertEqual(progress.completedUnitCount, 1001)
         let original = try Data(contentsOf: archive)
         XCTAssertThrowsError(try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({ progress.cancel() }) {
             try ArchiveImportTransaction.publish(archive: archive, mode: .update(.lha), options: .init(), progress: progress,
+                ledger: .forTesting(progress: progress, plan: .init(counted: 0,
+                    additions: [], itemCount: 0,
+                    carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                 willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.lha))) { _ in }
         }) { XCTAssertTrue($0 is CancellationError) }
         XCTAssertEqual(try Data(contentsOf: archive), original)

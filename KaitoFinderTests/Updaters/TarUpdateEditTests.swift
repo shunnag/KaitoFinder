@@ -158,6 +158,11 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
                 let plan = try ArchiveSaveReplayPlan(base: entries, generation: 0, pending: pending, format: .tar)
                 let openings = ArchiveTestCounter(), mutations = ArchiveTestCounter(), fallbacks = ArchiveTestCounter()
                 let stages = Mutex<[ArchiveStageDiagnostics.Stage]>([]), progress = Progress(totalUnitCount: 2)
+                let counted = plan.edits.removals.count + plan.edits.renames.count + plan.folders.count
+                let ledger = ArchiveWriteProgress.forTesting(progress: progress, plan: .init(counted: counted,
+                    additions: plan.additions.map { $0.sourceStamp.kind == .file ? $0.stagedStamp.size : 0 },
+                    itemCount: counted + plan.additions.count, carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected),
+                    changesExisting: !plan.edits.removals.isEmpty || !plan.edits.renames.isEmpty || plan.outputEncryption != nil))
                 try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                     try ArchiveStageDiagnostics.observer.withValue({ event in
                         if case .began(_, let stage) = event { stages.withLock { $0.append(stage) } }
@@ -166,9 +171,10 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
                             try TarUpdateFixture.assertWork(work, archive: archive, original: original, identity: identity)
                         }) {
                             try ArchiveImportTransaction.publish(archive: archive, mode: .update(.tar), options: .init(), progress: progress,
+                                ledger: ledger,
                                 willOpenUpdater: { openings.increment() }, willPublish: nil, deferredPlan: deferred ? plan : nil,
                                 expectedOutput: .init(plan: plan, mode: .update(.tar))) { editor in
-                                    mutations.increment(); try plan.replay(on: editor, progress: progress)
+                                    mutations.increment(); try plan.replay(on: editor, progress: progress, ledger: ledger)
                                 }
                         }
                     }
@@ -177,8 +183,11 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
                 XCTAssertEqual(stages.withLock { $0.filter { $0 == .updaterOpen || $0 == .rewriterOpen } }, [.updaterOpen, .rewriterOpen])
                 XCTAssertEqual(stages.withLock { $0.filter { $0 == .mutate || $0 == .replay } }, [deferred ? .replay : .mutate])
                 let reader = try ArchiveReader.open(url: archive)
-                XCTAssertEqual(progress.totalUnitCount, Int64(entries.count + 2))
-                XCTAssertEqual(progress.completedUnitCount, Int64(reader.entries.count + 2))
+                let carriedBytes = ArchiveWriteProgress.carriedBytes(plan.projected)
+                let pendingBytes = min(carriedBytes, WriterOptions().maximumPendingInputBytes(for: .tar))
+                let expectedUnits = Int64(counted + 1) + Int64(max(1_000, carriedBytes + pendingBytes))
+                XCTAssertEqual(progress.totalUnitCount, expectedUnits)
+                XCTAssertEqual(progress.completedUnitCount, expectedUnits)
                 try ArchiveOutputProjection(plan: plan, mode: .rewrite(.tar)).validate(reader)
                 XCTAssertTrue(ArchiveCapabilities.inspect(reader: reader, url: archive).canEdit)
             }
@@ -229,6 +238,9 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
                     throw TarUpdaterError.requiresRewrite(reason: "commit must not fall back")
                 }) {
                     try ArchiveImportTransaction.publish(archive: archive, mode: .update(.tar), options: .init(), progress: Progress(),
+                        ledger: .forTesting(plan: .init(counted: 0,
+                            additions: [], itemCount: 0,
+                            carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                         willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.tar))) { _ in
                             calls.increment()
                             if !duringCommit { throw TarUpdaterError.requiresRewrite(reason: "mutate must not fall back") }
@@ -244,11 +256,17 @@ nonisolated final class TarUpdateEditTests: XCTestCase {
         let directory = try ArchiveTestDirectory(), archive = try TarUpdateFixture.archive(directory.url)
         let entries = try ArchiveReader.open(url: archive).entries, progress = Progress(totalUnitCount: 1)
         try ArchiveImportTransaction.publish(archive: archive, mode: .update(.tar), options: .init(), progress: progress,
+            ledger: .forTesting(progress: progress, plan: .init(counted: 0,
+                additions: [], itemCount: 0,
+                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
             willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.tar))) { _ in }
         XCTAssertEqual(progress.totalUnitCount, 1001); XCTAssertEqual(progress.completedUnitCount, 1001)
         let original = try Data(contentsOf: archive)
         XCTAssertThrowsError(try ArchiveImportTransaction.willCommitUpdaterForTesting.withValue({ progress.cancel() }) {
             try ArchiveImportTransaction.publish(archive: archive, mode: .update(.tar), options: .init(), progress: progress,
+                ledger: .forTesting(progress: progress, plan: .init(counted: 0,
+                    additions: [], itemCount: 0,
+                    carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                 willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(.tar))) { _ in }
         }) { XCTAssertTrue($0 is CancellationError) }
         XCTAssertEqual(try Data(contentsOf: archive), original)

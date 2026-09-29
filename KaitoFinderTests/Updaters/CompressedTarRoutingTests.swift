@@ -75,12 +75,18 @@ nonisolated final class CompressedTarRoutingTests: XCTestCase {
             let entries = try ArchiveReader.open(url: archive).entries
             let openings = ArchiveTestCounter(), mutations = ArchiveTestCounter(), fallbacks = ArchiveTestCounter()
             XCTAssertThrowsError(try ArchiveImportTransaction.publish(archive: archive, mode: .update(format), options: .init(), progress: Progress(),
+                ledger: .forTesting(plan: .init(counted: 0,
+                    additions: [], itemCount: 0,
+                    carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                 willPublish: nil, expectedOutput: .init(existing: entries, mode: .update(format))) { _ in mutations.increment() }) {
                 XCTAssertEqual($0 as? ArchiveEditError, .staleSelection)
             }
             XCTAssertEqual(mutations.value, 0)
             try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallbacks.increment() }) {
                 try ArchiveImportTransaction.publish(archive: archive, mode: .update(format), options: .init(), progress: Progress(),
+                    ledger: .forTesting(plan: .init(counted: 0,
+                        additions: [], itemCount: 0,
+                        carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)),
                     willOpenUpdater: { openings.increment() }, willPublish: nil, sessionReader: ArchiveReader.open(url: archive),
                     expectedOutput: .init(existing: entries, mode: .update(format))) { _ in mutations.increment() }
             }
