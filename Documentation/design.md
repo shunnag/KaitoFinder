@@ -156,6 +156,8 @@ fd 系（`RecoverableWorkIndex`・`ArchiveVolumeMetadataStore`）は `VolumePubl
 
 試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置く。一つの型に hook が多いときは
 `+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。
+`ArchiveSession.willProbeEncryptedHeadersForTesting` は 7z の header 暗号化プローブに error を差し込む。プローブの失敗は
+開くときは open の失敗、公開後の再読込では公開前に決めた出力方針の維持として扱う。
 
 `KaitoFinderTests/` も同じ考えで分ける。機能ごとの `App`・`Extraction`・`Editing`・`Updaters`・`DeferredSave`・`Split`・
 `Password`・`UI` に test class を置き、file 名と class 名を一致させる。環境変数で有効にする計測と書き出しの harness は

@@ -303,6 +303,9 @@ nonisolated struct VolumePublishTransaction: Sendable {
                 }
             }
             try validation?(reader)
+        } catch is CancellationError where directory.url != parent.url {
+            // 公開前の取消しは再 hash や保存失敗への変換をせず、そのまま返す。
+            throw CancellationError()
         } catch {
             // reader の失敗は byte の破損と別。hash が一致する新セットを後退させない。
             try validateHashes(in: directory, inodes: inodes)
