@@ -9,6 +9,7 @@ actor ArchiveSession {
     nonisolated static let nameIndexChangeForTesting = TaskLocal<(@Sendable (ArchiveNameIndexChange) -> ArchiveNameIndexChange)?>(wrappedValue: nil)
     nonisolated static let readerAdoptionObserverForTesting = TaskLocal<(@Sendable (ArchiveReaderAdoption) -> Void)?>(wrappedValue: nil)
     nonisolated static let willAdoptReaderForTesting = TaskLocal<(@Sendable (ArchiveVerifiedOutput) -> Void)?>(wrappedValue: nil)
+    nonisolated static let willProbeEncryptedHeadersForTesting = TaskLocal<(@Sendable () throws -> Void)?>(wrappedValue: nil)
     private var promiseSourceForTesting: (any ByteSource)?
     func setPromiseSourceForTesting(_ source: any ByteSource) { promiseSourceForTesting = source }
     #endif
@@ -135,7 +136,7 @@ actor ArchiveSession {
             splitLayout: layout, allowsSplitSave: allowsSplitSave, allowsImmediateSplitSave: allowsImmediateSplitSave, mixedVolumes: metadata.mixed))
         encryptionStorage = Mutex(EncryptionState(hasEncryptedEntries: reader.entries.contains(where: \.isEncrypted),
                                                   hasKnownPassword: password != nil))
-        encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: url, format: reader.format, password: password)
+        encryptsSevenZipHeaders = try Self.hasEncryptedHeaders(url: url, format: reader.format, password: password)
         guard try Self.currentIdentity(url: url, layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
     }
 
@@ -579,7 +580,8 @@ actor ArchiveSession {
 
     /// 証明済みの rollback もフォルダの移動も、entry と予約の世代は変えない。
     private func reanchorSplitReader(at url: URL, layout: ArchiveVolumeLayout, identity: ArchiveSetIdentity) throws {
-        let replacement = try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+        // 証明済みの rollback を、呼び出し Task の取消しだけで回復待ちに変えない。
+        let replacement = try ArchiveVerifiedOutput.openAfterPublication(url: url, options: .kaitoFinder(password: password))
         let assembled = try replacement.volumeSet.map { ArchiveSetIdentity(volumeSet: $0) } ?? ArchiveSetIdentity.capture(url: url)
         guard assembled.volumes == identity.volumes,
               try ArchiveSetIdentity.capture(layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
@@ -870,16 +872,18 @@ actor ArchiveSession {
 
     // KaitoKit の公開 entry metadata は header の暗号化を含まない。
     // パスワードなしで一覧を読めるかを調べ、既存の名前の保護を編集でも維持する。
-    private static func hasEncryptedHeaders(url: URL, format: KaitoKit.ArchiveFormat, password: String?, afterPublication: Bool = false) -> Bool {
+    private static func hasEncryptedHeaders(url: URL, format: KaitoKit.ArchiveFormat, password: String?, afterPublication: Bool = false) throws -> Bool {
         guard format == .sevenZip, password != nil else { return false }
         do {
+            #if DEBUG
+            try willProbeEncryptedHeadersForTesting.get()?()
+            #endif
             if afterPublication { _ = try ArchiveVerifiedOutput.openAfterPublication(url: url, options: .kaitoFinder()) }
             else { _ = try ArchiveReader.open(url: url, options: .kaitoFinder()) }
             return false
         }
         catch KaitoError.passwordRequired { return true }
         catch KaitoError.wrongPassword { return true }
-        catch { return false }
     }
 
     // MARK: - 変更後の再読込と取り消しの復元
@@ -934,7 +938,8 @@ actor ArchiveSession {
         encryptionStorage.withLock {
             $0 = EncryptionState(hasEncryptedEntries: replacement.entries.contains(where: \.isEncrypted), hasKnownPassword: password != nil)
         }
-        encryptsSevenZipHeaders = Self.hasEncryptedHeaders(url: sourceURL, format: replacement.format, password: password, afterPublication: true)
+        // プローブ不能は暗号化なしの証拠ではない。公開前に決めた出力方針を維持する。
+        encryptsSevenZipHeaders = (try? Self.hasEncryptedHeaders(url: sourceURL, format: replacement.format, password: password, afterPublication: true)) ?? encryptsSevenZipHeaders
         if let verification, password != nil, verification.matches(identity) {
             // 自前の公開は CRC/HMAC 検証済みの本文を保持するか、既知の鍵で新規作成する。
             // 公開した inode・長さ・mtime が一致する場合だけ、新しい index に検証結果を継ぐ。
