@@ -66,19 +66,10 @@ nonisolated enum ArchiveReservationComputation {
         let target = folder.isEmpty ? "" : try ArchiveImportPlan.path(folder, format: state.format)
         _ = try ArchiveImportPlan.build(urls: [], folder: target, existing: projection.planningEntries,
                                        progress: progress, format: state.format, occupancy: state.occupancy)
-        var moving: [ArchiveEditSelection] = [], candidates: [ArchiveConflictResolution.Candidate] = []
-        for selection in selections {
-            let mapped = try projection.selection(selection)
-            let source = try ArchiveImportPlan.path(selection.path, format: state.format)
-            if ArchivePath.components(source).dropLast().joined(separator: "/") == target { continue }
-            if selection.isDirectory, target == source || ArchivePath.isDescendant(target, of: source) {
-                throw ArchiveEditError.destinationInsideSource(source)
-            }
-            let leaf = ArchivePath.components(source).last!
-            let destination = target.isEmpty ? leaf : target + "/" + leaf
-            moving.append(mapped)
-            candidates.append(.init(path: destination, info: try conflictItem(selection.entries, path: source, state: state, archive: archive)))
-        }
+        let (moving, candidates) = try ArchiveMovePlanning.build(selections, target: target, format: state.format,
+            mapSelection: projection.selection, info: { selection, source in
+                try conflictItem(selection.entries, path: source, state: state, archive: archive)
+            })
         let resolution = try await ArchiveConflictResolution.resolve(candidates,
             existing: ArchiveConflictResolution.existingGroups(projection.planningEntries, folder: target, matching: Set(candidates.map(\.path))),
             archive: archive, generation: generation, progress: progress,

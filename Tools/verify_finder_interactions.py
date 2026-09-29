@@ -41,7 +41,8 @@ def main():
 
     suites = ['ArchiveFinderInteractionTests']
     if not args.focused:
-        suites += ['ArchiveEntryControlsTests', 'ArchivePreferencesTests', 'ArchivePreferencesUITests',
+        suites += ['ArchiveEntryControlsTests', 'ArchiveEntryDeleteTests', 'ArchiveEntryRenameTests',
+                   'ArchiveEntryMoveDragTests', 'ArchivePreferencesTests', 'ArchivePreferencesUITests',
                    'ApplicationCommandIntegrationTests', 'ArchiveDropIntegrationTests', 'ArchiveTabSpringLoadingTests',
                    'ArchivePreviewSidebarTests', 'LayoutOverflowTests', 'QuickLookOpenTests']
     command = ['xcodebuild', 'test-without-building', '-xctestrun', str(path), '-destination', 'platform=macOS,arch=arm64',

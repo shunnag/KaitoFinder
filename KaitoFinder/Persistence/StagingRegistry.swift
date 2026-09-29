@@ -12,11 +12,13 @@ nonisolated final class StagingRegistry: Sendable {
     private static let defaultRegistry = StagingRegistry(root: FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("KaitoFinder/Staging", isDirectory: true))
+    // 同じ台帳を開く別インスタンスも、読み込みから atomic 保存まで直列化する。
+    // Mutex はプロセス内、flock は別のアプリプロセスとの更新競合を防ぐ。
     private static let lock = Mutex(())
     /// 退避物の複製で一度に読み書きする長さ。
     static let copyBufferSize = 256 << 10
     let root: URL
-    private let fileURL: URL
+    private let ledger: LockedJSONFile<Entry>
     private struct Entry: Codable {
         let path: String
         let device: Int64
@@ -26,7 +28,8 @@ nonisolated final class StagingRegistry: Sendable {
 
     init(root: URL, fileURL: URL? = nil) {
         self.root = root
-        self.fileURL = fileURL ?? root.deletingLastPathComponent().appendingPathComponent("staging.json")
+        ledger = LockedJSONFile(fileURL: fileURL ?? root.deletingLastPathComponent().appendingPathComponent("staging.json"),
+                                corruptPolicy: .fail)
     }
 
     struct Temporary: Sendable {
@@ -113,7 +116,7 @@ nonisolated final class StagingRegistry: Sendable {
     }
 
     func create(id: UUID) throws -> Lease {
-        try exclusive {
+        try ledger.withExclusiveAccess(mutex: Self.lock) {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true,
                                                    attributes: [.posixPermissions: 0o700])
             let directory = root.appendingPathComponent(id.uuidString, isDirectory: true)
@@ -127,9 +130,9 @@ nonisolated final class StagingRegistry: Sendable {
                 guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { throw ExtractionFailure.system(errno) }
                 var info = stat()
                 guard lstat(directory.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
-                var entries = try read()
+                var entries = try ledger.read()
                 entries.append(Entry(path: directory.path, device: Int64(info.st_dev), inode: info.st_ino))
-                try save(entries)
+                try ledger.save(entries)
                 return lease
             } catch {
                 try? Self.removeSnapshot(directory)
@@ -140,14 +143,14 @@ nonisolated final class StagingRegistry: Sendable {
 
     private func retire(_ directory: URL) -> URL? {
         do {
-            return try exclusive {
-                var entries = try read()
+            return try ledger.withExclusiveAccess(mutex: Self.lock) {
+                var entries = try ledger.read()
                 guard let record = entries.first(where: { $0.path == directory.path }) else { return nil }
                 var info = stat()
                 if lstat(directory.path, &info) != 0 {
                     guard errno == ENOENT else { throw ExtractionFailure.system(errno) }
                     entries.removeAll { $0.path == directory.path }
-                    try save(entries)
+                    try ledger.save(entries)
                     return nil
                 }
                 guard Int64(info.st_dev) == record.device, info.st_ino == record.inode,
@@ -155,10 +158,10 @@ nonisolated final class StagingRegistry: Sendable {
                 let tombstone = root.appendingPathComponent(WorkAreaName.deleted + UUID().uuidString, isDirectory: true)
                 // rename の前に記録し、途中終了でも削除許可済みの領域だけを回収する。
                 entries.append(Entry(path: tombstone.path, device: record.device, inode: record.inode, discardable: true))
-                try save(entries)
+                try ledger.save(entries)
                 guard rename(directory.path, tombstone.path) == 0 else { throw ExtractionFailure.system(errno) }
                 entries.removeAll { $0.path == directory.path }
-                try save(entries)
+                try ledger.save(entries)
                 return tombstone
             }
         } catch {
@@ -170,10 +173,10 @@ nonisolated final class StagingRegistry: Sendable {
     private func deleteRetired(_ directory: URL) {
         do {
             try Self.removeSnapshot(directory)
-            try exclusive {
-                var entries = try read()
+            try ledger.withExclusiveAccess(mutex: Self.lock) {
+                var entries = try ledger.read()
                 entries.removeAll { $0.path == directory.path && $0.discardable == true }
-                try save(entries)
+                try ledger.save(entries)
             }
         } catch { NSLog("保存前の退避領域を削除できません: %@", String(describing: error)) }
     }
@@ -184,9 +187,9 @@ nonisolated final class StagingRegistry: Sendable {
         try FileManager.default.trashItem(at: directory, resultingItemURL: &result)
         return result as URL? ?? directory
     }) throws -> [URL] {
-        let result = try exclusive {
+        let result = try ledger.withExclusiveAccess(mutex: Self.lock) {
             var retained: [Entry] = [], recovered: [URL] = [], discarded: [URL] = []
-            for entry in try read() {
+            for entry in try ledger.read() {
                 let directory = URL(fileURLWithPath: entry.path)
                 guard directory.deletingLastPathComponent().standardizedFileURL.path == root.standardizedFileURL.path,
                       UUID(uuidString: directory.lastPathComponent) != nil ||
@@ -217,32 +220,10 @@ nonisolated final class StagingRegistry: Sendable {
                     catch { retained.append(entry) }
                 }
             }
-            try save(retained)
+            try ledger.save(retained)
             return (recovered, discarded)
         }
         for directory in result.1 { deleteRetired(directory) }
         return result.0
-    }
-
-    private func exclusive<T>(_ body: () throws -> T) throws -> T {
-        try Self.lock.withLock { _ in
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let descriptor = open(fileURL.appendingPathExtension("lock").path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
-            guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
-            defer { close(descriptor) }
-            while flock(descriptor, LOCK_EX) != 0 {
-                if errno != EINTR { throw ExtractionFailure.system(errno) }
-            }
-            defer { _ = flock(descriptor, LOCK_UN) }
-            return try body()
-        }
-    }
-
-    private func read() throws -> [Entry] {
-        do { return try JSONDecoder().decode([Entry].self, from: Data(contentsOf: fileURL)) }
-        catch CocoaError.fileReadNoSuchFile { return [] }
-    }
-    private func save(_ entries: [Entry]) throws {
-        try JSONEncoder().encode(entries).write(to: fileURL, options: .atomic)
     }
 }

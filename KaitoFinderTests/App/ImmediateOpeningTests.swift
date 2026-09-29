@@ -5,18 +5,15 @@ import Synchronization
 import XCTest
 @testable import KaitoFinder
 
+/// ArchiveDocument・ArchiveWindowController の即時表示と名前索引の準備を確かめる 12 テスト。
+/// DeferredSaveFixture・ScenarioGate を使い、表示行・読み込み表示・世代と占有表の整合を観測する。
 nonisolated final class ImmediateOpeningTests: XCTestCase {
     @MainActor private func controller(_ document: ArchiveDocument) throws -> ArchiveWindowController {
         try XCTUnwrap(document.windowControllers.first as? ArchiveWindowController)
     }
 
-    @MainActor private func node(_ path: String, in controller: ArchiveWindowController) throws -> EntryNode {
-        let view = controller.outlineView
-        return try XCTUnwrap((0..<view.numberOfRows).compactMap { view.item(atRow: $0) as? EntryNode }.first { $0.path == path })
-    }
-
     @MainActor private func validateRename(in controller: ArchiveWindowController, indexed: Bool) throws {
-        let selected = try node("a.txt", in: controller), view = controller.outlineView
+        let selected = try controller.displayedNode("a.txt"), view = controller.outlineView
         view.selectRowIndexes(IndexSet(integer: view.row(forItem: selected)), byExtendingSelection: false)
         controller.renameEntry(nil)
         defer { view.cancelRenaming() }
@@ -36,7 +33,7 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
             if event == .renameIndex { gate.pauseOnce() }
         }) { document.makeWindowControllers() }
         try await scenarioWait { gate.isEntered }
-        let controller = try controller(document), root = try XCTUnwrap(node("a.txt", in: controller).parent)
+        let controller = try controller(document), root = try XCTUnwrap(controller.displayedNode("a.txt").parent)
         XCTAssertEqual(controller.outlineView.numberOfRows, 3)
         XCTAssertNil(root.editOccupancy)
         XCTAssertNil(controller.renameOccupancy)
@@ -49,7 +46,7 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         XCTAssertNotNil(controller.renameOccupancy)
         XCTAssertLessThan(try XCTUnwrap(controller.treeDisplayedAt), try XCTUnwrap(controller.renameIndexReadyAt))
         XCTAssertNil(root.editOccupancy)
-        XCTAssertTrue(try node("a.txt", in: controller).parent === root)
+        XCTAssertTrue(try controller.displayedNode("a.txt").parent === root)
         try validateRename(in: controller, indexed: true)
         let observed = events.withLock { $0 }
         XCTAssertFalse(observed.contains { [.renameIndex, .renameIndexBuilt].contains($0.0) && $0.1 })
@@ -94,7 +91,7 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         controller.display(replacement, session: session, generation: session.generation)
         gate.release()
         await oldIndex.value
-        XCTAssertTrue(try node("replacement.txt", in: controller).parent === replacement)
+        XCTAssertTrue(try controller.displayedNode("replacement.txt").parent === replacement)
         XCTAssertFalse(controller.renameIndexIsReady)
         XCTAssertNil(controller.renameOccupancy)
     }
@@ -106,7 +103,7 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         document.makeWindowControllers()
         let controller = try controller(document)
         try await scenarioWait { controller.renameIndexIsReady }
-        let old = try node("a.txt", in: controller), session = try XCTUnwrap(document.session), generation = session.generation
+        let old = try controller.displayedNode("a.txt"), session = try XCTUnwrap(document.session), generation = session.generation
         let events = Mutex<[(ArchiveReservationDiagnostics.Event, UInt64, Bool)]>([])
         let builds = Mutex<[UInt64]>([]), droppedRenames = Mutex<[[Int: String]]>([])
         XCTAssertNotNil(session.nameIndex(generation: generation, format: session.reservationFormat))
@@ -136,17 +133,17 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         XCTAssertNil(session.nameIndex(generation: generation, format: session.reservationFormat))
         XCTAssertNil(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
         XCTAssertTrue(builds.withLock { $0.isEmpty })
-        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertTrue(try controller.displayedNode("a.txt") === old)
         XCTAssertNil(controller.renameOccupancy)
         XCTAssertFalse(controller.renameIndexIsReady)
         try await scenarioWait { controller.isListLoadingVisible }
-        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertTrue(try controller.displayedNode("a.txt") === old)
         treeGate.release()
         _ = try await edit.value
         try await scenarioWait { indexGate.isEntered }
         XCTAssertEqual(session.generation, postEditGeneration)
         XCTAssertNil(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
-        XCTAssertNotNil(try node("renamed.txt", in: controller))
+        XCTAssertNotNil(try controller.displayedNode("renamed.txt"))
         XCTAssertFalse(controller.isListLoadingVisible)
         XCTAssertFalse(controller.renameIndexIsReady)
         XCTAssertNil(controller.renameOccupancy)
@@ -175,7 +172,7 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         document.makeWindowControllers()
         let controller = try controller(document)
         try await scenarioWait { controller.renameIndexIsReady }
-        let old = try node("a.txt", in: controller), session = try XCTUnwrap(document.session), generation = session.generation
+        let old = try controller.displayedNode("a.txt"), session = try XCTUnwrap(document.session), generation = session.generation
         let previous = try XCTUnwrap(controller.renameOccupancy)
         XCTAssertTrue(previous.collides("a.txt", directory: false))
         XCTAssertFalse(previous.collides("renamed.txt", directory: false))
@@ -205,17 +202,17 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         let advanced = try XCTUnwrap(session.nameIndex(generation: postEditGeneration, format: session.reservationFormat))
         XCTAssertTrue(advanced.overlay.collides("renamed.txt", directory: false))
         XCTAssertFalse(advanced.overlay.collides("a.txt", directory: false))
-        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertTrue(try controller.displayedNode("a.txt") === old)
         XCTAssertNil(controller.renameOccupancy)
         XCTAssertFalse(controller.renameIndexIsReady)
         try await scenarioWait { checkReadyOccupancy(); return controller.isListLoadingVisible }
-        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertTrue(try controller.displayedNode("a.txt") === old)
         treeGate.release()
         _ = try await edit.value
         checkReadyOccupancy()
         try await scenarioWait { checkReadyOccupancy(); return controller.renameIndexIsReady }
         XCTAssertEqual(session.generation, postEditGeneration)
-        XCTAssertNotNil(try node("renamed.txt", in: controller))
+        XCTAssertNotNil(try controller.displayedNode("renamed.txt"))
         XCTAssertFalse(controller.isListLoadingVisible)
         XCTAssertTrue(controller.renameIndexIsReady)
         checkReadyOccupancy()
@@ -296,18 +293,18 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
         document.makeWindowControllers()
         let controller = try controller(document), session = try XCTUnwrap(document.session)
         try await scenarioWait { controller.renameIndexIsReady }
-        let old = try node("a.txt", in: controller)
+        let old = try controller.displayedNode("a.txt")
         let blockedReload = Task { try await session.reloadAfterMutation(willOpen: { gate.pauseOnce() }) }
         try await scenarioWait { gate.isEntered }
         let reload = Task { try await document.reloadAfterMutation() }
         try await scenarioWait { controller.isListLoadingVisible }
-        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertTrue(try controller.displayedNode("a.txt") === old)
         try FileManager.default.removeItem(at: fixture.archive)
         gate.release()
         _ = await blockedReload.result
         do { try await reload.value; XCTFail("Reload unexpectedly succeeded") } catch { }
         XCTAssertFalse(controller.isListLoadingVisible)
-        XCTAssertTrue(try node("a.txt", in: controller) === old)
+        XCTAssertTrue(try controller.displayedNode("a.txt") === old)
         XCTAssertNil(controller.renameOccupancy)
     }
 
@@ -319,7 +316,7 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
             let controller = try controller(document)
             try await scenarioWait { controller.outlineView.numberOfRows == 3 }
             _ = try await document.projectedEntries()
-            let old = try node("a.txt", in: controller)
+            let old = try controller.displayedNode("a.txt")
             let replacement = fixture.directory.url.appendingPathComponent("replacement.zip")
             let writer = try ArchiveWriter.create(url: replacement, format: .zip)
             try writer.add(data: Data([42]), as: "external.txt")
@@ -335,11 +332,11 @@ nonisolated final class ImmediateOpeningTests: XCTestCase {
             }
             try await scenarioWait { gate.isEntered }
             try await scenarioWait { controller.isListLoadingVisible }
-            XCTAssertTrue(try node("a.txt", in: controller) === old)
+            XCTAssertTrue(try controller.displayedNode("a.txt") === old)
             gate.release()
             try await revert.value
             try await scenarioWait { controller.outlineView.numberOfRows == 1 }
-            XCTAssertNotNil(try node("external.txt", in: controller))
+            XCTAssertNotNil(try controller.displayedNode("external.txt"))
             await document.waitForDeferredPreparationForTesting()
             XCTAssertNil(controller.listLoadingTokenForTesting)
             XCTAssertFalse(controller.isListLoadingVisible)

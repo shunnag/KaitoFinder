@@ -131,7 +131,7 @@ cooViewer 側の framework 経路は、その script のコメントどおり「
 | `Documents/` | `NSDocument` としての文書。開く前処理、undo manager、文書の後始末、アプリの `NSError` domain |
 | `Model/` | 層をまたぐ小さな道具。error の文言、進捗の取消し検査、背景での解放、`ExtractionFailure` |
 | `Model/Session/` | 「何が開いていて、まだ同じ byte か」。reader を抱える actor、capabilities、同一性、巻の配置、パスワード |
-| `Model/Editing/` | 「何が変わり、表現できるか」。保存時モードの変更集合、予約の検証、名前の索引と規則、undo の複製 |
+| `Model/Editing/` | 「何が変わり、表現できるか」。保存時モードの変更集合、予約の検証、名前の索引と規則、undo の複製、移動計画の一つの定義（`ArchiveMovePlanning`。即時 mode と保存前 mode が共有） |
 | `Model/Listing/` | 「利用者に何が見え、何が読めるか」。entry の木、名前の一致、読取可否、path の分割、形式名 |
 | `Model/Preferences/` | 設定の store と機器の値 |
 | `Diagnostics/` | 計測と試験の観測点。区間の時間、予約の event、DEBUG の計数。本番の判断には使わない |
@@ -139,7 +139,7 @@ cooViewer 側の framework 経路は、その script のコメントどおり「
 | `Creation/` | 新しい書庫の作成 |
 | `Extraction/` | 取り出し。展開先の生成、file promise、一括展開、並列展開、一時領域、隔離属性 |
 | `SplitVolumes/` | 分割書庫の公開部品。staging と journal、臨界区間、回復、巻の計画と分割、分割保存の pipeline と失敗 |
-| `Persistence/` | Application Support に残す台帳と vault。未完了の作業、回復索引、staging の台帳、巻の metadata、パスワード |
+| `Persistence/` | Application Support に残す台帳と vault。未完了の作業、回復索引、staging の台帳、巻の metadata、パスワード。台帳の排他と JSON の読み書きは `LockedJSONFile` |
 | `UI/` | AppKit。ウインドウとシート、outline、toolbar、履歴、書式、プレビュー、ようこそ画面 |
 
 依存の向きは `UI/`・`Documents/` → `Editing/`・`Extraction/`・`Creation/`・`SplitVolumes/` → `Model/`・`Persistence/` を基本とし、
@@ -150,7 +150,9 @@ directory 操作(`VolumePublishDirectory` / `VolumePublishFS`)を借りる。
 `Volume*` は呼出側に見える値型、`ArchiveVolume*` は文書から見た巻 set の model と metadata、
 `ArchiveSplit*` は文書向けの保存 pipeline と結果。二つの台帳は役割が違う:
 `PendingWorkRegistry` は Foundation の path で作業領域の名前だけを記録し、`RecoverableWorkIndex` は
-fd と巻の UUID で unmount 中の巻の手がかりを残す。
+fd と巻の UUID で unmount 中の巻の手がかりを残す。台帳の排他と JSON の読み書きは二つの helper に集める:
+path 系（`PendingWorkRegistry`・`StagingRegistry`）は `Persistence/LockedJSONFile`（`ExtractionFailure`、壊れた台帳の扱いは policy で指定）、
+fd 系（`RecoverableWorkIndex`・`ArchiveVolumeMetadataStore`）は `VolumePublishFS.withSupportLock`（`VolumePublishError`）。二つの系は error 型が違うので分けたまま。
 
 試験だけが使う継ぎ目は `…ForTesting` と `#if DEBUG` で本番の型に置く。一つの型に hook が多いときは
 `+Testing.swift` の extension に集める(例: `Editing/ArchiveImportTransaction+Testing.swift`)。

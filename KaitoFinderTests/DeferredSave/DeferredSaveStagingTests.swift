@@ -90,6 +90,16 @@ nonisolated final class DeferredSaveStagingTests: XCTestCase {
         XCTAssertTrue(try registry.sweep().isEmpty)
     }
 
+    func testCorruptStagingLedgerThrows() throws {
+        let directory = try ArchiveTestDirectory(), registry = StagingRegistry(root: directory.url.appendingPathComponent("Staging"))
+        let file = directory.url.appendingPathComponent("staging.json"), corrupt = Data("broken JSON".utf8)
+        try corrupt.write(to: file)
+        XCTAssertThrowsError(try registry.sweep()) { error in
+            XCTAssertTrue(error is DecodingError)
+        }
+        XCTAssertEqual(try Data(contentsOf: file), corrupt)
+    }
+
     func testMissingOwnerLockIsTrashedOnce() throws {
         let directory = try ArchiveTestDirectory(), registry = StagingRegistry(root: directory.url.appendingPathComponent("Staging"))
         var lease: StagingRegistry.Lease? = try registry.create(id: UUID())

@@ -27,39 +27,39 @@ nonisolated final class PendingWorkRegistry: Sendable {
     // 同じ台帳を開く別インスタンスも、読み込みから atomic 保存まで直列化する。
     // Mutex はプロセス内、flock は別のアプリプロセスとの更新競合を防ぐ。
     private static let lock = Mutex(())
-    private let fileURL: URL
+    private let ledger: LockedJSONFile<Entry>
 
-    init(fileURL: URL) { self.fileURL = fileURL }
+    init(fileURL: URL) { ledger = LockedJSONFile(fileURL: fileURL, corruptPolicy: .resetToEmpty) }
 
     func register(_ directory: URL) throws {
-        try withExclusiveAccess {
-            var entries = try read()
+        try ledger.withExclusiveAccess(mutex: Self.lock) {
+            var entries = try ledger.read()
             if !entries.contains(where: { $0.path == directory.path }) {
                 entries.append(Entry(path: directory.path, processID: getpid()))
             }
-            try save(entries)
+            try ledger.save(entries)
         }
     }
 
     func recordIdentity(_ directory: URL) throws {
-        try withExclusiveAccess {
+        try ledger.withExclusiveAccess(mutex: Self.lock) {
             var info = stat()
             guard lstat(directory.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
             guard info.isDirectory else { throw ExtractionFailure.system(ENOTDIR) }
-            var entries = try read()
+            var entries = try ledger.read()
             if let index = entries.firstIndex(where: { $0.path == directory.path }) {
                 entries[index].device = Int64(info.st_dev)
                 entries[index].inode = info.st_ino
             }
-            try save(entries)
+            try ledger.save(entries)
         }
     }
 
     func unregister(_ directory: URL) {
-        try? withExclusiveAccess {
-            var entries = try read()
+        try? ledger.withExclusiveAccess(mutex: Self.lock) {
+            var entries = try ledger.read()
             entries.removeAll { $0.path == directory.path }
-            try save(entries)
+            try ledger.save(entries)
         }
     }
 
@@ -79,8 +79,8 @@ nonisolated final class PendingWorkRegistry: Sendable {
     /// 所有プロセスが生きているものと、台帳の device / inode に一致しないものは残す。
     /// `WorkAreaName.volume`（分割公開の staging）はこの台帳に載らず、`RecoverableWorkIndex` と `VolumePublishRecovery` が回収する。
     func sweep() throws -> [URL] {
-        try withExclusiveAccess {
-            let entries = try read()
+        try ledger.withExclusiveAccess(mutex: Self.lock) {
+            let entries = try ledger.read()
             var removed: [URL] = []
             var retained: [Entry] = []
             for entry in entries {
@@ -112,7 +112,7 @@ nonisolated final class PendingWorkRegistry: Sendable {
                     retained.append(entry)
                 }
             }
-            try save(retained)
+            try ledger.save(retained)
             return removed
         }
     }
@@ -127,33 +127,5 @@ nonisolated final class PendingWorkRegistry: Sendable {
     private func removeDirectory(_ directory: URL) throws {
         if directory.lastPathComponent.hasPrefix(WorkAreaName.staging) { try StagingRegistry.removeSnapshot(directory) }
         else { try FileManager.default.removeItem(at: directory) }
-    }
-
-    private func read() throws -> [Entry] {
-        let data: Data
-        do { data = try Data(contentsOf: fileURL) }
-        catch CocoaError.fileReadNoSuchFile { return [] }
-        // 壊れた台帳は信用せず、次の保存で空の状態から作り直す。
-        return (try? JSONDecoder().decode([Entry].self, from: data)) ?? []
-    }
-
-    private func withExclusiveAccess<T>(_ body: () throws -> T) throws -> T {
-        try Self.lock.withLock { _ in
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            // atomic 保存で台帳の inode は変わるため、ロックは別の固定ファイルに持つ。
-            let descriptor = open(fileURL.appendingPathExtension("lock").path,
-                                  O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0o600)
-            guard descriptor >= 0 else { throw ExtractionFailure.system(errno) }
-            defer { close(descriptor) }
-            while flock(descriptor, LOCK_EX) != 0 {
-                if errno != EINTR { throw ExtractionFailure.system(errno) }
-            }
-            defer { _ = flock(descriptor, LOCK_UN) }
-            return try body()
-        }
-    }
-
-    private func save(_ entries: [Entry]) throws {
-        try JSONEncoder().encode(entries).write(to: fileURL, options: .atomic)
     }
 }
