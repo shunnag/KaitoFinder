@@ -161,10 +161,14 @@ extension ScenarioDiskTests {
         try original.write(to: archive)
         let file = fixture.url.appendingPathComponent("pending.json"), registry = PendingWorkRegistry(fileURL: file)
         defer { chmod(parent.path, 0o700) }
+        let entries = try ArchiveReader.open(url: archive).entries
         XCTAssertThrowsError(try ArchiveImportTransaction.publish(archive: archive, mode: .inPlace,
-            options: WriterOptions(), progress: Progress(), willPublish: {
+            options: WriterOptions(), progress: Progress(),
+            ledger: .forTesting(plan: .init(counted: 0,
+                additions: [UInt64("added".utf8.count)], itemCount: 1,
+                carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: false)), willPublish: {
                 guard chmod(parent.path, 0o555) == 0 else { throw ExtractionFailure.system(errno) }
-            }, registry: registry, expectedOutput: .init(existing: try ArchiveReader.open(url: archive).entries,
+            }, registry: registry, expectedOutput: .init(existing: entries,
                 additions: [.init(adding: "added.txt", kind: .file)], mode: .inPlace),
             mutate: { try $0.add(data: Data("added".utf8), as: "added.txt", modificationDate: nil, permissions: nil) }))
         let work = try FileManager.default.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)

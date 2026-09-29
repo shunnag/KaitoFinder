@@ -61,7 +61,8 @@ nonisolated final class BatchImportTests: XCTestCase {
                     changesExisting: true)) : nil
                 let mode: ArchiveCapabilities.Mode = format == .zip ? .inPlace : .update(format)
                 try ArchiveImportTransaction.publish(archive: url, mode: mode, options: .init(), progress: progress,
-                    ledger: ledger, willPublish: nil,
+                    ledger: ledger ?? .forTesting(progress: progress, plan: .init(counted: 1, additions: [], itemCount: 1,
+                        carriedBytes: ArchiveWriteProgress.carriedBytes(plan.projected), changesExisting: true)), willPublish: nil,
                     sessionReader: try ArchiveReader.open(url: url, options: .kaitoFinder()),
                     deferredPlan: plan, expectedOutput: .init(plan: plan, mode: mode)) { updater in
                     XCTAssertFalse(updater is ArchiveRewriter, "\(format)")

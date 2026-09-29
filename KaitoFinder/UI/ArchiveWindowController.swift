@@ -4,7 +4,7 @@ import QuickLookUI
 
 final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource, NSOutlineViewDelegate,
     NSMenuItemValidation, NSMenuDelegate, NSToolbarDelegate, NSToolbarItemValidation,
-    QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+    NSWindowDelegate {
     nonisolated static let frameAutosaveName = "ArchiveWindow"
     nonisolated static let columnsAutosaveName = "ArchiveColumns"
     nonisolated static let toolbarAutosaveName = "ArchiveToolbar"
@@ -116,9 +116,13 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
     private let previewSplitItem: NSSplitViewItem
     private var previewVisibilityObservation: NSKeyValueObservation?
     var showsPreviewSidebar: Bool { !previewSplitItem.isCollapsed }
-    private weak var previewPanel: QLPreviewPanel?
-    private var previewMonitor: Task<Void, Never>?
-    private var previewActive = false
+    private lazy var quickLook = ArchiveQuickLookCoordinator(
+        materialization: { [weak self] in self?.materialization },
+        previewItems: { [weak self] in self?.previewItems() ?? [] },
+        selection: { [weak self] in self?.readableSelection() },
+        controller: { [weak self] in self },
+        canPreview: { [weak self] in self?.archiveSession != nil && self?.materialization != nil },
+        didBecomeKey: { [weak self] in (self?.document as? ArchiveDocument)?.checkDeferredIdentityWhenKey() })
     private var materializationSheet: ExtractionProgressSheet?
     private let openWithMenu: NSMenu
     private var root: EntryNode
@@ -1117,7 +1121,7 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         guard let request = filterRequest, request.token == token, request.root === root,
               result.isBuilt(for: root, configuration: request.configuration), request.configuration == filterConfiguration,
               request.generation == generation, !isLocked else { return .discard }
-        if outlineView.isRenaming || operationInFlight || !draggedNodes.isEmpty || previewActive
+        if outlineView.isRenaming || operationInFlight || !draggedNodes.isEmpty || quickLook.isActive
             || window?.attachedSheet != nil || outlineView.isTrackingMenu { return .hold }
         return .apply
     }
@@ -2362,148 +2366,52 @@ final class ArchiveWindowController: NSWindowController, NSOutlineViewDataSource
         }
     }
 
-    // MARK: - Quick Look（QLPreviewPanelDataSource / QLPreviewPanelDelegate）
+    // MARK: - Quick Look
 
     @objc func togglePreviewPanel(_ sender: Any?) {
-        if let panel = previewPanel, panel.isVisible { closePreview(); return }
-        guard let items = readableSelection() else { return }
-        if let first = items.first, first.capability.needsUnlocking, first.previewItemURL == nil, let materialization {
-            // 解除を取り消した時に空の QL パネルを残さない。準備完了後に responder を渡す。
-            materialization.setSelection(items)
-            materialization.display(index: 0) { [weak self] _ in self?.showPreviewPanel(nil) }
-        } else { showPreviewPanel(sender) }
-    }
-
-    private func showPreviewPanel(_ sender: Any?) {
-        guard let panel = QLPreviewPanel.shared() else { return }
-        panel.makeKeyAndOrderFront(sender)
-        panel.updateController()
-        if previewPanel === panel { updatePreviewSelection(reportingFailures: true); startPreviewMonitoring(panel) }
+        quickLook.togglePreviewPanel(sender)
     }
 
     nonisolated override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
         // SDK の NSObject カテゴリには隔離注釈がない。AppKit の responder 呼出しは main thread。
-        MainActor.assumeIsolated { archiveSession != nil && materialization != nil }
+        MainActor.assumeIsolated { quickLook.acceptsControl() }
     }
 
     nonisolated override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        MainActor.assumeIsolated { takePreviewControl(panel) }
-    }
-
-    private func takePreviewControl(_ panel: QLPreviewPanel) {
-        previewPanel = panel
-        panel.dataSource = self
-        panel.delegate = self
-        updatePreviewSelection()
-        startPreviewMonitoring(panel)
-    }
-
-    /// Quick Look パネルの表示項目と開閉を確かめる間隔。
-    private nonisolated static let previewPollInterval: Duration = .milliseconds(50)
-
-    private func startPreviewMonitoring(_ panel: QLPreviewPanel) {
-        previewMonitor?.cancel()
-        // QLPreviewPanel に index 変更の delegate はない。先読み要求の index は採用せず、
-        // 公開プロパティを監視する。orderOut による終了も拾い、KVO 通知の有無に依存しない。
-        previewMonitor = Task { [weak self, weak panel] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.previewPollInterval)
-                guard !Task.isCancelled, let self, let panel, self.previewPanel === panel else { return }
-                if panel.isVisible { self.synchronizePreview(panel) }
-                else {
-                    self.previewActive = false
-                    self.materialization?.cancel()
-                    return
-                }
-            }
-        }
+        MainActor.assumeIsolated { quickLook.takePreviewControl(panel) }
     }
 
     nonisolated override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
-        MainActor.assumeIsolated { releasePreviewControl(panel) }
+        MainActor.assumeIsolated { quickLook.releasePreviewControl(panel) }
     }
 
-    private func releasePreviewControl(_ panel: QLPreviewPanel) {
-        guard previewPanel === panel else { return }
-        previewMonitor?.cancel()
-        previewMonitor = nil
-        if previewActive { materialization?.setSelection([]) }
-        previewActive = false
-        panel.dataSource = nil
-        panel.delegate = nil
-        previewPanel = nil
+    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
+        quickLook.previewPanel(panel, previewItemAt: index)
     }
 
-    private func closePreview() {
-        previewActive = false
-        previewMonitor?.cancel()
-        previewMonitor = nil
-        materialization?.cancel()
-        if let panel = previewPanel { panel.orderOut(nil) }
-    }
-
-    private func updatePreviewSelection(reportingFailures: Bool = false) {
-        guard let panel = previewPanel else { return }
-        previewActive = true
-        materialization?.updatePreviewSelection(previewItems(), reportingFailures: reportingFailures)
-        panel.reloadData()
-        if materialization?.items.isEmpty == false { panel.currentPreviewItemIndex = 0 }
-        synchronizePreview(panel)
-    }
+    private func closePreview() { quickLook.closePreview() }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {
         outlineView.cancelClickRenameIfSelectionChanged()
         updatePathControl()
         updatePreviewSidebar()
         materialization?.cancel()
-        if previewPanel?.isVisible == true { updatePreviewSelection() }
+        quickLook.selectionDidChange()
     }
 
-    func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int { materialization?.items.count ?? 0 }
-
-    func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> (any QLPreviewItem)! {
-        // QL は選択全体を先読みできる。この照会の index で抽出してはいけない。
-        Task { @MainActor [weak self, weak panel] in
-            guard let self, let panel, self.previewPanel === panel else { return }
-            self.synchronizePreview(panel)
-        }
-        return materialization?.item(at: index)
-    }
-
-    private func synchronizePreview(_ panel: QLPreviewPanel) {
-        guard previewActive, previewPanel === panel, panel.isVisible, panel.currentController as AnyObject? === self else { return }
-        let index = panel.currentPreviewItemIndex
-        guard materialization?.currentIndex != index else { return }
-        materialization?.display(index: index) { [weak self, weak panel] item in
-            guard let self, let panel, self.previewActive, self.previewPanel === panel, panel.isVisible,
-                  panel.currentController as AnyObject? === self,
-                  panel.currentPreviewItemIndex == index,
-                  self.materialization?.item(at: index) === item else { return }
-            QLPreviewPanel.shared().refreshCurrentPreviewItem()
-        }
-    }
-
-    // MARK: - ウインドウの通知（NSWindowDelegate / QLPreviewPanelDelegate）
+    // MARK: - ウインドウの通知（NSWindowDelegate）
 
     func windowDidBecomeKey(_ notification: Notification) {
         (document as? ArchiveDocument)?.checkDeferredIdentityWhenKey()
     }
 
-    // QLPreviewPanelDelegate は NSWindowDelegate を継承するため、文書ウインドウと QL パネルの両方の通知がここへ届く。
     func windowWillClose(_ notification: Notification) {
         if let closingWindow = notification.object as? NSWindow, closingWindow === window {
             cancelListWork()
             cancelExtraction()
         }
-        if let panel = notification.object as? QLPreviewPanel, previewPanel === panel {
-            materialization?.cancel()
-            materialization?.setSelection([])
-        }
-    }
-
-    func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
-        if event.type == .keyDown, event.charactersIgnoringModifiers == " " { closePreview(); return true }
-        return false
+        // Quick Look の panel が閉じる通知も同じ delegate に届く。coordinator が自分の panel なら実体化を止める。
+        quickLook.windowWillClose(notification)
     }
 
     // MARK: - 一覧のデータと行の表示（NSOutlineViewDataSource / NSOutlineViewDelegate）

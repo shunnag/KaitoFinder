@@ -76,6 +76,9 @@ nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
             let fallback = ArchiveTestCounter(), mutated = ArchiveTestCounter()
             try ArchiveImportTransaction.didFallBackToRewriteForTesting.withValue({ _ in fallback.increment() }) {
                 try ArchiveImportTransaction.publish(archive: archive, mode: .update(.sevenZip), options: .init(password: "new"), progress: progress,
+                    ledger: .forTesting(progress: progress, plan: .init(counted: 1,
+                        additions: [], itemCount: 1,
+                        carriedBytes: ArchiveWriteProgress.carriedBytes(entries), changesExisting: true)),
                     willPublish: nil, expectedOutput: .init(projected: entries, mode: .update(.sevenZip), sevenZipEncryption: true)) { editor in
                         mutated.increment()
                         try (editor as? any ArchiveReencrypting)?.reencryptExistingEntries(currentPassword: nil)
