@@ -67,8 +67,14 @@ nonisolated final class VolumePublishFaultInjectionTests: XCTestCase {
     func testEveryS11CrashOnlyCleansUpAndPreservesPublishedSet() throws {
         for step in [VolumePublishStep.committed, .oldDisposed, .stagingRemoved, .indexRemoved] {
             let fixture = try VolumePublishFixture(), staging = try crash(fixture, at: step)
+            // stagingRemoved 後は索引から巻の場所を解決するためマウント一覧を読むので、外付けボリュームの許可待ちなど実機のマウントに左右されないよう一覧を差し替える。
+            let parent = try VolumePublishDirectory(fixture.root), volume = try VolumePublishFS.volumeInfo(parent)
+            let root = try VolumePublishFS.volumeRoot(parent)
+            var operations = VolumePublishOperations()
+            operations.mountedVolumes = { _ in [.init(root: root, uuid: volume.uuid)] }
+            operations.nonLocalMountedVolumes = operations.mountedVolumes
             let before = try fixture.plan.volumes.map { try Data(contentsOf: fixture.root.appendingPathComponent($0.name)) }
-            let result = VolumePublishRecovery(index: fixture.index).recover(staging: staging)
+            let result = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: staging)
             guard case .recovered(_, .cleanup, _) = result else { return XCTFail("\(step): \(result)") }
             XCTAssertEqual(try fixture.plan.volumes.map { try Data(contentsOf: fixture.root.appendingPathComponent($0.name)) }, before)
             try fixture.assertNew(); try fixture.assertRemoved(staging)
