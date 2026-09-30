@@ -9,6 +9,7 @@ KaitoFinder の Info.plist を写した実際の .app と標準の NSDocumentCon
 「この種類のファイルは開けません」で失敗した。「開く」パネル、ようこそのドロップ、ウインドウへのドロップ、
 「アーカイブを展開…」のパネルはいずれも宣言型で絞るため、番号付きの分割巻（`.7z.001`、`.tar.gz.001`、
 `.zip.001` など）はアプリ内から開けなかった。`.z01` は既存の ZIP 型（`public.zip-archive.first-part`）への準拠で開ける。
+この型は macOS 標準ではなく The Unarchiver が宣言する型で、宣言がない環境では `.z01` を内部の分割巻型で開く。
 
 ## 変更
 
@@ -28,8 +29,9 @@ KaitoFinder の Info.plist を写した実際の .app と標準の NSDocumentCon
 - 対象 8 クラス（ArchiveDocumentControllerTests、DocumentTypesTests、ArchiveDocumentOpeningTests、WelcomeWindowTests、
   ArchiveBatchExtractionTests、ArchiveSplitVolumeTests、RecentDocumentsPersistenceTests、RecentDocumentsMenuTests）:
   94 件実行、失敗 0、skip 3（Quick Look の前面表示を要する既存テスト。ロック中の環境で skip する）。
-- 途中で直したテストの誤り: `.z01` は既存型で開けるので内部の型に置き換えない。最近使った項目は symlink を解決した
-  パス（/private/var）で記録される。`NSDocumentController()` は既存の shared を返すため、システムの型は
+- 途中で直したテストの誤り: The Unarchiver が型を宣言している環境では `.z01` は既存型で開けるので内部の型に置き換えない。
+  最近使った項目は symlink を解決したパス（/private/var）で記録される。
+  `NSDocumentController()` は既存の shared を返すため、システムの型は
   `URLResourceKey.contentTypeKey` で得る。
 - 全体（927bc26 のビルド）: 919 件実行、skip 20、失敗 16（9 テスト）。失敗は M1 の記録と同じ GUI 操作の 9 件だけで、
   画面ロック中の実行による。ロックを解除したセッションで再実行する（M6 の後）。
