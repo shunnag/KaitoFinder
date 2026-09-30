@@ -17,7 +17,8 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
             let systemType = try XCTUnwrap(values.contentType?.identifier, name)
             let systemClass = controller.documentClass(forType: systemType)
             let type = try controller.typeForContents(of: url)
-            // .z01 は既存の ZIP 型への準拠で開ける。.ZX02 も環境で宣言済みなら置き換えない。
+            // .z01 の public.zip-archive.first-part は The Unarchiver などが宣言する型で、macOS 標準ではない。
+            // 宣言済みならその型を使い、未宣言（dyn.*）なら内部の分割巻型に置き換える（.ZX02 も同じ）。
             if systemClass == ArchiveDocument.self {
                 XCTAssertEqual(type, systemType, name)
                 XCTAssertNotEqual(type, ArchiveDocumentController.splitVolumeType, name)
@@ -153,8 +154,8 @@ nonisolated final class ArchiveDocumentControllerTests: XCTestCase {
             f.write(data[central:])
         """#)
         let member = fixture.archive.deletingPathExtension().appendingPathExtension("z01")
+        // The Unarchiver などが .z01 を宣言済みならシステム型、それ以外は内部の分割巻型となり、どちらも ArchiveDocument で開く。
         let memberType = try NSDocumentController.shared.typeForContents(of: member)
-        XCTAssertNotEqual(memberType, ArchiveDocumentController.splitVolumeType)
         XCTAssertTrue(NSDocumentController.shared.documentClass(forType: memberType) == ArchiveDocument.self)
         let (document, alreadyOpen) = try await open(member, in: fixture.directory)
         XCTAssertFalse(alreadyOpen)

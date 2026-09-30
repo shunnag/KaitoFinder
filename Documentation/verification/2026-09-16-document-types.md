@@ -77,6 +77,10 @@ KaitoFinder が候補に出た。`.cab` は宣言した識別子が CoreTypes �
 | `.tar.gz` | `nil` | 未記録 | 未記録 |
 | `.tlz` | `dyn.ah62d4rv4ge81k5d4`（動的） | なし | 未記録 |
 
+`.z01` の識別子は The Unarchiver の `UTImportedTypeDeclarations` に由来し、
+The Unarchiver がない Mac（2026-09-30 にクリーンな Mac mini で確認）では `.z01` は `dyn.*` 型となって
+KaitoFinder は候補に出ず、分割名の Finder 関連付けを追加しない設計どおりである。
+
 `.tar.gz` の行は、拡張子として `tar.gz` を照会した結果。候補の測定値は残っていない。
 `.ar` / `.a` の識別子の小文字表記もログどおり。
 `.zst` / `.tzst` / `.lha` は KaitoFinder が既定だったが、`.7z` / `.zip` / `.txz` / `.tbz2` は
