@@ -49,6 +49,15 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
         NSApp.activate()
+        // 協調的な前面化では host が前面になれない環境がある（ssh からの起動など）。前例と同じく前面になれなければ skip する。
+        let activationDeadline = ContinuousClock.now + .seconds(5)
+        while !NSApp.isActive, ContinuousClock.now < activationDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        guard NSApp.isActive else {
+            throw XCTSkip("テスト host が前面になれない環境では、メニューの送り先となる key window を検証できない")
+        }
+        try await waitUntil { window.isKeyWindow }
         window.makeFirstResponder(controller.outlineView)
         let delegate = AppDelegate(), menu = delegate.makeMenu()
         NSApp.mainMenu = menu
@@ -63,6 +72,9 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         XCTAssertEqual(item.title, String(localized: "プレビューを非表示"))
         let toolbar = try XCTUnwrap(window.toolbar)
         let button = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "previewSidebar" })
+        // 600 pt の窓ではボタンがはみ出し側に入り validateVisibleItems の対象外になるため、全項目が見える幅に広げる。
+        window.setContentSize(NSSize(width: 1000, height: window.contentLayoutRect.height))
+        try await scenarioWait { toolbar.visibleItems?.contains { $0 === button } == true }
         toolbar.validateVisibleItems()
         XCTAssertTrue(button.isEnabled)
         XCTAssertEqual(button.toolTip, item.title)
