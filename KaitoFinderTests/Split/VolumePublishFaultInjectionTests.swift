@@ -80,6 +80,32 @@ nonisolated final class VolumePublishFaultInjectionTests: XCTestCase {
             try fixture.assertNew(); try fixture.assertRemoved(staging)
         }
     }
+    func testIncompleteMountScanHoldsWithSkippedMountsInReason() throws {
+        let fixture = try VolumePublishFixture(), staging = try crash(fixture, at: .stagingRemoved)
+        let parent = try VolumePublishDirectory(fixture.root), volume = try VolumePublishFS.volumeInfo(parent)
+        let root = try VolumePublishFS.volumeRoot(parent)
+        var operations = VolumePublishOperations()
+        operations.mountedVolumes = { _ in
+            var mounts: VolumePublishFS.MountScan = [.init(root: root, uuid: volume.uuid)]
+            mounts.failures = [.init(root: URL(fileURLWithPath: "/Volumes/KaitoFinderStuckMount"), reason: "system(60)")]
+            return mounts
+        }
+        operations.nonLocalMountedVolumes = operations.mountedVolumes
+        let before = try fixture.plan.volumes.map { try Data(contentsOf: fixture.root.appendingPathComponent($0.name)) }
+        let result = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: staging)
+        guard case .held(_, let reason, _) = result else { return XCTFail("\(result)") }
+        XCTAssertTrue(reason.contains("Mount probe skipped"))
+        XCTAssertTrue(reason.contains("/Volumes/KaitoFinderStuckMount"))
+        XCTAssertTrue(reason.contains("system(60)"))
+        XCTAssertNotEqual(reason, "system(2)")
+        XCTAssertFalse(try fixture.index.entries().isEmpty)
+        XCTAssertEqual(try fixture.plan.volumes.map { try Data(contentsOf: fixture.root.appendingPathComponent($0.name)) }, before)
+        operations.mountedVolumes = { _ in [.init(root: root, uuid: volume.uuid)] }
+        operations.nonLocalMountedVolumes = operations.mountedVolumes
+        let retried = VolumePublishRecovery(index: fixture.index, operations: operations).recover(staging: staging)
+        guard case .recovered(_, .cleanup, _) = retried else { return XCTFail("\(retried)") }
+        try fixture.assertNew(); try fixture.assertRemoved(staging)
+    }
     func testDoneNeverRestoresOldSetAfterUserDeletesNewSet() throws {
         let fixture = try VolumePublishFixture(), staging = try crash(fixture, at: .committed)
         for volume in fixture.plan.volumes { try FileManager.default.removeItem(at: fixture.root.appendingPathComponent(volume.name)) }

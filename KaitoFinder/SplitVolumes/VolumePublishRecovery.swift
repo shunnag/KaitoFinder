@@ -315,8 +315,13 @@ nonisolated struct VolumePublishRecovery: Sendable {
                                        volume: VolumePublishFS.VolumeInfo, parent: VolumePublishDirectory,
                                        indexedURL: URL, staging url: URL) throws -> Result {
         guard let entry else { return .recovered(staging: url, direction: .cleanup, disposal: .none) }
+        // 走査が不完全だと staging の消失を証明できないので、未確認のマウントを保留理由に含める。
+        if !mounts.isComplete {
+            let skipped = mounts.failures.map { "\($0.root.path) (\($0.reason))" }.joined(separator: ", ")
+            return .held(staging: url, reason: "Mount probe skipped: \(skipped)")
+        }
         let roots = Set(mounts.volumes.filter { $0.uuid == entry.volumeUUID }.map(\.root))
-        guard mounts.isComplete, VolumePublishFS.knownUUID(entry.volumeUUID), entry.volumeUUID == volume.uuid,
+        guard VolumePublishFS.knownUUID(entry.volumeUUID), entry.volumeUUID == volume.uuid,
               roots.count == 1, let root = roots.first,
               let resolved = entry.resolved(on: root, uuid: entry.volumeUUID) else { throw VolumePublishError.system(ENOENT) }
         let resolvedParent = try VolumePublishDirectory(resolved.deletingLastPathComponent())
