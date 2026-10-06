@@ -48,13 +48,14 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         return true
     }
 
-    static let singleStreamFormats: [SingleStreamFormat] = [.gzip, .bzip2, .xz, .lzip, .lzma, .lz4, .brotli, .compress]
+    static let singleStreamFormats: [SingleStreamFormat] = [.gzip, .bzip2, .xz, .zstd, .lzip, .lzma, .lz4, .brotli, .compress]
 
     static func filenameExtension(for format: SingleStreamFormat) -> String {
         switch format {
         case .gzip: "gz"
         case .bzip2: "bz2"
         case .xz: "xz"
+        case .zstd: "zst"
         case .lzip: "lz"
         case .lzma: "lzma"
         case .lz4: "lz4"
@@ -68,6 +69,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         case .gzip: .tarGzip
         case .bzip2: .tarBzip2
         case .xz: .tarXZ
+        case .zstd: .tarZstd
         case .lzip: .tarLzip
         case .lzma: .tarLZMA
         case .lz4: .tarLZ4
@@ -94,6 +96,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         case .tarGzip: "tar.gz"
         case .tarBzip2: "tar.bz2"
         case .tarXZ: "tar.xz"
+        case .tarZstd: "tar.zst"
         case .tarLzip: "tar.lz"
         case .tarLZMA: "tar.lzma"
         case .tarLZ4: "tar.lz4"
@@ -111,6 +114,7 @@ nonisolated struct ArchiveCreationPlan: Sendable {
         case .tarGzip: ["tar.gz", "tgz"]
         case .tarBzip2: ["tar.bz2", "tbz2", "tbz"]
         case .tarXZ: ["tar.xz", "txz"]
+        case .tarZstd: ["tar.zst", "tzst"]
         // .tlz は lzip と LZMA の両方で使われるため、出力の別名にはしない。
         case .tarLzip: ["tar.lz"]
         case .tarLZMA: ["tar.lzma"]

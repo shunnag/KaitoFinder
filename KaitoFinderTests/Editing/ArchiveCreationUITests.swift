@@ -67,6 +67,9 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             case .tarBzip2:
                 XCTAssertEqual(save.controller.level, .maximum)
                 XCTAssertFalse(save.controller.levels.contains(.none))
+            case .tarZstd:
+                XCTAssertEqual(save.controller.level, .three)
+                XCTAssertFalse(save.controller.levels.contains(.none))
             case .tar, .tarLZ4, .tarBrotli, .tarCompress: XCTAssertEqual(save.controller.level, .normal)
             case .tarXZ, .tarLzip, .tarLZMA, .sevenZip, .lha:
                 XCTAssertEqual(save.controller.level, .normal)
@@ -129,6 +132,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             (.zip, "zip", "public.zip-archive"), (.tar, "tar", "public.tar-archive"),
             (.tarGzip, "tar.gz", "com.shunnag.KaitoFinder.save-tar-gzip"),
             (.tarBzip2, "tar.bz2", "com.shunnag.KaitoFinder.save-tar-bzip2"), (.tarXZ, "tar.xz", "com.shunnag.KaitoFinder.save-tar-xz"),
+            (.tarZstd, "tar.zst", "com.shunnag.KaitoFinder.save-tar-zstd"),
             (.tarLzip, "tar.lz", "com.shunnag.KaitoFinder.save-tar-lzip"),
             (.tarLZMA, "tar.lzma", "com.shunnag.KaitoFinder.save-tar-lzma"),
             (.tarLZ4, "tar.lz4", "com.shunnag.KaitoFinder.save-tar-lz4"),
@@ -149,7 +153,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             XCTAssertEqual(save.panel.allowedContentTypes,
                            ArchiveSavePanelController.panelContentTypes)
         }
-        XCTAssertEqual(save.formatPopup.itemTitles, ["ZIP", "tar", "tar.gz", "tar.bz2", "tar.xz", "tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "7z", "LHA"])
+        XCTAssertEqual(save.formatPopup.itemTitles, ["ZIP", "tar", "tar.gz", "tar.bz2", "tar.xz", "tar.zst", "tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "7z", "LHA"])
     }
 
     @MainActor func testSavePanelValidatesTarGzipFilenameExtensions() throws {

@@ -272,7 +272,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
             digest: "d0dd5cef8544d91daf6d6c95eef8f291822e0b6c91050bedca706e72977d1023")
     }
 
-    func testZstandardTarWithLeadingSkippableFrameCannotBeRewrittenAsPlainTar() throws {
+    func testZstandardTarWithLeadingSkippableFrameSupportsCompressedRewrite() throws {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("archive.tar.zst")
         let encoded = try Data(contentsOf: fixtures.appendingPathComponent("zstd/bundle.tar.zst.b64"))
@@ -282,8 +282,8 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         try bytes.write(to: archive)
         XCTAssertEqual(try ArchiveReader.open(url: archive).format, .tar)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
-        XCTAssertEqual(capability.refusal, .format("tar.zst"))
-        XCTAssertNil(capability.mode)
+        XCTAssertNil(capability.refusal)
+        XCTAssertEqual(capability.mode, .rewrite(.tarZstd))
         XCTAssertEqual(try Data(contentsOf: archive), bytes)
     }
 

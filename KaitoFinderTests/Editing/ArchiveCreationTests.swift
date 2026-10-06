@@ -147,7 +147,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
         case .sevenZip:
             let listing = try fixture.directory.run(ExternalTool.sevenZip, ["l", result.path])
             for name in names { XCTAssertTrue(listing.contains(name), listing, file: file, line: line) }
-        case .zip, .lha, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress: break
+        case .zip, .lha, .tarZstd, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress: break
         }
         try assertNoWorkDirectory(fixture.directory.url, file: file, line: line)
     }
@@ -159,7 +159,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
     func testCreateTarXZRoundTripsAndBSDTarLists() throws { try assertCreation(.tarXZ) }
     func testCreateSevenZipRoundTripsAndSevenZipLists() throws { try assertCreation(.sevenZip) }
     func testCreateNewTarFormatsRoundTripEveryEntryAndContent() throws {
-        for format in [GyoshukuKit.ArchiveFormat.tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress] {
+        for format in [GyoshukuKit.ArchiveFormat.tarZstd, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress] {
             try assertCreation(format)
         }
     }
@@ -235,7 +235,7 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
 
     func testDefaultNamesPreserveFolderAndFileNamesForEveryFormat() {
         let folder = URL(fileURLWithPath: "/tmp/Docs", isDirectory: true), photo = URL(fileURLWithPath: "/tmp/a.jpg")
-        let formats: [(GyoshukuKit.ArchiveFormat, String)] = [(.zip, "zip"), (.tar, "tar"), (.tarGzip, "tar.gz"), (.tarBzip2, "tar.bz2"), (.tarXZ, "tar.xz"), (.tarLzip, "tar.lz"), (.tarLZMA, "tar.lzma"), (.tarLZ4, "tar.lz4"), (.tarBrotli, "tar.br"), (.tarCompress, "tar.Z"), (.sevenZip, "7z"), (.lha, "lzh")]
+        let formats: [(GyoshukuKit.ArchiveFormat, String)] = [(.zip, "zip"), (.tar, "tar"), (.tarGzip, "tar.gz"), (.tarBzip2, "tar.bz2"), (.tarXZ, "tar.xz"), (.tarZstd, "tar.zst"), (.tarLzip, "tar.lz"), (.tarLZMA, "tar.lzma"), (.tarLZ4, "tar.lz4"), (.tarBrotli, "tar.br"), (.tarCompress, "tar.Z"), (.sevenZip, "7z"), (.lha, "lzh")]
         for (format, suffix) in formats {
             XCTAssertEqual(ArchiveCreationPlan.defaultName(for: [folder], format: format), "Docs." + suffix)
             XCTAssertEqual(ArchiveCreationPlan.defaultName(for: [photo], format: format), "a.jpg." + suffix)
@@ -253,14 +253,14 @@ nonisolated final class ArchiveCreationTests: XCTestCase {
     func testAcceptedExtensionsMatchEachFormatIgnoringCase() {
         let formats: [(GyoshukuKit.ArchiveFormat, [String])] = [
             (.zip, ["zip"]), (.tar, ["tar"]), (.tarGzip, ["tar.gz", "tgz"]),
-            (.tarBzip2, ["tar.bz2", "tbz2", "tbz"]), (.tarXZ, ["tar.xz", "txz"]),
+            (.tarBzip2, ["tar.bz2", "tbz2", "tbz"]), (.tarXZ, ["tar.xz", "txz"]), (.tarZstd, ["tar.zst", "tzst"]),
             (.tarLzip, ["tar.lz"]), (.tarLZMA, ["tar.lzma"]), (.tarLZ4, ["tar.lz4"]),
             (.tarBrotli, ["tar.br", "tbr"]), (.tarCompress, ["tar.z", "taz"]),
             (.sevenZip, ["7z"]), (.lha, ["lzh", "lha"])
         ]
         for (format, accepted) in formats {
             XCTAssertEqual(ArchiveCreationPlan.acceptedExtensions(for: format), accepted)
-            for suffix in ["zip", "tar", "tar.gz", "tgz", "7z", "lzh", "lha", "gz", "tar.bz2", "tbz2", "tbz", "tar.xz", "txz", "xz", "bz2"] {
+            for suffix in ["zip", "tar", "tar.gz", "tgz", "7z", "lzh", "lha", "gz", "tar.bz2", "tbz2", "tbz", "tar.xz", "txz", "tar.zst", "tzst", "zst", "xz", "bz2"] {
                 for name in ["result." + suffix, "result." + suffix.uppercased()] {
                     XCTAssertEqual(ArchiveCreationPlan.hasAcceptedExtension(URL(fileURLWithPath: "/tmp/" + name), for: format),
                                    accepted.contains(suffix), "\(format): \(name)")

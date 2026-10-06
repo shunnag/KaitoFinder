@@ -4,8 +4,32 @@ import GyoshukuKit
 
 /// 書き込み処理へ安全に渡せる設定値。展開設定は一括展開の入口から参照する。
 nonisolated struct ArchivePreferences: Sendable, Equatable {
-    enum ZipMethod: String, Sendable { case deflate, stored, bzip2, lzma, xz }
-    enum SevenZipMethod: String, Sendable, CaseIterable { case lzma2, lzma, deflate, bzip2, copy }
+    enum ZipMethod: String, Sendable { case deflate, stored, bzip2, lzma, xz, zstd, ppmd }
+    enum SevenZipMethod: String, Sendable, CaseIterable { case lzma2, lzma, deflate, bzip2, ppmd, copy }
+    enum SevenZipFilter: String, Sendable, CaseIterable {
+        case none, auto, bcjX86, arm64, delta
+
+        var writerMode: SevenZipFilterMode {
+            switch self {
+            case .none: .none
+            case .auto: .auto
+            case .bcjX86: .bcjX86
+            case .arm64: .arm64
+            // 32 bit サンプルの同じ byte 位置を差分化する。
+            case .delta: .delta(distance: 4)
+            }
+        }
+
+        func title(bundle: Bundle = .main) -> String {
+            switch self {
+            case .none: String(localized: "なし", bundle: bundle)
+            case .auto: String(localized: "自動", bundle: bundle)
+            case .bcjX86: String(localized: "x86 (BCJ)", bundle: bundle)
+            case .arm64: String(localized: "ARM64", bundle: bundle)
+            case .delta: String(localized: "Delta", bundle: bundle)
+            }
+        }
+    }
     enum LhaMethod: String, Sendable, CaseIterable { case lh5, lh6, lh7, stored }
     enum ExtractionDestination: String, Sendable { case sameFolder, ask }
     enum FolderPolicy: String, Sendable { case always, whenMultipleTopLevelItems, never }
@@ -19,7 +43,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum AdditionPosition: String, Sendable, CaseIterable { case end, beginning }
     enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
 
-    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress, .sevenZip, .lha]
+    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .tarZstd, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress, .sevenZip, .lha]
     static let compressionThreadRange = 1...64
     static let listTextSizeRange = 10...16
 
@@ -28,15 +52,21 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
     var zipLZMALevel = 6
+    var zipZstdLevel = 3
+    var zipPPMdLevel = 6
     var zipSkipsCompressedTypes = true
     var tarGzipLevel = 6
     var tarBzip2Level = 9
     var tarXZLevel = 6
+    var tarZstdLevel = 3
     var tarLzipLevel = 6
     var tarLZMALevel = 6
     var sevenZipMethod: SevenZipMethod = .lzma2
     // -1 は無圧縮。LZMA の 0 と区別して保存する。
     var sevenZipLevel = 6
+    var sevenZipPPMdLevel = 6
+    var sevenZipSolid = false
+    var sevenZipFilter: SevenZipFilter = .none
     var lhaMethod: LhaMethod = .lh5
     var lhaLevel = 6
     var tarPreservesOwnerIDs = false
@@ -78,15 +108,20 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             case .bzip2: .bzip2
             case .lzma: .lzma
             case .xz: .xz
+            case .zstd: .zstd
+            case .ppmd: .ppmd
             }
             options.deflateLevel = Self.clampedLevel(zipLevel)
             if zipMethod == .bzip2 { options.bzip2Level = Self.clampedLevel(zipLevel) }
             if zipMethod == .lzma || zipMethod == .xz {
                 options.lzmaLevel = Self.lzmaOption(zipLZMALevel, apple: zipMethod == .xz)
             }
+            options.zstdLevel = Self.validLevel(zipZstdLevel, range: 1...19, fallback: 3)
+            options.ppmdLevel = Self.validLevel(zipPPMdLevel, range: 1...9, fallback: 6)
             options.useCompressionHeuristic = zipSkipsCompressedTypes
         case .tarGzip: options.deflateLevel = Self.clampedLevel(tarGzipLevel)
         case .tarBzip2: options.bzip2Level = Self.clampedLevel(tarBzip2Level)
+        case .tarZstd: options.zstdLevel = Self.validLevel(tarZstdLevel, range: 1...19, fallback: 3)
         case .tarXZ: options.lzmaLevel = Self.lzmaOption(tarXZLevel, apple: true)
         case .tarLzip: options.lzmaLevel = Self.lzmaOption(tarLzipLevel)
         case .tarLZMA: options.lzmaLevel = Self.lzmaOption(tarLZMALevel)
@@ -96,14 +131,18 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             case .lzma: .lzma
             case .deflate: .deflate
             case .bzip2: .bzip2
+            case .ppmd: .ppmd
             case .copy: .copy
             }
+            options.ppmdLevel = Self.validLevel(sevenZipPPMdLevel, range: 1...9, fallback: 6)
+            options.sevenZipSolid = sevenZipSolid ? .on(blockSize: nil, filesPerBlock: nil) : .off
+            options.sevenZipFilter = sevenZipFilter.writerMode
             if sevenZipLevel == -1 { options.sevenZipMethod = .copy }
             switch options.sevenZipMethod {
             case .lzma2, .lzma: options.lzmaLevel = Self.lzmaOption(sevenZipLevel, apple: options.sevenZipMethod == .lzma2)
             case .deflate: options.deflateLevel = Self.clampedLevel(sevenZipLevel)
             case .bzip2: options.bzip2Level = Self.clampedLevel(sevenZipLevel)
-            case .copy: break
+            case .ppmd, .copy: break
             }
         case .lha:
             options.lhaMethod = switch lhaMethod {
@@ -125,6 +164,10 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         return apple && level == 6 ? nil : level
     }
 
+    static func validLevel(_ level: Int, range: ClosedRange<Int>, fallback: Int) -> Int {
+        range.contains(level) ? level : fallback
+    }
+
     static func clampedLevel(_ level: Int) -> Int { min(9, max(1, level)) }
 }
 
@@ -140,6 +183,12 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let lhaMethod = "ArchiveLhaMethod"
         static let zipMethod = "ArchiveZipMethod"
         static let zipLZMALevel = "ArchiveZipLZMALevel"
+        static let zipZstdLevel = "ArchiveZipZstdLevel"
+        static let zipPPMdLevel = "ArchiveZipPPMdLevel"
+        static let tarZstdLevel = "ArchiveTarZstdLevel"
+        static let sevenZipPPMdLevel = "ArchiveSevenZipPPMdLevel"
+        static let sevenZipSolid = "ArchiveSevenZipSolid"
+        static let sevenZipFilter = "ArchiveSevenZipFilter"
         static let tarXZLevel = "ArchiveTarXZLevel"
         static let tarLzipLevel = "ArchiveTarLzipLevel"
         static let tarLZMALevel = "ArchiveTarLZMALevel"
@@ -184,6 +233,13 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod
             value.zipLZMALevel = level(forKey: Key.zipLZMALevel, range: 0...9)
+            value.zipZstdLevel = level(forKey: Key.zipZstdLevel, fallback: 3, range: 1...19)
+            value.zipPPMdLevel = level(forKey: Key.zipPPMdLevel, fallback: 6, range: 1...9)
+            value.tarZstdLevel = level(forKey: Key.tarZstdLevel, fallback: 3, range: 1...19)
+            value.sevenZipPPMdLevel = level(forKey: Key.sevenZipPPMdLevel, fallback: 6, range: 1...9)
+            value.sevenZipSolid = boolean(forKey: Key.sevenZipSolid, fallback: false)
+            value.sevenZipFilter = defaults.string(forKey: Key.sevenZipFilter)
+                .flatMap(ArchivePreferences.SevenZipFilter.init(rawValue:)) ?? .none
             value.tarXZLevel = level(forKey: Key.tarXZLevel, range: 0...9)
             value.tarLzipLevel = level(forKey: Key.tarLzipLevel, range: 0...9)
             value.tarLZMALevel = level(forKey: Key.tarLZMALevel, range: 0...9)
@@ -237,6 +293,12 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchivePreferences.compressionThreadRange.contains(newValue.compressionThreads)
                          ? newValue.compressionThreads : 0, forKey: Key.compressionThreads)
             defaults.set((0...9).contains(newValue.zipLZMALevel) ? newValue.zipLZMALevel : 6, forKey: Key.zipLZMALevel)
+            defaults.set(ArchivePreferences.validLevel(newValue.zipZstdLevel, range: 1...19, fallback: 3), forKey: Key.zipZstdLevel)
+            defaults.set(ArchivePreferences.validLevel(newValue.zipPPMdLevel, range: 1...9, fallback: 6), forKey: Key.zipPPMdLevel)
+            defaults.set(ArchivePreferences.validLevel(newValue.tarZstdLevel, range: 1...19, fallback: 3), forKey: Key.tarZstdLevel)
+            defaults.set(ArchivePreferences.validLevel(newValue.sevenZipPPMdLevel, range: 1...9, fallback: 6), forKey: Key.sevenZipPPMdLevel)
+            defaults.set(newValue.sevenZipSolid, forKey: Key.sevenZipSolid)
+            defaults.set(newValue.sevenZipFilter.rawValue, forKey: Key.sevenZipFilter)
             defaults.set((0...9).contains(newValue.tarXZLevel) ? newValue.tarXZLevel : 6, forKey: Key.tarXZLevel)
             defaults.set((0...9).contains(newValue.tarLzipLevel) ? newValue.tarLzipLevel : 6, forKey: Key.tarLzipLevel)
             defaults.set((0...9).contains(newValue.tarLZMALevel) ? newValue.tarLZMALevel : 6, forKey: Key.tarLZMALevel)

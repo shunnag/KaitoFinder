@@ -88,7 +88,7 @@ nonisolated final class ArchiveVerifiedOutput {
         if archive.pathExtension.lowercased() == "cue" { return false }
         switch format {
         case .zip, .sevenZip: return true
-        case .tar, .tarGzip, .tarBzip2, .tarXZ, .tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress, .lha:
+        case .tar, .tarGzip, .tarBzip2, .tarXZ, .tarZstd, .tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress, .lha:
             return ArchiveCreationPlan.hasAcceptedExtension(archive, for: format)
         }
     }

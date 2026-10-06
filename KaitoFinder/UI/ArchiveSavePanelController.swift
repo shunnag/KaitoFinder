@@ -6,14 +6,17 @@ import UniformTypeIdentifiers
 final class ArchiveSavePanelController {
     nonisolated enum Level: Int, CaseIterable, Sendable {
         case none = -1, zero = 0, fast = 1, two, three, four, five, normal, seven, high, maximum
+        case ten, eleven, twelve, thirteen, fourteen, fifteen, sixteen, seventeen, eighteen, nineteen
 
-        func title(bundle: Bundle = .main, startsAtZero: Bool = false) -> String {
+        func title(bundle: Bundle = .main, startsAtZero: Bool = false, zstd: Bool = false) -> String {
             switch self {
             case .none: return String(localized: "圧縮しない", bundle: bundle)
             case .zero: return String(localized: "0（最速）", bundle: bundle)
             case .fast where !startsAtZero: return String(localized: "1（最速）", bundle: bundle)
-            case .normal: return String(localized: "6（標準）", bundle: bundle)
-            case .maximum: return String(localized: "9（最高）", bundle: bundle)
+            case .three where zstd: return String(localized: "3（標準）", bundle: bundle)
+            case .nineteen where zstd: return String(localized: "19（最高）", bundle: bundle)
+            case .normal where !zstd: return String(localized: "6（標準）", bundle: bundle)
+            case .maximum where !zstd: return String(localized: "9（最高）", bundle: bundle)
             default: return String(rawValue)
             }
         }
@@ -30,6 +33,8 @@ final class ArchiveSavePanelController {
                     case .deflate: options.deflateLevel = level
                     case .bzip2: options.bzip2Level = level
                     case .lzma, .xz: options.lzmaLevel = ArchivePreferences.lzmaOption(level, apple: options.compressionMethod == .xz)
+                    case .zstd: options.zstdLevel = level
+                    case .ppmd: options.ppmdLevel = level
                     case .stored: break
                     }
                 }
@@ -41,6 +46,7 @@ final class ArchiveSavePanelController {
                     case .deflate: options.deflateLevel = level
                     case .bzip2: options.bzip2Level = level
                     case .lzma, .lzma2: options.lzmaLevel = ArchivePreferences.lzmaOption(level, apple: options.sevenZipMethod == .lzma2)
+                    case .ppmd: options.ppmdLevel = level
                     case .copy: break
                     }
                 }
@@ -50,6 +56,7 @@ final class ArchiveSavePanelController {
                     if options.lhaMethod == .stored { options.lhaMethod = .lh5 }
                     options.lhaLevel = level
                 }
+            case .tarZstd: options.zstdLevel = level
             case .tarGzip: options.deflateLevel = level
             case .tarBzip2: options.bzip2Level = level
             case .tarXZ, .tarLZMA, .tarLzip: options.lzmaLevel = ArchivePreferences.lzmaOption(level, apple: format == .tarXZ)
@@ -61,7 +68,16 @@ final class ArchiveSavePanelController {
 
     nonisolated enum Method: String, Sendable {
         case deflate = "Deflate", bzip2 = "BZip2", lzma = "LZMA", xz = "XZ", lzma2 = "LZMA2"
+        case zstd = "Zstandard", ppmd = "PPMd"
         case lh5, lh6, lh7
+
+        func title(bundle: Bundle = .main) -> String {
+            switch self {
+            case .zstd: String(localized: "Zstandard", bundle: bundle)
+            case .ppmd: String(localized: "PPMd", bundle: bundle)
+            default: rawValue
+            }
+        }
 
         func applying(to options: WriterOptions, format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
             var options = options
@@ -70,6 +86,8 @@ final class ArchiveSavePanelController {
                 case .bzip2: .bzip2
                 case .lzma: .lzma
                 case .xz: .xz
+                case .zstd: .zstd
+                case .ppmd: .ppmd
                 default: .deflate
                 }
             } else if format == .sevenZip {
@@ -77,6 +95,7 @@ final class ArchiveSavePanelController {
                 case .lzma: .lzma
                 case .deflate: .deflate
                 case .bzip2: .bzip2
+                case .ppmd: .ppmd
                 default: .lzma2
                 }
             } else if format == .lha {
@@ -102,12 +121,17 @@ final class ArchiveSavePanelController {
     private(set) var singleStreamFormat: SingleStreamFormat?
     private(set) var method: Method = .deflate
     private(set) var level: Level = .normal
+    var sevenZipSolid: Bool
+    var sevenZipFilter: ArchivePreferences.SevenZipFilter
     private var choices: [String: (Method, Level)] = [:]
+    private var methodLevels: [String: Level] = [:]
 
     init(store: ArchivePreferencesStore = .shared, sources: [URL] = [], allowsSingleStream: Bool = true) {
         self.store = store
         offersSingleStream = allowsSingleStream && ArchiveCreationPlan.canCompressSingleFile(sources)
         format = store.preferences.defaultFormat
+        sevenZipSolid = store.preferences.sevenZipSolid
+        sevenZipFilter = store.preferences.sevenZipFilter
         resetChoice()
     }
 
@@ -130,8 +154,8 @@ final class ArchiveSavePanelController {
     var methods: [Method] {
         guard singleStreamFormat == nil else { return [] }
         switch format {
-        case .zip: return [.deflate, .bzip2, .lzma, .xz]
-        case .sevenZip: return [.lzma2, .lzma, .deflate, .bzip2]
+        case .zip: return [.deflate, .bzip2, .lzma, .xz, .zstd, .ppmd]
+        case .sevenZip: return [.lzma2, .lzma, .deflate, .bzip2, .ppmd]
         case .lha: return [.lh5, .lh6, .lh7]
         default: return []
         }
@@ -144,15 +168,21 @@ final class ArchiveSavePanelController {
             || format == .zip && [.lzma, .xz].contains(method)
             || format == .sevenZip && [.lzma, .lzma2].contains(method)
     }
+    var usesZstd: Bool { format == .tarZstd || format == .zip && method == .zstd }
+    var showsSevenZipOptions: Bool { singleStreamFormat == nil && format == .sevenZip }
     var levels: [Level] {
         guard isLevelEnabled else { return [.normal] }
-        let numeric = (startsAtZero ? 0...9 : 1...9).map { Level(rawValue: $0)! }
-        return singleStreamFormat == nil && [.zip, .sevenZip, .lha].contains(format) ? [.none] + numeric : numeric
+        let numeric = (usesZstd ? 1...19 : startsAtZero ? 0...9 : 1...9).map { Level(rawValue: $0)! }
+        return !usesZstd && singleStreamFormat == nil && [.zip, .sevenZip, .lha].contains(format) ? [.none] + numeric : numeric
     }
     var selectedLevelIndex: Int { levels.firstIndex(of: level) ?? 0 }
     var writerOptions: WriterOptions {
         let defaults = store.preferences.writerOptions(for: format)
         var options = level.applying(to: method.applying(to: defaults, format: format), format: format)
+        if showsSevenZipOptions {
+            options.sevenZipSolid = sevenZipSolid ? .on(blockSize: nil, filesPerBlock: nil) : .off
+            options.sevenZipFilter = sevenZipFilter.writerMode
+        }
         if singleStreamFormat != nil {
             options.preserveOwnerIDs = false
             options.password = nil
@@ -169,12 +199,24 @@ final class ArchiveSavePanelController {
 
     func selectMethod(at index: Int) {
         guard methods.indices.contains(index) else { return }
+        rememberChoice()
         method = methods[index]
-        if !levels.contains(level) { level = .fast }
+        if let saved = methodLevels[methodChoiceKey] { level = saved }
+        else if method == .zstd { level = Level(rawValue: store.preferences.zipZstdLevel) ?? .three }
+        else if method == .ppmd {
+            let value = format == .zip ? store.preferences.zipPPMdLevel : store.preferences.sevenZipPPMdLevel
+            level = Level(rawValue: value) ?? .normal
+        }
+        if !levels.contains(level) { level = usesZstd ? .three : .normal }
         rememberChoice()
     }
 
-    private func rememberChoice() { choices[filenameExtension] = (method, level) }
+    private var methodChoiceKey: String { filenameExtension + ":" + method.rawValue }
+
+    private func rememberChoice() {
+        choices[filenameExtension] = (method, level)
+        methodLevels[methodChoiceKey] = level
+    }
 
     private func resetChoice() {
         if let choice = choices[filenameExtension] { (method, level) = choice; return }
@@ -187,20 +229,24 @@ final class ArchiveSavePanelController {
             case .bzip2: .bzip2
             case .lzma: .lzma
             case .xz: .xz
+            case .zstd: .zstd
+            case .ppmd: .ppmd
             default: .deflate
             }
-            value = options.compressionMethod == .stored ? -1 : (startsAtZero ? options.lzmaLevel ?? 6 : method == .bzip2 ? options.bzip2Level : options.deflateLevel)
+            value = options.compressionMethod == .stored ? -1 : method == .zstd ? options.zstdLevel : method == .ppmd ? options.ppmdLevel : (startsAtZero ? options.lzmaLevel ?? 6 : method == .bzip2 ? options.bzip2Level : options.deflateLevel)
         case .sevenZip:
             method = switch preferences.sevenZipMethod {
             case .lzma: .lzma
             case .deflate: .deflate
             case .bzip2: .bzip2
+            case .ppmd: .ppmd
             default: .lzma2
             }
-            value = options.sevenZipMethod == .copy ? -1 : (startsAtZero ? options.lzmaLevel ?? 6 : method == .bzip2 ? options.bzip2Level : options.deflateLevel)
+            value = options.sevenZipMethod == .copy ? -1 : method == .ppmd ? options.ppmdLevel : (startsAtZero ? options.lzmaLevel ?? 6 : method == .bzip2 ? options.bzip2Level : options.deflateLevel)
         case .lha:
             method = preferences.lhaMethod == .lh6 ? .lh6 : preferences.lhaMethod == .lh7 ? .lh7 : .lh5
             value = options.lhaMethod == .stored ? -1 : options.lhaLevel
+        case .tarZstd: value = options.zstdLevel
         case .tarGzip: value = options.deflateLevel
         case .tarBzip2: value = options.bzip2Level
         default: value = options.lzmaLevel ?? 6
@@ -215,6 +261,7 @@ final class ArchiveSavePanelController {
         case .tarGzip: String(localized: "tar.gz", bundle: bundle)
         case .tarBzip2: String(localized: "tar.bz2", bundle: bundle)
         case .tarXZ: String(localized: "tar.xz", bundle: bundle)
+        case .tarZstd: String(localized: "tar.zst", bundle: bundle)
         case .tarLzip: String(localized: "tar.lz", bundle: bundle)
         case .tarLZMA: String(localized: "tar.lzma", bundle: bundle)
         case .tarLZ4: String(localized: "tar.lz4", bundle: bundle)
@@ -233,6 +280,7 @@ final class ArchiveSavePanelController {
         case .tarGzip: identifier = "com.shunnag.KaitoFinder.save-tar-gzip"
         case .tarBzip2: identifier = "com.shunnag.KaitoFinder.save-tar-bzip2"
         case .tarXZ: identifier = "com.shunnag.KaitoFinder.save-tar-xz"
+        case .tarZstd: identifier = "com.shunnag.KaitoFinder.save-tar-zstd"
         case .tarLzip: identifier = "com.shunnag.KaitoFinder.save-tar-lzip"
         case .tarLZMA: identifier = "com.shunnag.KaitoFinder.save-tar-lzma"
         case .tarLZ4: identifier = "com.shunnag.KaitoFinder.save-tar-lz4"
@@ -249,6 +297,7 @@ final class ArchiveSavePanelController {
         case .gzip: "org.gnu.gnu-zip-archive"
         case .bzip2: "public.bzip2-archive"
         case .xz: "org.tukaani.xz-archive"
+        case .zstd: "org.zstandard.zstd-archive"
         case .lzma: "org.tukaani.lzma-archive"
         case .lzip: "com.shunnag.KaitoFinder.lzip-archive"
         case .lz4: "com.shunnag.KaitoFinder.lz4-archive"
@@ -263,6 +312,7 @@ final class ArchiveSavePanelController {
         case .tarGzip: contentType(for: SingleStreamFormat.gzip)
         case .tarBzip2: contentType(for: SingleStreamFormat.bzip2)
         case .tarXZ: contentType(for: SingleStreamFormat.xz)
+        case .tarZstd: contentType(for: SingleStreamFormat.zstd)
         case .tarLzip: contentType(for: SingleStreamFormat.lzip)
         case .tarLZMA: contentType(for: SingleStreamFormat.lzma)
         case .tarLZ4: contentType(for: SingleStreamFormat.lz4)

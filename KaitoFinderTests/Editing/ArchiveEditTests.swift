@@ -420,7 +420,7 @@ nonisolated final class ArchiveEditTests: XCTestCase, EditTestSupport {
 
     @MainActor func testReadOnlyCapabilitiesRefuseDeleteRenameAndMixedEditsBeforeOpeningUpdater() async throws {
         for (filename, script) in [
-            ("archive.tar.zst", "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport struct; raw=open(p,'rb').read(); open(p,'wb').write(bytes.fromhex('28b52ffda0') + struct.pack('<I',len(raw)) + struct.pack('<I',(len(raw)<<3)|1)[:3] + raw)"),
+            ("archive.cpio", "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))" + "\n" + ScenarioFixture.tarToReadOnlyCPIO),
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')")
         ] {
             let fixture = try EditTestFixture(filename: filename, script: script), session = try ArchiveSession(url: fixture.archive)

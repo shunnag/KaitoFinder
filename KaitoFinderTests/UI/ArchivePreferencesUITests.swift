@@ -399,6 +399,44 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         }
     }
 
+    @MainActor func testCompressionPaneWidthIsIndependentOfScrollerStyle() throws {
+        for language in ["ja", "en", "da"] {
+            let suite = try ArchivePreferencesTestDefaults()
+            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+                bundle: try LocalizationAcceptance.bundle(language))
+            defer { controller.close() }
+            let window = try XCTUnwrap(controller.window)
+            window.setFrameAutosaveName("")
+            window.layoutIfNeeded()
+            let initialWidth = try XCTUnwrap(window.contentView).bounds.width
+            let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+            let scroll = try XCTUnwrap(pane.view.subviews.compactMap { $0 as? NSScrollView }.first)
+            controller.additionalFormatPopup.selectItem(at: PreferencesViewModel.additionalFormats.firstIndex(of: .sevenZip)!)
+            sendAction(controller.additionalFormatPopup)
+            XCTAssertNotNil(controller.additionalMethodPopup.superview)
+            XCTAssertNotNil(controller.sevenZipSolidCheckbox.superview)
+            XCTAssertNotNil(controller.sevenZipFilterPopup.superview)
+            XCTAssertFalse(controller.additionalMethodPopup.isHidden)
+            XCTAssertFalse(controller.sevenZipSolidCheckbox.isHidden)
+            XCTAssertFalse(controller.sevenZipFilterPopup.isHidden)
+            // 実際のマウスや利用者のスクロールバー設定を変更せず、両方式と往復を検査する。
+            for style: NSScroller.Style in [.legacy, .overlay, .legacy] {
+                scroll.scrollerStyle = style
+                scroll.tile()
+                for index in [1, 0, 1] {
+                    controller.tabController.selectedTabViewItemIndex = index
+                    window.layoutIfNeeded()
+                    XCTAssertEqual(scroll.scrollerStyle, style)
+                    XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.width, initialWidth, accuracy: 0.5, language)
+                    XCTAssertEqual(pane.preferredContentSize.width, initialWidth, accuracy: 0.5, language)
+                    XCTAssertEqual(pane.view.fittingSize.width, initialWidth, accuracy: 0.5, language)
+                    XCTAssertEqual(pane.view.bounds.width, initialWidth, accuracy: 0.5, language)
+                    XCTAssertEqual(scroll.bounds.width, initialWidth, accuracy: 0.5, language)
+                }
+            }
+        }
+    }
+
     @MainActor func testToolbarSwitchesPanesWithoutMovingControlsOffScreen() throws {
         let suite = try ArchivePreferencesTestDefaults()
         let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))

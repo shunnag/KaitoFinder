@@ -293,10 +293,10 @@ nonisolated final class ArchiveMoveEditTests: XCTestCase, EditTestSupport {
     }
 
     @MainActor func testReadOnlyArchiveRefusesMoveBeforeOpeningUpdater() async throws {
-        let fixture = try EditTestFixture(filename: "archive.tar.zst", script: """
+        let fixture = try EditTestFixture(filename: "archive.cpio", script: """
         with tarfile.open(p, 'w') as t:
             i = tarfile.TarInfo('a/x.txt'); i.size = 1; t.addfile(i, io.BytesIO(b'x'))
-        import struct; raw=open(p,'rb').read(); open(p,'wb').write(bytes.fromhex('28b52ffda0') + struct.pack('<I',len(raw)) + struct.pack('<I',(len(raw)<<3)|1)[:3] + raw)
+        \(ScenarioFixture.tarToReadOnlyCPIO)
         """)
         let session = try ArchiveSession(url: fixture.archive), before = try ArchiveOracle.digest(fixture.archive), opened = Mutex(0)
         let selected = ArchiveEditSelection(try await node("a/x.txt", in: session))

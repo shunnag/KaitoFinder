@@ -27,8 +27,8 @@ KaitoFinder 0.2.0 は文書型・一覧・プレビューへ接続し、ZIP の�
 使用 checkout は KaitoKit 0.8.1 のレビュー修正と GyoshukuKit 0.4.2 を含む。
 アプリの検証状況は[追従記録](verification/2026-09-22-kaitokit-0.8.0.md)を参照。
 
-2026-10-06: KaitoFinder の作成・形式変換・設定へ GyoshukuKit の 12 出力形式と方式別レベルを接続した。
-新しい圧縮 tar 5 形式の編集は ArchiveRewriter を使う。通常ファイル 1 個の単独圧縮は作成専用とし、開いた stream は読み取り専用を保つ。
+2026-10-06: KaitoFinder の作成・形式変換・設定へ GyoshukuKit の 13 出力形式と方式別レベルを接続した。
+新しい圧縮 tar 6 形式の編集は ArchiveRewriter を使う。通常ファイル 1 個の単独圧縮は作成専用とし、開いた stream は読み取り専用を保つ。
 ZIP の既定は Deflate。BZip2 / LZMA / XZ 選択時は macOS 付属ツールとの互換性を注記する。
 候補と保留・除外理由は [圧縮拡張の記録](pending/2026-10-06-compression-expansion.md)を参照。
 
@@ -59,7 +59,7 @@ ZIP の既定は Deflate。BZip2 / LZMA / XZ 選択時は macOS 付属ツール�
 | ISO / UDF / DMG | ISO9660/Joliet/Rock Ridge・zisofs、UDF、DMG の HFS+ / HFSX・ISO / UDF、raw / zlib / bzip2 / lzfse / lzma chunk | zisofs2 / multi-extent zisofs、UDF の ext_ad・他 volume、DMG の ADC / APFS / decmpfs |
 | WIM / Compound File / CHM / ARJ | WIM stored / XPRESS / LZX、CFB の stream と MSI 名、CHM stored / LZX、ARJ stored / method 1〜3・no data | WIM solid / LZMS・他 part・EFS、CHM の未対応 section、ARJ method 4・garbled・multi-volume の続き |
 | その他の容器 | ar/deb、cpio、xar/pkg、RPM | ACE、ZOO、ARC/PAK、Compact Pro/PackIt、ALZip、Amiga 系、NSIS 等。cpio/RPM の新 profile も別途 |
-| GyoshukuKit 出力 | ZIP stored/Deflate/BZip2/LZMA/XZ、tar、tar.gz、tar.bz2、tar.xz、tar.lz、tar.lzma、tar.lz4、tar.br、tar.Z、non-solid 7z LZMA2/LZMA/Deflate/BZip2/Copy、LHA lh5/lh6/lh7/stored。単独 .gz/.bz2/.xz/.lz/.lzma/.lz4/.br/.Z、ZIP/7z 暗号化、方式別のレベル | Zstandard、PPMd、7z solid・filters、.aar/.lzfse、Mac の fork/xattr 保存 |
+| GyoshukuKit 出力 | ZIP stored/Deflate/BZip2/LZMA/XZ/Zstandard 93/PPMd 98、tar、tar.gz、tar.bz2、tar.xz、tar.zst、tar.lz、tar.lzma、tar.lz4、tar.br、tar.Z、7z LZMA2/LZMA/Deflate/BZip2/PPMd/Copy（solid は既定オフ、filter は none/auto/BCJ x86/ARM64/Delta 距離4）、LHA lh5/lh6/lh7/stored。単独 .gz/.bz2/.xz/.zst/.lz/.lzma/.lz4/.br/.Z、ZIP/7z 暗号化、方式別のレベル（Zstandard 1〜19・標準3、PPMd 1〜9・標準6） | .aar/.lzfse、Mac の fork/xattr 保存 |
 
 これは実装の差分表で、各容器に存在する全亜種の一覧ではない。
 ISO/UDF や MSI は「圧縮 codec」ではなく容器・ファイルシステムの追加。

@@ -361,8 +361,8 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
                 item = tarfile.TarInfo(name)
                 item.size = 4
                 z.addfile(item, io.BytesIO(b'data'))
-        import struct; raw=open(p,'rb').read(); open(p,'wb').write(bytes.fromhex('28b52ffda0') + struct.pack('<I',len(raw)) + struct.pack('<I',(len(raw)<<3)|1)[:3] + raw)
-        """, suffix: "tar.zst")
+        \(ScenarioFixture.tarToReadOnlyCPIO)
+        """, suffix: "cpio")
         let (_, controller) = try await scenarioDocument(fixture)
         let menu = try XCTUnwrap(controller.outlineView.menu)
         let window = try XCTUnwrap(controller.window)

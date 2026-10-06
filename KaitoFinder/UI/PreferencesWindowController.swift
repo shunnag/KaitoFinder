@@ -3,7 +3,7 @@ import GyoshukuKit
 
 /// 画面を出さずに、各コントロールの選択と即時保存を検証できる。
 final class PreferencesViewModel {
-    static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored, .bzip2, .lzma, .xz]
+    static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored, .bzip2, .lzma, .xz, .zstd, .ppmd]
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
     static let saveBehaviors = ArchivePreferences.SaveBehavior.allCases
@@ -62,8 +62,16 @@ final class PreferencesViewModel {
     var afterExpansionIndex: Int { preferences.trashesArchiveAfterExtraction ? 1 : 0 }
     var folderPolicyIndex: Int { Self.folderPolicies.firstIndex(of: preferences.folderPolicy)! }
     var zipUsesLZMA: Bool { preferences.zipMethod == .lzma || preferences.zipMethod == .xz }
-    var zipLevelLabel: String { String(zipUsesLZMA ? preferences.zipLZMALevel : preferences.zipLevel) }
-    static let additionalFormats: [GyoshukuKit.ArchiveFormat] = [.tarXZ, .tarLzip, .tarLZMA, .sevenZip, .lha]
+    var zipLevel: Int {
+        switch preferences.zipMethod {
+        case .lzma, .xz: preferences.zipLZMALevel
+        case .zstd: preferences.zipZstdLevel
+        case .ppmd: preferences.zipPPMdLevel
+        default: preferences.zipLevel
+        }
+    }
+    var zipLevelLabel: String { String(zipLevel) }
+    static let additionalFormats: [GyoshukuKit.ArchiveFormat] = [.tarXZ, .tarZstd, .tarLzip, .tarLZMA, .sevenZip, .lha]
 
     func compressionController(for format: GyoshukuKit.ArchiveFormat) -> ArchiveSavePanelController {
         let controller = ArchiveSavePanelController(store: store)
@@ -74,6 +82,7 @@ final class PreferencesViewModel {
     func changeCompressionDefault(_ controller: ArchiveSavePanelController) {
         var value = store.preferences
         switch controller.format {
+        case .tarZstd: value.tarZstdLevel = controller.level.rawValue
         case .tarXZ: value.tarXZLevel = controller.level.rawValue
         case .tarLzip: value.tarLzipLevel = controller.level.rawValue
         case .tarLZMA: value.tarLZMALevel = controller.level.rawValue
@@ -82,9 +91,15 @@ final class PreferencesViewModel {
             case .lzma: .lzma
             case .deflate: .deflate
             case .bzip2: .bzip2
+            case .ppmd: .ppmd
             default: .lzma2
             }
-            value.sevenZipLevel = controller.level.rawValue
+            if controller.method == .ppmd && controller.level != .none {
+                value.sevenZipPPMdLevel = controller.level.rawValue
+                if value.sevenZipLevel == -1 { value.sevenZipLevel = 6 }
+            } else { value.sevenZipLevel = controller.level.rawValue }
+            value.sevenZipSolid = controller.sevenZipSolid
+            value.sevenZipFilter = controller.sevenZipFilter
         case .lha:
             value.lhaMethod = controller.method == .lh6 ? .lh6 : controller.method == .lh7 ? .lh7 : .lh5
             value.lhaLevel = controller.level.rawValue
@@ -124,7 +139,9 @@ final class PreferencesViewModel {
     func changeTarCarriedOwnerIDs(to value: ArchivePreferences.CarriedOwnerIDPolicy) { store.preferences.tarCarriedOwnerIDs = value }
 
     func changeZipLevel(to level: Int) {
-        if zipUsesLZMA { store.preferences.zipLZMALevel = min(9, max(0, level)) }
+        if preferences.zipMethod == .zstd { store.preferences.zipZstdLevel = ArchivePreferences.validLevel(level, range: 1...19, fallback: 3) }
+        else if preferences.zipMethod == .ppmd { store.preferences.zipPPMdLevel = ArchivePreferences.validLevel(level, range: 1...9, fallback: 6) }
+        else if zipUsesLZMA { store.preferences.zipLZMALevel = min(9, max(0, level)) }
         else { store.preferences.zipLevel = ArchivePreferences.clampedLevel(level) }
     }
     func changeZipSkipsCompressedTypes(to enabled: Bool) { store.preferences.zipSkipsCompressedTypes = enabled }
@@ -196,6 +213,9 @@ final class PreferencesWindowController: NSWindowController {
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
     let additionalFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let additionalMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let sevenZipSolidCheckbox: NSButton
+    let sevenZipFilterPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let sevenZipSolidNote = NSTextField(wrappingLabelWithString: "")
     let additionalLevelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private var additionalCompression: ArchiveSavePanelController?
     private let zipCompatibilityNote = NSTextField(wrappingLabelWithString: "")
@@ -227,6 +247,7 @@ final class PreferencesWindowController: NSWindowController {
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main,
          softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared, hardware: ArchiveHardware = .current) {
         self.bundle = bundle
+        sevenZipSolidCheckbox = NSButton(checkboxWithTitle: String(localized: "ソリッド圧縮", bundle: bundle), target: nil, action: nil)
         self.softwareUpdater = softwareUpdater
         automaticallyChecksForUpdatesCheckbox = NSButton(
             checkboxWithTitle: String(localized: "アップデートを自動的に確認", bundle: bundle), target: nil, action: nil)
@@ -299,6 +320,10 @@ final class PreferencesWindowController: NSWindowController {
                 row(String(localized: "フォルダを開くとき:", bundle: bundle), control: folderOpeningPopup)
             ], spanningRows: [0, 1, 2, 3])
         ])
+        sevenZipSolidNote.stringValue = String(localized: "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します", bundle: bundle)
+        sevenZipSolidNote.preferredMaxLayoutWidth = 520
+        sevenZipSolidNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        sevenZipSolidNote.textColor = .secondaryLabelColor
         zipCompatibilityNote.stringValue = String(localized: "このZIPはmacOSのアーカイブユーティリティやunzipでは開けません", bundle: bundle)
         zipCompatibilityNote.textColor = .secondaryLabelColor
         zipCompatibilityNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -323,8 +348,11 @@ final class PreferencesWindowController: NSWindowController {
             group(rows: [
                 row(String(localized: "フォーマット", bundle: bundle), control: additionalFormatPopup),
                 row(String(localized: "圧縮方式:", bundle: bundle), control: additionalMethodPopup),
-                row(String(localized: "圧縮レベル:", bundle: bundle), control: additionalLevelPopup)
-            ]),
+                row(String(localized: "圧縮レベル:", bundle: bundle), control: additionalLevelPopup),
+                checkboxRow(sevenZipSolidCheckbox),
+                row(String(localized: "フィルタ", bundle: bundle), control: sevenZipFilterPopup),
+                row("", control: sevenZipSolidNote)
+            ], spanningRows: [3, 5]),
             zipCompatibilityNote
         ])
         addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", sections: [
@@ -370,6 +398,12 @@ final class PreferencesWindowController: NSWindowController {
         for item in tabController.tabViewItems {
             guard let pane = item.viewController else { continue }
             pane.preferredContentSize.width = width
+            // スクロールバーの表示方式が変わっても、ペインからウインドウの幅を広げない。
+            pane.view.widthAnchor.constraint(equalToConstant: width).isActive = true
+            pane.view.setFrameSize(pane.preferredContentSize)
+            // 共通幅と制約を反映した後の必要高も使い、初期計測より高い内容を切り取らない。
+            pane.view.layoutSubtreeIfNeeded()
+            pane.preferredContentSize.height = max(pane.preferredContentSize.height, ceil(pane.view.fittingSize.height))
             pane.view.setFrameSize(pane.preferredContentSize)
         }
         let contentSize = tabController.tabViewItems[0].viewController!.preferredContentSize
@@ -406,9 +440,18 @@ final class PreferencesWindowController: NSWindowController {
             String(localized: "先頭（編集のたびに全体を書き直す）", bundle: bundle)])
         tarCarriedOwnerIDsPopup.addItems(withTitles: [String(localized: "そのまま保つ", bundle: bundle),
             String(localized: "0に戻す（編集のたびに全体を書き直す）", bundle: bundle)])
-        zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle), "BZip2", "LZMA", "XZ"])
+        zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle), "BZip2", "LZMA", "XZ", String(localized: "Zstandard", bundle: bundle), String(localized: "PPMd", bundle: bundle)])
+        sevenZipFilterPopup.addItems(withTitles: ArchivePreferences.SevenZipFilter.allCases.map { $0.title(bundle: bundle) })
+        sevenZipFilterPopup.setAccessibilityLabel(String(localized: "フィルタ", bundle: bundle))
         additionalFormatPopup.addItems(withTitles: PreferencesViewModel.additionalFormats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         additionalFormatPopup.selectItem(at: 0)
+        // 空の popup でグリッドの高さを決めない。7z の全方式と Zstandard を含む全レベルの幅を先に確保する。
+        // 初期表示の前に refreshControls で実際の形式の項目と表示状態へ戻す。
+        let compression = viewModel.compressionController(for: .sevenZip)
+        additionalMethodPopup.addItems(withTitles: compression.methods.map { $0.title(bundle: bundle) })
+        additionalLevelPopup.addItems(withTitles: ArchiveSavePanelController.Level.allCases.flatMap {
+            [$0.title(bundle: bundle), $0.title(bundle: bundle, zstd: true)]
+        })
         additionalFormatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
         additionalMethodPopup.setAccessibilityLabel(String(localized: "圧縮方式:", bundle: bundle))
         additionalLevelPopup.setAccessibilityLabel(String(localized: "圧縮レベル:", bundle: bundle))
@@ -434,6 +477,8 @@ final class PreferencesWindowController: NSWindowController {
             (additionalFormatPopup, #selector(changeAdditionalFormat(_:))),
             (additionalMethodPopup, #selector(changeAdditionalMethod(_:))),
             (additionalLevelPopup, #selector(changeAdditionalLevel(_:))),
+            (sevenZipSolidCheckbox, #selector(changeSevenZipSolid(_:))),
+            (sevenZipFilterPopup, #selector(changeSevenZipFilter(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
@@ -541,7 +586,9 @@ final class PreferencesWindowController: NSWindowController {
         }
         let required = stack.fittingSize
         let scrolls = symbol == "archivebox" && required.height > 650
-        controller.preferredContentSize = NSSize(width: max(600, ceil(required.width) + 48),
+        // マウスの接続で legacy に切り替わっても、本文に必要な幅を保つ。
+        let scrollerWidth = scrolls ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+        controller.preferredContentSize = NSSize(width: max(600, ceil(required.width) + 48 + scrollerWidth),
                                                 height: scrolls ? min(698, max(400, (NSScreen.main?.visibleFrame.height ?? 838) - 140)) : ceil(required.height) + 48)
         controller.view.setFrameSize(controller.preferredContentSize)
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -555,12 +602,15 @@ final class PreferencesWindowController: NSWindowController {
             document.addSubview(stack)
             scroll.documentView = document
             controller.view.addSubview(scroll)
+            // document の最小幅を scroll の必須幅へ伝播させず、表示領域の幅に追従させる。
+            let documentWidth = document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor)
+            documentWidth.priority = .defaultHigh
             NSLayoutConstraint.activate([
                 scroll.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
                 scroll.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
                 scroll.topAnchor.constraint(equalTo: controller.view.topAnchor),
                 scroll.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
-                document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+                documentWidth,
                 document.heightAnchor.constraint(equalToConstant: ceil(required.height) + 48),
                 stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
                 stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
@@ -640,12 +690,13 @@ final class PreferencesWindowController: NSWindowController {
         compressionMemoryNote.textColor = memoryNote.warns ? .systemOrange : .secondaryLabelColor
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
         zipLevelSlider.minValue = viewModel.zipUsesLZMA ? 0 : 1
-        zipLevelSlider.numberOfTickMarks = viewModel.zipUsesLZMA ? 10 : 9
-        zipLevelSlider.integerValue = viewModel.zipUsesLZMA ? preferences.zipLZMALevel : preferences.zipLevel
+        zipLevelSlider.maxValue = preferences.zipMethod == .zstd ? 19 : 9
+        zipLevelSlider.numberOfTickMarks = Int(zipLevelSlider.maxValue - zipLevelSlider.minValue) + 1
+        zipLevelSlider.integerValue = viewModel.zipLevel
         zipLevelLabel.stringValue = viewModel.zipLevelLabel
         zipLevelSlider.isEnabled = preferences.zipMethod != .stored
         zipLevelLabel.textColor = zipLevelSlider.isEnabled ? .secondaryLabelColor : .disabledControlTextColor
-        zipCompatibilityNote.isHidden = ![.bzip2, .lzma, .xz].contains(preferences.zipMethod)
+        zipCompatibilityNote.isHidden = ![.bzip2, .lzma, .xz, .zstd, .ppmd].contains(preferences.zipMethod)
         refreshAdditionalCompression()
         zipSkipsCompressedTypesCheckbox.state = preferences.zipSkipsCompressedTypes ? .on : .off
         tarGzipLevelSlider.integerValue = preferences.tarGzipLevel
@@ -664,14 +715,40 @@ final class PreferencesWindowController: NSWindowController {
         let controller = viewModel.compressionController(for: PreferencesViewModel.additionalFormats[index])
         additionalCompression = controller
         additionalMethodPopup.removeAllItems()
-        additionalMethodPopup.addItems(withTitles: controller.methods.map(\.rawValue))
+        additionalMethodPopup.addItems(withTitles: controller.methods.map { $0.title(bundle: bundle) })
         additionalMethodPopup.selectItem(at: controller.selectedMethodIndex)
         additionalMethodPopup.isEnabled = !controller.methods.isEmpty
-        additionalMethodPopup.isHidden = controller.methods.isEmpty
-        (additionalMethodPopup.superview as? NSGridView)?.row(at: 1).isHidden = controller.methods.isEmpty
         additionalLevelPopup.removeAllItems()
-        additionalLevelPopup.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle, startsAtZero: controller.startsAtZero) })
+        additionalLevelPopup.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle, startsAtZero: controller.startsAtZero, zstd: controller.usesZstd) })
         additionalLevelPopup.selectItem(at: controller.selectedLevelIndex)
+        sevenZipSolidCheckbox.state = controller.sevenZipSolid ? .on : .off
+        sevenZipFilterPopup.selectItem(at: ArchivePreferences.SevenZipFilter.allCases.firstIndex(of: controller.sevenZipFilter)!)
+        // 保存パネルと同様に、非表示にならない欄から grid を取得して行を戻す。
+        let hidesSolidNote = !controller.showsSevenZipOptions || !controller.sevenZipSolid
+        if let rows = additionalFormatPopup.superview as? NSGridView {
+            rows.row(at: 1).isHidden = controller.methods.isEmpty
+            rows.row(at: 3).isHidden = !controller.showsSevenZipOptions
+            rows.row(at: 4).isHidden = !controller.showsSevenZipOptions
+            rows.row(at: 5).isHidden = hidesSolidNote
+            rows.needsLayout = true
+        }
+        additionalMethodPopup.isHidden = controller.methods.isEmpty
+        sevenZipSolidCheckbox.isHidden = !controller.showsSevenZipOptions
+        sevenZipFilterPopup.isHidden = !controller.showsSevenZipOptions
+        sevenZipSolidNote.isHidden = hidesSolidNote
+    }
+
+    @objc private func changeSevenZipSolid(_ sender: NSButton) {
+        guard let controller = additionalCompression else { return }
+        controller.sevenZipSolid = sender.state == .on
+        viewModel.changeCompressionDefault(controller)
+    }
+    @objc private func changeSevenZipFilter(_ sender: NSPopUpButton) {
+        guard let controller = additionalCompression else { return }
+        let filters = ArchivePreferences.SevenZipFilter.allCases
+        guard filters.indices.contains(sender.indexOfSelectedItem) else { return }
+        controller.sevenZipFilter = filters[sender.indexOfSelectedItem]
+        viewModel.changeCompressionDefault(controller)
     }
 
     @objc private func changeAdditionalFormat(_ sender: NSPopUpButton) { refreshAdditionalCompression() }

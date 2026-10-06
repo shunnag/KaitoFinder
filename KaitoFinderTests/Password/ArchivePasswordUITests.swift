@@ -230,10 +230,13 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 let collapsedHeight = accessory.fittingSize.height
                 // 分割の行で伸びたシートは 550 pt の親では上端がタイトルバーを越え、AppKit が寄せて中心がずれる。
                 // 親を高くして、伸縮中もシートが中央基準のままになる大きさで測る。
-                let parent = asSheet ? NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: split ? 600 : 550),
+                // 展開後も画面内に収め、画面外ではアニメーションを省く仕様の影響を避ける。
+                let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+                let parentHeight: CGFloat = split ? 600 : 550
+                let parent = asSheet ? NSWindow(contentRect: NSRect(x: visible.minX + 100, y: visible.maxY - 40 - parentHeight,
+                    width: 800, height: parentHeight),
                     styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false) : nil
                 parent?.isReleasedWhenClosed = false
-                parent?.center()
                 parent?.makeKeyAndOrderFront(nil)
                 var response: NSApplication.ModalResponse?
                 if let parent { save.begin(on: parent) { response = $0 } }
@@ -354,7 +357,9 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         let save = ArchiveSavePanel(sources: [], store: ArchivePreferencesStore(defaults: suite.defaults), reducesMotion: { false })
         let accessory = try XCTUnwrap(save.panel.accessoryView)
         let collapsedHeight = accessory.fittingSize.height
-        let parent = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
+        // 展開後も画面内に収め、画面外ではアニメーションを省く仕様の影響を避ける。
+        let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let parent = NSWindow(contentRect: NSRect(x: visible.minX + 100, y: visible.maxY - 40 - 550, width: 800, height: 550),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         parent.isReleasedWhenClosed = false
         parent.makeKeyAndOrderFront(nil)
@@ -525,7 +530,9 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         defer { restoreAnimations(); restoreBrowser() }
         let suite = try ArchivePreferencesTestDefaults()
         let save = ArchiveSavePanel(sources: [], defaults: suite.defaults)
-        let parent = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 800, height: 550),
+        // 初期配置は画面内に収め、下端の検査位置はシートの表示後に設定する。
+        let visible = try XCTUnwrap(NSScreen.main?.visibleFrame)
+        let parent = NSWindow(contentRect: NSRect(x: visible.minX + 100, y: visible.maxY - 40 - 550, width: 800, height: 550),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         parent.isReleasedWhenClosed = false
         parent.makeKeyAndOrderFront(nil)

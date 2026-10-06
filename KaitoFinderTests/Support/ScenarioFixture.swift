@@ -19,24 +19,39 @@ nonisolated final class ScenarioFixture {
         try Self.python(directory, archive: archive, script: script, arguments: arguments)
     }
 
+    /// Python の標準 tarfile で作った項目を、読み取り専用の newc cpio へ移す。
+    nonisolated static let tarToReadOnlyCPIO = """
+    with tarfile.open(p, 'r') as archive:
+        items = [(item.name, archive.extractfile(item).read()) for item in archive if item.isfile()]
+    output = bytearray()
+    for index, (name, data) in enumerate(items + [('TRAILER!!!', b'')], 1):
+        encoded = name.encode() + bytes([0])
+        fields = [index, 0o100644, 0, 0, 1, 0, len(data), 0, 0, 0, 0, len(encoded), 0]
+        output.extend(b'070701' + ''.join('%08x' % field for field in fields).encode() + encoded)
+        output.extend(bytes((-len(output)) % 4))
+        output.extend(data)
+        output.extend(bytes((-len(output)) % 4))
+    open(p, 'wb').write(output)
+    """
+
     /// `names` の項目を入れた ZIP。file の内容はそれぞれの名前で、`/` で終わる名前は directory にする。
-    /// `tar` なら同じ名前の file を入れた tar を Zstandard の非圧縮 frame で包んだ archive.tar.zst（読み取り専用の形式）にする。
-    nonisolated static func withEntries(_ names: [String] = ["a.txt", "b.txt", "c.txt"], tar: Bool = false) throws -> ScenarioFixture {
+    /// `readOnly` なら同じ名前の file を入れた読み取り専用の cpio にする。
+    nonisolated static func withEntries(_ names: [String] = ["a.txt", "b.txt", "c.txt"], readOnly: Bool = false) throws -> ScenarioFixture {
         try ScenarioFixture(script: """
         names = sys.argv[2:]
-        if p.endswith('.tar.zst'):
+        if p.endswith('.cpio'):
             with tarfile.open(p, 'w') as a:
                 for name in names:
                     item = tarfile.TarInfo(name)
                     data = name.encode()
                     item.size = len(data)
                     a.addfile(item, io.BytesIO(data))
-            import struct; raw=open(p,'rb').read(); open(p,'wb').write(bytes.fromhex('28b52ffda0') + struct.pack('<I',len(raw)) + struct.pack('<I',(len(raw)<<3)|1)[:3] + raw)
+            \(Self.tarToReadOnlyCPIO.replacingOccurrences(of: "\n", with: "\n    "))
         else:
             with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as a:
                 for name in names:
                     a.writestr(name, b'' if name.endswith('/') else name.encode())
-        """, suffix: tar ? "tar.zst" : "zip", arguments: names)
+        """, suffix: readOnly ? "cpio" : "zip", arguments: names)
     }
 
     private static func python(_ directory: ArchiveTestDirectory, archive: URL, script: String, arguments: [String]) throws {

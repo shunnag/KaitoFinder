@@ -1,6 +1,7 @@
 import Foundation
 import GyoshukuKit
-import KaitoKit
+@_spi(SevenZipEditLayout) import KaitoKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import KaitoFinder
 
@@ -9,15 +10,15 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
     @MainActor func testEveryFormatMethodAndNumericLevelMapsToWriterOptions() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let controller = ArchiveSavePanelController(store: store)
-        XCTAssertEqual(ArchivePreferences.formats.count, 12)
+        XCTAssertEqual(ArchivePreferences.formats.count, 13)
         for (index, format) in ArchivePreferences.formats.enumerated() {
             controller.selectFormat(at: index)
             let methods = controller.methods
             for methodIndex in methods.isEmpty ? [0] : Array(methods.indices) {
                 controller.selectMethod(at: methodIndex)
                 let method = controller.method
-                let numeric = controller.startsAtZero ? Array(0...9) : Array(1...9)
-                let stored = [.zip, .sevenZip, .lha].contains(format)
+                let numeric = controller.usesZstd ? Array(1...19) : controller.startsAtZero ? Array(0...9) : Array(1...9)
+                let stored = !controller.usesZstd && [.zip, .sevenZip, .lha].contains(format)
                 XCTAssertEqual(controller.levels.map(\.rawValue), controller.isLevelEnabled ? (stored ? [-1] : []) + numeric : [6])
                 for levelIndex in controller.levels.indices {
                     controller.selectLevel(at: levelIndex)
@@ -28,6 +29,8 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
                         case .bzip2: .bzip2
                         case .lzma: .lzma
                         case .xz: .xz
+                        case .zstd: .zstd
+                        case .ppmd: .ppmd
                         default: .deflate
                         }
                         XCTAssertEqual(options.compressionMethod, level == -1 ? .stored : expected)
@@ -36,6 +39,7 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
                         case .lzma: .lzma
                         case .deflate: .deflate
                         case .bzip2: .bzip2
+                        case .ppmd: .ppmd
                         default: .lzma2
                         }
                         XCTAssertEqual(options.sevenZipMethod, level == -1 ? .copy : expected)
@@ -45,7 +49,11 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
                     default: break
                     }
                     guard controller.isLevelEnabled, level != -1 else { continue }
-                    if controller.startsAtZero {
+                    if controller.usesZstd {
+                        XCTAssertEqual(options.zstdLevel, level)
+                    } else if [.zip, .sevenZip].contains(format) && method == .ppmd {
+                        XCTAssertEqual(options.ppmdLevel, level)
+                    } else if controller.startsAtZero {
                         let apple = format == .tarXZ || format == .zip && method == .xz || format == .sevenZip && method == .lzma2
                         XCTAssertEqual(options.lzmaLevel, apple && level == 6 ? nil : level, "\(format) / \(method) / \(level)")
                     } else if format == .tarGzip || [.zip, .sevenZip].contains(format) && method == .deflate {
@@ -68,14 +76,14 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
         XCTAssertTrue(controller.showsZipCompatibilityNote)
         controller.selectLevel(at: 0)
         XCTAssertFalse(controller.showsZipCompatibilityNote)
-        controller.selectFormat(at: 10)
+        controller.selectFormat(at: ArchivePreferences.formats.firstIndex(of: .sevenZip)!)
         controller.selectMethod(at: 1)
         controller.selectLevel(at: 1)
         XCTAssertEqual(controller.level, .zero)
         controller.selectFormat(at: 0)
         XCTAssertEqual(controller.method, .bzip2)
         XCTAssertEqual(controller.level, .none)
-        controller.selectFormat(at: 10)
+        controller.selectFormat(at: ArchivePreferences.formats.firstIndex(of: .sevenZip)!)
         XCTAssertEqual(controller.method, .lzma)
         XCTAssertEqual(controller.level, .zero)
     }
@@ -178,7 +186,7 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
             controller.selectFormat(at: ArchivePreferences.formats.firstIndex(of: format)!)
             for methodIndex in controller.methods.indices {
                 controller.selectMethod(at: methodIndex)
-                for level in [ArchiveSavePanelController.Level.none, .normal] {
+                for level in [ArchiveSavePanelController.Level.none, .normal].filter({ controller.levels.contains($0) }) {
                     controller.selectLevel(at: controller.levels.firstIndex(of: level)!)
                     let output = directory.url.appendingPathComponent("method-\(methodIndex)-\(level.rawValue)." + controller.filenameExtension)
                     let plan = creator.creationPlan(sources: [source], destination: output, format: format,
@@ -186,6 +194,9 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
                     _ = try ArchiveCreationTransaction.run(plan: plan, progress: Progress())
                     let reader = try ArchiveReader.open(url: output), entry = try XCTUnwrap(reader.entries.first)
                     XCTAssertEqual(try reader.read(entry), bytes)
+                    if format == .zip && level != .none && [.zstd, .ppmd].contains(controller.method) {
+                        XCTAssertEqual(entry.methodDescription, controller.method == .zstd ? "zstd" : "ppmd")
+                    }
                     if level == .none { XCTAssertEqual(entry.compressedSize, UInt64(bytes.count)) }
                     else { XCTAssertLessThan(try XCTUnwrap(entry.compressedSize), UInt64(bytes.count)) }
                 }
@@ -361,7 +372,7 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
         var preferences = ArchivePreferences()
         preferences.tarLzipLevel = 0
         preferences.tarLZMALevel = 0
-        for format in [GyoshukuKit.ArchiveFormat.tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress] {
+        for format in [GyoshukuKit.ArchiveFormat.tarZstd, .tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress] {
             let archive = directory.url.appendingPathComponent("edited." + ArchiveCreationPlan.filenameExtension(for: format))
             _ = try ArchiveCreationTransaction.run(plan: .init(sources: [source], destination: archive, format: format, options: preferences.writerOptions(for: format)), progress: Progress())
             let saved = preferences
@@ -385,6 +396,226 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
         }
     }
 
+    @MainActor func testZstdAndPPMdDefaultsUseIndependentKeysAndRejectInvalidValues() throws {
+        let suite = try ArchivePreferencesTestDefaults(), defaults = suite.defaults
+        let store = ArchivePreferencesStore(defaults: defaults), model = PreferencesViewModel(store: store)
+        XCTAssertEqual(store.preferences.tarZstdLevel, 3)
+        XCTAssertEqual(store.preferences.zipZstdLevel, 3)
+        XCTAssertEqual(store.preferences.zipPPMdLevel, 6)
+        XCTAssertEqual(store.preferences.sevenZipPPMdLevel, 6)
+        XCTAssertFalse(store.preferences.sevenZipSolid)
+        XCTAssertEqual(store.preferences.sevenZipFilter, .none)
+        for level in 1...19 {
+            var value = store.preferences
+            value.defaultFormat = .tarZstd
+            value.tarZstdLevel = level
+            value.zipZstdLevel = level
+            value.zipPPMdLevel = min(9, level)
+            value.sevenZipPPMdLevel = min(9, level)
+            value.zipMethod = .zstd
+            value.sevenZipMethod = .ppmd
+            value.sevenZipSolid = true
+            value.sevenZipFilter = .delta
+            store.preferences = value
+            XCTAssertEqual(ArchivePreferencesStore(defaults: defaults).preferences, value)
+            XCTAssertEqual(value.writerOptions(for: .tarZstd).zstdLevel, level)
+            XCTAssertEqual(value.writerOptions(for: .zip).zstdLevel, level)
+            XCTAssertEqual(value.writerOptions(for: .sevenZip).ppmdLevel, min(9, level))
+        }
+        store.preferences.zipLevel = 8
+        store.preferences.zipLZMALevel = 2
+        model.selectZipMethod(at: PreferencesViewModel.zipMethods.firstIndex(of: .ppmd)!)
+        model.changeZipLevel(to: 4)
+        model.selectZipMethod(at: PreferencesViewModel.zipMethods.firstIndex(of: .zstd)!)
+        model.changeZipLevel(to: 17)
+        XCTAssertEqual(model.zipLevelLabel, "17")
+        XCTAssertEqual(store.preferences.zipPPMdLevel, 4)
+        XCTAssertEqual(store.preferences.zipLZMALevel, 2)
+        XCTAssertEqual(store.preferences.zipLevel, 8)
+        let keys = [ArchivePreferencesStore.Key.tarZstdLevel, ArchivePreferencesStore.Key.zipZstdLevel,
+                    ArchivePreferencesStore.Key.zipPPMdLevel, ArchivePreferencesStore.Key.sevenZipPPMdLevel]
+        for invalid: Any in [-1, 0, 20, true, 1.5, "3", Data([0])] {
+            for key in keys { defaults.set(invalid, forKey: key) }
+            XCTAssertEqual(store.preferences.tarZstdLevel, 3)
+            XCTAssertEqual(store.preferences.zipZstdLevel, 3)
+            XCTAssertEqual(store.preferences.zipPPMdLevel, 6)
+            XCTAssertEqual(store.preferences.sevenZipPPMdLevel, 6)
+        }
+        defaults.set(10, forKey: ArchivePreferencesStore.Key.zipPPMdLevel)
+        defaults.set(10, forKey: ArchivePreferencesStore.Key.sevenZipPPMdLevel)
+        XCTAssertEqual(store.preferences.zipPPMdLevel, 6)
+        XCTAssertEqual(store.preferences.sevenZipPPMdLevel, 6)
+        var invalid = store.preferences
+        invalid.tarZstdLevel = 0; invalid.zipZstdLevel = 20
+        invalid.zipPPMdLevel = 10; invalid.sevenZipPPMdLevel = -1
+        store.preferences = invalid
+        XCTAssertEqual(store.preferences.tarZstdLevel, 3)
+        XCTAssertEqual(store.preferences.zipZstdLevel, 3)
+        XCTAssertEqual(store.preferences.zipPPMdLevel, 6)
+        XCTAssertEqual(store.preferences.sevenZipPPMdLevel, 6)
+        for invalid: Any in [1, "true", Data([0])] {
+            // @YES と @1 の等価判定で書き込みが省かれないよう、元の値を除く。
+            defaults.removeObject(forKey: ArchivePreferencesStore.Key.sevenZipSolid)
+            defaults.set(invalid, forKey: ArchivePreferencesStore.Key.sevenZipSolid)
+            XCTAssertFalse(store.preferences.sevenZipSolid)
+        }
+        defaults.set("unknown", forKey: ArchivePreferencesStore.Key.sevenZipFilter)
+        XCTAssertEqual(store.preferences.sevenZipFilter, .none)
+    }
+
+    @MainActor func testZstdLevelLabelsAndSingleStreamTypeAndTarAliases() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let directory = try ArchiveTestDirectory(), source = directory.url.appendingPathComponent("note.txt")
+        try Data("source".utf8).write(to: source)
+        store.preferences.tarZstdLevel = 13
+        let controller = ArchiveSavePanelController(store: store, sources: [source])
+        controller.selectFormat(at: ArchivePreferences.formats.firstIndex(of: .tarZstd)!)
+        XCTAssertEqual(controller.writerOptions.zstdLevel, 13)
+        XCTAssertEqual(controller.allowedContentTypes, [try XCTUnwrap(UTType("com.shunnag.KaitoFinder.save-tar-zstd"))])
+        XCTAssertEqual(controller.acceptedExtensions, ["tar.zst", "tzst"])
+        XCTAssertEqual(ArchiveSavePanelController.filenameStem("archive.TZST", format: .tarZstd), "archive")
+        XCTAssertEqual(ArchiveSavePanelController.filenameByChangingFormat("archive.tzst", to: .zip), "archive.zip")
+        controller.selectFormat(at: ArchivePreferences.formats.count + 2 + ArchiveCreationPlan.singleStreamFormats.firstIndex(of: .zstd)!)
+        XCTAssertEqual(controller.singleStreamFormat, .zstd)
+        XCTAssertEqual(controller.filenameExtension, "zst")
+        XCTAssertEqual(controller.allowedContentTypes, [try XCTUnwrap(UTType("org.zstandard.zstd-archive"))])
+        XCTAssertEqual(controller.writerOptions.zstdLevel, 13)
+        XCTAssertFalse(controller.levels.contains(.none))
+        let bundle = try LocalizationAcceptance.bundle("ja")
+        XCTAssertEqual(ArchiveSavePanelController.Level.fast.title(bundle: bundle, zstd: true), "1（最速）")
+        XCTAssertEqual(ArchiveSavePanelController.Level.three.title(bundle: bundle, zstd: true), "3（標準）")
+        XCTAssertEqual(ArchiveSavePanelController.Level.nineteen.title(bundle: bundle, zstd: true), "19（最高）")
+        XCTAssertEqual(ArchiveSavePanelController.Level.normal.title(bundle: bundle, zstd: true), "6")
+    }
+
+    @MainActor func testSevenZipSolidAndFiltersPersistAndReachCreatedArchive() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let model = PreferencesViewModel(store: store), creator = ArchiveCreationController(store: store)
+        let directory = try ArchiveTestDirectory()
+        // 自動判定にも渡せる x86_64 の Mach-O header を付ける。
+        let bytes = Data([0xcf, 0xfa, 0xed, 0xfe, 7, 0, 0, 1]) + Data(repeating: 0, count: 24)
+            + Data(repeating: 65, count: 4096)
+        let sources = ["first.bin", "second.bin"].map { directory.url.appendingPathComponent($0) }
+        for source in sources { try bytes.write(to: source) }
+        for solid in [false, true] {
+            for filter in ArchivePreferences.SevenZipFilter.allCases {
+                let controller = model.compressionController(for: .sevenZip)
+                controller.selectMethod(at: controller.methods.firstIndex(of: .ppmd)!)
+                controller.selectLevel(at: controller.levels.firstIndex(of: .normal)!)
+                controller.sevenZipSolid = solid
+                controller.sevenZipFilter = filter
+                model.changeCompressionDefault(controller)
+                let restored = model.compressionController(for: .sevenZip)
+                XCTAssertEqual(restored.sevenZipSolid, solid)
+                XCTAssertEqual(restored.sevenZipFilter, filter)
+                XCTAssertEqual(restored.writerOptions.sevenZipSolid, solid ? .on(blockSize: nil, filesPerBlock: nil) : .off)
+                XCTAssertEqual(restored.writerOptions.sevenZipFilter, filter.writerMode)
+                XCTAssertNil(restored.writerOptions.ppmdOrder)
+                XCTAssertNil(restored.writerOptions.ppmdMemoryMiB)
+                let output = directory.url.appendingPathComponent("options-\(solid)-\(filter.rawValue).7z")
+                let plan = creator.creationPlan(sources: sources, destination: output, format: .sevenZip,
+                    level: restored.level, method: restored.method, sevenZipSolid: solid, sevenZipFilter: filter)
+                XCTAssertEqual(plan.options.sevenZipSolid, restored.writerOptions.sevenZipSolid)
+                XCTAssertEqual(plan.options.sevenZipFilter, filter.writerMode)
+                _ = try ArchiveCreationTransaction.run(plan: plan, progress: Progress())
+                var readOptions = ReaderOptions.kaitoFinder()
+                readOptions.recordsSevenZipEditLayout = true
+                let reader = try ArchiveReader.open(url: output, options: readOptions)
+                for entry in reader.entries { XCTAssertEqual(try reader.read(entry), bytes) }
+                let snapshot = try XCTUnwrap(reader.sevenZipEditingSnapshot())
+                XCTAssertEqual(snapshot.folders.count, solid ? 1 : 2)
+                for folder in snapshot.folders {
+                    XCTAssertEqual(folder.substreamIndices.count, solid ? 2 : 1)
+                    XCTAssertTrue(folder.coders.contains { $0.methodID == [3, 4, 1] })
+                    let filterID: [UInt8]? = switch filter {
+                    case .none: nil
+                    case .auto, .bcjX86: [3, 3, 1, 3]
+                    case .arm64: [10]
+                    case .delta: [3]
+                    }
+                    if let filterID {
+                        let coder = try XCTUnwrap(folder.coders.first { $0.methodID == filterID })
+                        if filter == .delta { XCTAssertEqual(coder.properties, [3]) }
+                    } else { XCTAssertEqual(folder.coders.count, 1) }
+                }
+                controller.selectFormat(at: ArchivePreferences.formats.firstIndex(of: .zip)!, persistsDefault: false)
+                XCTAssertFalse(controller.showsSevenZipOptions)
+                XCTAssertEqual(controller.writerOptions.sevenZipSolid, .off)
+                XCTAssertEqual(controller.writerOptions.sevenZipFilter, .none)
+            }
+        }
+        // 保存パネルの指定は、その時点の設定を上書きして作成計画まで届く。
+        let overridden = creator.creationPlan(sources: sources, destination: directory.url.appendingPathComponent("override.7z"),
+            format: .sevenZip, sevenZipSolid: false, sevenZipFilter: .bcjX86)
+        XCTAssertEqual(overridden.options.sevenZipSolid, .off)
+        XCTAssertEqual(overridden.options.sevenZipFilter, .bcjX86)
+    }
+
+    @MainActor func testNewCompressionDefaultsReachSessionEdits() async throws {
+        let directory = try ArchiveTestDirectory()
+        let sources = ["first.txt", "second.txt"].map { directory.url.appendingPathComponent($0) }
+        let bytes = Data(repeating: 65, count: 2048)
+        for source in sources { try bytes.write(to: source) }
+        for (index, format) in [GyoshukuKit.ArchiveFormat.zip, .zip, .sevenZip, .tarZstd].enumerated() {
+            var preferences = ArchivePreferences()
+            preferences.zipMethod = index == 0 ? .zstd : .ppmd
+            preferences.zipZstdLevel = 1
+            preferences.zipPPMdLevel = 2
+            preferences.sevenZipMethod = .ppmd
+            preferences.sevenZipPPMdLevel = 3
+            preferences.sevenZipSolid = true
+            preferences.sevenZipFilter = .delta
+            preferences.tarZstdLevel = 4
+            preferences.zipSkipsCompressedTypes = false
+            let output = directory.url.appendingPathComponent("edit-options-\(index)." + ArchiveCreationPlan.filenameExtension(for: format))
+            let writer = try ArchiveWriter.create(url: output, format: format)
+            try writer.add(data: Data("original".utf8), as: "old.txt")
+            try writer.finish()
+            let saved = preferences
+            let session = try ArchiveSession(url: output, writerOptions: { saved.writerOptions(for: $0) })
+            let options = session.writerOptions(format)
+            XCTAssertEqual(options.zstdLevel, format == .tarZstd ? 4 : format == .zip ? 1 : 3)
+            XCTAssertEqual(options.ppmdLevel, format == .zip ? 2 : format == .sevenZip ? 3 : 6)
+            let result = try await session.append(urls: sources, to: "", progress: Progress())
+            XCTAssertTrue(result.failures.isEmpty)
+            var readOptions = ReaderOptions.kaitoFinder()
+            readOptions.recordsSevenZipEditLayout = true
+            let reader = try ArchiveReader.open(url: output, options: readOptions)
+            XCTAssertEqual(Set(reader.entries.map(\.name)), Set(["old.txt", "first.txt", "second.txt"]))
+            for entry in reader.entries where entry.name != "old.txt" {
+                XCTAssertEqual(try reader.read(entry), bytes)
+                if format == .zip { XCTAssertEqual(entry.methodDescription, index == 0 ? "zstd" : "ppmd") }
+            }
+            if format == .sevenZip {
+                let snapshot = try XCTUnwrap(reader.sevenZipEditingSnapshot())
+                let newFolder = try XCTUnwrap(snapshot.folders.last)
+                XCTAssertEqual(newFolder.substreamIndices.count, 2)
+                XCTAssertTrue(newFolder.coders.contains { $0.methodID == [3, 4, 1] })
+                XCTAssertEqual(newFolder.coders.first { $0.methodID == [3] }?.properties, [3])
+            }
+            if format == .tarZstd { XCTAssertEqual(session.capabilities.mode, .rewrite(.tarZstd)) }
+            await session.close()
+        }
+    }
+
+    @MainActor func testNewZipMethodsUseTheirDefaultsAndCompatibilityNote() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.zipZstdLevel = 3
+        store.preferences.zipPPMdLevel = 7
+        let controller = ArchiveSavePanelController(store: store)
+        for method in [ArchiveSavePanelController.Method.zstd, .ppmd] {
+            controller.selectMethod(at: controller.methods.firstIndex(of: method)!)
+            XCTAssertTrue(controller.showsZipCompatibilityNote)
+            XCTAssertEqual(controller.level.rawValue, method == .zstd ? 3 : 7)
+        }
+        controller.selectMethod(at: controller.methods.firstIndex(of: .zstd)!)
+        controller.selectLevel(at: controller.levels.firstIndex(of: .nineteen)!)
+        controller.selectMethod(at: controller.methods.firstIndex(of: .ppmd)!)
+        XCTAssertEqual(controller.level.rawValue, 7)
+        controller.selectMethod(at: controller.methods.firstIndex(of: .zstd)!)
+        XCTAssertEqual(controller.level.rawValue, 19)
+    }
+
     @MainActor private func selection(_ name: String, in session: ArchiveSession) async throws -> ArchiveEditSelection {
         let entries = await session.entries()
         var nodes = [EntryNode.tree(from: entries)]
@@ -397,7 +628,7 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
 
     func testExpandedStringsHaveAllTwentySixTranslations() throws {
         let strings = try LocalizationAcceptance.catalog().strings
-        for key in ["tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "0（最速）", "1（最速）", "6（標準）", "9（最高）",
+        for key in ["Zstandard", "PPMd", "x86 (BCJ)", "ARM64", "Delta", "tar.zst", "3（標準）", "19（最高）", "ソリッド圧縮", "フィルタ", "なし", "自動", "tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "0（最速）", "1（最速）", "6（標準）", "9（最高）",
                     "1 ファイルの圧縮", "この形式は圧縮レベルを選べません", "このZIPはmacOSのアーカイブユーティリティやunzipでは開けません"] {
             let localizations = try XCTUnwrap(strings[key]).localizations
             XCTAssertEqual(Set(localizations.keys), Set(LocalizationAcceptance.languages))
