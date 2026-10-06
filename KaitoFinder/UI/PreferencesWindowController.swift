@@ -1,8 +1,9 @@
 import AppKit
+import GyoshukuKit
 
 /// 画面を出さずに、各コントロールの選択と即時保存を検証できる。
 final class PreferencesViewModel {
-    static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored]
+    static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored, .bzip2, .lzma, .xz]
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
     static let saveBehaviors = ArchivePreferences.SaveBehavior.allCases
@@ -60,7 +61,37 @@ final class PreferencesViewModel {
     var extractionDestinationIndex: Int { Self.extractionDestinations.firstIndex(of: preferences.extractionDestination)! }
     var afterExpansionIndex: Int { preferences.trashesArchiveAfterExtraction ? 1 : 0 }
     var folderPolicyIndex: Int { Self.folderPolicies.firstIndex(of: preferences.folderPolicy)! }
-    var zipLevelLabel: String { String(preferences.zipLevel) }
+    var zipUsesLZMA: Bool { preferences.zipMethod == .lzma || preferences.zipMethod == .xz }
+    var zipLevelLabel: String { String(zipUsesLZMA ? preferences.zipLZMALevel : preferences.zipLevel) }
+    static let additionalFormats: [GyoshukuKit.ArchiveFormat] = [.tarXZ, .tarLzip, .tarLZMA, .sevenZip, .lha]
+
+    func compressionController(for format: GyoshukuKit.ArchiveFormat) -> ArchiveSavePanelController {
+        let controller = ArchiveSavePanelController(store: store)
+        controller.selectFormat(at: ArchivePreferences.formats.firstIndex(of: format)!, persistsDefault: false)
+        return controller
+    }
+
+    func changeCompressionDefault(_ controller: ArchiveSavePanelController) {
+        var value = store.preferences
+        switch controller.format {
+        case .tarXZ: value.tarXZLevel = controller.level.rawValue
+        case .tarLzip: value.tarLzipLevel = controller.level.rawValue
+        case .tarLZMA: value.tarLZMALevel = controller.level.rawValue
+        case .sevenZip:
+            value.sevenZipMethod = switch controller.method {
+            case .lzma: .lzma
+            case .deflate: .deflate
+            case .bzip2: .bzip2
+            default: .lzma2
+            }
+            value.sevenZipLevel = controller.level.rawValue
+        case .lha:
+            value.lhaMethod = controller.method == .lh6 ? .lh6 : controller.method == .lh7 ? .lh7 : .lh5
+            value.lhaLevel = controller.level.rawValue
+        default: return
+        }
+        store.preferences = value
+    }
     var tarGzipLevelLabel: String { String(preferences.tarGzipLevel) }
     var tarBzip2LevelLabel: String { String(preferences.tarBzip2Level) }
 
@@ -92,7 +123,10 @@ final class PreferencesViewModel {
     func changeAdditionPosition(to value: ArchivePreferences.AdditionPosition) { store.preferences.additionPosition = value }
     func changeTarCarriedOwnerIDs(to value: ArchivePreferences.CarriedOwnerIDPolicy) { store.preferences.tarCarriedOwnerIDs = value }
 
-    func changeZipLevel(to level: Int) { store.preferences.zipLevel = ArchivePreferences.clampedLevel(level) }
+    func changeZipLevel(to level: Int) {
+        if zipUsesLZMA { store.preferences.zipLZMALevel = min(9, max(0, level)) }
+        else { store.preferences.zipLevel = ArchivePreferences.clampedLevel(level) }
+    }
     func changeZipSkipsCompressedTypes(to enabled: Bool) { store.preferences.zipSkipsCompressedTypes = enabled }
     func changeTarGzipLevel(to level: Int) { store.preferences.tarGzipLevel = ArchivePreferences.clampedLevel(level) }
     func changeTarBzip2Level(to level: Int) { store.preferences.tarBzip2Level = ArchivePreferences.clampedLevel(level) }
@@ -120,6 +154,10 @@ final class PreferencesViewModel {
     }
 
     func changeRevealsExtractedItemsInFinder(to enabled: Bool) { store.preferences.revealsExtractedItemsInFinder = enabled }
+}
+
+private final class PreferencesScrollDocumentView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 /// 設定の切り替えでは上辺と幅を保ち、内容に必要な高さだけを変える。
@@ -156,6 +194,11 @@ final class PreferencesWindowController: NSWindowController {
     let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
+    let additionalFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let additionalMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let additionalLevelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private var additionalCompression: ArchiveSavePanelController?
+    private let zipCompatibilityNote = NSTextField(wrappingLabelWithString: "")
     let zipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let zipLevelSlider = NSSlider(value: 6, minValue: 1, maxValue: 9, target: nil, action: nil)
     let zipLevelLabel = NSTextField(labelWithString: "")
@@ -256,10 +299,10 @@ final class PreferencesWindowController: NSWindowController {
                 row(String(localized: "フォルダを開くとき:", bundle: bundle), control: folderOpeningPopup)
             ], spanningRows: [0, 1, 2, 3])
         ])
-        let footnote = NSTextField(wrappingLabelWithString: String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle))
-        footnote.textColor = .secondaryLabelColor
-        footnote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        footnote.preferredMaxLayoutWidth = 520
+        zipCompatibilityNote.stringValue = String(localized: "このZIPはmacOSのアーカイブユーティリティやunzipでは開けません", bundle: bundle)
+        zipCompatibilityNote.textColor = .secondaryLabelColor
+        zipCompatibilityNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        zipCompatibilityNote.preferredMaxLayoutWidth = 520
         addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", sections: [
             group(rows: [checkboxRow(excludesDSStoreCheckbox), checkboxRow(excludesHiddenFilesCheckbox)], spanningRows: [0, 1]),
             group(rows: [
@@ -277,7 +320,12 @@ final class PreferencesWindowController: NSWindowController {
                 checkboxRow(tarPreservesOwnerIDsCheckbox),
                 row(String(localized: "変更しない項目の所有者ID:", bundle: bundle), control: tarCarriedOwnerIDsPopup)
             ], spanningRows: [2]),
-            footnote
+            group(rows: [
+                row(String(localized: "フォーマット", bundle: bundle), control: additionalFormatPopup),
+                row(String(localized: "圧縮方式:", bundle: bundle), control: additionalMethodPopup),
+                row(String(localized: "圧縮レベル:", bundle: bundle), control: additionalLevelPopup)
+            ]),
+            zipCompatibilityNote
         ])
         addTab(title: String(localized: "展開", bundle: bundle), symbol: "tray.and.arrow.down", sections: [
             group(rows: [
@@ -358,7 +406,12 @@ final class PreferencesWindowController: NSWindowController {
             String(localized: "先頭（編集のたびに全体を書き直す）", bundle: bundle)])
         tarCarriedOwnerIDsPopup.addItems(withTitles: [String(localized: "そのまま保つ", bundle: bundle),
             String(localized: "0に戻す（編集のたびに全体を書き直す）", bundle: bundle)])
-        zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle)])
+        zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle), "BZip2", "LZMA", "XZ"])
+        additionalFormatPopup.addItems(withTitles: PreferencesViewModel.additionalFormats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
+        additionalFormatPopup.selectItem(at: 0)
+        additionalFormatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
+        additionalMethodPopup.setAccessibilityLabel(String(localized: "圧縮方式:", bundle: bundle))
+        additionalLevelPopup.setAccessibilityLabel(String(localized: "圧縮レベル:", bundle: bundle))
         extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じディレクトリ内", bundle: bundle), String(localized: "場所を選択…", bundle: bundle)])
         afterExpansionPopup.addItems(withTitles: [String(localized: "アーカイブをそのままにする", bundle: bundle),
                                                  String(localized: "アーカイブをゴミ箱に入れる", bundle: bundle)])
@@ -378,6 +431,9 @@ final class PreferencesWindowController: NSWindowController {
             (additionPositionPopup, #selector(changeAdditionPosition(_:))),
             (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
             (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
+            (additionalFormatPopup, #selector(changeAdditionalFormat(_:))),
+            (additionalMethodPopup, #selector(changeAdditionalMethod(_:))),
+            (additionalLevelPopup, #selector(changeAdditionalLevel(_:))),
             (zipMethodPopup, #selector(changeZipMethod(_:))),
             (zipLevelSlider, #selector(changeZipLevel(_:))),
             (zipSkipsCompressedTypesCheckbox, #selector(changeZipSkipsCompressedTypes(_:))),
@@ -484,17 +540,41 @@ final class PreferencesWindowController: NSWindowController {
             section.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4).isActive = true
         }
         let required = stack.fittingSize
+        let scrolls = symbol == "archivebox" && required.height > 650
         controller.preferredContentSize = NSSize(width: max(600, ceil(required.width) + 48),
-                                                height: ceil(required.height) + 48)
+                                                height: scrolls ? min(698, max(400, (NSScreen.main?.visibleFrame.height ?? 838) - 140)) : ceil(required.height) + 48)
         controller.view.setFrameSize(controller.preferredContentSize)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        controller.view.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 24),
-            stack.topAnchor.constraint(equalTo: controller.view.topAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -24),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: controller.view.bottomAnchor, constant: -24)
-        ])
+        if scrolls {
+            let scroll = NSScrollView()
+            scroll.hasVerticalScroller = true
+            scroll.drawsBackground = false
+            scroll.translatesAutoresizingMaskIntoConstraints = false
+            let document = PreferencesScrollDocumentView()
+            document.translatesAutoresizingMaskIntoConstraints = false
+            document.addSubview(stack)
+            scroll.documentView = document
+            controller.view.addSubview(scroll)
+            NSLayoutConstraint.activate([
+                scroll.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+                scroll.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+                scroll.topAnchor.constraint(equalTo: controller.view.topAnchor),
+                scroll.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+                document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+                document.heightAnchor.constraint(equalToConstant: ceil(required.height) + 48),
+                stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
+                stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
+                stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24)
+            ])
+        } else {
+            controller.view.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 24),
+                stack.topAnchor.constraint(equalTo: controller.view.topAnchor, constant: 24),
+                stack.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -24),
+                stack.bottomAnchor.constraint(lessThanOrEqualTo: controller.view.bottomAnchor, constant: -24)
+            ])
+        }
         let item = NSTabViewItem(viewController: controller)
         item.identifier = "preferences." + symbol
         item.label = title
@@ -559,10 +639,14 @@ final class PreferencesWindowController: NSWindowController {
         compressionMemoryNote.stringValue = memoryNote.text
         compressionMemoryNote.textColor = memoryNote.warns ? .systemOrange : .secondaryLabelColor
         zipMethodPopup.selectItem(at: viewModel.zipMethodIndex)
-        zipLevelSlider.integerValue = preferences.zipLevel
+        zipLevelSlider.minValue = viewModel.zipUsesLZMA ? 0 : 1
+        zipLevelSlider.numberOfTickMarks = viewModel.zipUsesLZMA ? 10 : 9
+        zipLevelSlider.integerValue = viewModel.zipUsesLZMA ? preferences.zipLZMALevel : preferences.zipLevel
         zipLevelLabel.stringValue = viewModel.zipLevelLabel
-        zipLevelSlider.isEnabled = preferences.zipMethod == .deflate
+        zipLevelSlider.isEnabled = preferences.zipMethod != .stored
         zipLevelLabel.textColor = zipLevelSlider.isEnabled ? .secondaryLabelColor : .disabledControlTextColor
+        zipCompatibilityNote.isHidden = ![.bzip2, .lzma, .xz].contains(preferences.zipMethod)
+        refreshAdditionalCompression()
         zipSkipsCompressedTypesCheckbox.state = preferences.zipSkipsCompressedTypes ? .on : .off
         tarGzipLevelSlider.integerValue = preferences.tarGzipLevel
         tarGzipLevelLabel.stringValue = viewModel.tarGzipLevelLabel
@@ -573,6 +657,33 @@ final class PreferencesWindowController: NSWindowController {
         folderPolicyPopup.selectItem(at: viewModel.folderPolicyIndex)
         afterExpansionPopup.selectItem(at: viewModel.afterExpansionIndex)
         revealsExtractedItemsInFinderCheckbox.state = preferences.revealsExtractedItemsInFinder ? .on : .off
+    }
+
+    private func refreshAdditionalCompression() {
+        let index = max(0, additionalFormatPopup.indexOfSelectedItem)
+        let controller = viewModel.compressionController(for: PreferencesViewModel.additionalFormats[index])
+        additionalCompression = controller
+        additionalMethodPopup.removeAllItems()
+        additionalMethodPopup.addItems(withTitles: controller.methods.map(\.rawValue))
+        additionalMethodPopup.selectItem(at: controller.selectedMethodIndex)
+        additionalMethodPopup.isEnabled = !controller.methods.isEmpty
+        additionalMethodPopup.isHidden = controller.methods.isEmpty
+        (additionalMethodPopup.superview as? NSGridView)?.row(at: 1).isHidden = controller.methods.isEmpty
+        additionalLevelPopup.removeAllItems()
+        additionalLevelPopup.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle, startsAtZero: controller.startsAtZero) })
+        additionalLevelPopup.selectItem(at: controller.selectedLevelIndex)
+    }
+
+    @objc private func changeAdditionalFormat(_ sender: NSPopUpButton) { refreshAdditionalCompression() }
+    @objc private func changeAdditionalMethod(_ sender: NSPopUpButton) {
+        guard let controller = additionalCompression else { return }
+        controller.selectMethod(at: sender.indexOfSelectedItem)
+        viewModel.changeCompressionDefault(controller)
+    }
+    @objc private func changeAdditionalLevel(_ sender: NSPopUpButton) {
+        guard let controller = additionalCompression else { return }
+        controller.selectLevel(at: sender.indexOfSelectedItem)
+        viewModel.changeCompressionDefault(controller)
     }
 
     @objc private func changeDefaultFormat(_ sender: NSPopUpButton) { viewModel.selectDefaultFormat(at: sender.indexOfSelectedItem) }

@@ -23,12 +23,15 @@ final class ArchiveCreationController {
     func creationPlan(sources: [URL], destination: URL, format: GyoshukuKit.ArchiveFormat,
                       existing: ArchiveCreationPlan.Existing? = nil,
                       level: ArchiveSavePanelController.Level? = nil,
-                      encryption: ArchiveEncryptionSettings = .init()) -> ArchiveCreationPlan {
+                      encryption: ArchiveEncryptionSettings = .init(),
+                      method: ArchiveSavePanelController.Method? = nil, singleStreamFormat: SingleStreamFormat? = nil) -> ArchiveCreationPlan {
         let preferences = store.preferences
-        let defaults = preferences.writerOptions(for: format)
+        var defaults = preferences.writerOptions(for: format)
+        if let method { defaults = method.applying(to: defaults, format: format) }
+        if singleStreamFormat != nil { defaults.preserveOwnerIDs = false }
         let options = encryption.applying(to: level?.applying(to: defaults, format: format) ?? defaults, format: format)
         return ArchiveCreationPlan(sources: sources, destination: destination, format: format,
-                                   options: options, existing: existing, importOptions: preferences.importOptions)
+                                   options: options, existing: existing, importOptions: preferences.importOptions, singleStreamFormat: singleStreamFormat)
     }
 
     func createAndOpen(sources: [URL], existing: ArchiveCreationPlan.Existing? = nil,
@@ -71,7 +74,7 @@ final class ArchiveCreationController {
         try ArchiveImportPlan.checkCancellation(progress)
         var plan = creationPlan(sources: sources, destination: outputDestination,
                                 format: save.controller.format, existing: existing, level: save.controller.level,
-                                encryption: save.encryptionSettings)
+                                encryption: save.encryptionSettings, method: save.controller.method, singleStreamFormat: save.controller.singleStreamFormat)
         plan.splitSchedule = try save.splitControls?.schedule()
         if plan.splitSchedule != nil {
             let info = try await Self.volumeInfo(outputDestination, operations: splitSaveHooks.operations)

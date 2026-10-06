@@ -3,15 +3,15 @@ import GyoshukuKit
 nonisolated extension GyoshukuKit.ArchiveFormat {
     var allowsColonsAndBackslashes: Bool {
         switch self {
-        case .tar, .tarGzip, .tarBzip2, .tarXZ: true
+        case .tar, .tarGzip, .tarBzip2, .tarXZ, .tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress: true
         case .zip, .sevenZip, .lha: false
         }
     }
 
-    /// tar と、その圧縮包み（tar.gz / tar.bz2 / tar.xz）。owner ID の扱いなど tar 系だけの規則に使う。
+    /// 所有者 ID と名前の規則を共有する tar 系の出力形式。
     var isTarFamily: Bool {
         switch self {
-        case .tar, .tarGzip, .tarBzip2, .tarXZ: true
+        case .tar, .tarGzip, .tarBzip2, .tarXZ, .tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress: true
         case .zip, .sevenZip, .lha: false
         }
     }

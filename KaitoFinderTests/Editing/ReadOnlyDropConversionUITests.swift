@@ -67,8 +67,8 @@ nonisolated final class ReadOnlyDropConversionUITests: XCTestCase {
             t.addfile(entry, io.BytesIO(b'original content'))
         """)
         // ConversionIncomingNameTests と同じ外側の圧縮で、編集非対応の書庫を作る。
-        let readOnly = fixture.root.appendingPathComponent("original.tar.lzma")
-        try fixture.directory.run(ExternalTool.python3, ["-c", "import bz2, lzma, sys; open(sys.argv[2], 'wb').write(lzma.compress(bz2.decompress(open(sys.argv[1], 'rb').read()), format=lzma.FORMAT_ALONE))", tarBzip2.path, readOnly.path])
+        let readOnly = fixture.root.appendingPathComponent("original.tar.zst")
+        try fixture.directory.run(ExternalTool.python3, ["-c", "import bz2, struct, sys; raw=bz2.decompress(open(sys.argv[1], 'rb').read()); open(sys.argv[2], 'wb').write(bytes.fromhex('28b52ffda0') + struct.pack('<I',len(raw)) + struct.pack('<I',(len(raw)<<3)|1)[:3] + raw)", tarBzip2.path, readOnly.path])
         let sourceDigest = try ScenarioFixture.digest(fixture.archive)
         let targetDigest = try ScenarioFixture.digest(readOnly)
         defer {

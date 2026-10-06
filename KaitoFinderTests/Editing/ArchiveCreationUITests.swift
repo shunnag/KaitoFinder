@@ -13,7 +13,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let save = ArchiveSavePanel(sources: [], store: store)
         let creator = ArchiveCreationController(store: store)
-        for (index, level) in ArchiveSavePanelController.Level.allCases.enumerated() {
+        for (index, level) in save.controller.levels.enumerated() {
             save.levelPopup.selectItem(at: index)
             XCTAssertTrue(save.levelPopup.sendAction(save.levelPopup.action, to: save.levelPopup.target))
             XCTAssertEqual(save.controller.level, level)
@@ -27,9 +27,9 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         XCTAssertEqual(store.preferences.zipMethod, .deflate)
     }
 
-    @MainActor func testInitialCompressionLevelUsesNearestPreferenceWithHigherTie() throws {
+    @MainActor func testInitialCompressionLevelUsesExactPreference() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        let expected: [ArchiveSavePanelController.Level] = [.fast, .fast, .fast, .normal, .normal, .normal, .high, .high, .maximum]
+        let expected: [ArchiveSavePanelController.Level] = (1...9).map { ArchiveSavePanelController.Level(rawValue: $0)! }
         for value in 1...9 {
             for format in [GyoshukuKit.ArchiveFormat.zip, .tarGzip, .tarBzip2] {
                 store.preferences.defaultFormat = format
@@ -46,7 +46,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         XCTAssertEqual(ArchiveSavePanelController(store: store).level, .none)
     }
 
-    @MainActor func testFormatChangeResetsLevelAndDisablesFixedFormats() throws {
+    @MainActor func testFormatChangeRemembersLevelsAndDisablesFormatsWithoutLevels() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.zipLevel = 9
         store.preferences.tarGzipLevel = 1
@@ -56,22 +56,22 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         for (index, format) in ArchiveSavePanelController.formats.enumerated() {
             save.formatPopup.selectItem(at: index)
             XCTAssertTrue(save.formatPopup.sendAction(save.formatPopup.action, to: save.formatPopup.target))
-            XCTAssertEqual(save.levelPopup.isEnabled, format == .zip || format == .tarGzip || format == .tarBzip2)
+            XCTAssertEqual(save.levelPopup.isEnabled, ![.tar, .tarLZ4, .tarBrotli, .tarCompress].contains(format))
             XCTAssertEqual(save.levelPopup.numberOfItems, save.controller.levels.count)
             XCTAssertEqual(save.levelPopup.indexOfSelectedItem, save.controller.selectedLevelIndex)
             switch format {
-            case .zip: XCTAssertEqual(save.controller.level, .maximum)
+            case .zip: XCTAssertEqual(save.controller.level, .two)
             case .tarGzip:
                 XCTAssertEqual(save.controller.level, .fast)
                 XCTAssertFalse(save.controller.levels.contains(.none))
             case .tarBzip2:
                 XCTAssertEqual(save.controller.level, .maximum)
                 XCTAssertFalse(save.controller.levels.contains(.none))
-            case .tar: XCTAssertEqual(save.controller.level, .normal)
-            case .tarXZ, .sevenZip, .lha:
+            case .tar, .tarLZ4, .tarBrotli, .tarCompress: XCTAssertEqual(save.controller.level, .normal)
+            case .tarXZ, .tarLzip, .tarLZMA, .sevenZip, .lha:
                 XCTAssertEqual(save.controller.level, .normal)
                 save.controller.selectLevel(at: 0)
-                XCTAssertEqual(save.controller.level, .normal)
+                XCTAssertEqual(save.controller.level, format == .sevenZip || format == .lha ? .none : .zero)
             }
         }
         XCTAssertEqual(store.preferences.zipLevel, 9)
@@ -129,6 +129,11 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             (.zip, "zip", "public.zip-archive"), (.tar, "tar", "public.tar-archive"),
             (.tarGzip, "tar.gz", "com.shunnag.KaitoFinder.save-tar-gzip"),
             (.tarBzip2, "tar.bz2", "com.shunnag.KaitoFinder.save-tar-bzip2"), (.tarXZ, "tar.xz", "com.shunnag.KaitoFinder.save-tar-xz"),
+            (.tarLzip, "tar.lz", "com.shunnag.KaitoFinder.save-tar-lzip"),
+            (.tarLZMA, "tar.lzma", "com.shunnag.KaitoFinder.save-tar-lzma"),
+            (.tarLZ4, "tar.lz4", "com.shunnag.KaitoFinder.save-tar-lz4"),
+            (.tarBrotli, "tar.br", "com.shunnag.KaitoFinder.save-tar-brotli"),
+            (.tarCompress, "tar.Z", "com.shunnag.KaitoFinder.save-tar-compress"),
             (.sevenZip, "7z", "org.7-zip.7-zip-archive"), (.lha, "lzh", "com.shunnag.KaitoFinder.lzh-archive")
         ]
         XCTAssertTrue(save.formatPopup.target === save)
@@ -144,7 +149,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             XCTAssertEqual(save.panel.allowedContentTypes,
                            ArchiveSavePanelController.panelContentTypes)
         }
-        XCTAssertEqual(save.formatPopup.itemTitles, ["ZIP", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "LHA"])
+        XCTAssertEqual(save.formatPopup.itemTitles, ["ZIP", "tar", "tar.gz", "tar.bz2", "tar.xz", "tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "7z", "LHA"])
     }
 
     @MainActor func testSavePanelValidatesTarGzipFilenameExtensions() throws {
@@ -162,7 +167,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
 
     @MainActor func testSavePanelRemembersEveryFormatInAnIsolatedDefaultsSuite() throws {
         let preferences = try Preferences()
-        let suffixes = ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "lzh"]
+        let suffixes = ArchivePreferences.formats.map { ArchiveCreationPlan.filenameExtension(for: $0) }
         let controller = ArchiveSavePanelController(defaults: preferences.defaults)
         XCTAssertEqual(controller.format, .zip)
         for (index, format) in ArchiveSavePanelController.formats.enumerated() {
@@ -185,7 +190,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
 
     @MainActor func testFormatSwitchIgnoresInvalidIndices() throws {
         let preferences = try Preferences(), controller = ArchiveSavePanelController(defaults: preferences.defaults)
-        controller.selectFormat(at: 6)
+        controller.selectFormat(at: ArchivePreferences.formats.count - 1)
         controller.selectFormat(at: -1)
         controller.selectFormat(at: ArchivePreferences.formats.count)
         XCTAssertEqual(controller.format, .lha)
@@ -406,7 +411,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             XCTAssertNil(save.encryptionSettings.password)
             XCTAssertFalse(save.passwordFields.passwordField.isEnabled)
             XCTAssertNil(save.passwordFields.passwordField.currentEditor())
-            XCTAssertEqual(save.levelPopup.isEnabled, format != .tarXZ)
+            XCTAssertTrue(save.levelPopup.isEnabled)
             XCTAssertTrue(UISnapshot.overflowViolations(in: accessory).isEmpty)
             let name = "review." + ArchiveCreationPlan.filenameExtension(for: format)
             try UISnapshot.render(accessory, name: "save-" + ArchiveCreationPlan.filenameExtension(for: format))

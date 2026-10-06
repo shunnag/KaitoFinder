@@ -25,6 +25,7 @@ AXUIElementSetMessagingTimeout(application, 1)
 _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
 let deadline = Date().addingTimeInterval(5)
 var observedTitles = Set<String>()
+var observedFilenameValues: [String]?
 while Date() < deadline {
     let windows = attribute(application, kAXWindowsAttribute) as? [AXUIElement] ?? []
     var queue = windows, visited: [AXUIElement] = [], buttons: [AXUIElement] = []
@@ -52,10 +53,14 @@ while Date() < deadline {
                     && (attribute($0, kAXValueAttribute) as? String) == expectedName
             }
             guard fields.count == 1 else {
-                let values = visited.filter { (attribute($0, kAXRoleAttribute) as? String) == kAXTextFieldRole }
+                observedFilenameValues = visited.filter { (attribute($0, kAXRoleAttribute) as? String) == kAXTextFieldRole }
                     .compactMap { attribute($0, kAXValueAttribute) as? String }
-                fputs("The native filename field does not uniquely match \(expectedName); observed: \(values).\n", stderr)
-                exit(1)
+                // The re-presented out-of-process panel may briefly show its previous text.
+                if Date() < deadline {
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+                    continue
+                }
+                break
             }
             if let enteredName = request["enteredName"] as? String {
                 guard AXUIElementSetAttributeValue(fields[0], kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success,
@@ -177,5 +182,9 @@ while Date() < deadline {
     }
     RunLoop.current.run(until: Date().addingTimeInterval(0.05))
 }
-fputs("A unique enabled Save button was not found in the verification app; button titles: \(observedTitles.sorted()).\n", stderr)
+if let expectedName = request["expectedName"] as? String, let values = observedFilenameValues {
+    fputs("The native filename field does not uniquely match \(expectedName); observed: \(values).\n", stderr)
+} else {
+    fputs("A unique enabled Save button was not found in the verification app; button titles: \(observedTitles.sorted()).\n", stderr)
+}
 exit(1)

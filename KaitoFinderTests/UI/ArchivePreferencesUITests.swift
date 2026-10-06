@@ -149,6 +149,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             expected.zipMethod = method
             check()
         }
+        model.selectZipMethod(at: 0)
+        expected.zipMethod = .deflate
         for level in 1...9 {
             model.changeZipLevel(to: level)
             expected.zipLevel = level

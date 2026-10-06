@@ -4,7 +4,9 @@ import GyoshukuKit
 
 /// 書き込み処理へ安全に渡せる設定値。展開設定は一括展開の入口から参照する。
 nonisolated struct ArchivePreferences: Sendable, Equatable {
-    enum ZipMethod: String, Sendable { case deflate, stored }
+    enum ZipMethod: String, Sendable { case deflate, stored, bzip2, lzma, xz }
+    enum SevenZipMethod: String, Sendable, CaseIterable { case lzma2, lzma, deflate, bzip2, copy }
+    enum LhaMethod: String, Sendable, CaseIterable { case lh5, lh6, lh7, stored }
     enum ExtractionDestination: String, Sendable { case sameFolder, ask }
     enum FolderPolicy: String, Sendable { case always, whenMultipleTopLevelItems, never }
     enum SaveBehavior: String, Sendable, CaseIterable { case immediate, onSave }
@@ -17,7 +19,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     enum AdditionPosition: String, Sendable, CaseIterable { case end, beginning }
     enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
 
-    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .sevenZip, .lha]
+    static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress, .sevenZip, .lha]
     static let compressionThreadRange = 1...64
     static let listTextSizeRange = 10...16
 
@@ -25,9 +27,18 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var compressionThreads = 0
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
+    var zipLZMALevel = 6
     var zipSkipsCompressedTypes = true
     var tarGzipLevel = 6
     var tarBzip2Level = 9
+    var tarXZLevel = 6
+    var tarLzipLevel = 6
+    var tarLZMALevel = 6
+    var sevenZipMethod: SevenZipMethod = .lzma2
+    // -1 は無圧縮。LZMA の 0 と区別して保存する。
+    var sevenZipLevel = 6
+    var lhaMethod: LhaMethod = .lh5
+    var lhaLevel = 6
     var tarPreservesOwnerIDs = false
     var additionPosition: AdditionPosition = .end
     var tarCarriedOwnerIDs: CarriedOwnerIDPolicy = .keep
@@ -54,25 +65,64 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
         let placement: AdditionPlacement = additionPosition == .end ? .end : .beginning
         let owners: CarriedOwnerIDs = tarCarriedOwnerIDs == .keep ? .keep : .reset
-        var options: WriterOptions = switch format {
+        var options = WriterOptions(additionPlacement: format == .zip ? .end : placement)
+        if format.isTarFamily {
+            options.preserveOwnerIDs = tarPreservesOwnerIDs
+            options.carriedTarOwnerIDs = owners
+        }
+        switch format {
         case .zip:
-            WriterOptions(compressionMethod: zipMethod == .stored ? .stored : .deflate,
-                          deflateLevel: Self.clampedLevel(zipLevel),
-                          useCompressionHeuristic: zipSkipsCompressedTypes, additionPlacement: .end)
-        case .tar, .tarXZ:
-            WriterOptions(preserveOwnerIDs: tarPreservesOwnerIDs, additionPlacement: placement, carriedTarOwnerIDs: owners)
-        case .tarGzip:
-            WriterOptions(deflateLevel: Self.clampedLevel(tarGzipLevel), preserveOwnerIDs: tarPreservesOwnerIDs,
-                          additionPlacement: placement, carriedTarOwnerIDs: owners)
-        case .tarBzip2:
-            WriterOptions(bzip2Level: Self.clampedLevel(tarBzip2Level), preserveOwnerIDs: tarPreservesOwnerIDs,
-                          additionPlacement: placement, carriedTarOwnerIDs: owners)
-        case .sevenZip, .lha:
-            // 固定のエンコーダーへ他形式の設定は持ち込まず、共通の並列数だけを後で写す。
-            WriterOptions(additionPlacement: placement)
+            options.compressionMethod = switch zipMethod {
+            case .stored: .stored
+            case .deflate: .deflate
+            case .bzip2: .bzip2
+            case .lzma: .lzma
+            case .xz: .xz
+            }
+            options.deflateLevel = Self.clampedLevel(zipLevel)
+            if zipMethod == .bzip2 { options.bzip2Level = Self.clampedLevel(zipLevel) }
+            if zipMethod == .lzma || zipMethod == .xz {
+                options.lzmaLevel = Self.lzmaOption(zipLZMALevel, apple: zipMethod == .xz)
+            }
+            options.useCompressionHeuristic = zipSkipsCompressedTypes
+        case .tarGzip: options.deflateLevel = Self.clampedLevel(tarGzipLevel)
+        case .tarBzip2: options.bzip2Level = Self.clampedLevel(tarBzip2Level)
+        case .tarXZ: options.lzmaLevel = Self.lzmaOption(tarXZLevel, apple: true)
+        case .tarLzip: options.lzmaLevel = Self.lzmaOption(tarLzipLevel)
+        case .tarLZMA: options.lzmaLevel = Self.lzmaOption(tarLZMALevel)
+        case .sevenZip:
+            options.sevenZipMethod = switch sevenZipMethod {
+            case .lzma2: .lzma2
+            case .lzma: .lzma
+            case .deflate: .deflate
+            case .bzip2: .bzip2
+            case .copy: .copy
+            }
+            if sevenZipLevel == -1 { options.sevenZipMethod = .copy }
+            switch options.sevenZipMethod {
+            case .lzma2, .lzma: options.lzmaLevel = Self.lzmaOption(sevenZipLevel, apple: options.sevenZipMethod == .lzma2)
+            case .deflate: options.deflateLevel = Self.clampedLevel(sevenZipLevel)
+            case .bzip2: options.bzip2Level = Self.clampedLevel(sevenZipLevel)
+            case .copy: break
+            }
+        case .lha:
+            options.lhaMethod = switch lhaMethod {
+            case .lh5: .lh5
+            case .lh6: .lh6
+            case .lh7: .lh7
+            case .stored: .stored
+            }
+            if lhaLevel == -1 { options.lhaMethod = .stored }
+            options.lhaLevel = Self.clampedLevel(lhaLevel)
+        case .tar, .tarLZ4, .tarBrotli, .tarCompress: break
         }
         if compressionThreads != 0 { options.compressionThreads = compressionThreads }
         return options
+    }
+
+    static func lzmaOption(_ level: Int, apple: Bool = false) -> Int? {
+        let level = min(9, max(0, level))
+        return apple && level == 6 ? nil : level
     }
 
     static func clampedLevel(_ level: Int) -> Int { min(9, max(1, level)) }
@@ -86,7 +136,15 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         // 保存パネルと同じキーと拡張子の表現を使う。
         static let defaultFormat = "ArchiveCreationFormat"
         static let compressionThreads = "ArchiveCompressionThreads"
+        static let sevenZipMethod = "ArchiveSevenZipMethod"
+        static let lhaMethod = "ArchiveLhaMethod"
         static let zipMethod = "ArchiveZipMethod"
+        static let zipLZMALevel = "ArchiveZipLZMALevel"
+        static let tarXZLevel = "ArchiveTarXZLevel"
+        static let tarLzipLevel = "ArchiveTarLzipLevel"
+        static let tarLZMALevel = "ArchiveTarLZMALevel"
+        static let sevenZipLevel = "ArchiveSevenZipLevel"
+        static let lhaLevel = "ArchiveLhaLevel"
         static let zipLevel = "ArchiveZipLevel"
         static let zipSkipsCompressedTypes = "ArchiveZipSkipsCompressedTypes"
         static let tarGzipLevel = "ArchiveTarGzipLevel"
@@ -125,6 +183,16 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.compressionThreads = threads(forKey: Key.compressionThreads)
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod
+            value.zipLZMALevel = level(forKey: Key.zipLZMALevel, range: 0...9)
+            value.tarXZLevel = level(forKey: Key.tarXZLevel, range: 0...9)
+            value.tarLzipLevel = level(forKey: Key.tarLzipLevel, range: 0...9)
+            value.tarLZMALevel = level(forKey: Key.tarLZMALevel, range: 0...9)
+            value.sevenZipLevel = level(forKey: Key.sevenZipLevel, range: -1...9)
+            value.lhaLevel = level(forKey: Key.lhaLevel, range: -1...9)
+            if value.lhaLevel == 0 { value.lhaLevel = 6 }
+            value.sevenZipMethod = defaults.string(forKey: Key.sevenZipMethod).flatMap(ArchivePreferences.SevenZipMethod.init(rawValue:)) ?? value.sevenZipMethod
+            if value.sevenZipLevel == 0, [.deflate, .bzip2].contains(value.sevenZipMethod) { value.sevenZipLevel = 6 }
+            value.lhaMethod = defaults.string(forKey: Key.lhaMethod).flatMap(ArchivePreferences.LhaMethod.init(rawValue:)) ?? value.lhaMethod
             value.zipLevel = level(forKey: Key.zipLevel)
             value.zipSkipsCompressedTypes = boolean(forKey: Key.zipSkipsCompressedTypes, fallback: value.zipSkipsCompressedTypes)
             value.tarGzipLevel = level(forKey: Key.tarGzipLevel)
@@ -168,6 +236,14 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchiveCreationPlan.filenameExtension(for: newValue.defaultFormat), forKey: Key.defaultFormat)
             defaults.set(ArchivePreferences.compressionThreadRange.contains(newValue.compressionThreads)
                          ? newValue.compressionThreads : 0, forKey: Key.compressionThreads)
+            defaults.set((0...9).contains(newValue.zipLZMALevel) ? newValue.zipLZMALevel : 6, forKey: Key.zipLZMALevel)
+            defaults.set((0...9).contains(newValue.tarXZLevel) ? newValue.tarXZLevel : 6, forKey: Key.tarXZLevel)
+            defaults.set((0...9).contains(newValue.tarLzipLevel) ? newValue.tarLzipLevel : 6, forKey: Key.tarLzipLevel)
+            defaults.set((0...9).contains(newValue.tarLZMALevel) ? newValue.tarLZMALevel : 6, forKey: Key.tarLZMALevel)
+            defaults.set((-1...9).contains(newValue.sevenZipLevel) && (newValue.sevenZipLevel != 0 || ![.deflate, .bzip2].contains(newValue.sevenZipMethod)) ? newValue.sevenZipLevel : 6, forKey: Key.sevenZipLevel)
+            defaults.set((newValue.lhaLevel == -1 || (1...9).contains(newValue.lhaLevel)) ? newValue.lhaLevel : 6, forKey: Key.lhaLevel)
+            defaults.set(newValue.sevenZipMethod.rawValue, forKey: Key.sevenZipMethod)
+            defaults.set(newValue.lhaMethod.rawValue, forKey: Key.lhaMethod)
             defaults.set(newValue.zipMethod.rawValue, forKey: Key.zipMethod)
             defaults.set(ArchivePreferences.clampedLevel(newValue.zipLevel), forKey: Key.zipLevel)
             defaults.set(newValue.zipSkipsCompressedTypes, forKey: Key.zipSkipsCompressedTypes)
@@ -205,10 +281,10 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         return number.intValue
     }
 
-    private func level(forKey key: String, fallback: Int = 6) -> Int {
+    private func level(forKey key: String, fallback: Int = 6, range: ClosedRange<Int> = 1...9) -> Int {
         guard let number = defaults.object(forKey: key) as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(),
-              (1...9).contains(number.intValue), number.doubleValue == Double(number.intValue) else { return fallback }
+              range.contains(number.intValue), number.doubleValue == Double(number.intValue) else { return fallback }
         return number.intValue
     }
 

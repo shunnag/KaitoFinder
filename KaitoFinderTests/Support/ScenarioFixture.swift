@@ -20,23 +20,23 @@ nonisolated final class ScenarioFixture {
     }
 
     /// `names` の項目を入れた ZIP。file の内容はそれぞれの名前で、`/` で終わる名前は directory にする。
-    /// `tar` なら同じ名前の file を入れた tar を LZMA_Alone で包んだ archive.tar.lzma（読み取り専用の形式）にする。
+    /// `tar` なら同じ名前の file を入れた tar を Zstandard の非圧縮 frame で包んだ archive.tar.zst（読み取り専用の形式）にする。
     nonisolated static func withEntries(_ names: [String] = ["a.txt", "b.txt", "c.txt"], tar: Bool = false) throws -> ScenarioFixture {
         try ScenarioFixture(script: """
         names = sys.argv[2:]
-        if p.endswith('.tar.lzma'):
+        if p.endswith('.tar.zst'):
             with tarfile.open(p, 'w') as a:
                 for name in names:
                     item = tarfile.TarInfo(name)
                     data = name.encode()
                     item.size = len(data)
                     a.addfile(item, io.BytesIO(data))
-            import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
+            import struct; raw=open(p,'rb').read(); open(p,'wb').write(bytes.fromhex('28b52ffda0') + struct.pack('<I',len(raw)) + struct.pack('<I',(len(raw)<<3)|1)[:3] + raw)
         else:
             with zipfile.ZipFile(p, 'w', compression=zipfile.ZIP_DEFLATED) as a:
                 for name in names:
                     a.writestr(name, b'' if name.endswith('/') else name.encode())
-        """, suffix: tar ? "tar.lzma" : "zip", arguments: names)
+        """, suffix: tar ? "tar.zst" : "zip", arguments: names)
     }
 
     private static func python(_ directory: ArchiveTestDirectory, archive: URL, script: String, arguments: [String]) throws {

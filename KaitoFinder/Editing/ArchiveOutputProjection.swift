@@ -183,7 +183,7 @@ nonisolated struct ArchiveOutputProjection: Sendable {
             let expected: KaitoKit.ArchiveFormat
             switch format {
             case .zip: expected = .zip
-            case .tar, .tarGzip, .tarBzip2, .tarXZ: expected = .tar
+            case .tar, .tarGzip, .tarBzip2, .tarXZ, .tarLZMA, .tarLzip, .tarLZ4, .tarBrotli, .tarCompress: expected = .tar
             case .sevenZip: expected = .sevenZip
             case .lha: expected = .lha
             }
