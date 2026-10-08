@@ -8,11 +8,13 @@ ci_paths() {
 }
 
 require_xcode_27() {
+  local kf_xcode_version
   sw_vers
-  xcodebuild -version
+  kf_xcode_version="$(xcodebuild -version)"
+  printf '%s\n' "$kf_xcode_version"
   xcrun swift --version
   test "$(uname -m)" = arm64
-  xcodebuild -version | grep -Eq '^Xcode 27([.]|$)'
+  grep -Eq '^Xcode 27([.]|$)' <<< "$kf_xcode_version"
 }
 
 clone_siblings() {

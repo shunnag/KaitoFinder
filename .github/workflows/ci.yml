@@ -115,10 +115,11 @@ jobs:
         run: |
           source Tools/ci/common.sh
           sw_vers
-          xcodebuild -version
+          kf_xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "$kf_xcode_version"
           test "$(sw_vers -productVersion | cut -d. -f1)" = 26
           test "$(uname -m)" = arm64
-          xcodebuild -version | grep -Eq '^Xcode 26[.]6([.]|$)'
+          grep -Eq '^Xcode 26[.]6([.]|$)' <<< "$kf_xcode_version"
           brew install sevenzip xz zstd
           require_fixture_tools
       - uses: actions/download-artifact@v4
