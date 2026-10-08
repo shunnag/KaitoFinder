@@ -292,6 +292,11 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         let window = try XCTUnwrap(controller.window), toolbar = try XCTUnwrap(window.toolbar)
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
+        window.layoutIfNeeded()
+        try await scenarioWait {
+            let visible = Set(toolbar.visibleItems?.map(\.itemIdentifier.rawValue) ?? [])
+            return visible.isSuperset(of: ["delete", "newFolder", "search"]) && controller.searchField.window === window
+        }
         XCTAssertTrue(window.makeFirstResponder(controller.outlineView))
         let main = try XCTUnwrap(NSApp.mainMenu)
         let selectAll = try menuItem(#selector(NSText.selectAll(_:)), in: main)
@@ -306,8 +311,10 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         controller.outlineView.deselectAll(nil)
         toolbar.validateVisibleItems()
         let delete = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "delete" })
+        XCTAssertFalse(controller.validateToolbarItem(delete))
         XCTAssertFalse(delete.isEnabled)
         let create = try XCTUnwrap(toolbar.items.first { $0.itemIdentifier.rawValue == "newFolder" })
+        XCTAssertTrue(controller.validateToolbarItem(create))
         XCTAssertTrue(create.isEnabled)
         XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(create.action), to: create.target, from: create))
         await controller.extractionTask?.value
@@ -324,9 +331,14 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         controller.searchField.stringValue = "first"
         XCTAssertTrue(window.makeFirstResponder(controller.searchField))
         let editor = try XCTUnwrap(controller.searchField.currentEditor() as? NSTextView)
+        try await scenarioWait { window.firstResponder === editor && editor.string == "first" }
+        XCTAssertTrue(window.firstResponder === editor, String(describing: window.firstResponder))
+        XCTAssertEqual(editor.string, "first")
+        let outlineSelection = controller.outlineView.selectedRowIndexes
         editor.setSelectedRange(NSRange(location: 0, length: 0))
         try perform(selectAll)
         XCTAssertEqual(editor.selectedRange(), NSRange(location: 0, length: 5))
+        XCTAssertEqual(controller.outlineView.selectedRowIndexes, outlineSelection)
     }
 
     @MainActor func testWindowMenuAddsRenamesAndRemovesVisibleArchiveWindows() async throws {

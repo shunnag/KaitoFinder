@@ -161,7 +161,11 @@ import XCTest
                     checkSize(required, of: button, path: location)
                 } else { checkSize(button.intrinsicContentSize, of: button, path: location) }
             }
-            for (index, child) in view.subviews.enumerated() { visit(child, path: location + "/\(index)") }
+            // scroller / pocket など AppKit 内部の装飾は検査せず、document の内容を辿る。
+            let children = (view as? NSScrollView).map { [$0.contentView] } ?? view.subviews
+            for child in children {
+                visit(child, path: location + "/\(view.subviews.firstIndex(of: child) ?? -1)")
+            }
         }
 
         visit(root, path: "root")

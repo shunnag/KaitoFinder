@@ -228,6 +228,13 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                     + (save.splitControls.map { [$0.choices, $0.number, $0.units] } ?? [])
                 XCTAssertEqual(save.splitControls != nil, split)
                 let collapsedHeight = accessory.fittingSize.height
+                let form = try XCTUnwrap(accessory.subviews.first)
+                // 表示前に増分を測り、VM の画面でもアニメーションが収まる高さを選ぶ。
+                save.encryptionCheckbox.performClick(nil)
+                let expandedFormHeight = form.fittingSize.height
+                save.encryptionCheckbox.performClick(nil)
+                let formGrowth = expandedFormHeight - collapsedHeight
+                XCTAssertGreaterThan(formGrowth, 0)
                 // 分割の行で伸びたシートは 550 pt の親では上端がタイトルバーを越え、AppKit が寄せて中心がずれる。
                 // 親を高くして、伸縮中もシートが中央基準のままになる大きさで測る。
                 // 展開後も画面内に収め、画面外ではアニメーションを省く仕様の影響を避ける。
@@ -251,13 +258,21 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                 if browserExpanded {
                     // 前回のユーザーサイズに左右されず、伸縮できる余地のある条件にする。
                     let frame = save.panel.frame
-                    let height = min(600, (save.panel.screen?.visibleFrame.height ?? 900) - 200)
-                    let y = asSheet ? frame.midY - height / 2 : frame.maxY - height
+                    let height = min(600, visible.height - formGrowth)
+                    let y = visible.maxY - height
                     save.panel.setFrame(NSRect(x: frame.minX, y: y, width: frame.width, height: height), display: true)
                     try await Task.sleep(for: .milliseconds(200))
+                    // シートの原点指定は native panel に無視されるため、親で上端を合わせる。
+                    if let parent {
+                        parent.setFrameOrigin(NSPoint(x: parent.frame.minX,
+                            y: parent.frame.minY + visible.maxY - save.panel.frame.maxY))
+                    } else {
+                        save.panel.setFrameOrigin(NSPoint(x: save.panel.frame.minX, y: visible.maxY - save.panel.frame.height))
+                    }
+                    try await scenarioWait { abs(save.panel.frame.maxY - visible.maxY) < 0.5 }
                 }
                 let initialPanelFrame = save.panel.frame
-                let nonAccessoryHeight = initialPanelFrame.height - accessory.frame.height
+                var nonAccessoryHeight = initialPanelFrame.height - accessory.frame.height
                 func framesInVisibleViewport(panelFrame: NSRect) -> [NSRect] {
                     // アクセサリは別の XPC ホスト内にある。ローカルのレイヤーだけでは
                     // 見えないずれを、表示中の保存パネルの寸法と合成して検査する。
@@ -268,24 +283,26 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                         return frame
                     }
                 }
-                let initial = framesInVisibleViewport(panelFrame: initialPanelFrame)
                 let captureFolder = try await beginSavePanelCapture(save, parent: parent, browserExpanded: browserExpanded)
-                let collapsedPanelHeight = save.panel.frame.height
-                var expandedPanelHeight = collapsedPanelHeight
                 for state in [NSControl.StateValue.on, .off] {
+                    let transitionFrame = save.panel.frame
+                    let initialFormHeight = accessory.frame.height
+                    // fallback で native browser の高さが変わった場合も、現在の viewport から測り直す。
+                    nonAccessoryHeight = transitionFrame.height - initialFormHeight
+                    let initial = framesInVisibleViewport(panelFrame: transitionFrame)
+                    let targetFormHeight = state == .on ? expandedFormHeight : collapsedHeight
+                    let targetPanelHeight = transitionFrame.height + targetFormHeight - initialFormHeight
+                    let screen = try XCTUnwrap(save.panel.screen).visibleFrame
+                    let fitsAnimation = targetPanelHeight <= screen.height && transitionFrame.maxY - targetPanelHeight >= screen.minY
                     save.encryptionCheckbox.performClick(nil)
                     XCTAssertEqual(save.encryptionCheckbox.state, state)
-                    if state == .on {
-                        expandedPanelHeight += try XCTUnwrap(accessory.subviews.first).fittingSize.height - collapsedHeight
-                    }
-                    let targetPanelHeight = state == .on ? expandedPanelHeight : collapsedPanelHeight
                     var samples: [[NSRect]] = []
                     var panelFrames: [NSRect] = []
                     var accessoryOrigins: [NSPoint] = []
                     var clipping: [CGFloat] = []
                     var hostClipping: [CGFloat] = []
                     let started = ContinuousClock.now
-                    try await scenarioWait {
+                    try await waitUntil("保存パネルの伸縮が時間切れ: panel=\(save.panel.frame.height), target=\(targetPanelHeight), form=\(form.fittingSize.height), hidden=\(save.passwordFields.view.isHidden), alpha=\(save.passwordFields.view.alphaValue)") {
                         let panelFrame = save.panel.frame
                         samples.append(framesInVisibleViewport(panelFrame: panelFrame))
                         panelFrames.append(panelFrame)
@@ -310,7 +327,18 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                             return control.bounds.height - visible.height
                         })
                         let finished = state == .on ? save.passwordFields.view.alphaValue == 1 : save.passwordFields.view.isHidden
-                        return finished && abs(panelFrame.height - targetPanelHeight) < 0.5 && started.duration(to: .now) > .milliseconds(650)
+                        // native fallback では一覧が伸縮を吸収し、パネルが元の高さへ戻るとは限らない。
+                        return finished && (!fitsAnimation || abs(panelFrame.height - targetPanelHeight) < 0.5)
+                            && started.duration(to: .now) > .milliseconds(650)
+                    }
+                    if !fitsAnimation {
+                        XCTAssertTrue(screen.insetBy(dx: -0.5, dy: -0.5).contains(save.panel.frame),
+                                      "native fallback が画面内に収まらない: \(save.panel.frame), screen=\(screen)")
+                        for control in controls + [save.passwordFields.passwordField, save.passwordFields.verifyField] where !control.isHiddenOrHasHiddenAncestor {
+                            XCTAssertEqual(control.visibleRect.intersection(control.bounds).height, control.bounds.height, accuracy: 0.5)
+                        }
+                        print("Save panel native fallback: browser=\(browserExpanded), sheet=\(asSheet), encryption=\(state.rawValue), frame=\(save.panel.frame)")
+                        continue
                     }
                     let drift = samples.flatMap { sample in
                         zip(sample, initial).map { max(abs($0.minX - $1.minX), abs($0.minY - $1.minY)) }
@@ -323,7 +351,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                     XCTAssertLessThanOrEqual(clipping.max() ?? 0, 0.01, "伸縮中にコントロールが切れた")
                     XCTAssertLessThanOrEqual(hostClipping.max() ?? 0, 0.01, "ホストの描画可能範囲から行が欠けた")
                     let panelHeights = panelFrames.map(\.height)
-                    XCTAssertTrue(panelHeights.contains { $0 > collapsedPanelHeight + 1 && $0 < expandedPanelHeight - 1 },
+                    XCTAssertTrue(panelHeights.contains { $0 > min(transitionFrame.height, targetPanelHeight) + 1 && $0 < max(transitionFrame.height, targetPanelHeight) - 1 },
                                   "保存パネル自体が中間の大きさを経由していない")
                     XCTAssertTrue(zip(panelHeights, panelHeights.dropFirst()).allSatisfy {
                         state == .on ? $0 <= $1 + 0.5 : $0 >= $1 - 0.5
@@ -332,8 +360,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                         abs($0.minX - initialPanelFrame.minX) <= 0.5 && abs($0.width - initialPanelFrame.width) <= 0.5
                     }, "保存パネルが横に揺れた")
                     // AppKit の通常パネルは上端、浮動シートは中央を基準に伸縮する。
-                    let topDrift = panelFrames.map { abs($0.maxY - initialPanelFrame.maxY) }.max() ?? 0
-                    let centerDrift = panelFrames.map { abs($0.midY - initialPanelFrame.midY) }.max() ?? 0
+                    let topDrift = panelFrames.map { abs($0.maxY - transitionFrame.maxY) }.max() ?? 0
+                    let centerDrift = panelFrames.map { abs($0.midY - transitionFrame.midY) }.max() ?? 0
                     let anchorDrift = min(topDrift, centerDrift)
                     XCTAssertLessThanOrEqual(anchorDrift, 0.01, "保存パネルの基準位置が揺れた")
                     let originDrift = accessoryOrigins.map { max(abs($0.x), abs($0.y)) }.max() ?? 0
@@ -525,6 +553,14 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
     }
 
     @MainActor func testExpandedSaveSheetKeepsItsButtonsOnScreenNearTheBottom() async throws {
+        try await checkExpandedSaveSheetScreenFit(forceOverflow: false)
+    }
+
+    @MainActor func testExpandedSaveSheetMovesParentUpWhenBrowserCannotAbsorbFormGrowth() async throws {
+        try await checkExpandedSaveSheetScreenFit(forceOverflow: true)
+    }
+
+    @MainActor private func checkExpandedSaveSheetScreenFit(forceOverflow: Bool) async throws {
         let restoreAnimations = enableNativeWindowAnimations()
         let restoreBrowser = setNativeSavePanelBrowserExpanded(true)
         defer { restoreAnimations(); restoreBrowser() }
@@ -543,7 +579,8 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         try await Task.sleep(for: .seconds(1))
         let screen = try XCTUnwrap(save.panel.screen).visibleFrame
         let frame = save.panel.frame
-        let height = min(600, screen.height - 200)
+        // 600 pt だと大画面では一覧が増分を吸収する。477 pt は CI で実際に溢れた条件。
+        let height = min(forceOverflow ? 477 : 600, screen.height - 200)
         let bottom = screen.minY + 8
         save.panel.setFrame(NSRect(x: frame.minX, y: bottom,
                                    width: frame.width, height: height), display: true)
@@ -553,7 +590,9 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
         parent.setFrameOrigin(NSPoint(x: parent.frame.minX,
             y: parent.frame.minY + bottom - save.panel.frame.minY))
         try await scenarioWait { abs(save.panel.frame.minY - bottom) < 0.5 }
-        for state in [NSControl.StateValue.on, .off, .on, .off] {
+        let initialPanelHeight = save.panel.frame.height
+        let initialParentY = parent.frame.minY
+        for (iteration, state) in [NSControl.StateValue.on, .off, .on, .off].enumerated() {
             save.encryptionCheckbox.performClick(nil)
             try await scenarioWait {
                 state == .on ? save.passwordFields.view.alphaValue == 1 : save.passwordFields.view.isHidden
@@ -567,9 +606,19 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
             let primaryTop = try XCTUnwrap(NSScreen.screens.first).frame.maxY
             let visible = NSRect(x: displayed.minX, y: primaryTop - displayed.maxY,
                                  width: displayed.width, height: displayed.height)
-            print("Save sheet screen fit: model=\(save.panel.frame), displayed=\(visible), screen=\(screen)")
+            print("Save sheet screen fit: forced=\(forceOverflow), model=\(save.panel.frame), displayed=\(visible), screen=\(screen)")
             XCTAssertGreaterThanOrEqual(visible.minY, screen.minY - 0.5, "保存ボタンが画面下端からはみ出した")
             XCTAssertLessThanOrEqual(visible.maxY, screen.maxY + 0.5)
+            XCTAssertLessThanOrEqual(parent.frame.maxY, screen.maxY + 0.5)
+            if forceOverflow && iteration == 0 {
+                XCTAssertGreaterThan(save.panel.frame.height, initialPanelHeight + 1, "一覧が増分を吸収し、画面外補正を検証できていない")
+                XCTAssertGreaterThan(parent.frame.minY, initialParentY + 0.5, "画面外へ伸びたシートの親が上へ移動していない")
+                let correctedY = parent.frame.minY
+                // 同じ frame で通知が重なっても、補正を積み増さない。
+                NotificationCenter.default.post(name: NSWindow.didResizeNotification, object: save.panel)
+                try await Task.sleep(for: .milliseconds(50))
+                XCTAssertEqual(parent.frame.minY, correctedY, accuracy: 0.5)
+            }
             if state == .on {
                 for field in [save.passwordFields.passwordField, save.passwordFields.verifyField] {
                     XCTAssertEqual(field.visibleRect.intersection(field.bounds).height, field.bounds.height, accuracy: 0.5)

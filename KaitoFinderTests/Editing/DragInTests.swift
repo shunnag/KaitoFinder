@@ -82,7 +82,10 @@ nonisolated final class DragInTests: XCTestCase {
         let before = try Data(contentsOf: fixture.archive)
         let result = try await session.append(urls: [fixture.file("old.txt"), fixture.file("sub"), fixture.file("safe.txt")], to: "", progress: Progress())
         XCTAssertEqual(result.failures.map(\.name), ["old.txt", "sub"])
-        XCTAssertTrue(result.failures.allSatisfy { $0.reason.contains("同じ名前") })
+        for failure in result.failures {
+            XCTAssertEqual(failure.reason, String(localized: "同じ名前の項目が既にあります: \(failure.name)。",
+                                                  bundle: Bundle(for: ArchiveDocument.self)))
+        }
         XCTAssertTrue(result.addedPaths.isEmpty)
         XCTAssertEqual(session.generation, 0)
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)

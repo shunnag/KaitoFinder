@@ -260,6 +260,7 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
         try await capture(window, name: "preview-off")
+        print("Preview window frame: \(window.frame)")
         controller.togglePreviewSidebar(nil)
         try await capture(window, name: "preview-empty")
         for (file, name) in [("Preview.png", "preview-image-light"), ("Read Me.txt", "preview-text"), ("Document.pdf", "preview-pdf")] {
@@ -274,7 +275,7 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         window.appearance = NSAppearance(named: .darkAqua)
         try await capture(window, name: "preview-image-dark")
         let split = try XCTUnwrap(controller.previewSidebar.parent as? NSSplitViewController)
-        split.splitView.setPosition(620, ofDividerAt: 0)
+        split.splitView.setPosition(split.splitView.bounds.width - 420, ofDividerAt: 0)
         try await scenarioWait { controller.previewSidebar.view.bounds.width > 410 }
         try await Task.sleep(for: .milliseconds(500))
         let divider = try XCTUnwrap(split.splitView.accessibilityChildren()?.compactMap { $0 as? any NSAccessibilityProtocol }
@@ -285,7 +286,7 @@ nonisolated final class ArchivePreviewSidebarTests: XCTestCase {
         if TestEnvironment.value(.previewCaptureRequest) != nil {
             try await capture(window, name: "preview-resized", drag: [start, end])
         } else {
-            split.splitView.setPosition(520, ofDividerAt: 0)
+            split.splitView.setPosition(split.splitView.bounds.width - 520, ofDividerAt: 0)
         }
         try await scenarioWait { controller.previewSidebar.view.bounds.width > 450 }
         window.setContentSize(NSSize(width: 600, height: 300))

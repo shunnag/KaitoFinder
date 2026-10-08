@@ -322,6 +322,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
         let disk = try attachedTestDisk(fileSystem)
         defer { try? disk.detach() }
         try disk.disableTrash()
+        let expectedFallback = try exclusiveRenameNeedsFallback(at: disk.mount)
         let fixture = try VolumePublishFixture(parent: disk.mount)
         let before = try VolumePublishFixture.snapshot(fixture.root)
         XCTAssertThrowsError(try fixture.begin()) {
@@ -330,7 +331,7 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
         XCTAssertEqual(try VolumePublishFixture.snapshot(fixture.root), before)
         let publication = try fixture.begin(consent: true)
         let result = try publication.publish(progress: Progress())
-        XCTAssertTrue(result.usedExclusiveRenameFallback)
+        XCTAssertEqual(result.usedExclusiveRenameFallback, expectedFallback)
         XCTAssertEqual(result.oldVolumesDisposal, .removed)
         try fixture.assertNew()
         try fixture.assertRemoved(publication.stagingURL)
@@ -341,6 +342,28 @@ nonisolated final class VolumeSetPublisherTests: XCTestCase {
         guard case .recovered(_, .forward, .removed) = recovery else { return XCTFail("\(recovery)") }
         try crashed.assertRemoved(interrupted.stagingURL)
         try crashed.assertNew()
+    }
+
+    private func exclusiveRenameNeedsFallback(at mount: URL) throws -> Bool {
+        let directory = mount.appendingPathComponent("rename-probe-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source"), destination = directory.appendingPathComponent("destination")
+        let original = Data("original".utf8), replacement = Data("replacement".utf8)
+        try original.write(to: source)
+        if renamex_np(source.path, destination.path, UInt32(RENAME_EXCL)) != 0 {
+            let failure = errno
+            if failure == ENOTSUP || failure == EOPNOTSUPP { return true }
+            throw VolumePublishError.system(failure)
+        }
+        try replacement.write(to: source)
+        let result = renamex_np(source.path, destination.path, UInt32(RENAME_EXCL))
+        let failure = errno
+        XCTAssertEqual(result, -1, "exclusive rename が既存の名前を上書きした")
+        XCTAssertEqual(failure, EEXIST)
+        XCTAssertEqual(try Data(contentsOf: destination), original)
+        XCTAssertEqual(try Data(contentsOf: source), replacement)
+        return false
     }
 
     func testHFSPlusHappyPathUsesTrash() throws {
