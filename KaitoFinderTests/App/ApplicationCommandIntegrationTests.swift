@@ -293,9 +293,14 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
         window.layoutIfNeeded()
-        try await scenarioWait {
-            let visible = Set(toolbar.visibleItems?.map(\.itemIdentifier.rawValue) ?? [])
-            return visible.isSuperset(of: ["delete", "newFolder", "search"]) && controller.searchField.window === window
+        do {
+            try await scenarioWait {
+                let visible = Set(toolbar.visibleItems?.map(\.itemIdentifier.rawValue) ?? [])
+                return visible.isSuperset(of: ["delete", "newFolder", "search"]) && controller.searchField.window === window
+            }
+        } catch {
+            print("Toolbar timeout: visibleItems=\(toolbar.visibleItems?.map(\.itemIdentifier.rawValue) ?? []), isVisible=\(toolbar.isVisible), isKeyWindow=\(window.isKeyWindow), isMainWindow=\(window.isMainWindow), isActive=\(NSApp.isActive)")
+            throw error
         }
         XCTAssertTrue(window.makeFirstResponder(controller.outlineView))
         let main = try XCTUnwrap(NSApp.mainMenu)

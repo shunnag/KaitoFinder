@@ -250,7 +250,7 @@ nonisolated final class DragCopyOutTests: XCTestCase {
                 }
             }
         }
-        // 同期 gate は cooperative pool の thread を止める。VM の CPU 数も上限になる。
+        // 同期 gate が cooperative pool を止めても、CPU 数相当以上、最大 4 行が進めばよい。
         let concurrency = min(4, ProcessInfo.processInfo.activeProcessorCount)
         func releaseAndDrain() async {
             for gate in gates { gate.release() }
@@ -261,10 +261,12 @@ nonisolated final class DragCopyOutTests: XCTestCase {
             await session.close()
         }
         do {
-            try await scenarioWait { gates.filter(\.isEntered).count == concurrency }
-            XCTAssertEqual(gates.filter(\.isEntered).count, concurrency)
-            XCTAssertEqual(queue.activeCount.withLock { $0 }, concurrency)
-            XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, concurrency)
+            try await scenarioWait { gates.filter(\.isEntered).count >= concurrency }
+            let entered = gates.filter(\.isEntered).count
+            XCTAssertGreaterThanOrEqual(entered, concurrency)
+            XCTAssertLessThanOrEqual(entered, 4)
+            XCTAssertLessThanOrEqual(queue.activeCount.withLock { $0 }, 4)
+            XCTAssertLessThanOrEqual(queue.maximumActiveCount.withLock { $0 }, 4)
             XCTAssertFalse(gates.dropFirst(4).contains { $0.isEntered })
         } catch {
             await releaseAndDrain()

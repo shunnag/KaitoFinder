@@ -19,6 +19,11 @@ SKIP_CLASSES = (
     "ArchiveDropIntegrationTests",
     "ReadOnlyDropConversionUITests",
 )
+# macOS 26 の非アクティブな test host では toolbar の visibleItems が揃わない。
+# Mac mini (macOS 27) と xcode-27 job で検証する。
+MACOS_26_SKIP_METHODS = (
+    "ApplicationCommandIntegrationTests/testToolbarAndResponderChainApplyEditsAndRespectTextFocus",
+)
 EXECUTED = re.compile(r"Executed (\d+) tests?, with (\d+) failures")
 STARTED = re.compile(r"Test Case '-\[|Test case '.+' (?:started|passed|failed|skipped)|Executed \d+ tests?")
 MISSING_TOOLS = re.compile(r"Required fixture tool is unavailable|7zz is not installed", re.I)
@@ -178,7 +183,9 @@ def package(dd, stage, helpers):
                 "xcode": output("xcodebuild", "-version"), "deployment_target": "26.0"}
     (runtime / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
     selectors = runtime / "selectors.json"
-    selectors.write_text(json.dumps({"run": [], "skip": [f"KaitoFinderTests.{c}" for c in SKIP_CLASSES]}, indent=2) + "\n")
+    selectors.write_text(json.dumps({"run": [], "skip": [
+        f"KaitoFinderTests.{identifier}" for identifier in (*SKIP_CLASSES, *MACOS_26_SKIP_METHODS)
+    ]}, indent=2) + "\n")
     bundle = app / "Contents/PlugIns/KaitoFinderTests.xctest"
     # 絶対 bundle path は restore 時の manifest 検査で一致を保証する。
     subprocess.run([str(helpers / "make-xctest-configuration"),
@@ -227,7 +234,7 @@ def patch(products, runtime, only):
     environment.update(CI="1", TEST_RUNNER_CI="1")
     # xcodebuild.xctestrun(5) の identifier は target 内の Class[/method]。
     tests["SkipTestIdentifiers"] = list(dict.fromkeys([
-        *tests.get("SkipTestIdentifiers", []), *SKIP_CLASSES]))
+        *tests.get("SkipTestIdentifiers", []), *SKIP_CLASSES, *MACOS_26_SKIP_METHODS]))
     if only:
         tests["OnlyTestIdentifiers"] = only
     tests.update(TestTimeoutsEnabled=True, DefaultTestExecutionTimeAllowance=600,
