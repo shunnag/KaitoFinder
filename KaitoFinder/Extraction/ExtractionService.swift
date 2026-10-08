@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import GyoshukuKit
 import KaitoKit
 import Synchronization
 
@@ -88,7 +89,8 @@ nonisolated enum ExtractionService {
         // この同期呼出しの中で reader と全 stream の寿命が閉じる。
         return try run(selection.entries, reader: snapshot.reader, destination: destination,
                        quarantine: snapshot.quarantine, progress: progress,
-                       mapping: .init(scope: .archive, syntax: .init(snapshot.reader.format)), didProcess: didProcess)
+                       mapping: .init(scope: .archive, syntax: .init(snapshot.reader.format)), didProcess: didProcess,
+                       powerPolicy: session.writerOptions(session.passwordFormat ?? .zip).powerPolicy)
     }
 
     /// 世代の再解決と reader の取得は session 内で不可分に行う。
@@ -114,7 +116,8 @@ nonisolated enum ExtractionService {
         progress.beginFileCopy(to: destination)
         return try extractResolved(snapshot.selection.entries, reader: snapshot.reader, to: destination,
             quarantine: snapshot.quarantine, progress: progress, promisedItem: promisedItem,
-            readOnly: readOnly, didWrite: didWrite, didProcess: didProcess)
+            readOnly: readOnly, didWrite: didWrite, didProcess: didProcess,
+            powerPolicy: session.writerOptions(session.passwordFormat ?? .zip).powerPolicy)
     }
 
     @concurrent private static func extractPending(
@@ -137,7 +140,8 @@ nonisolated enum ExtractionService {
         }
         return try extractResolved(entries, reader: snapshot.reader, to: destination, quarantine: snapshot.quarantine,
             progress: progress, promisedItem: promisedItem, readOnly: readOnly, didWrite: didWrite,
-            didProcess: didProcess, sources: snapshot.snapshot.sources)
+            didProcess: didProcess, sources: snapshot.snapshot.sources,
+            powerPolicy: session.writerOptions(session.passwordFormat ?? .zip).powerPolicy)
     }
 
     static func extractResolved(
@@ -145,7 +149,8 @@ nonisolated enum ExtractionService {
         progress: Progress, promisedItem: ArchiveEntryPayload? = nil, readOnly: Bool = false,
         didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)? = nil,
         sources: ArchivePendingReadSnapshot.Sources? = nil,
-        execution: ExtractionExecution = .automatic
+        execution: ExtractionExecution = .automatic,
+        powerPolicy: CompressionPowerPolicy = .reduceInLowPowerMode
     ) throws -> ExtractionResult {
         let syntax = ExtractionPath.NameSyntax(reader.format)
         let root: URL, scope: OutputMapping.Scope
@@ -166,7 +171,7 @@ nonisolated enum ExtractionService {
         let mapping = OutputMapping(scope: scope, syntax: syntax)
         let result = try run(entries, reader: reader, destination: root, quarantine: quarantine,
             progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite,
-            didProcess: didProcess, sources: sources, execution: execution)
+            didProcess: didProcess, sources: sources, execution: execution, powerPolicy: powerPolicy)
         if let virtualRootParent {
             // /var と /private/var を混在させず、親と同じ実パスで root を仕上げる。
             try virtualRootParent.finishSynthesizedDirectory(virtualRootParent.url([destination.lastPathComponent]))
@@ -196,7 +201,8 @@ nonisolated enum ExtractionService {
         quarantine: Data?, progress: Progress, mapping: OutputMapping,
         readOnly: Bool = false, didWrite: (@Sendable (Int) -> Void)? = nil, didProcess: (@Sendable (Int) -> Void)?,
         sources: ArchivePendingReadSnapshot.Sources? = nil,
-        execution: ExtractionExecution = .automatic
+        execution: ExtractionExecution = .automatic,
+        powerPolicy: CompressionPowerPolicy = .reduceInLowPowerMode
     ) throws -> ExtractionResult {
         let counter = ExtractionProgress(entries: entries, progress: progress)
         let position = Mutex(0)
@@ -204,7 +210,7 @@ nonisolated enum ExtractionService {
             counter.wrote(count, at: position.withLock { $0 })
             didWrite?(count)
         }
-        let workerCount = execution.workerCount(entries: entries, hasSources: sources != nil)
+        let workerCount = execution.workerCount(entries: entries, hasSources: sources != nil, powerPolicy: powerPolicy)
         let parallel = workerCount > 1 ? try? ParallelExtraction(reader: reader, destination: destination,
             quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax, count: workerCount, counter: counter,
             didWrite: didWrite, didProcess: didProcess) : nil

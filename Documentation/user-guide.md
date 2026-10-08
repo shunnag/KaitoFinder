@@ -152,7 +152,12 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 - 「圧縮 › 変更しない項目の所有者ID:」は、tar・圧縮 tar の既存の持ち主とグループの番号を「そのまま保つ」が既定です。
   「0に戻す（編集のたびに全体を書き直す）」で従来の扱いに戻せます。「追加するファイルの所有者ID(uid / gid)を保存」は、ディスクから追加する項目だけの別の設定です。
 - 「圧縮 › 圧縮の並列数:」は「自動」が既定で、処理を同時に行う数を指定することもできます。
+  「自動（N）」は現在の電力設定で使う数です。通常はすべての有効な論理 CPU を使い、物理メモリの GiB 数や圧縮方式のメモリ制限に応じて減らします。
   7z・tar.xz のメモリ使用量の目安を表示します。開いているアーカイブも次の書き込みから反映し、「自動」で既定に戻せます。
+- 「圧縮 › 電力の使用方針:」は「低電力モードで並列数を減らす」が既定です。
+  「低電力モードや高温時に並列数を減らす」「常にすべてのコアを使う」も選べます。高温時の削減は macOS が深刻または危険な温度状態を報告したときに行います。
+  次に始める圧縮・展開・パスワード検証に適用します。圧縮の並列数を明示した場合、その圧縮とパスワード検証では電力設定による削減を行いません。
+  展開は処理量や独立した項目の数に応じて並列化し、圧縮の並列数の指定とは別に電力設定を使います。
 - 「一般 › 変更の書き込み:」の変更は、次に開くアーカイブから有効です。
 
 ### アップデート
@@ -290,6 +295,9 @@ When adding or creating, excluding `.DS_Store` is on by default; excluding all h
 - Compression > Owner IDs of unchanged items: defaults to Keep unchanged for existing tar / compressed tar user and group IDs. Reset to 0 (rewrite the entire archive on every edit) restores the previous behavior.
   Preserve owner IDs (uid / gid) of files being added is a separate setting affecting only files added from disk.
 - Compression > Compression threads: defaults to Automatic; you can specify the number of concurrent tasks. Estimated memory use is shown for 7z / tar.xz, and open archives use the choice on the next write. Automatic restores the default.
+  Automatic (N) shows the current count under the selected power policy. Normally it uses all active logical CPUs, subject to physical memory in GiB and compression method memory limits.
+- Compression > Power usage: defaults to Reduce threads in Low Power Mode. You can also choose Reduce threads in Low Power Mode or when hot, or Always use all cores. The temperature option reduces threads when macOS reports serious or critical thermal pressure.
+  This applies to the next compression, extraction, or password verification operation. An explicit compression thread count bypasses power-based reductions for compression and password verification. Extraction uses the power policy independently of the compression thread count, and runs in parallel when the workload and independent entries allow it.
 - General > Write Changes: applies to archives opened after the setting changes.
 
 #### Updates

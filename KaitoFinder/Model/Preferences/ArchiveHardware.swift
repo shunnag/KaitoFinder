@@ -1,16 +1,18 @@
 import Foundation
+import GyoshukuKit
 
 nonisolated struct ArchiveHardware: Sendable, Equatable {
     var processors: Int
     var memory: UInt64
+    // テストでは自動値だけを注入し、CPU 構成や電力状態に依存させない。
+    var automaticThreads: Int? = nil
 
     static var current: Self {
         .init(processors: ProcessInfo.processInfo.activeProcessorCount, memory: ProcessInfo.processInfo.physicalMemory)
     }
 
-    var automaticCompressionThreads: Int {
-        // GK の resolvedCompressionThreads は internal のため、同じ式をここに写す。
-        max(1, min(processors, 8, Int(memory >> 30)))
+    func automaticCompressionThreads(powerPolicy: CompressionPowerPolicy = .reduceInLowPowerMode) -> Int {
+        automaticThreads ?? WriterOptions.automaticCompressionThreads(powerPolicy: powerPolicy)
     }
 
     static func estimatedLZMA2Memory(threads: Int) -> UInt64 {

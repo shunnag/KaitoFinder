@@ -1,11 +1,14 @@
 import Foundation
+import GyoshukuKit
 import KaitoKit
 import Synchronization
 
 nonisolated enum ExtractionExecution: Sendable {
     case automatic, serial, parallel(workers: Int)
 
-    func workerCount(entries: [ArchiveEntry], hasSources: Bool) -> Int {
+    func workerCount(entries: [ArchiveEntry], hasSources: Bool,
+                     powerPolicy: CompressionPowerPolicy = .reduceInLowPowerMode,
+                     hardware: ArchiveHardware = .current) -> Int {
         if case .serial = self { return 1 }
         // 不明サイズの累積制限は reader 間で共有できない。
         guard !hasSources, entries.allSatisfy({
@@ -21,7 +24,7 @@ nonisolated enum ExtractionExecution: Sendable {
             let minimum: UInt64 = 8 * 1024 * 1024
             let bytes = files.reduce(UInt64(0)) { min(minimum, $0 + min(minimum, $1.uncompressedSize ?? 0)) }
             guard files.count >= 64, bytes >= minimum else { return 1 }
-            requested = min(ProcessInfo.processInfo.activeProcessorCount, 8)
+            requested = hardware.automaticCompressionThreads(powerPolicy: powerPolicy)
         case .parallel(let workers): requested = workers
         }
         return max(1, min(requested, buckets))

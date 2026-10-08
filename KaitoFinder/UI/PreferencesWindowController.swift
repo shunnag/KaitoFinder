@@ -11,6 +11,7 @@ final class PreferencesViewModel {
     static let tarCarriedOwnerPolicies = ArchivePreferences.CarriedOwnerIDPolicy.allCases
     static let openingBehaviors = ArchivePreferences.OpeningBehavior.allCases
     static let folderOpenings = ArchivePreferences.FolderOpening.allCases
+    static let powerPolicies = ArchivePreferences.PowerPolicy.allCases
     private let store: ArchivePreferencesStore
     let hardware: ArchiveHardware
     private let bundle: Bundle
@@ -22,15 +23,20 @@ final class PreferencesViewModel {
     }
 
     var preferences: ArchivePreferences { store.preferences }
-    var compressionThreadChoices: [Int] { Array(0...max(hardware.processors, preferences.compressionThreads)) }
+    var compressionThreadChoices: [Int] {
+        Array(0...min(ArchivePreferences.compressionThreadRange.upperBound,
+                      max(1, hardware.processors, preferences.compressionThreads)))
+    }
     var compressionThreadIndex: Int { compressionThreadChoices.firstIndex(of: preferences.compressionThreads)! }
     var compressionThreadTitles: [String] {
         compressionThreadChoices.map {
-            $0 == 0 ? String(format: String(localized: "自動（%lld）", bundle: bundle), hardware.automaticCompressionThreads) : String($0)
+            $0 == 0 ? String(format: String(localized: "自動（%lld）", bundle: bundle),
+                             hardware.automaticCompressionThreads(powerPolicy: preferences.powerPolicy.writerPolicy)) : String($0)
         }
     }
     var memoryNote: (text: String, warns: Bool) {
-        let threads = preferences.compressionThreads == 0 ? hardware.automaticCompressionThreads : preferences.compressionThreads
+        let threads = preferences.compressionThreads == 0
+            ? hardware.automaticCompressionThreads(powerPolicy: preferences.powerPolicy.writerPolicy) : preferences.compressionThreads
         let warns = ArchiveHardware.estimatedLZMA2Memory(threads: threads) > hardware.memory / 4
         return (memoryNote(threads: threads, warns: warns), warns)
     }
@@ -49,6 +55,14 @@ final class PreferencesViewModel {
         let choices = compressionThreadChoices
         guard choices.indices.contains(index) else { return }
         store.preferences.compressionThreads = choices[index]
+    }
+
+    var powerPolicyIndex: Int { Self.powerPolicies.firstIndex(of: preferences.powerPolicy)! }
+    var powerPolicyTitles: [String] { Self.powerPolicies.map { $0.title(bundle: bundle) } }
+
+    func selectPowerPolicy(at index: Int) {
+        guard Self.powerPolicies.indices.contains(index) else { return }
+        store.preferences.powerPolicy = Self.powerPolicies[index]
     }
 
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
@@ -210,6 +224,7 @@ final class PreferencesWindowController: NSWindowController {
     let additionPositionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let powerPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
     let additionalFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let additionalMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -332,7 +347,8 @@ final class PreferencesWindowController: NSWindowController {
             group(rows: [checkboxRow(excludesDSStoreCheckbox), checkboxRow(excludesHiddenFilesCheckbox)], spanningRows: [0, 1]),
             group(rows: [
                 row(String(localized: "圧縮の並列数:", bundle: bundle), control: compressionThreadsPopup),
-                row("", control: compressionMemoryNote)
+                row("", control: compressionMemoryNote),
+                row(String(localized: "電力の使用方針:", bundle: bundle), control: powerPolicyPopup)
             ]),
             group(title: String(localized: "ZIP", bundle: bundle), rows: [
                 row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
@@ -414,6 +430,11 @@ final class PreferencesWindowController: NSWindowController {
         window.toolbar?.allowsUserCustomization = false
         NotificationCenter.default.addObserver(self, selector: #selector(preferencesDidChange(_:)),
                                                name: ArchivePreferencesStore.didChange, object: store)
+        // 自動値の表示も、現在の電力・温度状態で更新する。
+        NotificationCenter.default.addObserver(self, selector: #selector(hardwareDidChange(_:)),
+                                               name: .NSProcessInfoPowerStateDidChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(hardwareDidChange(_:)),
+                                               name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(softwareUpdatesDidChange(_:)),
                                                name: SoftwareUpdateController.didChange, object: softwareUpdater)
         refreshControls()
@@ -430,6 +451,7 @@ final class PreferencesWindowController: NSWindowController {
         folderOpeningPopup.addItems(withTitles: [String(localized: "フォルダに移動", bundle: bundle),
                                                  String(localized: "その場で展開", bundle: bundle)])
         compressionThreadsPopup.addItems(withTitles: viewModel.compressionThreadTitles)
+        powerPolicyPopup.addItems(withTitles: viewModel.powerPolicyTitles)
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         saveBehaviorPopup.addItems(withTitles: [String(localized: "すぐに書き込む", bundle: bundle),
                                                String(localized: "保存時にまとめて書き込む", bundle: bundle)])
@@ -474,6 +496,7 @@ final class PreferencesWindowController: NSWindowController {
             (additionPositionPopup, #selector(changeAdditionPosition(_:))),
             (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
             (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
+            (powerPolicyPopup, #selector(changePowerPolicy(_:))),
             (additionalFormatPopup, #selector(changeAdditionalFormat(_:))),
             (additionalMethodPopup, #selector(changeAdditionalMethod(_:))),
             (additionalLevelPopup, #selector(changeAdditionalLevel(_:))),
@@ -633,6 +656,10 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     @objc private func preferencesDidChange(_ notification: Notification) { refreshControls() }
+    @objc nonisolated private func hardwareDidChange(_ notification: Notification) {
+        // 電力通知は background queue から届くため、表示更新を main actor へ送る。
+        Task { @MainActor [weak self] in self?.refreshControls() }
+    }
     @objc private func softwareUpdatesDidChange(_ notification: Notification) { refreshUpdateControls() }
 
     @objc private func changeAutomaticallyChecksForUpdates(_ sender: NSButton) {
@@ -685,6 +712,7 @@ final class PreferencesWindowController: NSWindowController {
             compressionThreadsPopup.addItems(withTitles: threadTitles)
         }
         compressionThreadsPopup.selectItem(at: viewModel.compressionThreadIndex)
+        powerPolicyPopup.selectItem(at: viewModel.powerPolicyIndex)
         let memoryNote = viewModel.memoryNote
         compressionMemoryNote.stringValue = memoryNote.text
         compressionMemoryNote.textColor = memoryNote.warns ? .systemOrange : .secondaryLabelColor
@@ -786,6 +814,9 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changeZipMethod(_ sender: NSPopUpButton) { viewModel.selectZipMethod(at: sender.indexOfSelectedItem) }
     @objc private func changeCompressionThreads(_ sender: NSPopUpButton) {
         viewModel.selectCompressionThreads(at: sender.indexOfSelectedItem)
+    }
+    @objc private func changePowerPolicy(_ sender: NSPopUpButton) {
+        viewModel.selectPowerPolicy(at: sender.indexOfSelectedItem)
     }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }
