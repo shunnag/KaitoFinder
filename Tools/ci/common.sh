@@ -57,6 +57,9 @@ check_session() {
 
 test_with_scheme() {
   export TEST_RUNNER_CI=1
+  # 厳密な保存パネル geometry は、アニメーションによる伸縮が収まる画面を前提とする。
+  # 1024x768 hosted VM では画面外補正が設計どおりパネルを動かすため、
+  # この 2 method は Mac mini の GUI runs で検証する（runtime.py の CI_SKIP_METHODS と共通）。
   xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -configuration Debug \
     -destination 'platform=macOS,arch=arm64' -derivedDataPath "$KF_DERIVED_DATA" \
     -clonedSourcePackagesDirPath "$RUNNER_TEMP/kaitofinder-packages" \
@@ -66,6 +69,8 @@ test_with_scheme() {
     -skip-testing:KaitoFinderTests/ArchiveTabSpringLoadingTests \
     -skip-testing:KaitoFinderTests/ArchiveDropIntegrationTests \
     -skip-testing:KaitoFinderTests/ReadOnlyDropConversionUITests \
+    -skip-testing:KaitoFinderTests/ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents \
+    -skip-testing:KaitoFinderTests/ArchivePasswordUITests/testSplitSavePanelResizesWithoutSlidingContents \
     test-without-building 2>&1 | tee "$RUNNER_TEMP/xcode-27-tests.log"
   python3 Tools/ci/runtime.py guard "$RUNNER_TEMP/xcode-27-tests.log"
 }

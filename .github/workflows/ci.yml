@@ -7,9 +7,12 @@ name: CI
 # 同じ Products と Xcode 27 の XCTest を運んで実行する。macos-26 でコンパイルしない。
 # Tools/ の実 HID GUI driver、性能 probe、実 software update 検証、署名・notarization は
 # Mac mini の GUI / リリース検証で扱う。実ドラッグの 3 class は CI では除外する。
-# 1024x768 / 非アクティブ host の geometry は達成可能な状態を検査し、
-# 厳密な geometry / activation 検証は Mac mini でも行う。追加の除外は
-# macos-26 の toolbar / responder-chain の 1 method のみ（runtime.py に列挙）。
+# 1024x768 / 非アクティブ host では達成可能な geometry / activation を検査する。
+# 厳密な保存パネル geometry は、アニメーションによる伸縮が収まる画面を前提とする。
+# 1024x768 hosted VM では画面外補正が設計どおりパネルを動かすため、Mac mini の GUI runs で検証する。
+# xcode-27 / macos-26 共通: ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents
+#                        ArchivePasswordUITests/testSplitSavePanelResizesWithoutSlidingContents
+# macos-26 のみ: ApplicationCommandIntegrationTests/testToolbarAndResponderChainApplyEditsAndRespectTextFocus
 # macOS 26 の非アクティブな test host では toolbar の visibleItems が揃わない。
 # Mac mini (macOS 27) と xcode-27 job で検証する。
 on:

@@ -19,6 +19,12 @@ SKIP_CLASSES = (
     "ArchiveDropIntegrationTests",
     "ReadOnlyDropConversionUITests",
 )
+# 両 CI job 共通。厳密な保存パネル geometry は、アニメーションによる伸縮が収まる画面を前提とする。
+# 1024x768 hosted VM では画面外補正が設計どおりパネルを動かすため、Mac mini の GUI runs で検証する。
+CI_SKIP_METHODS = (
+    "ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents",
+    "ArchivePasswordUITests/testSplitSavePanelResizesWithoutSlidingContents",
+)
 # macOS 26 の非アクティブな test host では toolbar の visibleItems が揃わない。
 # Mac mini (macOS 27) と xcode-27 job で検証する。
 MACOS_26_SKIP_METHODS = (
@@ -184,7 +190,7 @@ def package(dd, stage, helpers):
     (runtime / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
     selectors = runtime / "selectors.json"
     selectors.write_text(json.dumps({"run": [], "skip": [
-        f"KaitoFinderTests.{identifier}" for identifier in (*SKIP_CLASSES, *MACOS_26_SKIP_METHODS)
+        f"KaitoFinderTests.{identifier}" for identifier in (*SKIP_CLASSES, *CI_SKIP_METHODS, *MACOS_26_SKIP_METHODS)
     ]}, indent=2) + "\n")
     bundle = app / "Contents/PlugIns/KaitoFinderTests.xctest"
     # 絶対 bundle path は restore 時の manifest 検査で一致を保証する。
@@ -234,7 +240,7 @@ def patch(products, runtime, only):
     environment.update(CI="1", TEST_RUNNER_CI="1")
     # xcodebuild.xctestrun(5) の identifier は target 内の Class[/method]。
     tests["SkipTestIdentifiers"] = list(dict.fromkeys([
-        *tests.get("SkipTestIdentifiers", []), *SKIP_CLASSES, *MACOS_26_SKIP_METHODS]))
+        *tests.get("SkipTestIdentifiers", []), *SKIP_CLASSES, *CI_SKIP_METHODS, *MACOS_26_SKIP_METHODS]))
     if only:
         tests["OnlyTestIdentifiers"] = only
     tests.update(TestTimeoutsEnabled=True, DefaultTestExecutionTimeAllowance=600,
