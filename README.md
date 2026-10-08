@@ -234,7 +234,8 @@ sandbox なしで配布する。Developer ID による署名と notarize の手�
 ```
 
 `.xcodeproj` はこの二つを `../KaitoKit` と `../GyoshukuKit` の local SwiftPM
-package として静的リンクする。Xcode 26 以降、Swift 6、arm64 専用。
+package として静的リンクする。ビルドには **Xcode 27** が必要（Swift 6.4、arm64 専用）。
+macOS 27 SDK の API を使うが、実行環境は **macOS 26 以上**、配備先は `26.0` を維持する。
 
 ```sh
 xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'platform=macOS,arch=arm64' build
@@ -260,6 +261,18 @@ KaitoKit の往復で検証する。
 設計上の判断は [設計書](Documentation/design.md)、各段階の実測と自動検証できなかった範囲は
 [検証記録](Documentation/verification/)に残している。
 Finder や実際のウインドウで確認する操作は [手動検証手順](Documentation/manual-verification.md)を参照。
+
+## CI
+
+[CI](.github/workflows/ci.yml) は main / tag への push、pull request、手動、週次で実行する。
+Xcode 27 で Debug のアプリと app-hosted tests をビルドし、macOS 27 で試験する。
+別の job では同じビルド成果物と Xcode 27 の XCTest ランタイムを macOS 26 へ運び、
+再コンパイルせず試験する。兄弟 repo は main を取得し、転送先ではビルド時の SHA と
+ソース・DerivedData の絶対パスを照合する。Sparkle は `Package.resolved` の 2.10.0 を使う。
+
+実ドラッグの 3 class、`Tools/` の実 HID GUI driver、性能 probe、実際の自動更新、
+署名・notarization は Mac mini で検証する。CI との分担・ログの判定は
+[UI の回帰テスト](Documentation/ui-integration-testing.md#ci-と-mac-mini-の分担)を参照。
 
 > **KaitoFinder** is an archive browser for macOS 26 and later on Apple Silicon.
 > It opens the contents of archives with Finder's look and moves files and folders
@@ -433,10 +446,14 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Place the KaitoKit, GyoshukuKit, and KaitoFinder checkouts beside each other under
 > `~/Github/`. The Xcode project statically links `../KaitoKit` and `../GyoshukuKit`
-> as local SwiftPM packages. Use Xcode 26 or later, Swift 6, and arm64; the two
+> as local SwiftPM packages. Build with Xcode 27 (Swift 6.4) for arm64; the app
+> runs on macOS 26 and later with deployment target 26.0. The two
 > `xcodebuild` commands above build and test with the explicit arm64 destination.
 > Open through File > Open… or pass archive paths to the executable.
 > Tests build real archives and check them against reference implementations
 > (`unzip`, `7zz`, `ditto`, `bsdtar`) and a KaitoKit round trip.
 > See the [design document](Documentation/design.md), [verification records](Documentation/verification/),
 > and [manual verification steps](Documentation/manual-verification.md).
+> CI builds only with Xcode 27 and runs the app-hosted tests on macOS 27 and,
+> without recompiling, macOS 26. Real drag/HID drivers, performance probes,
+> software update verification, signing, and notarization run on the Mac mini.
