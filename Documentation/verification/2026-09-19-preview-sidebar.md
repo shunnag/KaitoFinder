@@ -34,4 +34,4 @@ python3 Tools/verify_preview_sidebar.py
 
 このディレクトリに `preview.xcresult`、`preview.log`、9枚の画面画像、`result.json`、検証対象ソースの `source-sha256.json` を保存している。再実行では別のUUIDのディレクトリに結果を残す。
 
-macOS 27.2 / Xcode 27.0で、通常のbundle IDのRelease版もビルドした。READMEの配布手順どおり既存のDeveloper IDを指定し、アプリとSparkleの署名が同じTeamであること、`codesign --verify --deep --strict`、実際の起動完了を確認した。出力先は `build/PreviewReleaseDerivedData/Build/Products/Release/KaitoFinder.app`。macOS 26はビルド対象だが、この環境での実画面検証はmacOS 27のみ。
+macOS 27.2 / Xcode 27.0で、通常のbundle IDのRelease版もビルドした。[開発者向け情報の配布手順](../development.md#配布)どおり既存のDeveloper IDを指定し、アプリとSparkleの署名が同じTeamであること、`codesign --verify --deep --strict`、実際の起動完了を確認した。出力先は `build/PreviewReleaseDerivedData/Build/Products/Release/KaitoFinder.app`。macOS 26はビルド対象だが、この環境での実画面検証はmacOS 27のみ。

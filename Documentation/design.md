@@ -1490,7 +1490,7 @@ stash による「修正前に失敗」の再確認を行い、記録を `verifi
 - Wave I — 作成・別名で保存・一括展開・設定・保管庫: [記録](verification/2026-09-16-creation-batch-review.md)。
   隔離属性の伝播は取り込む全ファイルを見る(§9)。
 - Wave J — 取り出し・QuickLook・undo・外部変更・パスワード入力: [記録](verification/2026-09-16-extract-undo-review.md)。
-  外部変更の検出の限界は README に明記。
+  外部変更の検出の限界は[利用ガイド](user-guide.md#取り消しと外部からの変更)に明記。
 - Wave K — Services・設定・最近使った項目・エラー表示・起動引数: [記録](verification/2026-09-16-entry-points-review.md)。
 - 操作中の終了(§9)、直列展開の固定費(上記)、クラッシュ残骸の台帳(§12-5)、
   TSan / ASan の全件実行([記録](verification/2026-09-16-sanitizers.md))も同日。

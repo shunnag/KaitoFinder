@@ -1,459 +1,142 @@
 # KaitoFinder
 
-macOS 26 以降向けのアーカイブブラウザ。Finder と同じ見た目でアーカイブの中身を開き、
-Finder や他のアプリとの間で **drag & drop** と **copy & paste** によって
-ファイルやフォルダをやり取りする。
+KaitoFinder は、macOS で圧縮ファイル（アーカイブ）の中身を見たり、編集したりできるアプリです。
+Finder に似た操作で、必要なファイルを取り出したり、追加したりできます。ZIP や 7z、古い Mac のアーカイブなどを開けます。
 
-KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空間が書庫の中身である
-ファイルマネージャ**として作る。Finder と同じ外観・操作感が第一の要件であり、
-他のすべてはそれに従属する。
+## できること
 
-読み取りは [KaitoKit](https://github.com/shunnag/KaitoKit)(解凍Kit)、
-書き込みは [GyoshukuKit](https://github.com/shunnag/GyoshukuKit)(凝縮Kit)。
-解凍と凝縮を対にした、独立した二つの framework を使う。
+- アーカイブを開き、フォルダやファイルを一覧する
+- ファイルやフォルダを Finder へドラッグして取り出す
+- 対応するアーカイブにファイルを追加し、削除・名称変更する
+- ZIP・7z・LHA・tar などを作成し、別の形式へ変換する
+- パスワード付きのアーカイブを開き、ZIP・7z を暗号化する
+- 分割アーカイブを開き、「別名で保存…」で分割して保存する
+- Space キーでクイックルックを使い、中身を確認する
 
-- 対象: macOS 26 以上、Apple Silicon
-- ライセンス: MIT
+## 動作環境
 
-## 開く
+**macOS 26 以降・Apple Silicon 搭載の Mac** が必要です。
 
-「ファイル > 開く…」や Finder から、次の形式の中身を一覧できる。
-アーカイブにフォルダの項目が記録されていなくても、パスから階層を組み立てて表示する。
+## ダウンロードとインストール
 
-- ZIP / ZIP64、7z、RAR4 / RAR5、LHA / LZH
-- StuffIt (`.sit` / `.sea`)、StuffIt X (`.sitx`)
-- tar、cpio、ar (`.deb`)、ISO 9660、xar (`.pkg`)、CAB、RPM
-- Apple Disk Image (`.dmg`)、UDF (`.udf`)、WIM (`.wim` / `.swm`)、Compound File（`.msi` など）、CHM (`.chm`)、ARJ (`.arj`)
-- MacBinary (`.bin`)、AppleSingle (`.as`)、BinHex (`.hqx`)
-- gzip、bzip2、xz、Zstandard (`.zst`)、LZ4 (`.lz4`)、LZMA (`.lzma`)、UNIX compress (`.Z`)、lzip (`.lz`)、Brotli (`.br`)、pbzx (`.pbzx`)
-- 圧縮 tar: tar.gz / tgz、tar.bz2 / tbz / tbz2、tar.xz / txz、tar.zst / tzst、tar.lz4、tar.lzma / tlz、tar.lz、tar.br / tbr、tar.Z
+1. [GitHub Releases の最新版](https://github.com/shunnag/KaitoFinder/releases/latest)から ZIP をダウンロードします。
+2. ZIP を展開し、`KaitoFinder.app` を「アプリケーション」フォルダに移動します。
+3. KaitoFinder を起動します。配布アプリは Developer ID で署名し、Apple の公証を受けています。
 
-`.msi` / `.arj` は、他のアプリがファイル型を登録している環境での関連付けにも対応する。
+Sparkle による更新の自動確認は標準でオンです。手動で確認するには「**KaitoFinder > アップデートを確認…**」を選びます。
+自動ダウンロード・終了時のインストールは、「設定…」の「アップデート」で有効にできます。
 
-ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
-`.001` / `.zNN` / `.zxNN` の分割巻は Finder には関連付けず、アプリ内の「開く…」やようこそへのドロップで開く。途中の巻を選んでも入口の巻があればセット全体を表示する。
-LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書は未対応。新規作成には現行 frame を使う。
+## 基本の使い方
 
-ZIP 内の XZ（method 95）と旧 Zstandard（method 20）、旧方式 Shrink / Reduce 1〜4 / Implode、
-7z の Zstandard coder の展開・プレビューにも対応する。
-未対応の亜種や圧縮方式もある。作成・編集できる形式は後述の一覧を参照。
-Finder 製 ZIP は 0.1.0 と同じく `__MACOSX` の付随ファイルを保った一覧で表示・編集する。
-Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連付けず、「ファイル > 開く…」から開く。
-対応する圧縮方式・暗号・分割方法の範囲は [KaitoKit の対応状況](https://github.com/shunnag/KaitoKit#対応状況)を参照。
-パスワードは必要なときに入力し、「このパスワードを記憶」で次回から自動使用できる（記憶は既定でオフ）。
+1. **開く:** 「ファイル > 開く…」で選ぶか、「ようこそKaitoFinderへ」ウインドウの「アーカイブを開く」へドロップします。
+2. **取り出す:** 中のファイルを Finder へドラッグします。「すべて展開…」なら全体を取り出せます。
+3. **追加する:** 編集できるアーカイブの一覧へ、Finder からファイルをドラッグします。名称変更や削除もできます。
+4. **作成・変換する:** 「ファイル > 新規アーカイブ…」（⌘N）でファイルを選び、保存画面で形式を選びます。
+   「別名で保存…」（⇧⌘S）なら、元のファイルを残して別の形式へ変換できます。
 
-## 取り出す
+Finder では右クリックの「このアプリケーションで開く」から KaitoFinder を選べます。
+ZIP・tar.gz・DMG などは補助的な関連付けのため、ダブルクリックでは現在の既定アプリが開く場合があります。
+常に KaitoFinder で開くには「情報を見る」→「このアプリケーションで開く」で選び、「すべてを変更…」を使います。
 
-- ファイルやフォルダを Finder や他のアプリへドラッグして取り出す。file promise により、
-  ドロップ先が受け取るときに展開する。
-- ⌘C は一時領域へ明示的に展開してからコピーし、Finder などへペーストできる。
-  「展開」「すべて展開…」では展開先を指定できる。
-- Space で「クイックルック」。「開く」や「このアプリケーションで開く」でも中身を確認できる。
-  他のアプリで開くのは読み取り専用の一時コピーで、変更は元のアーカイブには保存されない。
-- 「表示 > プレビューを表示」（⇧⌘P）またはツールバー右端のボタンで、右側に選択ファイルのプレビューを表示できる。
-  新しい書庫ではオフ。境界をドラッグして幅を調整でき、書庫・タブごとに表示を切り替えられる。
-  64 MiB を超えるファイル、サイズ不明のファイル、solid 7z / RAR のメンバーは「プレビューを表示」を押して読み込む。
-- 「ファイル > アーカイブを展開…」で複数をまとめて展開できる。
-  Finder のサービス「KaitoFinderで展開」も、文書ウインドウを開かずに同じ一括展開を行う。
-- 元のアーカイブの quarantine（隔離属性）を展開物へ引き継ぐ。
-  path traversal（`..` で展開先の外へ出るパス）や、展開先の外を指すシンボリックリンクなどを拒否し、
-  安全な展開先の内側へだけ書き込む。
-- tar 系の名前に含まれる `\` と先頭の `C:` は、展開・ドラッグ・コピー・プレビューで文字としてそのまま保つ。
-  `\` をフォルダ区切りに変えたり、`C:` を取り除いたりしない。`\` で分けた片が `..` の名前は引き続き拒否する。
+編集は標準でその場で保存されます。「設定…」の「一般 › 変更の書き込み:」で「保存時にまとめて書き込む」を選ぶと、
+**次に開くアーカイブから**「保存」まで変更を保留できます。分割アーカイブの編集には確認や制約があります。
 
-## 取り込む・編集する
+Finder のサービスの「**KaitoFinderで圧縮**」からも作成できます。アプリを「アプリケーション」へ置き、一度起動すると登録されます。
+一括展開には「ファイル > アーカイブを展開…」か、Finder のサービス「KaitoFinderで展開」を使います。[詳しい操作](Documentation/user-guide.md)もご覧ください。
 
-書き込み可能なアーカイブには、Finder や他のアプリから drag in / paste in で追加できる。
-削除・改名・新規フォルダの作成と、同じウインドウ内でのドラッグによるフォルダ間の移動に対応する。
-⌥ を押しながらドラッグするとコピーになる。
-設定で「保存時にまとめて書き込む」を選んでから開くと、番号付きのバイト分割アーカイブ
-（ZIP・7z・LHA・tar と書き込み可能な圧縮 tar の `.001…`）も編集できる。
-保存するまでは原本を変えず、保存時に同じ巻サイズで分割し直す。巻サイズが揃っていないときは保存時に選ぶ。
-FAT/exFAT・ネットワーク・同期フォルダへの保存は確認が必要。中断した保存は、次に開くときに回復を提案する。
-巻サイズが揃ったセットは既定の「すぐに書き込む」でも編集ごとの確認後に取り消せない変更として書き直せる。「別名で保存…」の「分割:」では「しない」、元と同じ巻サイズ、「サイズを指定…」を選べる。
-ZIP 本来の分割（`.z01…/.zip`）は読み取り専用のまま。
+## よくある質問・困ったとき
 
-単一ファイルの即時編集と、保存前の予約は ⌘Z で取り消し、⇧⌘Z でやり直せる。
-編集前の原本を同じボリュームの一時領域へ `clonefile` で退避し、取り消し時に戻す。
-開いた後に原本が外部で変更されていた場合は、編集も取り消しも拒否する。
-変更の検出はファイルの実体(デバイス・inode)・サイズ・更新日時に基づく。同じ inode を
-同じサイズのまま上書きし更新日時も戻すような変更は検出できない。
+- **作った ZIP をアーカイブユーティリティで開けません。** 圧縮方式は標準の Deflate を選んでください。
+  BZip2・LZMA・XZ・Zstandard・PPMd、AES-256 の ZIP は開けません。暗号化で互換性が必要なら、保存時に「ZipCrypto(互換性優先、安全性は低い)」を選べます。[互換性の詳細](Documentation/formats.md#互換性)をご覧ください。
+- **パスワードを求められます。** 作成者が設定したパスワードが必要です。「このパスワードを記憶」は次回から自動使用する設定で、標準ではオフです。[暗号化の操作](Documentation/user-guide.md#暗号化)をご覧ください。
+- **分割アーカイブはどう開きますか。** 全巻を同じフォルダに置き、「ファイル > 開く…」で選びます。
+  `.001`・`.zNN`・`.zxNN` は Finder に関連付けません。[編集と保存の条件](Documentation/user-guide.md#分割アーカイブの編集と保存)も確認してください。
+- **設定や表示を変えたいです。** 「KaitoFinder > 設定…」（⌘,）に一般・圧縮・展開・アップデートの設定があります。列や文字の大きさは「表示 > 表示オプションを表示」（⌘J）で変更できます。
+- **開けない・編集できない形式があります。** 読み取り専用の形式は「別名で保存…」で変換できます。
+  [対応形式](Documentation/formats.md)と[制限](Documentation/limitations.md)を確認し、問題が続く場合は[GitHub Issues](https://github.com/shunnag/KaitoFinder/issues)へアプリと macOS のバージョン・形式・操作手順をお知らせください。
 
-## 作成と変換
+## 対応形式
 
-「新規アーカイブ…」（⌘N）や Finder のサービス「KaitoFinderで圧縮」から、
-ファイル・フォルダを **ZIP / tar / tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz / tar.lzma / tar.lz4 / tar.br / tar.Z / 7z / LHA** にまとめられる。
-「別名で保存…」（⇧⌘S）は中身を別の形式へ変換し、元ファイルを残して新しい保存先を同じ文書で開く。
-読み取り専用アーカイブへの追加・ペーストでも、新しいアーカイブへの変換を案内する。
+| 主な形式 | 開く・展開 | 作成・編集 |
+| --- | --- | --- |
+| ZIP / ZIP64、7z、LHA / LZH | ○ | ○（対応範囲内） |
+| tar、tar.gz、tar.bz2、tar.xz などの圧縮 tar | ○ | ○ |
+| RAR、StuffIt / StuffIt X、ISO、DMG など | ○（対応範囲内） | 読み取り専用 |
+| 単体の gzip、bzip2、xz、Zstandard など | ○ | 1ファイルからの新規作成のみ |
 
-保存パネルと設定で、ZIP は Deflate（既定）/ BZip2 / LZMA / XZ / Zstandard / PPMd、7z は LZMA2（既定）/ LZMA / Deflate / BZip2 / PPMd、LHA は lh5（既定）/ lh6 / lh7 を選べる。
-Deflate・BZip2・LHA・PPMd はレベル 1〜9（PPMd の標準は 6）、LZMA 系は 0〜9。Zstandard は ZIP・tar.zst・単独 .zst で 1〜19（標準 3）、無圧縮なし。ほかの ZIP 方式・7z・LHA には「圧縮しない」もある。
-tar.xz・7z LZMA2・ZIP XZ のレベル 6 は従来の Apple エンコーダーを使う。
-tar・tar.lz4・tar.br・tar.Z はレベルを選べない。
-通常ファイル 1 個を選んだときだけ「1 ファイルの圧縮」に .gz / .bz2 / .xz / .zst / .lz / .lzma / .lz4 / .br / .Z が現れる。
-元の拡張子を残して report.pdf.gz のように保存する。フォルダ・symlink・パッケージ・複数項目では tar 系を使う。
-単独 stream は新規作成だけで、開いた後の編集には対応しない。既定フォーマットには保存しない。
-ZIP の BZip2 / LZMA / XZ / Zstandard / PPMd は macOS のアーカイブユーティリティ・ditto・unzip で開けないため、選択時に互換性の注記を表示する。
-単一ファイルの通常の編集では、ZIP・tar・LHA・7z は対応する書庫の変更していないデータを保ち、書き直す量を減らす。
-tar.zst・tar.lz・tar.lzma・tar.lz4・tar.br・tar.Z は追加・削除・改名・置換のたびに全体を書き直す。tar.zst の別名 .tzst も保存時に受理する。
-7z はソリッド圧縮（既定オフ）と、なし（既定）/ 自動 / x86 (BCJ) / ARM64 / Delta のフィルタを選べる。Delta は 32 bit サンプル向けの距離 4。ソリッドブロック内の項目の削除では、そのブロックを再圧縮する。
-tar.gz・tar.bz2・tar.xz は対応する区切りごとに編集する。ほかのツールの圧縮 tar の初回編集や、
-書庫の構造・設定によっては全体を書き直す。分割セットは全巻を書き直す。
-
-## 暗号化
-
-暗号化は保存時に選択する（既定でオフ）。ZIP の暗号方式は **AES-256 が既定**。
-macOS のアーカイブユーティリティでは AES-256 の ZIP を開けないため、互換性が必要なら
-安全性の低い従来方式の ZipCrypto を選ぶ。
-7z は AES-256 に対応し、「ファイル名も暗号化」も選べる。tar（圧縮 tar を含む）/ LHA は暗号化できない。
-
-開いている ZIP / 7z には「パスワードを設定…」「パスワードを変更…」「パスワードを削除」が使える。
-これらの操作は全体を書き直し、単一ファイルの即時編集と保存前の予約では取り消し・やり直しにも対応する。
-正しいパスワードが分かれば、暗号化された ZIP / 7z も追加・削除・改名でき、
-通常の編集では暗号化方式と 7z のファイル名の保護を引き継ぐ。
-
-## 表示
-
-Finder 風のリスト表示に、パスバー、タブ、ツールバーの検索、ステータスバーを備える。
-ツールバーには「戻る」「進む」「展開」「追加…」「新規フォルダ」「削除」「クイックルック」があり、配置をカスタマイズできる。
-画像にはサムネイルを表示する（暗号化された画像や 8 MiB を超える画像は通常のアイコン）。
-「隠しファイルを表示」（⇧⌘.）で表示を切り替えられ、検索やステータスバーの件数にも反映する。
-表示で隠した項目も、フォルダ全体の展開・編集からは除かれない。
-
-列のヘッダを右クリック、または「表示 > 列」で表示する列を選ぶ。圧縮率・CRC-32・アクセス権・格納順も表示できる。
-「表示 > フォルダを常に先頭に表示」で、並べ順にかかわらずフォルダを先頭にまとめられる。
-「表示 > 表示オプションを表示」（⌘J）では、並べ順・列の表示・アイコンと文字の大きさを変更できる。
-
-選択済みのファイル名を、ダブルクリックにならない間隔でもう一度クリックすると名称変更できる。
-最初のクリックは選択だけを行い、アイコン・名前のない余白・複数選択・ドラッグでは名称変更を始めない。
-ファイルは拡張子を除く部分、フォルダは名前全体が選択される。Returnで確定、Escapeで取消し。
-設定 › 一般の「選択した名前をクリックして名称変更（Finderと同じ）」は標準でオン。
-オフにすると従来のクリック操作へ戻り、Returnと「名称変更」メニューは引き続き利用できる。
-設定の変更は、開いているすべての書庫にすぐ反映される。
-ファイルはダブルクリック・⌘↓・⌘Oで開き、フォルダは既定でその中へ移動する。
-「移動 > 戻る」（⌘[）・「進む」（⌘]）とツールバーで行き来し、「内包フォルダ」（⌘↑）で一つ上へ移動する。
-パスバーのフォルダからも移動できる。検索は書庫全体が対象で、検索を消すと元のフォルダへ戻る。
-設定 › 一般の「フォルダを開くとき」を「その場で展開」にすると、従来の階層一覧を広げる操作に戻る。
-Spaceでクイックルックを開く。⌘Spaceなど修飾キー付きのSpaceをクイックルックとして扱わない。
-
-書庫を開く方法は、設定 › 一般の「アーカイブを開くとき:」で
-**macOSの設定に従う（既定）／新しいタブ／新しいウインドウ**から選べる。
-Finder の関連付け、「開く…」、最近使った項目に共通で、変更は次に開く書庫から反映する。
-既に開いている書庫をもう一度開くと、その書庫のタブまたはウインドウを表示する。
-タブの切り替え・分離・ウインドウの結合は、macOS 標準のウインドウメニューから行える。
-ファイルをドラッグしたまま別のタブの上で約0.6秒待つと、そのタブへ切り替わる。
-そのまま一覧へドロップでき、タブ上を短く通過しただけでは切り替わらない。
-
-同じ書庫内のドラッグは移動、⌥ を押したドラッグはコピー。
-**別の書庫へのドラッグは、同じウインドウの別タブも含めてコピー**になり、元の書庫は変わらない。
-フォルダとその中身を一緒に選んでも、中身を重複して追加しない。
-フォルダ上へのドロップはそのフォルダへ、ファイル上ならその親へ、一覧の空白部分なら表示中のフォルダへ追加する。
-同名の項目があるときは、既存・追加元のサイズ、変更日、種類、場所を比較して「置き換える」「スキップ」「キャンセル」を選べる。
-「内容を比較…」では、双方のファイルをQuick Lookで左右に表示できる。
-複数ファイルでは「残りのファイルにも適用」を使える。フォルダや種類の異なる項目は別に確認し、フォルダは内容全体を置き換える。
-追加、貼り付け、別の書庫・タブからのコピー、同じ書庫内の移動で共通の確認を使う。
-すべての回答が揃ってからまとめて反映し、取り消し可能なモードでは一回の「取り消す」で戻せる。キャンセルや受信・書き込みの失敗では全体の変更を中止する。
-
-## ようこそウインドウ
-
-「ようこそKaitoFinderへ」には二つのドロップ領域がある。
-「アーカイブを開く」へアーカイブをドロップすると開き、
-「アーカイブを作成」へファイルやフォルダをドロップすると作成に進む。クリックでも選択できる。
-設定の「起動時にようこそウインドウを表示」をオフにすると、起動時の表示を省ける。
-ウインドウメニューの「ようこそKaitoFinderへ」（⇧⌘1）で再表示できる。
-
-## 設定
-
-「設定…」（⌘,）は **一般 / 圧縮 / 展開 / アップデート** の四つのタブ。
-書庫の開き方、既定の作成形式、隠しファイルやようこその表示、圧縮方式・レベル、展開先・フォルダ作成方針、
-展開成功後に元のアーカイブをゴミ箱へ移すかどうかを設定できる。
-この設定をオンにした分割アーカイブの一括展開では、展開中にどの巻も変更されていないことを確認し、全巻をゴミ箱へ移す。
-追加・新規作成時の **`.DS_Store` の除外は既定でオン、隠しファイル全体の除外は既定でオフ**。
-これらの除外設定は、既存の項目の展開や形式変換には適用しない。
-
-- 一般 ›「フォルダを開くとき」は「フォルダに移動」が既定。「その場で展開」で従来の操作に戻せる。
-- 一般 ›「追加した項目の位置」は「末尾」が既定で、tar・圧縮 tar・7z・LHA に適用する。
-  「先頭（編集のたびに全体を書き直す）」にすると従来の先頭への追加に戻り、圧縮 tar・7z・LHA は全体を再圧縮する。ZIP は常に末尾。
-- 圧縮 ›「変更しない項目の所有者ID」は、tar・圧縮 tar の既存の uid / gid を「そのまま保つ」が既定。
-  「0に戻す（編集のたびに全体を書き直す）」で従来の扱いに戻せる。
-  「追加するファイルの所有者ID(uid / gid)を保存」は、ディスクから追加する項目だけの別の設定。
-- 圧縮 ›「圧縮の並列数」は「自動」が既定で、指定した数にも変更できる。
-  7z・tar.xz のメモリ使用量の目安を表示し、開いているアーカイブも次の書き込みから反映する。「自動」で既定に戻せる。
-
-## 終了と後始末
-
-展開・追加・作成などが進行中に終了(⌘Q)すると確認を求め、「終了」を選ぶと操作を取り消し、
-途中まで書き出した項目・作業コピー・取り消し用の退避を片付けてから終了する。強制終了や
-クラッシュで残った作業ディレクトリ(`.KaitoFinder-add-*` / `.KaitoFinder-new-*`)は
-`~/Library/Application Support/KaitoFinder/pending-work.json` の台帳に基づいて次回起動時に回収する。
+圧縮方式や分割方法により対応範囲が異なります。全形式・方式・レベルは[対応形式の詳細](Documentation/formats.md)をご覧ください。
 
 ## 言語
 
-次の 26 言語に対応し、未対応言語では英語を表示する。
+日本語・英語を含む **26言語**に対応し、未対応の言語では英語を表示します。[対応言語の一覧](Documentation/user-guide.md#言語)もあります。
 
-日本語、英語、ドイツ語、フランス語、スペイン語、イタリア語、
-ポルトガル語（ブラジル）、ポルトガル語（ポルトガル）、中国語（簡体字）、中国語（繁体字）、韓国語、
-タイ語、ベトナム語、インドネシア語、マレー語、ヒンディー語、ロシア語、オランダ語、ポーランド語、
-トルコ語、スウェーデン語、デンマーク語、ノルウェー語（ブークモール）、フィンランド語、ウクライナ語、チェコ語。
+## プライバシー
 
-## 制限
+閲覧・展開・編集は Mac 上で行います。更新の確認・ダウンロードでは GitHub Releases に接続します。
+自動確認は「設定…」の「アップデート」でオフにできます。
 
-- RAR / ISO 9660 / cpio / ar / xar / pkg /
-  CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZ4・LZMA・lzip・Brotli・UNIX compress は
-  読み取り専用。「別名で保存…」で書き込み可能な形式へ変換できる。
-- 圧縮 tar（tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz4 / tar.lzma / tar.lz / tar.br / tar.Z）は、開くときに内側の tar を一時展開する。
-  64 MiB を超えると一時ファイルへ保存するため、起動ボリュームに展開後の tar とほぼ同じ空き容量が必要。
-  一時ファイルの書き込み中に空き容量が 1 GiB を下回ると、開く操作を中止する（KaitoKit の `stagingFreeSpaceReserve`）。
-- KaitoKit 既定の reader 制限は、1,000,000 項目 / 保持するメタデータ 256 MiB、
-  RAR / .001 セットの 128 巻、コーデック辞書 1 GiB。項目ごと・全体の展開サイズはアプリで制限せず、展開先の空き容量に従う。
-- パーミッションが格納されていない項目には、プラットフォーム既定の mode（ファイル 0666 / フォルダ 0777 に umask を適用）を使う。
-- アイコン / カラム / ギャラリー表示は未対応。リスト表示を使う。
-- サムネイルは 8 MiB 以下の画像のみ。暗号化された項目と solid 7z / RAR のメンバー、動画・音声は対象外。
-- SFX の作成は行わない。SFX の読み取りは対応範囲で利用できる。
+## ライセンスと謝辞
 
-## 配布
+KaitoFinder は [MIT ライセンス](LICENSE)で公開しています。0.6.0 には次のライブラリを同梱しています。
 
-Sparkleによる自動更新に対応する。「設定」›「アップデート」で自動確認と自動ダウンロード・インストールを選び、
-最終確認日時を確認できる。アプリメニューの「アップデートを確認…」から手動でも確認できる。
-自動確認は既定で有効、自動ダウンロード・インストールは選択式。
-更新フィードの公開・署名と初回配布の手順は[自動更新と配布](Documentation/software-updates.md)を参照。
+- [KaitoKit](https://github.com/shunnag/KaitoKit) 0.12.1 — 読み取り
+- [GyoshukuKit](https://github.com/shunnag/GyoshukuKit) 0.8.0 — 書き込み
+- [Sparkle](https://sparkle-project.org/) 2.10.0 — 自動更新
 
-sandbox なしで配布する。Developer ID による署名と notarize の手順・実施状況は
-[設計書 §11.5](Documentation/design.md#115-配布sandbox-なしnotarize-済み-2026-09-15)を参照。
-リリースビルドは、下記の build コマンドに `-configuration Release` と Developer ID の
-`CODE_SIGN_IDENTITY`・`DEVELOPMENT_TEAM` を指定して作成する。開発時は Debug を使う。
+開発者向けのビルド・テスト・配布手順は[開発者向け情報](Documentation/development.md)をご覧ください。
 
-## 開発
+## English
 
-関係する checkout は `~/Github/` に並べる。
+### What it does
 
-```text
-~/Github/KaitoKit     解凍。読み取り
-~/Github/GyoshukuKit  凝縮。書き込み
-~/Github/KaitoFinder  本 repo
-```
+KaitoFinder is a Finder-like archive browser and editor. Browse and extract files, add, delete or rename entries,
+create and convert archives, encrypt ZIP / 7z, save split archives with Save As…, and preview with Space (Quick Look).
 
-`.xcodeproj` はこの二つを `../KaitoKit` と `../GyoshukuKit` の local SwiftPM
-package として静的リンクする。ビルドには **Xcode 27** が必要（Swift 6.4、arm64 専用）。
-macOS 27 SDK の API を使うが、実行環境は **macOS 26 以上**、配備先は `26.0` を維持する。
+### Requirements
 
-```sh
-xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'platform=macOS,arch=arm64' build
-xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -destination 'platform=macOS,arch=arm64' test
-```
+**macOS 26 or later on Apple Silicon.**
 
-メニュー・操作経路の変更では `python3 Tools/verify_ui_integration.py` も実行する。
-実メニューの操作と、最近使った項目の保存・再起動・消去を専用アプリで検証する。
-確認範囲とテストの書き方は [UI の回帰テスト](Documentation/ui-integration-testing.md)を参照。
-ファイル一覧のクリック・キー操作の変更では `python3 Tools/verify_finder_interactions.py` も実行する。
-実マウス入力での名称変更と既存の書庫間ドラッグを専用アプリで確認する。
+### Install
 
-リリース前は両ライブラリの `swift test` も実行し、選択した UI テストだけで全体の成功を判断しない。
-[横断検証の記録](Documentation/verification/2026-09-17-release-hardening.md)に
-全件・スキップ・実書庫・性能の結果をまとめ、[圧縮形式の追加計画](Documentation/compression-roadmap.md)に
-読み取り・書き込みの不足と追加時の検証条件を記す。
-ZIP 20/95 の追加と暗号化入力の効率化は [追加検証](Documentation/verification/2026-09-18-zip-methods.md)を参照。
+Download the ZIP from [the latest release](https://github.com/shunnag/KaitoFinder/releases/latest), extract it, and move `KaitoFinder.app` to Applications.
+The app is signed and notarized. Sparkle checks automatically; use KaitoFinder > Check for Updates… to check manually.
+Settings… > Updates enables automatic downloads and installation on quit.
 
-アプリの「ファイル > 開く…」、または実行ファイルへのアーカイブのパス引数で開く。
-テストはアーカイブを実際に生成し、参照実装（`unzip`、`7zz`、`ditto`、`bsdtar`）と
-KaitoKit の往復で検証する。
+### Quick start
 
-設計上の判断は [設計書](Documentation/design.md)、各段階の実測と自動検証できなかった範囲は
-[検証記録](Documentation/verification/)に残している。
-Finder や実際のウインドウで確認する操作は [手動検証手順](Documentation/manual-verification.md)を参照。
+1. Use File > Open…, or drop an archive onto Open Archive in the Welcome to KaitoFinder window.
+2. Drag files or folders to Finder to extract; Expand All… extracts everything. Drag files in to add to an editable archive.
+3. Use File > New Archive… (⌘N), choose files and a format, or Save As… (⇧⌘S) to convert while keeping the original.
 
-## CI
+In Finder, choose Open With > KaitoFinder. ZIP, tar.gz, DMG and some other types register as alternate handlers, so double-clicking may use your current default app.
+To change it for that type, use Get Info → Open with → KaitoFinder → Change All….
+Edits save immediately by default. Settings… > General > Write Changes: > Together When Saving defers changes until Save, **starting with the next archive you open**.
+Finder services “Compress with KaitoFinder” and “Expand with KaitoFinder” are registered after placing the app in Applications and launching it once.
+File > Expand Archives… also extracts several archives together. See the [user guide](Documentation/user-guide.md#english).
 
-[CI](.github/workflows/ci.yml) は main / tag への push、pull request、手動、週次で実行する。
-Xcode 27 で Debug のアプリと app-hosted tests をビルドし、macOS 27 で試験する。
-別の job では同じビルド成果物と Xcode 27 の XCTest ランタイムを macOS 26 へ運び、
-再コンパイルせず試験する。兄弟 repo は main を取得し、転送先ではビルド時の SHA と
-ソース・DerivedData の絶対パスを照合する。Sparkle は `Package.resolved` の 2.10.0 を使う。
+### FAQ
 
-実ドラッグの 3 class、`Tools/` の実 HID GUI driver、性能 probe、実際の自動更新、
-署名・notarization は Mac mini で検証する。CI との分担・ログの判定は
-[UI の回帰テスト](Documentation/ui-integration-testing.md#ci-と-mac-mini-の分担)を参照。
+- **ZIP compatibility:** Choose Deflate for macOS Archive Utility; BZip2 / LZMA / XZ / Zstandard / PPMd and AES-256 ZIP cannot be opened by it.
+  When encrypting, “ZipCrypto (More Compatible, Less Secure)” offers legacy compatibility. See [compatibility](Documentation/formats.md#compatibility).
+- **Passwords:** Enter the creator's password. “Remember this password” reuses it automatically and is off by default.
+- **Split archives:** Keep all volumes together and use File > Open…; `.001` / `.zNN` / `.zxNN` have no Finder association. Check the [editing conditions](Documentation/user-guide.md#add-and-edit).
+- **Settings:** KaitoFinder > Settings… (⌘,) has General / Compression / Extract / Updates. View > Show View Options (⌘J) changes columns and text size.
+- **Read-only or unsupported files:** Try Save As… to convert; see [limitations](Documentation/limitations.md#english). Report app and macOS versions, format and steps via [GitHub Issues](https://github.com/shunnag/KaitoFinder/issues).
 
-> **KaitoFinder** is an archive browser for macOS 26 and later on Apple Silicon.
-> It opens the contents of archives with Finder's look and moves files and folders
-> to and from Finder and other apps by drag & drop and copy & paste.
->
-> It is not "a compressor that can show a list" — it is a file manager whose
-> namespace happens to be the inside of an archive. Looking and behaving like
-> Finder is the first requirement, and everything else is subordinate to it.
->
-> Reading uses [KaitoKit](https://github.com/shunnag/KaitoKit) (解凍Kit, the extraction kit);
-> writing uses [GyoshukuKit](https://github.com/shunnag/GyoshukuKit) (凝縮Kit, the compression kit).
-> These two independent frameworks pair extraction with compression. MIT licensed.
->
-> ## Open
->
-> Open archives from File > Open… or Finder. Folder hierarchies are synthesized
-> from paths even when the archive contains no directory entries.
->
-> Readable formats are ZIP / ZIP64, 7z, RAR4 / RAR5, LHA / LZH, StuffIt (.sit / .sea),
-> StuffIt X (.sitx), tar, cpio, ar (.deb), ISO 9660, xar (.pkg), CAB, RPM, gzip, bzip2,
-> xz, Zstandard (.zst), LZ4 (.lz4), LZMA (.lzma), lzip (.lz), Brotli (.br), and UNIX compress (.Z). Compressed tar includes
-> tar.gz / tgz, tar.bz2 / tbz / tbz2, tar.xz / txz, tar.zst / tzst, tar.lz4, tar.lzma / tlz, tar.lz, tar.br / tbr, and tar.Z.
-> Split ZIP / 7z / RAR volumes, supported self-extracting archives (SFX), and encrypted
-> archives can also be read, including ZIP XZ (method 95) and legacy Zstandard (method 20)
-> extraction and previews. See [KaitoKit's format support](https://github.com/shunnag/KaitoKit#対応状況)
-> for supported methods, encryption, and volume layouts. Passwords are requested when
-> needed; “Remember this password” enables automatic reuse and is off by default.
-> Split volumes (`.001` / `.zNN` / `.zxNN`) open through File > Open… or the welcome drop zone without Finder associations, and selecting a later volume opens the whole set when its entry volume exists.
->
-> ## Extract
->
-> Drag files or folders to Finder or another app; a file promise extracts them when
-> the destination accepts the drop. ⌘C explicitly extracts to temporary storage before
-> placing real files on the clipboard for pasting. Extract and Expand All… let you
-> choose a destination. Space opens Quick Look; Open and Open With use read-only
-> temporary copies whose changes are not saved back to the archive.
->
-> File > Expand Archives… extracts several archives in one batch. Finder's
-> “Extract with KaitoFinder” service uses the same batch operation without opening
-> document windows. The source archive's quarantine attribute propagates to extracted
-> files. Path traversal through `..`, symlinks targeting locations outside the destination,
-> and other unsafe extraction paths are refused.
->
-> ## Add and Edit
->
-> Drag or paste files into writable archives. Delete, rename, create folders, and
-> drag items between folders in the same window; hold ⌥ to copy instead of move.
-> Choose “Together When Saving” in Settings before opening to edit numbered byte-split archives
-> (`.001…` for ZIP, 7z, LHA, tar, and writable compressed tar formats). Changes remain pending until Save,
-> which splits the updated archive using the original volume size. Uneven sets offer a size choice.
-> Saving on FAT/exFAT, network volumes, or sync folders requires consent. Interrupted saves offer
-> recovery when reopening. Uniform sets support irreversible edits in the default “Immediately” mode with confirmation for every edit, and “Save As…” offers “None”, the original volume size, or “Specify Size…” under “Split:”.
-> Native split ZIP (`.z01…/.zip`) remains read-only.
-> When names conflict, compare size, modification date, kind, and location before
-> choosing Replace or Skip. Compare Contents opens both files side by side in Quick Look.
-> Apply a choice to the remaining files in a batch; folders and type changes require
-> separate confirmation, and replacing a folder replaces its entire contents.
-> All accepted changes form one operation, undoable when the editing mode supports it. Cancel aborts the whole batch.
-> Undo single-file immediate edits or pending changes with ⌘Z and redo with ⇧⌘Z. Before a single-file immediate edit, `clonefile` preserves the original
-> in temporary storage on the same volume for undo. Editing and undo are refused if the
-> original has changed externally since it was opened. Change detection is based on the
-> file identity (device and inode), size, and modification time; an in-place overwrite
-> that keeps the same inode and size and restores the modification time is not detected.
->
-> ## Create and Convert
->
-> New Archive… (⌘N) and Finder's “Compress with KaitoFinder” service create ZIP, tar,
-> tar.gz, tar.bz2, tar.xz, tar.zst, tar.lz, tar.lzma, tar.lz4, tar.br, tar.Z, 7z, or LHA archives from files and folders. Save As… (⇧⌘S) converts to a new
-> file, leaves the original intact, and switches the same document to the saved file.
-> Adding or pasting into a read-only archive also offers conversion to a new archive.
-> ZIP offers Deflate (default), BZip2, LZMA, XZ, Zstandard, and PPMd; 7z offers LZMA2 (default), LZMA, Deflate, BZip2, and PPMd;
-> LHA offers lh5 (default), lh6, and lh7. Deflate, BZip2, and LHA use levels 1–9; the LZMA family uses 0–9.
-> PPMd uses levels 1–9 (default 6). Zstandard in ZIP, tar.zst, and .zst uses levels 1–19 (default 3), with no uncompressed option.
-> Other ZIP methods, 7z, and LHA also offer no compression. Level 6 for tar.xz, 7z LZMA2, and ZIP XZ preserves the Apple encoder path.
-> tar, tar.lz4, tar.br, and tar.Z have no selectable level. Selecting one regular file also offers .gz, .bz2, .xz, .zst, .lz,
-> .lzma, .lz4, .br, and .Z, preserving the original extension (report.pdf.gz). These streams are create-only and stay read-only.
-> ZIP BZip2, LZMA, XZ, Zstandard, and PPMd cannot be opened by macOS Archive Utility, ditto, or unzip; the panel shows a compatibility note.
-> tar.zst, tar.lz, tar.lzma, tar.lz4, tar.br, and tar.Z edits rewrite the entire archive; .tzst is accepted when saving tar.zst.
-> 7z offers solid compression (off by default) and None (default), Automatic, x86 (BCJ), ARM64, or Delta filters.
-> Delta uses distance 4 for 32-bit samples. Deleting items from a solid block recompresses that block.
-> Normal ZIP edits update the
-> archive in place while preserving existing data; tar, tar.gz, tar.bz2, tar.xz, 7z, and LHA edits
-> rewrite the whole archive, so the time needed depends on its size.
->
-> ## Encryption
->
-> Encryption is optional and off by default. ZIP defaults to AES-256 when enabled.
-> macOS Archive Utility cannot open AES-256 ZIP files; choose the weaker legacy
-> ZipCrypto method when that compatibility is needed. 7z supports AES-256 and optional
-> filename encryption. tar, tar.gz, and LHA cannot be encrypted.
-> Open ZIP / 7z documents offer Set Password…, Change Password…, and Remove Password.
-> These operations rewrite the archive; single-file immediate edits and pending changes support undo and redo. With the correct
-> password, encrypted ZIP / 7z archives can also be edited; normal edits preserve
-> the encryption method and 7z filename protection.
->
-> ## View
->
-> The Finder-style list includes a path bar, tabs, toolbar search, and a status bar.
-> The customizable toolbar offers Extract, Add…, New Folder, Delete, and Quick Look.
-> Images have thumbnails; encrypted images, solid 7z / RAR members, and images larger
-> than 8 MiB keep their regular icons. Show Hidden Files (⇧⌘.) also affects search and status counts.
-> View > Show Preview (⇧⌘P) opens the preview sidebar. Files larger than 64 MiB,
-> files with unknown size, and members of solid 7z / RAR archives load only after pressing Show Preview.
-> Hiding items from view does not exclude them from whole-folder extraction or editing.
-> During a file drag, hold over another tab for about 0.6 seconds to select it,
-> then drop into its list. Briefly passing over a tab does not select it.
->
-> ## Welcome Window
->
-> “Welcome to KaitoFinder” has two drop areas: Open Archive opens dropped archives,
-> and Create Archive starts creation from dropped files or folders. Both can also be
-> clicked. Turn off “Show the welcome window at launch” in Settings to hide it at startup.
-> Window > Welcome to KaitoFinder (⇧⌘1) shows it again.
->
-> ## Settings
->
-> Settings… (⌘,) has General, Compression, Extract, and Updates tabs. Choose the default
-> archive format, hidden-file and welcome display, compression methods and levels,
-> extraction destinations and folder rules, and whether to trash an archive after
-> successful extraction. When enabled for split archives, batch extraction checks that
-> no volume changed during extraction, then moves every volume to the Trash.
-> When adding files or creating archives, excluding `.DS_Store`
-> is on by default; excluding all hidden files is off. These exclusions do not apply
-> to extracting or converting existing entries.
->
-> ## Quitting and Cleanup
->
-> Quitting (⌘Q) while an extraction, addition, or creation is in progress asks for
-> confirmation; choosing Quit cancels the operation and removes partially written
-> items, working copies, and undo backups before the app exits. Working directories
-> left behind by a force quit or a crash (`.KaitoFinder-add-*` / `.KaitoFinder-new-*`)
-> are recovered at the next launch from the ledger at
-> `~/Library/Application Support/KaitoFinder/pending-work.json`.
->
-> ## Languages
->
-> All 26 supported languages are Japanese, English, German, French, Spanish, Italian,
-> Portuguese (Brazil), Portuguese (Portugal), Chinese (Simplified), Chinese (Traditional),
-> Korean, Thai, Vietnamese, Indonesian, Malay, Hindi, Russian, Dutch, Polish, Turkish,
-> Swedish, Danish, Norwegian Bokmål, Finnish, Ukrainian, and Czech.
-> Unsupported languages fall back to English.
->
-> ## Limitations
->
-> RAR, ISO 9660, cpio, ar, xar / pkg, CAB, RPM, StuffIt, StuffIt X, and standalone
-> gzip, bzip2, xz, Zstandard, LZ4, LZMA, lzip, Brotli, and UNIX compress streams are read-only. Use Save As… to convert
-> them to a writable format. Icon, column, and gallery views are not implemented;
-> browsing uses the list view. Thumbnails cover images only, with no video or audio
-> thumbnails. Only images up to 8 MiB are eligible; encrypted and solid 7z / RAR members are excluded.
-> Compressed tar archives stage the inner tar when opened; above 64 MiB, staging uses a temporary file
-> and needs roughly the expanded tar size in free space on the startup volume. Opening stops if free space
-> would drop below 1 GiB while staging (KaitoKit's `stagingFreeSpaceReserve`).
-> Remaining KaitoKit reader defaults include 1,000,000 entries / 256 MiB of retained metadata,
-> 128 volumes for RAR / .001 sets, and a 1 GiB codec dictionary. The app no longer caps per-entry
-> or total extracted sizes; destination disk space governs extraction.
-> Entries without stored permissions use platform defaults: 0666 for files and 0777 for folders, with umask applied.
-> SFX creation is not supported; supported SFX archives can be read.
->
-> ## Distribution
->
-> The app is distributed without a sandbox. See [design §11.5](Documentation/design.md#115-配布sandbox-なしnotarize-済み-2026-09-15)
-> for Developer ID signing, notarization, and their current verification status.
-> Sparkle provides automatic updates. Settings › Updates controls automatic checks and downloads,
-> shows the last check time, and offers a manual check. Automatic checks are enabled by default;
-> automatic downloads and installation on quit are optional.
-> See [Software updates](Documentation/software-updates.md) for signed feeds and the initial release setup.
-> For a release build, add `-configuration Release` and specify your Developer ID
-> `CODE_SIGN_IDENTITY` and `DEVELOPMENT_TEAM`. Use Debug for local development.
->
-> ## Development
->
-> Place the KaitoKit, GyoshukuKit, and KaitoFinder checkouts beside each other under
-> `~/Github/`. The Xcode project statically links `../KaitoKit` and `../GyoshukuKit`
-> as local SwiftPM packages. Build with Xcode 27 (Swift 6.4) for arm64; the app
-> runs on macOS 26 and later with deployment target 26.0. The two
-> `xcodebuild` commands above build and test with the explicit arm64 destination.
-> Open through File > Open… or pass archive paths to the executable.
-> Tests build real archives and check them against reference implementations
-> (`unzip`, `7zz`, `ditto`, `bsdtar`) and a KaitoKit round trip.
-> See the [design document](Documentation/design.md), [verification records](Documentation/verification/),
-> and [manual verification steps](Documentation/manual-verification.md).
-> CI builds only with Xcode 27 and runs the app-hosted tests on macOS 27 and,
-> without recompiling, macOS 26. Real drag/HID drivers, performance probes,
-> software update verification, signing, and notarization run on the Mac mini.
+### Formats
+
+ZIP / ZIP64, 7z, LHA / LZH, tar and compressed tar support creation and editing within their supported ranges.
+RAR, StuffIt / StuffIt X, ISO, DMG and other formats are read-only; standalone compressed streams can be created from one file but stay read-only.
+See the [full format list and settings](Documentation/formats.md#english).
+
+### Languages
+
+26 UI languages, including Japanese and English; unsupported languages fall back to English.
+
+### Privacy
+
+Archive operations run on your Mac. Update checks and downloads connect to GitHub Releases; turn automatic checks off in Settings… > Updates.
+
+### License
+
+[MIT licensed](LICENSE). Version 0.6.0 includes KaitoKit 0.12.1 (reading), GyoshukuKit 0.8.0 (writing), and Sparkle 2.10.0 (updates).
