@@ -98,18 +98,18 @@ nonisolated final class DragInTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 
-    func testUnsupportedTarWrapperAcceptsConversionDropButRefusesAppendWithFormatReason() async throws {
-        let fixture = try ScenarioFixture(script: "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", suffix: "tar.lzma")
+    func testReadOnlyCPIOAcceptsConversionDropButRefusesAppendWithFormatReason() async throws {
+        let fixture = try ScenarioFixture(script: "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))" + "\n" + ScenarioFixture.tarToReadOnlyCPIO, suffix: "cpio")
         let session = try ArchiveSession(url: fixture.archive)
-        XCTAssertEqual(session.capabilities.refusal, .format("tar.lzma"))
-        let formatName = "tar.lzma"
+        XCTAssertEqual(session.capabilities.refusal, .format("cpio"))
+        let formatName = "cpio"
         XCTAssertEqual(session.capabilities.readOnlyReason, String(localized: "\(formatName)アーカイブは変更できません。"))
         XCTAssertTrue(ArchiveDropTarget.accepts(capabilities: session.capabilities, offersCopy: true, hasFiles: true, busy: false))
         let before = try Data(contentsOf: fixture.archive)
         do {
             _ = try await session.append(urls: [fixture.file("new")], to: "", progress: Progress())
-            XCTFail("未対応の tar 包装が変更できました")
-        } catch { XCTAssertTrue(String(describing: error).contains("tar.lzma")) }
+            XCTFail("読み取り専用の cpio が変更できました")
+        } catch { XCTAssertTrue(String(describing: error).contains("cpio")) }
         XCTAssertEqual(try Data(contentsOf: fixture.archive), before)
     }
 

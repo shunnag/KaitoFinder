@@ -56,11 +56,11 @@ nonisolated final class ArchiveSaveAsTests: XCTestCase {
         -> (ArchiveTestDirectory, ArchiveDocument, ArchiveWindowController, ArchivePreferencesStore) {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let directory = try ArchiveTestDirectory()
-        let archive = directory.url.appendingPathComponent(readOnly ? "original.tar.lzma" : (gzip ? "original.tgz" : "original.zip"))
+        let archive = directory.url.appendingPathComponent(readOnly ? "original.cpio" : (gzip ? "original.tgz" : "original.zip"))
         if readOnly {
             try Data("read-only contents".utf8).write(to: directory.url.appendingPathComponent("file.txt"))
             try directory.run(ExternalTool.tar, ["-cf", archive.path, "file.txt"])
-            try directory.run(ExternalTool.python3, ["-c", "import sys; p=sys.argv[1]; import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", archive.path])
+            try directory.run(ExternalTool.python3, ["-c", "import sys, tarfile; p=sys.argv[1]\n" + ScenarioFixture.tarToReadOnlyCPIO, archive.path])
         } else if encrypted {
             try Data("decrypted contents".utf8).write(to: directory.url.appendingPathComponent("secret.txt"))
             try directory.run(ExternalTool.zip, ["-q", "-P", "known-password", archive.path, "secret.txt"])

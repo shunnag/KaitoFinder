@@ -32,11 +32,11 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
 `.001` / `.zNN` / `.zxNN` の分割巻は Finder には関連付けず、アプリ内の「開く…」やようこそへのドロップで開く。途中の巻を選んでも入口の巻があればセット全体を表示する。
-LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書とLZ4の新規作成は未対応。
+LZ4 は現行 frame の独立／連続ブロック・チェックサムと、8 MiBブロックのlegacy frame・連結に対応する。外部辞書は未対応。新規作成には現行 frame を使う。
 
 ZIP 内の XZ（method 95）と旧 Zstandard（method 20）、旧方式 Shrink / Reduce 1〜4 / Implode、
 7z の Zstandard coder の展開・プレビューにも対応する。
-KaitoKit 0.8.0 で追加された形式と tar.lz / tar.br は読み取り専用。未対応の亜種や圧縮方式もある。
+未対応の亜種や圧縮方式もある。作成・編集できる形式は後述の一覧を参照。
 Finder 製 ZIP は 0.1.0 と同じく `__MACOSX` の付随ファイルを保った一覧で表示・編集する。
 Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連付けず、「ファイル > 開く…」から開く。
 対応する圧縮方式・暗号・分割方法の範囲は [KaitoKit の対応状況](https://github.com/shunnag/KaitoKit#対応状況)を参照。
@@ -67,7 +67,7 @@ Office / Outlook の文書拡張子と拡張子のない pbzx Payload は関連�
 削除・改名・新規フォルダの作成と、同じウインドウ内でのドラッグによるフォルダ間の移動に対応する。
 ⌥ を押しながらドラッグするとコピーになる。
 設定で「保存時にまとめて書き込む」を選んでから開くと、番号付きのバイト分割アーカイブ
-（7z、tar、tar.gz、tar.bz2、tar.xz、LHA、ZIP の `.001…`）も編集できる。
+（ZIP・7z・LHA・tar と書き込み可能な圧縮 tar の `.001…`）も編集できる。
 保存するまでは原本を変えず、保存時に同じ巻サイズで分割し直す。巻サイズが揃っていないときは保存時に選ぶ。
 FAT/exFAT・ネットワーク・同期フォルダへの保存は確認が必要。中断した保存は、次に開くときに回復を提案する。
 巻サイズが揃ったセットは既定の「すぐに書き込む」でも編集ごとの確認後に取り消せない変更として書き直せる。「別名で保存…」の「分割:」では「しない」、元と同じ巻サイズ、「サイズを指定…」を選べる。
@@ -82,13 +82,21 @@ ZIP 本来の分割（`.z01…/.zip`）は読み取り専用のまま。
 ## 作成と変換
 
 「新規アーカイブ…」（⌘N）や Finder のサービス「KaitoFinderで圧縮」から、
-ファイル・フォルダを **ZIP / tar / tar.gz / tar.bz2 / tar.xz / 7z / LHA** にまとめられる。
+ファイル・フォルダを **ZIP / tar / tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz / tar.lzma / tar.lz4 / tar.br / tar.Z / 7z / LHA** にまとめられる。
 「別名で保存…」（⇧⌘S）は中身を別の形式へ変換し、元ファイルを残して新しい保存先を同じ文書で開く。
 読み取り専用アーカイブへの追加・ペーストでも、新しいアーカイブへの変換を案内する。
 
-ZIP・tar.gz・tar.bz2 は保存パネルで圧縮レベルを選べる。ZIP は「圧縮しない」も選択できる。
-tar.xz・7z・LHA は固定の圧縮レベル、tar は非圧縮。
+保存パネルと設定で、ZIP は Deflate（既定）/ BZip2 / LZMA / XZ / Zstandard / PPMd、7z は LZMA2（既定）/ LZMA / Deflate / BZip2 / PPMd、LHA は lh5（既定）/ lh6 / lh7 を選べる。
+Deflate・BZip2・LHA・PPMd はレベル 1〜9（PPMd の標準は 6）、LZMA 系は 0〜9。Zstandard は ZIP・tar.zst・単独 .zst で 1〜19（標準 3）、無圧縮なし。ほかの ZIP 方式・7z・LHA には「圧縮しない」もある。
+tar.xz・7z LZMA2・ZIP XZ のレベル 6 は従来の Apple エンコーダーを使う。
+tar・tar.lz4・tar.br・tar.Z はレベルを選べない。
+通常ファイル 1 個を選んだときだけ「1 ファイルの圧縮」に .gz / .bz2 / .xz / .zst / .lz / .lzma / .lz4 / .br / .Z が現れる。
+元の拡張子を残して report.pdf.gz のように保存する。フォルダ・symlink・パッケージ・複数項目では tar 系を使う。
+単独 stream は新規作成だけで、開いた後の編集には対応しない。既定フォーマットには保存しない。
+ZIP の BZip2 / LZMA / XZ / Zstandard / PPMd は macOS のアーカイブユーティリティ・ditto・unzip で開けないため、選択時に互換性の注記を表示する。
 単一ファイルの通常の編集では、ZIP・tar・LHA・7z は対応する書庫の変更していないデータを保ち、書き直す量を減らす。
+tar.zst・tar.lz・tar.lzma・tar.lz4・tar.br・tar.Z は追加・削除・改名・置換のたびに全体を書き直す。tar.zst の別名 .tzst も保存時に受理する。
+7z はソリッド圧縮（既定オフ）と、なし（既定）/ 自動 / x86 (BCJ) / ARM64 / Delta のフィルタを選べる。Delta は 32 bit サンプル向けの距離 4。ソリッドブロック内の項目の削除では、そのブロックを再圧縮する。
 tar.gz・tar.bz2・tar.xz は対応する区切りごとに編集する。ほかのツールの圧縮 tar の初回編集や、
 書庫の構造・設定によっては全体を書き直す。分割セットは全巻を書き直す。
 
@@ -190,8 +198,8 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 
 ## 制限
 
-- tar.zst / tar.lz4 / tar.lzma / tar.lz / tar.br / tar.Z と、RAR / ISO 9660 / cpio / ar / xar / pkg /
-  CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZ4・LZMA・UNIX compress は
+- RAR / ISO 9660 / cpio / ar / xar / pkg /
+  CAB / RPM / StuffIt / StuffIt X / 単体の gzip・bzip2・xz・Zstandard・LZ4・LZMA・lzip・Brotli・UNIX compress は
   読み取り専用。「別名で保存…」で書き込み可能な形式へ変換できる。
 - 圧縮 tar（tar.gz / tar.bz2 / tar.xz / tar.zst / tar.lz4 / tar.lzma / tar.lz / tar.br / tar.Z）は、開くときに内側の tar を一時展開する。
   64 MiB を超えると一時ファイルへ保存するため、起動ボリュームに展開後の tar とほぼ同じ空き容量が必要。
@@ -272,8 +280,8 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > Readable formats are ZIP / ZIP64, 7z, RAR4 / RAR5, LHA / LZH, StuffIt (.sit / .sea),
 > StuffIt X (.sitx), tar, cpio, ar (.deb), ISO 9660, xar (.pkg), CAB, RPM, gzip, bzip2,
-> xz, Zstandard (.zst), LZ4 (.lz4), LZMA (.lzma), and UNIX compress (.Z). Compressed tar includes
-> tar.gz / tgz, tar.bz2 / tbz / tbz2, tar.xz / txz, tar.zst / tzst, tar.lz4, tar.lzma / tlz, and tar.Z.
+> xz, Zstandard (.zst), LZ4 (.lz4), LZMA (.lzma), lzip (.lz), Brotli (.br), and UNIX compress (.Z). Compressed tar includes
+> tar.gz / tgz, tar.bz2 / tbz / tbz2, tar.xz / txz, tar.zst / tzst, tar.lz4, tar.lzma / tlz, tar.lz, tar.br / tbr, and tar.Z.
 > Split ZIP / 7z / RAR volumes, supported self-extracting archives (SFX), and encrypted
 > archives can also be read, including ZIP XZ (method 95) and legacy Zstandard (method 20)
 > extraction and previews. See [KaitoKit's format support](https://github.com/shunnag/KaitoKit#対応状況)
@@ -300,7 +308,7 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > Drag or paste files into writable archives. Delete, rename, create folders, and
 > drag items between folders in the same window; hold ⌥ to copy instead of move.
 > Choose “Together When Saving” in Settings before opening to edit numbered byte-split archives
-> (`.001…` for 7z, tar, tar.gz, tar.bz2, tar.xz, LHA, and ZIP). Changes remain pending until Save,
+> (`.001…` for ZIP, 7z, LHA, tar, and writable compressed tar formats). Changes remain pending until Save,
 > which splits the updated archive using the original volume size. Uneven sets offer a size choice.
 > Saving on FAT/exFAT, network volumes, or sync folders requires consent. Interrupted saves offer
 > recovery when reopening. Uniform sets support irreversible edits in the default “Immediately” mode with confirmation for every edit, and “Save As…” offers “None”, the original volume size, or “Specify Size…” under “Split:”.
@@ -319,11 +327,20 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 > ## Create and Convert
 >
 > New Archive… (⌘N) and Finder's “Compress with KaitoFinder” service create ZIP, tar,
-> tar.gz, tar.bz2, tar.xz, 7z, or LHA archives from files and folders. Save As… (⇧⌘S) converts to a new
+> tar.gz, tar.bz2, tar.xz, tar.zst, tar.lz, tar.lzma, tar.lz4, tar.br, tar.Z, 7z, or LHA archives from files and folders. Save As… (⇧⌘S) converts to a new
 > file, leaves the original intact, and switches the same document to the saved file.
 > Adding or pasting into a read-only archive also offers conversion to a new archive.
-> ZIP, tar.gz, and tar.bz2 have selectable compression levels; ZIP also offers no compression.
-> tar.xz, 7z, and LHA use fixed levels, and tar is uncompressed. Normal ZIP edits update the
+> ZIP offers Deflate (default), BZip2, LZMA, XZ, Zstandard, and PPMd; 7z offers LZMA2 (default), LZMA, Deflate, BZip2, and PPMd;
+> LHA offers lh5 (default), lh6, and lh7. Deflate, BZip2, and LHA use levels 1–9; the LZMA family uses 0–9.
+> PPMd uses levels 1–9 (default 6). Zstandard in ZIP, tar.zst, and .zst uses levels 1–19 (default 3), with no uncompressed option.
+> Other ZIP methods, 7z, and LHA also offer no compression. Level 6 for tar.xz, 7z LZMA2, and ZIP XZ preserves the Apple encoder path.
+> tar, tar.lz4, tar.br, and tar.Z have no selectable level. Selecting one regular file also offers .gz, .bz2, .xz, .zst, .lz,
+> .lzma, .lz4, .br, and .Z, preserving the original extension (report.pdf.gz). These streams are create-only and stay read-only.
+> ZIP BZip2, LZMA, XZ, Zstandard, and PPMd cannot be opened by macOS Archive Utility, ditto, or unzip; the panel shows a compatibility note.
+> tar.zst, tar.lz, tar.lzma, tar.lz4, tar.br, and tar.Z edits rewrite the entire archive; .tzst is accepted when saving tar.zst.
+> 7z offers solid compression (off by default) and None (default), Automatic, x86 (BCJ), ARM64, or Delta filters.
+> Delta uses distance 4 for 32-bit samples. Deleting items from a solid block recompresses that block.
+> Normal ZIP edits update the
 > archive in place while preserving existing data; tar, tar.gz, tar.bz2, tar.xz, 7z, and LHA edits
 > rewrite the whole archive, so the time needed depends on its size.
 >
@@ -387,9 +404,8 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 >
 > ## Limitations
 >
-> tar.zst, tar.lz4, tar.lzma, and tar.Z are read-only,
-> as are RAR, ISO 9660, cpio, ar, xar / pkg, CAB, RPM, StuffIt, StuffIt X, and standalone
-> gzip, bzip2, xz, Zstandard, LZ4, LZMA, and UNIX compress streams. Use Save As… to convert
+> RAR, ISO 9660, cpio, ar, xar / pkg, CAB, RPM, StuffIt, StuffIt X, and standalone
+> gzip, bzip2, xz, Zstandard, LZ4, LZMA, lzip, Brotli, and UNIX compress streams are read-only. Use Save As… to convert
 > them to a writable format. Icon, column, and gallery views are not implemented;
 > browsing uses the list view. Thumbnails cover images only, with no video or audio
 > thumbnails. Only images up to 8 MiB are eligible; encrypted and solid 7z / RAR members are excluded.

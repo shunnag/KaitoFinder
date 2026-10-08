@@ -99,7 +99,7 @@ nonisolated final class ArchiveWriteProgress: Sendable {
             case .updater(let f, let atCommit):
                 (format, deferred, drains) = (f, false, !atCommit && [.zip, .lha, .sevenZip].contains(f))
                 let existing = plan.changesExisting ? archiveBytes : 0
-                commit = max(1_000, [.tarGzip, .tarBzip2, .tarXZ, .lha].contains(f) ? Self.sum([added, existing]) : existing)
+                commit = max(1_000, (f.isTarFamily && f != .tar || f == .lha) ? Self.sum([added, existing]) : existing)
             case .rewriter(let f, let reads):
                 (format, deferred, drains) = (f, reads, false)
                 let pending = min(Self.sum([plan.carriedBytes, added]), options.maximumPendingInputBytes(for: f))

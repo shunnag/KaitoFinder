@@ -23,12 +23,20 @@ final class ArchiveCreationController {
     func creationPlan(sources: [URL], destination: URL, format: GyoshukuKit.ArchiveFormat,
                       existing: ArchiveCreationPlan.Existing? = nil,
                       level: ArchiveSavePanelController.Level? = nil,
-                      encryption: ArchiveEncryptionSettings = .init()) -> ArchiveCreationPlan {
+                      encryption: ArchiveEncryptionSettings = .init(),
+                      method: ArchiveSavePanelController.Method? = nil, sevenZipSolid: Bool? = nil,
+                      sevenZipFilter: ArchivePreferences.SevenZipFilter? = nil, singleStreamFormat: SingleStreamFormat? = nil) -> ArchiveCreationPlan {
         let preferences = store.preferences
-        let defaults = preferences.writerOptions(for: format)
+        var defaults = preferences.writerOptions(for: format)
+        if let method { defaults = method.applying(to: defaults, format: format) }
+        if format == .sevenZip {
+            if let sevenZipSolid { defaults.sevenZipSolid = sevenZipSolid ? .on(blockSize: nil, filesPerBlock: nil) : .off }
+            if let sevenZipFilter { defaults.sevenZipFilter = sevenZipFilter.writerMode }
+        }
+        if singleStreamFormat != nil { defaults.preserveOwnerIDs = false }
         let options = encryption.applying(to: level?.applying(to: defaults, format: format) ?? defaults, format: format)
         return ArchiveCreationPlan(sources: sources, destination: destination, format: format,
-                                   options: options, existing: existing, importOptions: preferences.importOptions)
+                                   options: options, existing: existing, importOptions: preferences.importOptions, singleStreamFormat: singleStreamFormat)
     }
 
     func createAndOpen(sources: [URL], existing: ArchiveCreationPlan.Existing? = nil,
@@ -71,7 +79,8 @@ final class ArchiveCreationController {
         try ArchiveImportPlan.checkCancellation(progress)
         var plan = creationPlan(sources: sources, destination: outputDestination,
                                 format: save.controller.format, existing: existing, level: save.controller.level,
-                                encryption: save.encryptionSettings)
+                                encryption: save.encryptionSettings, method: save.controller.method,
+                                sevenZipSolid: save.controller.sevenZipSolid, sevenZipFilter: save.controller.sevenZipFilter, singleStreamFormat: save.controller.singleStreamFormat)
         plan.splitSchedule = try save.splitControls?.schedule()
         if plan.splitSchedule != nil {
             let info = try await Self.volumeInfo(outputDestination, operations: splitSaveHooks.operations)

@@ -253,6 +253,11 @@ nonisolated final class DocumentTypesTests: XCTestCase {
             ("com.shunnag.KaitoFinder.save-tar-gzip", ["tar.gz", "tgz"], "org.gnu.gnu-zip-archive"),
             ("com.shunnag.KaitoFinder.save-tar-bzip2", ["tar.bz2", "tbz2", "tbz"], "public.bzip2-archive"),
             ("com.shunnag.KaitoFinder.save-tar-xz", ["tar.xz", "txz"], "org.tukaani.xz-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-lzip", ["tar.lz"], "com.shunnag.KaitoFinder.lzip-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-lzma", ["tar.lzma"], "org.tukaani.lzma-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-lz4", ["tar.lz4"], "com.shunnag.KaitoFinder.lz4-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-brotli", ["tar.br", "tbr"], "com.shunnag.KaitoFinder.brotli-archive"),
+            ("com.shunnag.KaitoFinder.save-tar-compress", ["tar.Z", "taz"], "public.z-archive"),
             ("com.shunnag.KaitoFinder.save-tbz", ["tbz2", "tbz"], "public.bzip2-archive"),
             ("com.shunnag.KaitoFinder.lzh-archive", ["lzh", "lha"], "public.lha-archive")
         ] {

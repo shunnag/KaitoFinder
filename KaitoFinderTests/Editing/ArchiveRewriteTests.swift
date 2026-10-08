@@ -775,8 +775,10 @@ nonisolated final class ArchiveRewriteTests: XCTestCase {
         await session.close()
 
         let fixture = try Fixture(.tar)
-        let readOnlyArchive = fixture.directory.url.appendingPathComponent("archive.tar.zst")
-        try fixture.directory.run(ExternalTool.zstd, ["-q", fixture.archive.path, "-o", readOnlyArchive.path])
+        let readOnlyArchive = fixture.directory.url.appendingPathComponent("archive.zst")
+        let singleFile = fixture.directory.url.appendingPathComponent("single.txt")
+        try Data("read-only stream".utf8).write(to: singleFile)
+        try fixture.directory.run(ExternalTool.zstd, ["-q", singleFile.path, "-o", readOnlyArchive.path])
         let readOnlySession = try ArchiveSession(url: readOnlyArchive), readOnlySnapshot = await readOnlySession.snapshot()
         let readOnlyReason = try XCTUnwrap(readOnlySession.capabilities.readOnlyReason)
         controller.display(EntryNode.tree(from: readOnlySnapshot.entries), session: readOnlySession,

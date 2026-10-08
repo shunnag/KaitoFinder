@@ -361,8 +361,8 @@ nonisolated final class ApplicationCommandIntegrationTests: XCTestCase {
                 item = tarfile.TarInfo(name)
                 item.size = 4
                 z.addfile(item, io.BytesIO(b'data'))
-        import lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))
-        """, suffix: "tar.lzma")
+        \(ScenarioFixture.tarToReadOnlyCPIO)
+        """, suffix: "cpio")
         let (_, controller) = try await scenarioDocument(fixture)
         let menu = try XCTUnwrap(controller.outlineView.menu)
         let window = try XCTUnwrap(controller.window)

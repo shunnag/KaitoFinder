@@ -246,13 +246,13 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
             entryName: "note.txt", archiveName: "legacy.tar.lz4")
     }
 
-    func testLZ4TarWithLeadingSkippableFrameRemainsReadOnlyAndConvertsItsWholeSuffix() throws {
+    func testLZ4TarWithLeadingSkippableFrameSupportsRewriteAndConvertsItsWholeSuffix() throws {
         for fixture in ["tar-linked", "legacy-tar"] {
-            try assertLZ4TarReadOnly(fixture)
+            try assertLZ4TarRewrite(fixture)
         }
     }
 
-    private func assertLZ4TarReadOnly(_ fixture: String) throws {
+    private func assertLZ4TarRewrite(_ fixture: String) throws {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("archive.TAR.LZ4")
         let encoded = try Data(contentsOf: fixtures.appendingPathComponent("lz4-frame/" + fixture + ".lz4.b64"))
@@ -261,8 +261,8 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         try bytes.write(to: archive)
         XCTAssertEqual(try ArchiveReader.open(url: archive).format, .tar)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
-        XCTAssertEqual(capability.refusal, .format("tar.lz4"))
-        XCTAssertNil(capability.mode)
+        XCTAssertNil(capability.refusal)
+        XCTAssertEqual(capability.mode, .rewrite(.tarLZ4))
         XCTAssertEqual(try Data(contentsOf: archive), bytes)
         XCTAssertEqual(ArchiveCreationPlan.conversionName(for: archive, format: .zip), "archive.zip")
     }
@@ -272,7 +272,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
             digest: "d0dd5cef8544d91daf6d6c95eef8f291822e0b6c91050bedca706e72977d1023")
     }
 
-    func testZstandardTarWithLeadingSkippableFrameCannotBeRewrittenAsPlainTar() throws {
+    func testZstandardTarWithLeadingSkippableFrameSupportsCompressedRewrite() throws {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("archive.tar.zst")
         let encoded = try Data(contentsOf: fixtures.appendingPathComponent("zstd/bundle.tar.zst.b64"))
@@ -282,12 +282,12 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         try bytes.write(to: archive)
         XCTAssertEqual(try ArchiveReader.open(url: archive).format, .tar)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
-        XCTAssertEqual(capability.refusal, .format("tar.zst"))
-        XCTAssertNil(capability.mode)
+        XCTAssertNil(capability.refusal)
+        XCTAssertEqual(capability.mode, .rewrite(.tarZstd))
         XCTAssertEqual(try Data(contentsOf: archive), bytes)
     }
 
-    func testLZMATarWithNondefaultPropertiesCannotBeRewrittenAsPlainTar() throws {
+    func testLZMATarWithNondefaultPropertiesSupportsRewrite() throws {
         let directory = try ArchiveTestDirectory()
         let archive = directory.url.appendingPathComponent("archive.tar.lzma")
         try directory.run(ExternalTool.python3, ["-c", """
@@ -303,8 +303,8 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         XCTAssertNotEqual(bytes.first, 0x5d)
         XCTAssertEqual(try ArchiveReader.open(url: archive).format, .tar)
         let capability = ArchiveCapabilities.inspect(url: archive, format: .tar)
-        XCTAssertEqual(capability.refusal, .format("tar.lzma"))
-        XCTAssertNil(capability.mode)
+        XCTAssertNil(capability.refusal)
+        XCTAssertEqual(capability.mode, .rewrite(.tarLZMA))
         XCTAssertEqual(try Data(contentsOf: archive), bytes)
     }
 
@@ -422,7 +422,7 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
         }
     }
 
-    @MainActor func testLzipAndBrotliTarCanBePreviewedButRemainReadOnly() async throws {
+    @MainActor func testLzipAndBrotliTarCanBePreviewedAndRewritten() async throws {
         for (fixture, suffix, digest) in [
             ("lzip/bundle.tar.lz", "tar.lz", "04485277f59bc95822b5b056ed79d194907df73273c3337fc621e3531f668ba7"),
             // Brotli の tar 内の値は、既存 debug kaito の sha でも照合した。
@@ -437,8 +437,8 @@ nonisolated final class CompressionCapabilityTests: XCTestCase {
             let reader = try ArchiveReader.open(url: archive, options: .kaitoFinder())
             XCTAssertEqual(reader.format, .tar)
             let capability = ArchiveCapabilities.inspect(reader: reader, url: archive)
-            XCTAssertNil(capability.mode)
-            XCTAssertEqual(capability.refusal, .format(suffix))
+            XCTAssertEqual(capability.mode, .rewrite(suffix == "tar.lz" ? .tarLzip : .tarBrotli))
+            XCTAssertNil(capability.refusal)
             XCTAssertEqual(try Data(contentsOf: archive), original)
         }
     }

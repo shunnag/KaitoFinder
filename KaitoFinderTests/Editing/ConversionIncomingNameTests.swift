@@ -34,9 +34,9 @@ nonisolated final class ConversionIncomingNameTests: XCTestCase {
         let tarBzip2 = directory.url.appendingPathComponent("original.tar.bz2")
         try Data("original content".utf8).write(to: directory.url.appendingPathComponent("old.txt"))
         try directory.run(ExternalTool.tar, ["--no-mac-metadata", "--no-xattrs", "-cjf", tarBzip2.path, "old.txt"])
-        // ArchiveCreationTests の変換 fixture を、編集非対応の外側の圧縮で包む。
-        let archive = directory.url.appendingPathComponent("original.tar.lzma")
-        try directory.run(ExternalTool.python3, ["-c", "import bz2, lzma, sys; open(sys.argv[2], 'wb').write(lzma.compress(bz2.decompress(open(sys.argv[1], 'rb').read()), format=lzma.FORMAT_ALONE))", tarBzip2.path, archive.path])
+        // ArchiveCreationTests の変換 fixture を、編集非対応の cpio へ移す。
+        let archive = directory.url.appendingPathComponent("original.cpio")
+        try directory.run(ExternalTool.python3, ["-c", "import bz2, tarfile, sys; p=sys.argv[2]; open(p, 'wb').write(bz2.decompress(open(sys.argv[1], 'rb').read()))\n" + ScenarioFixture.tarToReadOnlyCPIO, tarBzip2.path, archive.path])
         let original = try Data(contentsOf: archive), session = try ArchiveSession(url: archive)
         XCTAssertFalse(session.capabilities.canEdit)
         let existing = try await ArchiveCreationController.existingArchive(from: session, progress: Progress())

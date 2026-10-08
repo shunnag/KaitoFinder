@@ -53,7 +53,8 @@ nonisolated final class EditPlacementPreferencesTests: XCTestCase {
                 preferences.tarPreservesOwnerIDs = true; preferences.zipLevel = 1; preferences.tarBzip2Level = 2
                 for format in ArchivePreferences.formats {
                     let options = preferences.writerOptions(for: format)
-                    let tar = [.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format)
+                    let tar = format.isTarFamily
+                    let rewritesTar = tar && ![.tar, .tarGzip, .tarBzip2, .tarXZ].contains(format)
                     XCTAssertEqual(options.additionPlacement, format == .zip || position == .end ? .end : .beginning)
                     XCTAssertEqual(options.carriedTarOwnerIDs, tar && owners == .reset ? .reset : .keep)
                     XCTAssertEqual(options.preserveOwnerIDs, tar)
@@ -61,9 +62,10 @@ nonisolated final class EditPlacementPreferencesTests: XCTestCase {
                         XCTAssertEqual(options.deflateLevel, WriterOptions().deflateLevel)
                         XCTAssertEqual(options.bzip2Level, WriterOptions().bzip2Level)
                     }
-                    let mode = ArchiveCapabilities.Mode.update(format)
+                    // splice 非対応の圧縮 tar は、編集可否の検査時点で rewriter に振り分けられる。
+                    let mode: ArchiveCapabilities.Mode = rewritesTar ? .rewrite(format) : .update(format)
                     XCTAssertEqual(mode.outputFormat, format)
-                    XCTAssertEqual(mode.resolved(with: options), options.additionPlacement == .beginning || (tar && owners == .reset) ? .rewrite(format) : mode)
+                    XCTAssertEqual(mode.resolved(with: options), rewritesTar || options.additionPlacement == .beginning || (tar && owners == .reset) ? .rewrite(format) : mode)
                     XCTAssertEqual(ArchiveCapabilities.Mode.rewrite(format).resolved(with: options), .rewrite(format))
                     XCTAssertEqual(ArchiveCapabilities.Mode.inPlace.resolved(with: options), .inPlace)
                 }

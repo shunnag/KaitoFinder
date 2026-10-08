@@ -35,7 +35,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testReadOnlyArchiveDisablesBothMenusWithRefusalReason() async throws {
-        let fixture = try ScenarioFixture.withEntries(tar: true), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(readOnly: true), (document, controller) = try await interface(fixture)
         let before = try ArchiveOracle.digest(fixture.archive)
         try controller.select(paths: ["a.txt"])
         XCTAssertFalse(try XCTUnwrap(document.session).capabilities.canEdit)
@@ -52,7 +52,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
     }
 
     @MainActor func testReadOnlyBlankMenuKeepsEditRefusalAndPasteConversionValidation() async throws {
-        let fixture = try ScenarioFixture.withEntries(tar: true), (document, controller) = try await interface(fixture)
+        let fixture = try ScenarioFixture.withEntries(readOnly: true), (document, controller) = try await interface(fixture)
         let menu = try XCTUnwrap(controller.outlineView.contextMenu(forRow: -1))
         let folder = try XCTUnwrap(menu.items.first { $0.action == #selector(ArchiveWindowController.newFolder(_:)) })
         XCTAssertFalse(controller.validateMenuItem(folder))
@@ -68,7 +68,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
 
     @MainActor func testToolbarValidationTracksSelectionReadabilityAndArchiveCapabilities() async throws {
         for readOnly in [false, true] {
-            let fixture = try ScenarioFixture.withEntries(["a.txt", "folder/b.txt"], tar: readOnly)
+            let fixture = try ScenarioFixture.withEntries(["a.txt", "folder/b.txt"], readOnly: readOnly)
             let (document, controller) = try await interface(fixture)
             let toolbar = try XCTUnwrap(controller.window?.toolbar)
             func item(_ identifier: String) throws -> NSToolbarItem {
@@ -505,7 +505,7 @@ nonisolated final class ArchiveEntryControlsTests: XCTestCase {
         XCTAssertEqual(context.title, String(localized: "新規フォルダ"))
         XCTAssertTrue(context.target === controller)
         XCTAssertTrue(controller.validateMenuItem(context))
-        let fixture = try ScenarioFixture.withEntries(tar: true), before = try ArchiveOracle.digest(fixture.archive)
+        let fixture = try ScenarioFixture.withEntries(readOnly: true), before = try ArchiveOracle.digest(fixture.archive)
         let (document, readOnly) = try await interface(fixture)
         readOnly.setFilterQuery("a")
         XCTAssertFalse(readOnly.validateMenuItem(item))

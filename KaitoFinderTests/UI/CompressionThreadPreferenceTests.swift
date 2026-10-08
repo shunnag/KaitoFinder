@@ -15,7 +15,7 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
         }
     }
 
-    func testAllSevenFormatsOnlyChangeCompressionThreads() {
+    func testAllThirteenFormatsOnlyChangeCompressionThreads() {
         for position in ArchivePreferences.AdditionPosition.allCases {
             for owners in ArchivePreferences.CarriedOwnerIDPolicy.allCases {
                 for method in [ArchivePreferences.ZipMethod.deflate, .stored] {
@@ -29,7 +29,7 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
                         case .zip:
                             WriterOptions(compressionMethod: method == .stored ? .stored : .deflate,
                                           deflateLevel: 2, useCompressionHeuristic: false, additionPlacement: .end)
-                        case .tar, .tarXZ:
+                        case .tar, .tarXZ, .tarZstd, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress:
                             WriterOptions(preserveOwnerIDs: true, additionPlacement: placement, carriedTarOwnerIDs: carried)
                         case .tarGzip:
                             WriterOptions(deflateLevel: 4, preserveOwnerIDs: true,

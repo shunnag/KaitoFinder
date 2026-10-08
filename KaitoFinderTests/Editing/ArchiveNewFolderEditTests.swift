@@ -123,7 +123,7 @@ nonisolated final class ArchiveNewFolderEditTests: XCTestCase, EditTestSupport {
 
     @MainActor func testNewFolderReadOnlyRefusalPrecedesUpdaterAndExposesReason() async throws {
         let cases: [(String, String, Bool)] = [
-            ("archive.tar.lzma", "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))\nimport lzma; raw=open(p,'rb').read(); open(p,'wb').write(lzma.compress(raw,format=lzma.FORMAT_ALONE))", false),
+            ("archive.cpio", "with tarfile.open(p, 'w') as t:\n i=tarfile.TarInfo('old'); i.size=1; t.addfile(i, io.BytesIO(b'x'))" + "\n" + ScenarioFixture.tarToReadOnlyCPIO, false),
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')\nwith open(p, 'ab') as f: f.write(b'trailing')", false),
             ("archive.zip", "with zipfile.ZipFile(p, 'w') as z:\n z.writestr('old', b'x')", true)
         ]

@@ -166,7 +166,7 @@ nonisolated final class ArchiveEntryMoveDragTests: XCTestCase {
             XCTAssertNil(controller.extractionTask)
         }
         XCTAssertEqual(try ArchiveOracle.digest(fixture.archive), before)
-        let readOnly = try ScenarioFixture.withEntries(["a/x.txt"], tar: true), (_, readOnlyController) = try await interface(readOnly)
+        let readOnly = try ScenarioFixture.withEntries(["a/x.txt"], readOnly: true), (_, readOnlyController) = try await interface(readOnly)
         let (_, info) = moveDrag([try readOnlyController.displayedNode("a/x.txt")], in: readOnlyController)
         let readOnlyBefore = try ArchiveOracle.digest(readOnly.archive)
         info.draggingSource = view

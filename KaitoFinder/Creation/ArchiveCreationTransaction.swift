@@ -20,9 +20,14 @@ nonisolated enum ArchiveCreationTransaction {
                 throw ExtractionFailure.refused(String(localized: "作成元の項目とは別の保存先を選んでください。"))
             }
         }
-        guard ArchiveCreationPlan.hasAcceptedExtension(plan.destination, for: plan.format) else {
-            let list = ArchiveCreationPlan.acceptedExtensions(for: plan.format).map { "." + $0 }.joined(separator: ", ")
+        guard plan.hasAcceptedExtension else {
+            let list = (plan.singleStreamFormat == nil ? ArchiveCreationPlan.acceptedExtensions(for: plan.format) : [plan.filenameExtension]).map { "." + $0 }.joined(separator: ", ")
             throw ExtractionFailure.refused(String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)"))
+        }
+        if plan.singleStreamFormat != nil {
+            guard plan.existing == nil, ArchiveCreationPlan.canCompressSingleFile(plan.sources) else {
+                throw WriterError.unsupportedFileType(plan.sources.first?.path ?? "")
+            }
         }
         let imported = try ArchiveImportPlan.build(urls: plan.sources, folder: "",
                                                   existing: plan.existing?.entries ?? [], progress: progress,
@@ -82,7 +87,7 @@ nonisolated enum ArchiveCreationTransaction {
         do { try registry.recordIdentity(directory) }
         catch { NSLog("同一性の記録に失敗しました: %@", String(describing: error)) }
         // KaitoKit は gzip の中身が tar かどうかを名前でも判定する。仮出力にも本当の拡張子を付ける。
-        let output = directory.appendingPathComponent("archive." + ArchiveCreationPlan.filenameExtension(for: plan.format))
+        let output = directory.appendingPathComponent("archive." + plan.filenameExtension)
         do {
             if let existing = plan.existing {
                 try verifySource(existing)
@@ -114,6 +119,9 @@ nonisolated enum ArchiveCreationTransaction {
                         try ArchiveImportPlan.checkCancellation(progress)
                     }
                 }
+            } else if let singleStreamFormat = plan.singleStreamFormat {
+                try SingleStreamCompressor.compress(file: plan.sources[0], to: output, format: singleStreamFormat,
+                                                    options: plan.options, progress: progress)
             } else {
                 let writer = try ArchiveWriter.create(url: output, format: plan.format, options: plan.options)
                 let ledger = ledger!
@@ -146,7 +154,8 @@ nonisolated enum ArchiveCreationTransaction {
         try (plan.existing?.publication ?? ArchiveSavePublication.current.get())?.enter(progress: progress)
         guard rename(output.path, plan.destination.path) == 0 else { throw ExtractionFailure.system(errno) }
         // rewriter が省く root directory record も含め、公開後は必ず完了を示す。
-        if let ledger { ledger.didPublish() }
+        if plan.singleStreamFormat != nil { progress.completedUnitCount = progress.totalUnitCount }
+        else if let ledger { ledger.didPublish() }
         else { progress.completedUnitCount = progress.totalUnitCount }
         return plan.destination
     }
@@ -154,7 +163,7 @@ nonisolated enum ArchiveCreationTransaction {
     private static func createSplit(plan: ArchiveCreationPlan, schedule: VolumePlan.Schedule, progress: Progress,
                                     willPublish: (@Sendable () throws -> Void)?, index: RecoverableWorkIndex,
                                     metadataStore: ArchiveVolumeMetadataStore, hooks: ArchiveSplitSaveHooks) throws -> URL {
-        guard plan.sources.isEmpty, let existing = plan.existing,
+        guard plan.singleStreamFormat == nil, plan.sources.isEmpty, let existing = plan.existing,
               ArchiveCreationPlan.hasAcceptedExtension(plan.destination, for: plan.format) else { throw VolumePublishError.invalidPlan }
         try verifySource(existing)
         let replay = try existing.pending ?? ArchiveSaveReplayPlan(base: existing.entries, generation: 0, pending: .init(), format: plan.format)

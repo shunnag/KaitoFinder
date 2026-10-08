@@ -31,6 +31,7 @@ private final class ArchiveSaveAccessoryView: NSView {
     override var isFlipped: Bool { true }
 
     var contentSize: NSSize {
+        // XPC の制約更新中にも参照されるため、レイアウトやフレームは変更しない。
         let size = form.fittingSize
         return NSSize(width: size.width + 32, height: size.height)
     }
@@ -39,6 +40,11 @@ private final class ArchiveSaveAccessoryView: NSView {
         var size = contentSize
         if let viewportHeight { size.height = viewportHeight }
         return size
+    }
+
+    func settleContentLayout() {
+        // 行の表示を変更した経路だけで確定し、サイズ取得から制約更新を繰り返さない。
+        form.layoutSubtreeIfNeeded()
     }
 
     override func layout() {
@@ -123,6 +129,11 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     let splitControls: ArchiveSaveSplitControls?
     var estimatedSplitLength: UInt64 = 1
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let methodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let compatibilityNote: NSTextField
+    let sevenZipSolidCheckbox: NSButton
+    let sevenZipFilterPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let sevenZipSolidNote: NSTextField
     let levelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let encryptionCheckbox: NSButton
     let passwordFields: ArchivePasswordFields
@@ -176,8 +187,11 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             minimumLabelWidth: Self.minimumLabelWidth(bundle: bundle), bundle: bundle)
         encryptionCheckbox = NSButton(checkboxWithTitle: String(localized: "暗号化", bundle: bundle), target: nil, action: nil)
         encryptionNote = Self.makeNote(String(localized: "tar と LHA は暗号化できません", bundle: bundle), width: passwordFields.width)
-        fixedLevelNote = Self.makeNote(String(localized: "tar.xz、7z、LHA の圧縮レベルは固定です", bundle: bundle), width: passwordFields.width)
-        controller = ArchiveSavePanelController(store: store)
+        fixedLevelNote = Self.makeNote(String(localized: "この形式は圧縮レベルを選べません", bundle: bundle), width: passwordFields.width)
+        compatibilityNote = Self.makeNote(String(localized: "このZIPはmacOSのアーカイブユーティリティやunzipでは開けません", bundle: bundle), width: passwordFields.width)
+        sevenZipSolidCheckbox = NSButton(checkboxWithTitle: String(localized: "ソリッド圧縮", bundle: bundle), target: nil, action: nil)
+        sevenZipSolidNote = Self.makeNote(String(localized: "ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します", bundle: bundle), width: passwordFields.width)
+        controller = ArchiveSavePanelController(store: store, sources: sources, allowsSingleStream: existingURL == nil)
         super.init()
         estimatedSplitLength = max(1, sourceLayout?.volumes.reduce(UInt64(0)) { $0 + $1.length }
             ?? UInt64(max(0, (try? existingURL?.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)))
@@ -204,22 +218,44 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         // 初期表示では AppKit が最後の拡張子だけを隠す。
         // 本体を残し、保存時の完全な拡張子は currentContentType に任せる。
         let stem = ArchiveSavePanelController.filenameStem(suggestedName, format: controller.format)
-        let suffix = ArchiveCreationPlan.filenameExtension(for: controller.format).split(separator: ".").last!
+        let suffix = controller.filenameExtension.split(separator: ".").last!
         suggestedStem = stem
         configuredFilename = stem + "." + suffix
         panel.nameFieldStringValue = configuredFilename
         formatPopup.addItems(withTitles: ArchiveSavePanelController.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
+        if controller.offersSingleStream {
+            formatPopup.menu?.addItem(.separator())
+            let section = NSMenuItem(title: String(localized: "1 ファイルの圧縮", bundle: bundle), action: nil, keyEquivalent: "")
+            section.isEnabled = false
+            formatPopup.menu?.addItem(section)
+            formatPopup.addItems(withTitles: ArchiveCreationPlan.singleStreamFormats.map { "." + ArchiveCreationPlan.filenameExtension(for: $0) })
+        }
         formatPopup.selectItem(at: controller.selectedIndex)
         formatPopup.target = self
         formatPopup.action = #selector(changeFormat(_:))
+        methodPopup.target = self
+        methodPopup.action = #selector(changeMethod(_:))
+        sevenZipSolidCheckbox.target = self
+        sevenZipSolidCheckbox.action = #selector(changeSevenZipSolid(_:))
+        sevenZipFilterPopup.addItems(withTitles: ArchivePreferences.SevenZipFilter.allCases.map { $0.title(bundle: bundle) })
+        sevenZipFilterPopup.target = self
+        sevenZipFilterPopup.action = #selector(changeSevenZipFilter(_:))
         levelPopup.target = self
         levelPopup.action = #selector(changeLevel(_:))
         refreshLevel()
         // XPC 側が初期サイズを記憶する前に、不要な欄を隠しておく。
         refreshEncryption()
-        panel.accessoryView = Self.makeAccessoryView(formatPopup: formatPopup, levelPopup: levelPopup,
-                                                     fixedLevelNote: fixedLevelNote, encryptionCheckbox: encryptionCheckbox,
-                                                     passwordFields: passwordFields, encryptionNote: encryptionNote, splitControls: splitControls, bundle: bundle)
+        let accessory = Self.makeAccessoryView(formatPopup: formatPopup, levelPopup: levelPopup,
+                                               fixedLevelNote: fixedLevelNote, encryptionCheckbox: encryptionCheckbox,
+                                               passwordFields: passwordFields, encryptionNote: encryptionNote, splitControls: splitControls, bundle: bundle,
+                                               methodPopup: methodPopup, compatibilityNote: compatibilityNote,
+                                               sevenZipSolidCheckbox: sevenZipSolidCheckbox, sevenZipFilterPopup: sevenZipFilterPopup,
+                                               sevenZipSolidNote: sevenZipSolidNote)
+        refreshLevel()
+        // XPC 側は代入時のサイズを記憶するため、表示行に合わせてから渡す。
+        (accessory as? ArchiveSaveAccessoryView)?.settleContentLayout()
+        ArchiveAccessoryLayout.size(accessory)
+        panel.accessoryView = accessory
         splitControls?.didChange = { [weak self] in self?.changeSplitChoice() }
         refreshSplitContentType()
         if splitControls?.isSplitting == true {
@@ -238,7 +274,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     }
 
     static func minimumLabelWidth(bundle: Bundle) -> CGFloat {
-        [String(localized: "フォーマット", bundle: bundle), String(localized: "圧縮レベル", bundle: bundle), String(localized: "分割:", bundle: bundle)]
+        [String(localized: "フォーマット", bundle: bundle), String(localized: "圧縮レベル", bundle: bundle), String(localized: "圧縮方式:", bundle: bundle), String(localized: "分割:", bundle: bundle), String(localized: "フィルタ", bundle: bundle)]
             .map { NSTextField(labelWithString: $0).intrinsicContentSize.width }.max() ?? 0
     }
 
@@ -246,7 +282,10 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     static func makeAccessoryView(formatPopup: NSPopUpButton, levelPopup: NSPopUpButton,
                                   fixedLevelNote: NSTextField, encryptionCheckbox: NSButton,
                                   passwordFields: ArchivePasswordFields, encryptionNote: NSTextField,
-                                  splitControls: ArchiveSaveSplitControls? = nil, bundle: Bundle = .main) -> NSView {
+                                  splitControls: ArchiveSaveSplitControls? = nil, bundle: Bundle = .main,
+                                  methodPopup: NSPopUpButton? = nil, compatibilityNote: NSTextField? = nil,
+                                  sevenZipSolidCheckbox: NSButton? = nil, sevenZipFilterPopup: NSPopUpButton? = nil,
+                                  sevenZipSolidNote: NSTextField? = nil) -> NSView {
         formatPopup.setAccessibilityLabel(String(localized: "フォーマット", bundle: bundle))
         formatPopup.setAccessibilityIdentifier("ArchiveSaveFormat")
         levelPopup.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
@@ -254,6 +293,21 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             [NSTextField(labelWithString: String(localized: "フォーマット", bundle: bundle)), formatPopup],
             [NSTextField(labelWithString: String(localized: "圧縮レベル", bundle: bundle)), levelPopup]
         ])
+        if let methodPopup {
+            methodPopup.setAccessibilityLabel(String(localized: "圧縮方式:", bundle: bundle))
+            methodPopup.setAccessibilityIdentifier("ArchiveSaveMethod")
+            rows.insertRow(at: 1, with: [NSTextField(labelWithString: String(localized: "圧縮方式:", bundle: bundle)), methodPopup])
+            rows.row(at: 1).isHidden = methodPopup.isHidden
+        }
+        if let sevenZipSolidCheckbox, let sevenZipFilterPopup {
+            sevenZipSolidCheckbox.setAccessibilityIdentifier("ArchiveSaveSevenZipSolid")
+            sevenZipFilterPopup.setAccessibilityIdentifier("ArchiveSaveSevenZipFilter")
+            sevenZipFilterPopup.setAccessibilityLabel(String(localized: "フィルタ", bundle: bundle))
+            rows.addRow(with: [NSGridCell.emptyContentView, sevenZipSolidCheckbox])
+            rows.addRow(with: [NSTextField(labelWithString: String(localized: "フィルタ", bundle: bundle)), sevenZipFilterPopup])
+            rows.row(at: rows.numberOfRows - 2).isHidden = sevenZipSolidCheckbox.isHidden
+            rows.row(at: rows.numberOfRows - 1).isHidden = sevenZipFilterPopup.isHidden
+        }
         if let splitControls {
             rows.addRow(with: [NSTextField(labelWithString: String(localized: "分割:", bundle: bundle)), splitControls.view])
         }
@@ -279,7 +333,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         encryptionRow.column(at: 1).xPlacement = .leading
         encryptionRow.column(at: 1).trailingPadding = 2
         encryptionRow.widthAnchor.constraint(equalToConstant: width).isActive = true
-        let form = ArchiveAccessoryLayout.stack([rows, fixedLevelNote, separator, encryptionRow, passwordFields.view, encryptionNote],
+        let form = ArchiveAccessoryLayout.stack([rows, fixedLevelNote] + (compatibilityNote.map { [$0] } ?? [])
+                                                + (sevenZipSolidNote.map { [$0] } ?? [])
+                                                + [separator, encryptionRow, passwordFields.view, encryptionNote],
                                                 width: width + 2 * accessoryHorizontalInset, detachesHiddenViews: true)
         form.spacing = 12
         form.edgeInsets = NSEdgeInsets(top: 12, left: accessoryHorizontalInset, bottom: 8, right: accessoryHorizontalInset)
@@ -336,8 +392,8 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     func panel(_ sender: Any, validate url: URL) throws {
         let schedule = try splitControls?.schedule()
         let url = baseDestination(url)
-        guard ArchiveCreationPlan.hasAcceptedExtension(url, for: controller.format) else {
-            let list = ArchiveCreationPlan.acceptedExtensions(for: controller.format).map { "." + $0 }.joined(separator: ", ")
+        guard controller.acceptedExtensions.contains(where: { url.lastPathComponent.lowercased().hasSuffix("." + $0.lowercased()) }) else {
+            let list = controller.acceptedExtensions.map { "." + $0 }.joined(separator: ", ")
             throw ArchiveUserError.creation(String(localized: "この形式のファイル名は次の拡張子で終わる必要があります: \(list)", bundle: bundle))
         }
         if let schedule {
@@ -404,7 +460,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             accessory.viewportHeight = accessory.frame.height
         }
         let wasVisible = !passwordFields.view.isHidden
-        encryptionCheckbox.isEnabled = ArchiveEncryptionSettings.supports(controller.format)
+        encryptionCheckbox.isEnabled = controller.singleStreamFormat == nil && ArchiveEncryptionSettings.supports(controller.format)
         passwordFields.selectFormat(controller.format)
         let enablesFields = encryptionCheckbox.isEnabled && encryptionCheckbox.state == .on
         if !enablesFields, let window = passwordFields.view.window, let responder = window.firstResponder {
@@ -426,6 +482,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             let chromeHeight = panel.frame.height - accessory.frame.height
             accessory.viewportHeightInPanel = { [weak panel] in (panel?.frame.height ?? chromeHeight) - chromeHeight }
         }
+        accessory.settleContentLayout()
         var size = accessory.contentSize
         if accessory.window != nil { size.width = max(size.width, accessory.frame.width) }
         let initialHeight = accessory.frame.height
@@ -522,13 +579,55 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
 
     private func refreshLevel() {
         levelPopup.removeAllItems()
-        levelPopup.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle) })
+        methodPopup.removeAllItems()
+        methodPopup.addItems(withTitles: controller.methods.map { $0.title(bundle: bundle) })
+        methodPopup.selectItem(at: controller.selectedMethodIndex)
+        let hidesMethod = controller.methods.isEmpty
+        let hidesSevenZipOptions = !controller.showsSevenZipOptions
+        // 非表示の行のコントロールは grid から外れるため、常に表示する format 欄から行を取得する。
+        if let rows = formatPopup.superview as? NSGridView {
+            rows.row(at: 1).isHidden = hidesMethod
+            rows.row(at: 3).isHidden = hidesSevenZipOptions
+            rows.row(at: 4).isHidden = hidesSevenZipOptions
+            rows.needsLayout = true
+        }
+        methodPopup.isHidden = hidesMethod
+        compatibilityNote.isHidden = !controller.showsZipCompatibilityNote
+        levelPopup.addItems(withTitles: controller.levels.map { $0.title(bundle: bundle, startsAtZero: controller.startsAtZero, zstd: controller.usesZstd) })
         levelPopup.selectItem(at: controller.selectedLevelIndex)
         levelPopup.isEnabled = controller.isLevelEnabled
-        fixedLevelNote.isHidden = ![.tarXZ, .sevenZip, .lha].contains(controller.format)
+        fixedLevelNote.isHidden = controller.isLevelEnabled
+        sevenZipSolidCheckbox.state = controller.sevenZipSolid ? .on : .off
+        sevenZipFilterPopup.selectItem(at: ArchivePreferences.SevenZipFilter.allCases.firstIndex(of: controller.sevenZipFilter)!)
+        sevenZipSolidCheckbox.isHidden = hidesSevenZipOptions
+        sevenZipFilterPopup.isHidden = hidesSevenZipOptions
+        sevenZipSolidNote.isHidden = !controller.showsSevenZipOptions || !controller.sevenZipSolid
+        (panel.accessoryView as? ArchiveSaveAccessoryView)?.settleContentLayout()
     }
 
-    @objc func changeLevel(_ sender: NSPopUpButton) { controller.selectLevel(at: sender.indexOfSelectedItem) }
+    @objc func changeSevenZipSolid(_ sender: NSButton) {
+        controller.sevenZipSolid = sender.state == .on
+        refreshLevel()
+        refreshEncryption()
+    }
+
+    @objc func changeSevenZipFilter(_ sender: NSPopUpButton) {
+        let filters = ArchivePreferences.SevenZipFilter.allCases
+        guard filters.indices.contains(sender.indexOfSelectedItem) else { return }
+        controller.sevenZipFilter = filters[sender.indexOfSelectedItem]
+    }
+
+    @objc func changeLevel(_ sender: NSPopUpButton) {
+        controller.selectLevel(at: sender.indexOfSelectedItem)
+        refreshLevel()
+        refreshEncryption()
+    }
+
+    @objc func changeMethod(_ sender: NSPopUpButton) {
+        controller.selectMethod(at: sender.indexOfSelectedItem)
+        refreshLevel()
+        refreshEncryption()
+    }
 
     func panel(_ sender: Any, userEnteredFilename filename: String, confirmed okFlag: Bool) -> String? {
         if splitControls?.isSplitting == true {
@@ -538,14 +637,34 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         // 未編集の候補だけを補正し、元の書庫名が再び拡張子として消えるのを防ぐ。
         if okFlag, panel.isExtensionHidden, panel.nameFieldStringValue == configuredFilename,
            filename == suggestedStem {
-            return suggestedStem + "." + ArchiveCreationPlan.filenameExtension(for: controller.format)
+            return suggestedStem + "." + controller.filenameExtension
+        }
+        // LaunchServices は拡張子を小文字にするため、隠された拡張子だけ正規の表記に戻す。
+        let suffix = "." + controller.filenameExtension
+        if okFlag, panel.isExtensionHidden, !filename.hasSuffix(suffix),
+           let range = filename.range(of: suffix, options: [.caseInsensitive, .backwards, .anchored]),
+           let directory = panel.directoryURL {
+            let corrected = filename.replacingCharacters(in: range, with: suffix)
+            let canonicalURL = directory.appendingPathComponent(corrected)
+            let originalURL = directory.appendingPathComponent(filename)
+            // 大小文字を区別する保存先では、未確認の別ファイルを上書きしない。
+            do {
+                if let canonicalID = try canonicalURL.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier,
+                   let originalID = try? originalURL.resourceValues(forKeys: [.fileResourceIdentifierKey]).fileResourceIdentifier,
+                   canonicalID.isEqual(originalID) {
+                    return corrected
+                }
+            } catch {
+                if (error as? CocoaError)?.code == .fileReadNoSuchFile { return corrected }
+            }
         }
         return filename
     }
 
     @objc func changeFormat(_ sender: NSPopUpButton) {
-        guard !isReconfiguring, ArchiveSavePanelController.formats.indices.contains(sender.indexOfSelectedItem) else { return }
-        let changesFormat = ArchiveSavePanelController.formats[sender.indexOfSelectedItem] != controller.format
+        guard !isReconfiguring, sender.selectedItem?.isEnabled == true else { return }
+        let previousExtension = controller.filenameExtension
+        let changesFormat = sender.indexOfSelectedItem != controller.selectedIndex
         // 名前を明示した後は、末尾一つだけを置換する標準パネルに任せると .tar が残る。
         // 表示後の nameFieldStringValue は変更できないため、同じパネルを再構成する。
         // 確定URLの後処理は行わず、画面と標準の上書き確認も正しい名前に揃える。
@@ -559,8 +678,8 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         }
         if let enteredName {
             let isSplitting = splitControls?.isSplitting == true
-            let renamed = ArchiveSavePanelController.filenameByChangingFormat(
-                isSplitting ? Self.strippingFirstVolumeSuffix(enteredName) : enteredName, to: controller.format)
+            let renamed = controller.filenameByChangingFormat(
+                isSplitting ? Self.strippingFirstVolumeSuffix(enteredName) : enteredName, previousExtension: previousExtension)
             pendingFilenameChange = FilenameChange(
                 name: isSplitting ? Self.appendingFirstVolumeSuffix(renamed) : renamed,
                 directory: panel.directoryURL, tags: panel.tagNames, frame: panel.frame,
@@ -576,7 +695,17 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         if splitControls?.isSplitting == true {
             let base = Self.strippingFirstVolumeSuffix(panel.nameFieldStringValue)
             configuredFilename = Self.appendingFirstVolumeSuffix(
-                ArchiveSavePanelController.filenameByChangingFormat(base, to: controller.format))
+                controller.filenameByChangingFormat(base, previousExtension: previousExtension))
+            panel.nameFieldStringValue = configuredFilename
+        }
+        if !panel.isVisible, splitControls?.isSplitting != true {
+            let entered = panel.nameFieldStringValue
+            if entered == configuredFilename, panel.isExtensionHidden {
+                configuredFilename = suggestedStem + "." + controller.filenameExtension.split(separator: ".").last!
+            } else {
+                configuredFilename = controller.filenameByChangingFormat(entered, previousExtension: previousExtension)
+                suggestedStem = controller.filenameStem(configuredFilename)
+            }
             panel.nameFieldStringValue = configuredFilename
         }
         refreshSplitContentType()
@@ -624,9 +753,9 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         panel.accessoryView = nil
         panel.directoryURL = change.directory
         panel.tagNames = change.tags
-        suggestedStem = ArchiveSavePanelController.filenameStem(change.name, format: controller.format)
+        suggestedStem = controller.filenameStem(change.name)
         if splitControls?.isSplitting == true { refreshSplitContentType() }
-        else { panel.currentContentType = ArchiveSavePanelController.explicitFilenameContentType(for: controller.format) }
+        else { panel.currentContentType = controller.explicitFilenameContentType }
         panel.nameFieldStringValue = change.name
         panel.isExtensionHidden = false
         configuredFilename = change.name

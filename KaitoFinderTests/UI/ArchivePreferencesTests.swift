@@ -82,8 +82,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for (index, format) in ArchivePreferences.formats.enumerated() {
             let value = ArchivePreferences(defaultFormat: format, compressionThreads: index, zipMethod: index.isMultiple(of: 2) ? .stored : .deflate,
-                                           zipLevel: 1 + index, zipSkipsCompressedTypes: !index.isMultiple(of: 2),
-                                           tarGzipLevel: 9 - index, tarBzip2Level: 1 + index, tarPreservesOwnerIDs: index.isMultiple(of: 2),
+                                           zipLevel: 1 + index % 9, zipSkipsCompressedTypes: !index.isMultiple(of: 2),
+                                           tarGzipLevel: 9 - index % 9, tarBzip2Level: 1 + index % 9, tarPreservesOwnerIDs: index.isMultiple(of: 2),
                                            extractionDestination: index.isMultiple(of: 2) ? .ask : .sameFolder,
                                            folderPolicy: [.always, .whenMultipleTopLevelItems, .never][index % 3],
                                            trashesArchiveAfterExtraction: index.isMultiple(of: 2),
@@ -98,7 +98,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             store.preferences = value
             let reopened = ArchivePreferencesStore(defaults: try XCTUnwrap(UserDefaults(suiteName: suite.name)))
             XCTAssertEqual(reopened.preferences, value)
-            XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz", "7z", "lzh"][index])
+            XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), ArchiveCreationPlan.filenameExtension(for: format))
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveCompressionThreads"), value.compressionThreads)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveZipMethod"), value.zipMethod.rawValue)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveZipLevel"), value.zipLevel)
@@ -123,7 +123,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
     @MainActor func testInvalidStoredValuesFallBackToDefaults() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let corrupt: [String: Any] = [
-            "ArchiveCreationFormat": "rar", "ArchiveZipMethod": "bzip2", "ArchiveZipLevel": 42,
+            "ArchiveCreationFormat": "rar", "ArchiveZipMethod": "unknown", "ArchiveZipLevel": 42,
             "ArchiveZipSkipsCompressedTypes": "broken", "ArchiveTarGzipLevel": -1,
             "ArchiveTarPreservesOwnerIDs": "yes", "ArchiveExtractionDestination": "desktop",
             "ArchiveFolderPolicy": "sometimes", "ArchiveTrashesArchiveAfterExtraction": Data([0xff]),
