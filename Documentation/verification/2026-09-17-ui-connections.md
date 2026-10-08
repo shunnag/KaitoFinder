@@ -35,7 +35,7 @@
 - `Tools/verify_ui_integration.py` はランダムな専用 bundle ID でビルドし、履歴の各段階を
   別プロセスで検証する。通常アプリの履歴は消去しない。対象テストの未実行・skip も失敗にする。
   再オープンと消去は別起動に分け、文書の開閉に伴う履歴更新と消去の検査を混在させない。
-- [UI の回帰テスト手順](../ui-integration-testing.md)を追加し、README の開発手順から参照した。
+- [UI の回帰テスト手順](../ui-integration-testing.md)を追加し、当時の README の開発手順（現在は[開発者向け情報](../development.md#開発)）から参照した。
 
 ## 検証結果
 
