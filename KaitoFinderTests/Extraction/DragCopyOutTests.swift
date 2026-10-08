@@ -230,36 +230,55 @@ nonisolated final class DragCopyOutTests: XCTestCase {
         let session = try ArchiveSession(url: fixture.archive), entries = await session.entries()
         XCTAssertTrue(entries.allSatisfy { $0.solidGroup < 0 })
         let registry = FilePromiseRegistry(), gates = (0..<count).map { _ in ScenarioGate() }
-        defer { for gate in gates { gate.release() } }
         let promises = try entries.map { entry in
             try registry.register(payload: fixture.payload(entry.name, session: session, index: entry.index),
                 session: session, didWrite: { _ in gates[entry.index].pauseOnce() })
         }
         registry.began(sessionID: 43, promises: promises.map(\.id))
         let queue = try XCTUnwrap(promises.first?.provider.delegate as? ArchiveFilePromise).debugExtractionQueue
+        let delegates = try promises.map { try XCTUnwrap($0.provider.delegate as? ArchiveFilePromise) }
         let completed = expectation(description: "Independent promises")
         completed.expectedFulfillmentCount = count
-        for (promise, entry) in zip(promises, entries).reversed() {
-            let delegate = try XCTUnwrap(promise.provider.delegate as? ArchiveFilePromise)
+        let callbackCount = Mutex(0), callbacksFinished = AsyncGate()
+        for index in entries.indices.reversed() {
+            let promise = promises[index], entry = entries[index], delegate = delegates[index]
             delegate.filePromiseProvider(promise.provider, writePromiseTo: fixture.output.appendingPathComponent(entry.name)) { @Sendable error in
                 XCTAssertNil(error)
                 completed.fulfill()
+                if callbackCount.withLock({ $0 += 1; return $0 }) == count {
+                    Task { await callbacksFinished.release() }
+                }
             }
         }
-        try await scenarioWait { gates.prefix(4).allSatisfy(\.isEntered) }
-        XCTAssertEqual(queue.activeCount.withLock { $0 }, 4)
-        XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, 4)
-        XCTAssertFalse(gates.dropFirst(4).contains { $0.isEntered })
-        for gate in gates { gate.release() }
-        await fulfillment(of: [completed], timeout: 15)
-        XCTAssertEqual(queue.maximumActiveCount.withLock { $0 }, 4)
-        XCTAssertEqual(queue.activeCount.withLock { $0 }, 0)
+        // 同期 gate が cooperative pool を止めても、CPU 数相当以上、最大 4 行が進めばよい。
+        let concurrency = min(4, ProcessInfo.processInfo.activeProcessorCount)
+        func releaseAndDrain() async {
+            for gate in gates { gate.release() }
+            await fulfillment(of: [completed], timeout: 30)
+            // expectation が時間切れでも fixture を先に破棄しない。欠落は test timeout で検出する。
+            await callbacksFinished.waitIgnoringCancellation()
+            XCTAssertEqual(queue.activeCount.withLock { $0 }, 0)
+            await session.close()
+        }
+        do {
+            try await scenarioWait { gates.filter(\.isEntered).count >= concurrency }
+            let entered = gates.filter(\.isEntered).count
+            XCTAssertGreaterThanOrEqual(entered, concurrency)
+            XCTAssertLessThanOrEqual(entered, 4)
+            XCTAssertLessThanOrEqual(queue.activeCount.withLock { $0 }, 4)
+            XCTAssertLessThanOrEqual(queue.maximumActiveCount.withLock { $0 }, 4)
+            XCTAssertFalse(gates.dropFirst(4).contains { $0.isEntered })
+        } catch {
+            await releaseAndDrain()
+            throw error
+        }
+        await releaseAndDrain()
+        XCTAssertLessThanOrEqual(queue.maximumActiveCount.withLock { $0 }, 4)
         XCTAssertLessThanOrEqual(queue.readerReopenCount.withLock { $0 }, 4)
         for entry in entries {
             XCTAssertEqual(try String(contentsOf: fixture.output.appendingPathComponent(entry.name), encoding: .utf8),
                            "contents-\(entry.index)")
         }
-        await session.close()
     }
 
     @MainActor func testDifferentSolidGroupsRunConcurrentlyAndEachReusesItsOrderedReader() async throws {

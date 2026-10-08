@@ -72,12 +72,13 @@ private final class ArchiveSaveResizeAnimation: NSObject {
         weak var animation: ArchiveSaveResizeAnimation?
         @objc func tick(_ link: CADisplayLink) { animation?.tick(link) }
     }
-    private let update: @MainActor (CGFloat) -> Void
+    private static let duration: CFTimeInterval = 0.24
+    private let update: @MainActor (CGFloat, Bool) -> Void
     private var link: CADisplayLink?
     private var startTime: CFTimeInterval = 0
     private var generation = 0
 
-    init(update: @escaping @MainActor (CGFloat) -> Void) {
+    init(update: @escaping @MainActor (CGFloat, Bool) -> Void) {
         self.update = update
         super.init()
     }
@@ -100,14 +101,16 @@ private final class ArchiveSaveResizeAnimation: NSObject {
     }
 
     private func tick(_ link: CADisplayLink) {
-        // 目標時刻を過ぎても、XPC 側への反映が終わるまでは更新を続ける。
-        let progress = min(1, max(0, (link.targetTimestamp - startTime) / 0.24))
+        // XPC の応答が止まっても、予定終了から 1 秒後には最終寸法へ確定する。
+        let elapsed = link.targetTimestamp - startTime
+        let progress = min(1, max(0, elapsed / Self.duration))
+        let forceFinish = elapsed >= Self.duration + 1
         let value = CGFloat((1 - cos(progress * .pi)) / 2)
         let generation = generation
         // ウインドウの変更は描画コールバックを抜けてからまとめて反映する。
         DispatchQueue.main.async { [weak self] in
             guard let self, self.generation == generation else { return }
-            self.update(value)
+            self.update(value, forceFinish)
         }
     }
 }
@@ -143,6 +146,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     private let reducesMotion: () -> Bool
     private var layoutGeneration = 0
     private var resizeAnimation: ArchiveSaveResizeAnimation?
+    private var isCorrectingOffscreenFrame = false
     private struct FilenameChange {
         let name: String
         let directory: URL?
@@ -422,6 +426,22 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             panel.accessoryView?.needsLayout = true
             panel.accessoryView?.layoutSubtreeIfNeeded()
         }
+        correctOffscreenFrame()
+    }
+
+    private func correctOffscreenFrame() {
+        guard panel.isVisible, !isCorrectingOffscreenFrame,
+              let visible = (panel.screen ?? panel.sheetParent?.screen)?.visibleFrame else { return }
+        let deficit = visible.minY - panel.frame.minY
+        guard deficit > 0 else { return }
+        // 後から伸びたシートでは AppKit が親を動かさず、保存ボタンが画面外へ出る。
+        // 画面内なら触らない。親の上端を越えない範囲で不足分だけ上へ戻す。
+        let window = panel.sheetParent ?? panel
+        let correction = min(deficit, max(0, visible.maxY - window.frame.maxY))
+        guard correction > 0 else { return }
+        isCorrectingOffscreenFrame = true
+        defer { isCorrectingOffscreenFrame = false }
+        window.setFrameOrigin(NSPoint(x: window.frame.minX, y: window.frame.minY + correction))
     }
 
     @objc private func panelWillStartLiveResize(_ notification: Notification) {
@@ -507,7 +527,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         if animate && wasVisible { passwordFields.view.isHidden = false }
         accessory.needsLayout = true
         accessory.layoutSubtreeIfNeeded()
-        let update: @MainActor (CGFloat) -> Void = { [weak self, weak accessory] progress in
+        let update: @MainActor (CGFloat, Bool) -> Void = { [weak self, weak accessory] progress, forceFinish in
             guard let self, let accessory, self.layoutGeneration == generation else { return }
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0
@@ -515,7 +535,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
                 // 途中の寸法を整数ポイントに揃え、保存パネル側の丸め直しを抑える。
                 var height = progress >= 1 ? size.height
                     : initialHeight + ((size.height - initialHeight) * progress / heightStep).rounded() * heightStep
-                if animate {
+                if animate && !forceFinish {
                     // XPC 側の表示領域より何フレームも先へ要求を進めない。
                     // 先行分を上余白より小さく保ち、ホストの古いクリップが行へ届くのを防ぐ。
                     let hostHeight = accessory.superview?.bounds.height ?? accessory.bounds.height
@@ -542,6 +562,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
                 self.passwordFields.view.alphaValue = initialAlpha + ((enablesFields ? 1 : 0) - initialAlpha) * visibleProgress
                 accessory.layoutSubtreeIfNeeded()
             }
+            if !fitsScreen { self.correctOffscreenFrame() }
             if progress >= 1 && abs(accessory.frame.height - size.height) < 0.5 {
                 self.resizeAnimation?.stop()
                 self.resizeAnimation = nil
@@ -572,7 +593,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             resizeAnimation = animation
             animation.start(on: panel.contentView ?? accessory)
         } else {
-            update(1)
+            update(1, false)
         }
         panel.recalculateKeyViewLoop()
     }

@@ -1,5 +1,50 @@
 # UI の操作経路とレイアウトの回帰テスト
 
+## CI と Mac mini の分担
+
+ビルドは Xcode 27 のみ、実行環境は macOS 26 以上とする（配備先 `26.0`）。
+Swift 6.3.3 の `-O` による `TaskLocal<function?>.withValue` の誤コンパイルは
+GyoshukuKit の 2026-10-08 probe で確認済みのため、Xcode 26 でのビルドは CI に含めない。
+
+`.github/workflows/ci.yml` は Xcode 27 / macOS 27 で Debug の全 testable を試験し、
+Xcode 27 で作った同じ app-hosted bundle を macOS 26 / Xcode 26.6 で再コンパイルせず実行する。
+Debug は ad-hoc 署名・hardened runtime 無効。Release の署名済み製品は別途 Mac mini で確認する。
+毎回 `sevenzip`・`xz`・`zstd` を導入し、`/opt/homebrew/bin/` の実体を確認する。
+`TEST_RUNNER_CI=1` をテストホストへ渡し、所要時間の assertion を緩和する。
+`KAITOFINDER_*` の probe / 外部操作用変数は指定しない。
+
+CI では次の実ドラッグ class を常に除外する。これ以外は既存の `XCTSkip` の条件に従う。
+
+- `ArchiveTabSpringLoadingTests`
+- `ArchiveDropIntegrationTests`
+- `ReadOnlyDropConversionUITests`
+
+これらの class と `Tools/` の実 HID GUI driver、性能 probe、実 Sparkle の更新検証、
+Developer ID 署名・notarization は Mac mini のログイン済み GUI セッションで検証する。
+CI でもロック状態・console session と SIP 状態を出力し、ロック中や console 不在なら試験前に失敗する。
+試験には 600 秒の allowance と 240 分の job 上限を設ける。
+実行 0 件、失敗のある summary、`Required fixture tool is unavailable` / `7zz is not installed`
+による黙った skip を成功にしない。
+
+macOS 26 へは Products 全体と Xcode 27 の platform frameworks / private frameworks / usr/lib、
+強くリンクする SharedFrameworks の依存を tar で運ぶ（weak dependency は辿らない）。
+3 repo の SHA、checkout / DerivedData / RUNNER_TEMP の絶対パスを manifest で照合する。
+`#filePath` のソース・文書・兄弟 fixture と、bundle の絶対 `LC_RPATH` を保つための条件である。
+
+まず `.xctestrun` のコピーで DYLD の参照先を同梱ランタイムへ変更し、Xcode 26.6 の
+`test-without-building` で実行する。テスト開始・`Executed` summary の前に失敗した場合だけ、
+同梱 `libXCTestBundleInject.dylib` を指定してアプリの実行ファイルを直接起動する。
+fallback の実行・除外指定と timeout は、Xcode 27 の XCTestCore が生成した
+`XCTestConfigurationFilePath` 用の NSKeyedArchiver ファイルで渡す。
+これは private API に依存し、macOS 26 上での動作は初回 CI で確認する必要がある。
+一件でもテストを開始した primary の失敗は fallback で隠さない。
+
+失敗時は `.xcresult`、テストログ、`~/Library/Logs/DiagnosticReports/KaitoFinder*` を保存する。
+fallback で回復しても primary の診断を保存し、どちらの方法が動いたかを最後の gate に表示する。
+直接起動の fallback は `.xcresult` を生成しないので、標準出力の summary と終了状態で判定する。
+
+## Mac mini での操作経路検証
+
 UI の接続・メニュー構築・起動経路・保存パネル・ウインドウ構成を変更するときは、
 通常の `xcodebuild test` に加えて次を実行する。
 

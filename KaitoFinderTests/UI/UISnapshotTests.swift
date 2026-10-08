@@ -133,6 +133,26 @@ nonisolated final class UISnapshotTests: XCTestCase {
         XCTAssertTrue(UISnapshot.overflowViolations(in: scroll).contains { $0.contains("内容の幅") })
     }
 
+    @MainActor func testScrollViewIgnoresInternalPartsButDetectsDocumentOverflowAndItsOwnFrame() {
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 100))
+        let scroll = NSScrollView(frame: root.bounds)
+        root.addSubview(scroll)
+        let document = NSView(frame: scroll.bounds)
+        scroll.documentView = document
+        let pocket = NSView(frame: .zero)
+        pocket.addSubview(NSView(frame: NSRect(x: 0, y: 0, width: 0, height: 1)))
+        scroll.addSubview(pocket)
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).isEmpty)
+
+        let overflow = NSView(frame: NSRect(x: 90, y: 10, width: 20, height: 20))
+        overflow.identifier = NSUserInterfaceItemIdentifier("document-overflow")
+        document.addSubview(overflow)
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).contains { $0.contains("document-overflow") })
+        overflow.removeFromSuperview()
+        scroll.setFrameOrigin(NSPoint(x: 10, y: 0))
+        XCTAssertTrue(UISnapshot.overflowViolations(in: root).contains { $0.contains("NSScrollView") && $0.contains("親の領域") })
+    }
+
     @MainActor func testRenderOverloadsWriteTwoTimesPNGs() throws {
         let view = SnapshotPatternView(frame: NSRect(x: 0, y: 0, width: 120, height: 80))
         let window = NSWindow(contentRect: view.frame, styleMask: [.borderless], backing: .buffered, defer: false)

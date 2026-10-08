@@ -458,7 +458,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             XCTAssertEqual(controller.tabController.selectedTabViewItemIndex, index)
             XCTAssertTrue(visible.insetBy(dx: -0.5, dy: -0.5).contains(window.frame))
             XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.width, initialSize.width, accuracy: 0.5)
-            XCTAssertTrue(UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView)).isEmpty)
+            let violations = UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView))
+            XCTAssertTrue(violations.isEmpty, "\(identifier)\n" + violations.joined(separator: "\n"))
         }
         XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, initialSize)
     }

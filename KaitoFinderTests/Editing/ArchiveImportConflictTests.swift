@@ -219,7 +219,11 @@ nonisolated final class ArchiveImportConflictTests: XCTestCase {
                     if !changeDuringConfirmation { try Data("changed during write".utf8).write(to: source) }
                 })
                 XCTFail("確認した入力を変更したのに公開された")
-            } catch { XCTAssertTrue(String(describing: error).contains("追加元が変更")) }
+            } catch {
+                guard case ExtractionFailure.refused(let message) = error else { return XCTFail("\(error)") }
+                XCTAssertEqual(message, String(localized: "確認中に追加元が変更されました。もう一度追加してください: \(source.lastPathComponent)。",
+                                               bundle: Bundle(for: ArchiveDocument.self)))
+            }
             XCTAssertEqual(try ScenarioFixture.digest(fixture.archive), before)
             XCTAssertEqual(session.generation, 0)
             XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: fixture.root.path).contains { $0.hasPrefix(".KaitoFinder-add-") })

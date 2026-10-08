@@ -1,0 +1,207 @@
+name: CI
+
+# build は Xcode 27 / Swift 6.4 のみ。MACOSX_DEPLOYMENT_TARGET=26.0 を維持する。
+# Swift 6.3.3 の -O は TaskLocal<function?> の withValue を誤コンパイルする
+# （valueType metadata が nil、EXC_BAD_ACCESS。GyoshukuKit の 2026-10-08 probe で確認）。
+# xcode-27 では Debug の app-hosted tests を build / 実行し、macos-26 では
+# 同じ Products と Xcode 27 の XCTest を運んで実行する。macos-26 でコンパイルしない。
+# Tools/ の実 HID GUI driver、性能 probe、実 software update 検証、署名・notarization は
+# Mac mini の GUI / リリース検証で扱う。実ドラッグの 3 class は CI では除外する。
+# 1024x768 / 非アクティブ host では達成可能な geometry / activation を検査する。
+# 厳密な保存パネル geometry は、アニメーションによる伸縮が収まる画面を前提とする。
+# 1024x768 hosted VM では画面外補正が設計どおりパネルを動かすため、Mac mini の GUI runs で検証する。
+# xcode-27 / macos-26 共通: ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents
+#                        ArchivePasswordUITests/testSplitSavePanelResizesWithoutSlidingContents
+# macos-26 のみ: ApplicationCommandIntegrationTests/testToolbarAndResponderChainApplyEditsAndRespectTextFocus
+# macOS 26 の非アクティブな test host では toolbar の visibleItems が揃わない。
+# Mac mini (macOS 27) と xcode-27 job で検証する。
+on:
+  push:
+    branches: [main]
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+  # 兄弟 repo の main による破損を、本 repo への push を待たずに検出する。
+  schedule:
+    - cron: '17 21 * * 1'
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-and-test:
+    runs-on: xcode-27
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+      - name: Clone sibling packages and install fixture tools
+        run: |
+          source Tools/ci/common.sh
+          clone_siblings
+          brew install sevenzip xz zstd
+          require_fixture_tools
+      - name: Build session checker and verify GUI session
+        run: |
+          source Tools/ci/common.sh
+          require_xcode_27
+          build_helpers "$RUNNER_TEMP/kaitofinder-helpers"
+          check_session "$RUNNER_TEMP/kaitofinder-helpers"
+      - name: Build and run Debug app-hosted tests
+        env:
+          TEST_RUNNER_CI: '1'
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          build_tests && check_session "$RUNNER_TEMP/kaitofinder-helpers" && test_with_scheme
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-27-failure
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/*.xcresult
+            ~/Library/Logs/DiagnosticReports/KaitoFinder*
+          if-no-files-found: warn
+          retention-days: 7
+
+  build-for-macos-26:
+    runs-on: xcode-27
+    timeout-minutes: 240
+    outputs:
+      checkout-sha: ${{ steps.revision.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Record actual checkout SHA (including PR merge commit)
+        id: revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Clone sibling packages
+        run: |
+          source Tools/ci/common.sh
+          clone_siblings
+      - name: Build Debug tests and package Xcode 27 runtime
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          require_xcode_27
+          build_helpers "$RUNNER_TEMP/kaitofinder-helpers"
+          build_tests && python3 Tools/ci/runtime.py package \
+            "$KF_DERIVED_DATA" "$KF_STAGE" "$RUNNER_TEMP/kaitofinder-helpers"
+          # tar が framework / bundle の symlink と実行権限を保つ。
+          tar -czf "$RUNNER_TEMP/macos-26-tests.tar.gz" -C "$KF_STAGE" Products ci-runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-26-tests
+          path: ${{ runner.temp }}/macos-26-tests.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+      - name: Upload build failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transfer-build-failure
+          path: |
+            ${{ runner.temp }}/*.log
+            ${{ runner.temp }}/*.xcresult
+            ~/Library/Logs/DiagnosticReports/KaitoFinder*
+          if-no-files-found: warn
+          retention-days: 7
+
+  macos-26-runtime:
+    runs-on: macos-26
+    needs: build-for-macos-26
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.build-for-macos-26.outputs.checkout-sha }}
+      - name: Install fixture tools and show runtime versions
+        run: |
+          source Tools/ci/common.sh
+          sw_vers
+          kf_xcode_version="$(xcodebuild -version)"
+          printf '%s\n' "$kf_xcode_version"
+          test "$(sw_vers -productVersion | cut -d. -f1)" = 26
+          test "$(uname -m)" = arm64
+          grep -Eq '^Xcode 26[.]6([.]|$)' <<< "$kf_xcode_version"
+          brew install sevenzip xz zstd
+          require_fixture_tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-26-tests
+          path: ${{ runner.temp }}/macos-26-artifact
+      - name: Restore products, sibling SHAs and absolute paths
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          mkdir -p "$KF_STAGE"
+          tar -xzf "$RUNNER_TEMP/macos-26-artifact/macos-26-tests.tar.gz" -C "$KF_STAGE"
+          python3 Tools/ci/runtime.py restore "$KF_STAGE" "$KF_DERIVED_DATA"
+          check_session "$KF_STAGE/ci-runtime/bin"
+          python3 Tools/ci/runtime.py patch "$KF_DERIVED_DATA/Build/Products" "$KF_STAGE/ci-runtime"
+      - name: Primary — patched xctestrun with shipped Xcode 27 XCTest
+        id: primary
+        # launch/load で失敗したときだけ次の step に進め、最後の gate で成否を確定する。
+        continue-on-error: true
+        env:
+          TEST_RUNNER_CI: '1'
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          set +e
+          xcodebuild test-without-building \
+            -xctestrun "$KF_DERIVED_DATA/Build/Products/ci-macos-26.xctestrun" \
+            -destination 'platform=macOS,arch=arm64' \
+            -resultBundlePath "$RUNNER_TEMP/macos-26-primary.xcresult" \
+            -parallel-testing-enabled NO -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 600 -maximum-test-execution-time-allowance 600 \
+            2>&1 | tee "$RUNNER_TEMP/macos-26-primary.log"
+          kf_primary_status=$?
+          set -e
+          echo "exit-code=$kf_primary_status" >> "$GITHUB_OUTPUT"
+          if python3 Tools/ci/runtime.py fallback-eligible "$RUNNER_TEMP/macos-26-primary.log" "$kf_primary_status"; then
+            echo 'fallback=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'fallback=false' >> "$GITHUB_OUTPUT"
+          fi
+          test "$kf_primary_status" -eq 0
+          python3 Tools/ci/runtime.py guard "$RUNNER_TEMP/macos-26-primary.log"
+      - name: Fallback — direct app executable with XCTest configuration
+        id: fallback
+        if: steps.primary.outputs.fallback == 'true'
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          check_session "$KF_STAGE/ci-runtime/bin"
+          # env / arch で app を起動しない。Python が exec の env を直接渡す。
+          python3 -u Tools/ci/runtime.py direct "$KF_DERIVED_DATA/Build/Products" "$KF_STAGE/ci-runtime" \
+            2>&1 | tee "$RUNNER_TEMP/macos-26-direct.log"
+          python3 Tools/ci/runtime.py guard "$RUNNER_TEMP/macos-26-direct.log"
+      - name: Require a verified successful run
+        if: always()
+        env:
+          PRIMARY_OUTCOME: ${{ steps.primary.outcome }}
+          FALLBACK_OUTCOME: ${{ steps.fallback.outcome }}
+        run: |
+          set -euo pipefail
+          printf 'primary=%s fallback=%s\n' "$PRIMARY_OUTCOME" "$FALLBACK_OUTCOME"
+          test "$PRIMARY_OUTCOME" = success || test "$FALLBACK_OUTCOME" = success
+      - name: Upload runtime diagnostics (including primary failure recovered by fallback)
+        if: always() && (failure() || steps.primary.outcome == 'failure')
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-26-diagnostics
+          path: |
+            ${{ runner.temp }}/macos-26-*.log
+            ${{ runner.temp }}/*.xcresult
+            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/manifest.json
+            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/selectors.json
+            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/direct.xctestconfiguration
+            ${{ runner.temp }}/kaitofinder-dd/Build/Products/ci-macos-26.xctestrun
+            ~/Library/Logs/DiagnosticReports/KaitoFinder*
+          if-no-files-found: warn
+          retention-days: 7

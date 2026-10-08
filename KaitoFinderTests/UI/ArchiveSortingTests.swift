@@ -142,6 +142,21 @@ nonisolated final class ArchiveSortingTests: XCTestCase {
     }
 
     @MainActor func testKindDescriptionsTypesAndIconsForDocumentsExecutablesAndLinks() throws {
+        func pixels(_ image: NSImage) throws -> Data {
+            // 遅延描画される複数解像度の TIFF ではなく、32 pt / 2x の画素を比較する。
+            let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 64, pixelsHigh: 64,
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 256, bitsPerPixel: 32))
+            let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+            NSGraphicsContext.saveGraphicsState()
+            defer { NSGraphicsContext.restoreGraphicsState() }
+            NSGraphicsContext.current = context
+            context.cgContext.clear(CGRect(x: 0, y: 0, width: 64, height: 64))
+            context.cgContext.scaleBy(x: 2, y: 2)
+            image.draw(in: NSRect(x: 0, y: 0, width: 32, height: 32), from: .zero,
+                       operation: .copy, fraction: 1, respectFlipped: false, hints: [.interpolation: NSImageInterpolation.high])
+            return Data(bytes: try XCTUnwrap(bitmap.bitmapData), count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        }
         let root = EntryNode.tree(from: [
             archiveColumnEntry("README", permissions: 0o644), archiveColumnEntry("run", permissions: 0o755),
             archiveColumnEntry("group-run", permissions: 0o010), archiveColumnEntry("other-run", permissions: 0o001),
@@ -167,7 +182,7 @@ nonisolated final class ArchiveSortingTests: XCTestCase {
             case "hard": XCTAssertEqual(kind.description, String(localized: "ハードリンク"))
             default: XCTFail(node.name)
             }
-            XCTAssertEqual(resolver.icon(for: node).tiffRepresentation, NSWorkspace.shared.icon(for: kind.type).tiffRepresentation)
+            XCTAssertEqual(try pixels(resolver.icon(for: node)), try pixels(NSWorkspace.shared.icon(for: kind.type)), node.name)
         }
         let fresh = EntryNode.tree(from: [archiveColumnEntry("new", permissions: 0o755)])
         resolver.resetNodes()
