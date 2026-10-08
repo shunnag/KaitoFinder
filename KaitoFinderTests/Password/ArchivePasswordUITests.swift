@@ -262,14 +262,32 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
                     let y = visible.maxY - height
                     save.panel.setFrame(NSRect(x: frame.minX, y: y, width: frame.width, height: height), display: true)
                     try await Task.sleep(for: .milliseconds(200))
-                    // シートの原点指定は native panel に無視されるため、親で上端を合わせる。
                     if let parent {
+                        func waitForStableFrames() async throws {
+                            var frames = (parent.frame, save.panel.frame)
+                            var stableSince = ContinuousClock.now
+                            try await waitUntil("保存シートの配置が時間切れ: parent=\(parent.frame), panel=\(save.panel.frame)") {
+                                if frames.0 != parent.frame || frames.1 != save.panel.frame {
+                                    frames = (parent.frame, save.panel.frame)
+                                    stableSince = .now
+                                }
+                                return stableSince.duration(to: .now) >= .milliseconds(200)
+                            }
+                        }
+                        // シートは親のタイトルバーより下に付くため、画面上端には揃わない。
+                        // 親を上端へ寄せ、安定した実際のシート位置から伸縮の余地を測る。
                         parent.setFrameOrigin(NSPoint(x: parent.frame.minX,
-                            y: parent.frame.minY + visible.maxY - save.panel.frame.maxY))
+                            y: visible.maxY - parent.frame.height))
+                        try await waitForStableFrames()
+                        let actual = save.panel.frame
+                        let height = min(600, actual.maxY - visible.minY - formGrowth)
+                        save.panel.setFrame(NSRect(x: actual.minX, y: actual.maxY - height,
+                                                  width: actual.width, height: height), display: true)
+                        try await waitForStableFrames()
                     } else {
                         save.panel.setFrameOrigin(NSPoint(x: save.panel.frame.minX, y: visible.maxY - save.panel.frame.height))
+                        try await scenarioWait { abs(save.panel.frame.maxY - visible.maxY) < 0.5 }
                     }
-                    try await scenarioWait { abs(save.panel.frame.maxY - visible.maxY) < 0.5 }
                 }
                 let initialPanelFrame = save.panel.frame
                 var nonAccessoryHeight = initialPanelFrame.height - accessory.frame.height
