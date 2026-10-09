@@ -1,6 +1,328 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "速さを優先する（圧縮率がわずかに下がります）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upřednostnit rychlost (mírně větší archivy)"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prioriter hastighed (lidt større arkiver)"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschwindigkeit bevorzugen (etwas größere Archive)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prefer speed (slightly larger archives)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Priorizar la velocidad (archivos ligeramente más grandes)"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suosi nopeutta (hieman suuremmat arkistot)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privilégier la vitesse (archives légèrement plus volumineuses)"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "गति को प्राथमिकता दें (थोड़े बड़े आर्काइव)"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utamakan kecepatan (arsip sedikit lebih besar)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferisci la velocità (archivi leggermente più grandi)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "速さを優先する（圧縮率がわずかに下がります）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "속도 우선 (압축 파일이 약간 커집니다)"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utamakan kelajuan (arkib sedikit lebih besar)"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prioriter hastighet (litt større arkiver)"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voorkeur voor snelheid (iets grotere archieven)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Priorytet szybkości (nieco większe archiwa)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Priorizar velocidade (arquivos um pouco maiores)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dar prioridade à velocidade (arquivos ligeiramente maiores)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предпочитать скорость (архивы немного больше)"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prioritera hastighet (något större arkiv)"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ให้ความสำคัญกับความเร็ว (ไฟล์เก็บถาวรใหญ่ขึ้นเล็กน้อย)"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hıza öncelik ver (biraz daha büyük arşivler)"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Надавати перевагу швидкості (трохи більші архіви)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ưu tiên tốc độ (tệp lưu trữ lớn hơn một chút)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "优先速度（压缩文件略大）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "優先速度（壓縮檔稍大）"
+          }
+        }
+      }
+    },
+    "コア数の多いMacで、対応する圧縮方式の処理を速めます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zrychluje podporované metody komprese na Macích s mnoha jádry."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gør understøttede komprimeringsmetoder hurtigere på Mac-computere med mange kerner."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschleunigt unterstützte Kompressionsmethoden auf Macs mit vielen Kernen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speeds up supported compression methods on Macs with many cores."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acelera los métodos de compresión compatibles en los Mac con muchos núcleos."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nopeuttaa tuettuja pakkausmenetelmiä moniytimisissä Maceissa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accélère les méthodes de compression prises en charge sur les Mac dotés de nombreux cœurs."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कई कोर वाले Mac पर समर्थित संपीड़न विधियों को तेज़ करता है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mempercepat metode kompresi yang didukung pada Mac dengan banyak inti."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Velocizza i metodi di compressione supportati sui Mac con molti core."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コア数の多いMacで、対応する圧縮方式の処理を速めます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "코어가 많은 Mac에서 지원되는 압축 방식의 처리 속도를 높입니다."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mempercepat kaedah pemampatan yang disokong pada Mac dengan banyak teras."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gjør støttede komprimeringsmetoder raskere på Mac-maskiner med mange kjerner."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versnelt ondersteunde compressiemethoden op Macs met veel cores."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przyspiesza obsługiwane metody kompresji na Macach z wieloma rdzeniami."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acelera os métodos de compressão compatíveis em Macs com muitos núcleos."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acelera os métodos de compressão suportados em Macs com muitos núcleos."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ускоряет поддерживаемые методы сжатия на Mac с большим числом ядер."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snabbar upp komprimeringsmetoder som stöds på Mac-datorer med många kärnor."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เพิ่มความเร็วของวิธีบีบอัดที่รองรับบน Mac ที่มีหลายคอร์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çok çekirdekli Mac bilgisayarlarda desteklenen sıkıştırma yöntemlerini hızlandırır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прискорює підтримувані методи стиснення на Mac із великою кількістю ядер."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tăng tốc các phương thức nén được hỗ trợ trên máy Mac có nhiều lõi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在多核Mac上加快受支持的压缩方式。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在多核心Mac上加快支援的壓縮方式。"
+          }
+        }
+      }
+    },
     "電力の使用方針:" : {
       "extractionState" : "manual",
       "localizations" : {

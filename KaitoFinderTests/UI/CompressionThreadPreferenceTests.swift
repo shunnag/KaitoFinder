@@ -71,6 +71,75 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
         }
     }
 
+    @MainActor func testSpeedSelectionPersistsWithoutWindow() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let model = PreferencesViewModel(store: store)
+        XCTAssertFalse(model.preferences.prefersSpeed)
+        for enabled in [true, false] {
+            model.changePrefersSpeed(to: enabled)
+            XCTAssertEqual(model.preferences.prefersSpeed, enabled)
+            XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences.prefersSpeed, enabled)
+        }
+    }
+
+    func testSpeedCatalogHasSettingsTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for (key, english) in [
+            ("速さを優先する（圧縮率がわずかに下がります）", "Prefer speed (slightly larger archives)"),
+            ("コア数の多いMacで、対応する圧縮方式の処理を速めます。", "Speeds up supported compression methods on Macs with many cores.")
+        ] {
+            let entry = try XCTUnwrap(catalog.strings[key])
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(entry.localizations[language]?.stringUnit)
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                if language == "ja" || language == "en" {
+                    let expected = language == "ja" ? key : english
+                    XCTAssertEqual(unit.value, expected)
+                    let bundle = try LocalizationAcceptance.bundle(language)
+                    XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), expected)
+                }
+            }
+        }
+    }
+
+    func testAllFormatsReceiveSpeedPreference() {
+        for enabled in [false, true] {
+            for policy in ArchivePreferences.PowerPolicy.allCases {
+                for threads in [0, 1, 36] {
+                    let preferences = ArchivePreferences(compressionThreads: threads, powerPolicy: policy, prefersSpeed: enabled)
+                    for format in ArchivePreferences.formats {
+                        let options = preferences.writerOptions(for: format)
+                        XCTAssertEqual(options.prefersSpeed, enabled, "\(format)")
+                        XCTAssertEqual(options.compressionThreads, threads == 0 ? nil : threads)
+                        XCTAssertEqual(options.powerPolicy, policy.writerPolicy)
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor func testSingleStreamCreationAndSavePanelKeepSpeedPreference() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let directory = try ArchiveTestDirectory()
+        let source = directory.url.appendingPathComponent("payload.txt")
+        try Data("payload".utf8).write(to: source)
+        let creator = ArchiveCreationController(store: store)
+        let panel = ArchiveSavePanelController(store: store, sources: [source])
+        for enabled in [true, false] {
+            store.preferences.prefersSpeed = enabled
+            for (index, stream) in ArchiveCreationPlan.singleStreamFormats.enumerated() {
+                panel.selectFormat(at: ArchivePreferences.formats.count + 2 + index, persistsDefault: false)
+                XCTAssertEqual(panel.singleStreamFormat, stream)
+                XCTAssertEqual(panel.writerOptions.prefersSpeed, enabled)
+                let plan = creator.creationPlan(sources: [source], destination: directory.url.appendingPathComponent("output"),
+                    format: ArchiveCreationPlan.archiveFormat(for: stream), level: .maximum, singleStreamFormat: stream)
+                XCTAssertEqual(plan.options.prefersSpeed, enabled)
+            }
+        }
+    }
+
     func testAllThirteenFormatsOnlyChangeCompressionThreads() {
         for position in ArchivePreferences.AdditionPosition.allCases {
             for owners in ArchivePreferences.CarriedOwnerIDPolicy.allCases {
@@ -125,12 +194,14 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
         for threads in [0, 2, 7] {
             store.preferences.compressionThreads = threads
             store.preferences.powerPolicy = .alwaysUseAllCores
+            store.preferences.prefersSpeed = threads != 2
             for format in ArchivePreferences.formats {
                 let encryption = ArchiveEncryptionSettings(password: format == .zip || format == .sevenZip ? "x" : nil)
                 let plan = controller.creationPlan(sources: [], destination: directory.url.appendingPathComponent("output"),
                                                    format: format, level: .maximum, encryption: encryption)
                 XCTAssertEqual(plan.options.compressionThreads, threads == 0 ? nil : threads)
                 XCTAssertEqual(plan.options.powerPolicy, .alwaysUseAllCores)
+                XCTAssertEqual(plan.options.prefersSpeed, threads != 2)
                 XCTAssertEqual(plan.options.password, encryption.password)
                 if format == .zip || format == .tarGzip { XCTAssertEqual(plan.options.deflateLevel, 9) }
                 if format == .tarBzip2 { XCTAssertEqual(plan.options.bzip2Level, 9) }
@@ -141,6 +212,7 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
             .applying(to: store.preferences.writerOptions(for: .zip), format: .zip)
         XCTAssertEqual(passwordOptions.compressionThreads, 2)
         XCTAssertEqual(passwordOptions.powerPolicy, .alwaysUseAllCores)
+        XCTAssertTrue(passwordOptions.prefersSpeed)
         XCTAssertEqual(passwordOptions.password, "x")
     }
 
@@ -150,14 +222,19 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
             defer { fixture.document.close() }
             let session = try XCTUnwrap(fixture.document.session)
             XCTAssertNil(session.writerOptions(.zip).compressionThreads)
+            XCTAssertFalse(session.writerOptions(.zip).prefersSpeed)
             fixture.store.preferences.compressionThreads = 2
             fixture.store.preferences.powerPolicy = .alwaysUseAllCores
+            fixture.store.preferences.prefersSpeed = true
             XCTAssertEqual(session.writerOptions(.zip).compressionThreads, 2)
             XCTAssertEqual(session.writerOptions(.zip).powerPolicy, .alwaysUseAllCores)
+            XCTAssertTrue(session.writerOptions(.zip).prefersSpeed)
             fixture.store.preferences.compressionThreads = 0
             fixture.store.preferences.powerPolicy = .reduceInLowPowerModeOrThermalPressure
+            fixture.store.preferences.prefersSpeed = false
             XCTAssertNil(session.writerOptions(.zip).compressionThreads)
             XCTAssertEqual(session.writerOptions(.zip).powerPolicy, .reduceInLowPowerModeOrThermalPressure)
+            XCTAssertFalse(session.writerOptions(.zip).prefersSpeed)
             XCTAssertTrue(fixture.document.session === session)
         }
     }

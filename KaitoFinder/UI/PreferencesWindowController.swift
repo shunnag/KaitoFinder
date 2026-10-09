@@ -65,6 +65,8 @@ final class PreferencesViewModel {
         store.preferences.powerPolicy = Self.powerPolicies[index]
     }
 
+    func changePrefersSpeed(to enabled: Bool) { store.preferences.prefersSpeed = enabled }
+
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
     var saveBehaviorIndex: Int { Self.saveBehaviors.firstIndex(of: preferences.saveBehavior)! }
     var openingBehaviorIndex: Int { Self.openingBehaviors.firstIndex(of: preferences.openingBehavior)! }
@@ -225,6 +227,8 @@ final class PreferencesWindowController: NSWindowController {
     let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let powerPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let prefersSpeedCheckbox: NSButton
+    let prefersSpeedNote: NSTextField
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
     let additionalFormatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let additionalMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -262,6 +266,10 @@ final class PreferencesWindowController: NSWindowController {
     init(store: ArchivePreferencesStore = .shared, bundle: Bundle = .main,
          softwareUpdater: any SoftwareUpdating = SoftwareUpdateController.shared, hardware: ArchiveHardware = .current) {
         self.bundle = bundle
+        prefersSpeedCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "速さを優先する（圧縮率がわずかに下がります）", bundle: bundle), target: nil, action: nil)
+        prefersSpeedNote = NSTextField(wrappingLabelWithString:
+            String(localized: "コア数の多いMacで、対応する圧縮方式の処理を速めます。", bundle: bundle))
         sevenZipSolidCheckbox = NSButton(checkboxWithTitle: String(localized: "ソリッド圧縮", bundle: bundle), target: nil, action: nil)
         self.softwareUpdater = softwareUpdater
         automaticallyChecksForUpdatesCheckbox = NSButton(
@@ -343,13 +351,18 @@ final class PreferencesWindowController: NSWindowController {
         zipCompatibilityNote.textColor = .secondaryLabelColor
         zipCompatibilityNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         zipCompatibilityNote.preferredMaxLayoutWidth = 520
+        prefersSpeedNote.preferredMaxLayoutWidth = 520
+        prefersSpeedNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        prefersSpeedNote.textColor = .secondaryLabelColor
         addTab(title: String(localized: "圧縮", bundle: bundle), symbol: "archivebox", sections: [
             group(rows: [checkboxRow(excludesDSStoreCheckbox), checkboxRow(excludesHiddenFilesCheckbox)], spanningRows: [0, 1]),
             group(rows: [
                 row(String(localized: "圧縮の並列数:", bundle: bundle), control: compressionThreadsPopup),
                 row("", control: compressionMemoryNote),
-                row(String(localized: "電力の使用方針:", bundle: bundle), control: powerPolicyPopup)
-            ]),
+                row(String(localized: "電力の使用方針:", bundle: bundle), control: powerPolicyPopup),
+                checkboxRow(prefersSpeedCheckbox),
+                [prefersSpeedNote, NSGridCell.emptyContentView]
+            ], spanningRows: [3, 4]),
             group(title: String(localized: "ZIP", bundle: bundle), rows: [
                 row(String(localized: "圧縮方式:", bundle: bundle), control: zipMethodPopup),
                 row(String(localized: "圧縮レベル:", bundle: bundle), control: levelControl(zipLevelSlider, label: zipLevelLabel)),
@@ -497,6 +510,7 @@ final class PreferencesWindowController: NSWindowController {
             (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
             (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
             (powerPolicyPopup, #selector(changePowerPolicy(_:))),
+            (prefersSpeedCheckbox, #selector(changePrefersSpeed(_:))),
             (additionalFormatPopup, #selector(changeAdditionalFormat(_:))),
             (additionalMethodPopup, #selector(changeAdditionalMethod(_:))),
             (additionalLevelPopup, #selector(changeAdditionalLevel(_:))),
@@ -713,6 +727,7 @@ final class PreferencesWindowController: NSWindowController {
         }
         compressionThreadsPopup.selectItem(at: viewModel.compressionThreadIndex)
         powerPolicyPopup.selectItem(at: viewModel.powerPolicyIndex)
+        prefersSpeedCheckbox.state = preferences.prefersSpeed ? .on : .off
         let memoryNote = viewModel.memoryNote
         compressionMemoryNote.stringValue = memoryNote.text
         compressionMemoryNote.textColor = memoryNote.warns ? .systemOrange : .secondaryLabelColor
@@ -818,6 +833,7 @@ final class PreferencesWindowController: NSWindowController {
     @objc private func changePowerPolicy(_ sender: NSPopUpButton) {
         viewModel.selectPowerPolicy(at: sender.indexOfSelectedItem)
     }
+    @objc private func changePrefersSpeed(_ sender: NSButton) { viewModel.changePrefersSpeed(to: sender.state == .on) }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
     @objc private func changeZipSkipsCompressedTypes(_ sender: NSButton) { viewModel.changeZipSkipsCompressedTypes(to: sender.state == .on) }
     @objc private func changeTarGzipLevel(_ sender: NSSlider) { viewModel.changeTarGzipLevel(to: sender.integerValue) }

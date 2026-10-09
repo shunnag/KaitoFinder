@@ -55,6 +55,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         XCTAssertEqual(value.defaultFormat, .zip)
         XCTAssertEqual(value.compressionThreads, 0)
         XCTAssertEqual(value.powerPolicy, .reduceInLowPowerMode)
+        XCTAssertFalse(value.prefersSpeed)
         XCTAssertEqual(value.zipMethod, .deflate)
         XCTAssertEqual(value.zipLevel, 6)
         XCTAssertTrue(value.zipSkipsCompressedTypes)
@@ -82,7 +83,8 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
     @MainActor func testStoreRoundTripsEveryField() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for (index, format) in ArchivePreferences.formats.enumerated() {
-            let value = ArchivePreferences(defaultFormat: format, compressionThreads: index, powerPolicy: ArchivePreferences.PowerPolicy.allCases[index % 3], zipMethod: index.isMultiple(of: 2) ? .stored : .deflate,
+            let value = ArchivePreferences(defaultFormat: format, compressionThreads: index, powerPolicy: ArchivePreferences.PowerPolicy.allCases[index % 3],
+                                           prefersSpeed: index.isMultiple(of: 2), zipMethod: index.isMultiple(of: 2) ? .stored : .deflate,
                                            zipLevel: 1 + index % 9, zipSkipsCompressedTypes: !index.isMultiple(of: 2),
                                            tarGzipLevel: 9 - index % 9, tarBzip2Level: 1 + index % 9, tarPreservesOwnerIDs: index.isMultiple(of: 2),
                                            extractionDestination: index.isMultiple(of: 2) ? .ask : .sameFolder,
@@ -101,6 +103,7 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
             XCTAssertEqual(reopened.preferences, value)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveCreationFormat"), ArchiveCreationPlan.filenameExtension(for: format))
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveCompressionThreads"), value.compressionThreads)
+            XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveCompressionPrefersSpeed"), value.prefersSpeed)
             XCTAssertEqual(suite.defaults.string(forKey: "ArchiveZipMethod"), value.zipMethod.rawValue)
             XCTAssertEqual(suite.defaults.integer(forKey: "ArchiveZipLevel"), value.zipLevel)
             XCTAssertEqual(suite.defaults.bool(forKey: "ArchiveZipSkipsCompressedTypes"), value.zipSkipsCompressedTypes)
@@ -200,6 +203,26 @@ nonisolated final class ArchivePreferencesTests: XCTestCase {
         }
         suite.defaults.removeObject(forKey: key)
         XCTAssertEqual(store.preferences.powerPolicy, .reduceInLowPowerMode)
+    }
+
+    @MainActor func testPrefersSpeedPersistsAndInvalidValuesUseFalse() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let key = ArchivePreferencesStore.Key.prefersSpeed
+        XCTAssertEqual(key, "ArchiveCompressionPrefersSpeed")
+        XCTAssertFalse(ArchivePreferences().prefersSpeed)
+        XCTAssertFalse(store.preferences.prefersSpeed)
+        for enabled in [true, false, true] {
+            store.preferences.prefersSpeed = enabled
+            let reopened = ArchivePreferencesStore(defaults: try XCTUnwrap(UserDefaults(suiteName: suite.name)))
+            XCTAssertEqual(reopened.preferences.prefersSpeed, enabled)
+            XCTAssertEqual(suite.defaults.object(forKey: key) as? Bool, enabled)
+        }
+        for invalid: Any in ["true", "false", 0, 1, 1.5, Data([0])] {
+            suite.defaults.set(invalid, forKey: key)
+            XCTAssertFalse(store.preferences.prefersSpeed, "\(invalid)")
+        }
+        suite.defaults.removeObject(forKey: key)
+        XCTAssertFalse(store.preferences.prefersSpeed)
     }
 
     @MainActor func testStorePostsDidChangeSynchronouslyAfterSaving() throws {

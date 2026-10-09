@@ -69,6 +69,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     var defaultFormat: GyoshukuKit.ArchiveFormat = .zip
     var compressionThreads = 0
     var powerPolicy: PowerPolicy = .reduceInLowPowerMode
+    var prefersSpeed = false
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
     var zipLZMALevel = 6
@@ -115,7 +116,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
         let placement: AdditionPlacement = additionPosition == .end ? .end : .beginning
         let owners: CarriedOwnerIDs = tarCarriedOwnerIDs == .keep ? .keep : .reset
-        var options = WriterOptions(powerPolicy: powerPolicy.writerPolicy,
+        var options = WriterOptions(prefersSpeed: prefersSpeed, powerPolicy: powerPolicy.writerPolicy,
                                     additionPlacement: format == .zip ? .end : placement)
         if format.isTarFamily {
             options.preserveOwnerIDs = tarPreservesOwnerIDs
@@ -201,6 +202,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let defaultFormat = "ArchiveCreationFormat"
         static let compressionThreads = "ArchiveCompressionThreads"
         static let powerPolicy = "ArchiveCompressionPowerPolicy"
+        static let prefersSpeed = "ArchiveCompressionPrefersSpeed"
         static let sevenZipMethod = "ArchiveSevenZipMethod"
         static let lhaMethod = "ArchiveLhaMethod"
         static let zipMethod = "ArchiveZipMethod"
@@ -254,6 +256,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             value.compressionThreads = threads(forKey: Key.compressionThreads)
             value.powerPolicy = defaults.string(forKey: Key.powerPolicy)
                 .flatMap(ArchivePreferences.PowerPolicy.init(rawValue:)) ?? value.powerPolicy
+            value.prefersSpeed = boolean(forKey: Key.prefersSpeed, fallback: value.prefersSpeed)
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod
             value.zipLZMALevel = level(forKey: Key.zipLZMALevel, range: 0...9)
@@ -317,6 +320,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchivePreferences.compressionThreadRange.contains(newValue.compressionThreads)
                          ? newValue.compressionThreads : 0, forKey: Key.compressionThreads)
             defaults.set(newValue.powerPolicy.rawValue, forKey: Key.powerPolicy)
+            defaults.set(newValue.prefersSpeed, forKey: Key.prefersSpeed)
             defaults.set((0...9).contains(newValue.zipLZMALevel) ? newValue.zipLZMALevel : 6, forKey: Key.zipLZMALevel)
             defaults.set(ArchivePreferences.validLevel(newValue.zipZstdLevel, range: 1...19, fallback: 3), forKey: Key.zipZstdLevel)
             defaults.set(ArchivePreferences.validLevel(newValue.zipPPMdLevel, range: 1...9, fallback: 6), forKey: Key.zipPPMdLevel)
