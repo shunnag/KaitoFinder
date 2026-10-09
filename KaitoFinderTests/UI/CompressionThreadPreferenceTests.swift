@@ -1,17 +1,142 @@
 import Foundation
-import GyoshukuKit
+@testable import GyoshukuKit
 import Synchronization
 import XCTest
 @testable import KaitoFinder
 
 nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
     func testAutomaticThreadsAndMemoryEstimates() {
-        for (processors, memoryGiB, expected) in [(8, 8, 8), (16, 128, 8), (4, 2, 2), (2, 128, 2), (0, 0, 1)] {
-            let hardware = ArchiveHardware(processors: processors, memory: UInt64(memoryGiB) << 30)
-            XCTAssertEqual(hardware.automaticCompressionThreads, expected)
+        for expected in [1, 18, 36, 72, 128] {
+            let hardware = ArchiveHardware(processors: expected, memory: 128 << 30, automaticThreads: expected)
+            XCTAssertEqual(hardware.automaticCompressionThreads(), expected)
+            WriterOptions.$testingAutomaticThreads.withValue({ _ in expected }) {
+                XCTAssertEqual(ArchiveHardware.current.automaticCompressionThreads(), expected)
+            }
         }
         for (threads, memoryMiB) in [(1, 165), (2, 300), (4, 570), (8, 1110), (16, 2190)] {
             XCTAssertEqual(ArchiveHardware.estimatedLZMA2Memory(threads: threads), UInt64(memoryMiB) << 20)
+        }
+    }
+
+    @MainActor func testAutomaticTitleAndPowerPolicySelectionWithoutWindow() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let policies = ArchivePreferences.PowerPolicy.allCases
+        for language in ["ja", "en"] {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let model = PreferencesViewModel(store: store,
+                hardware: .init(processors: 36, memory: 128 << 30), bundle: bundle)
+            for (index, policy) in policies.enumerated() {
+                model.selectPowerPolicy(at: index)
+                XCTAssertEqual(model.powerPolicyIndex, index)
+                XCTAssertEqual(store.preferences.powerPolicy, policy)
+                let expected = [18, 9, 36][index]
+                WriterOptions.$testingAutomaticThreads.withValue({ actual in
+                    XCTAssertEqual(actual, policy.writerPolicy)
+                    return expected
+                }) {
+                    XCTAssertEqual(model.compressionThreadTitles[0], language == "ja" ? "自動（\(expected)）" : "Automatic (\(expected))")
+                    XCTAssertTrue(model.memoryNote.text.contains(ByteCountFormatter.string(
+                        fromByteCount: Int64(ArchiveHardware.estimatedLZMA2Memory(threads: expected)), countStyle: .memory)))
+                }
+            }
+            XCTAssertEqual(model.powerPolicyTitles, language == "ja"
+                ? ["低電力モードで並列数を減らす", "低電力モードや高温時に並列数を減らす", "常にすべてのコアを使う"]
+                : ["Reduce threads in Low Power Mode", "Reduce threads in Low Power Mode or when hot", "Always use all cores"])
+            let before = store.preferences
+            model.selectPowerPolicy(at: -1)
+            model.selectPowerPolicy(at: policies.count)
+            XCTAssertEqual(store.preferences, before)
+        }
+        for (processors, saved) in [(18, 0), (36, 0), (72, 128), (36, 1024)] {
+            store.preferences.compressionThreads = saved
+            let model = PreferencesViewModel(store: store,
+                hardware: .init(processors: processors, memory: 128 << 30, automaticThreads: processors))
+            XCTAssertEqual(model.compressionThreadChoices, Array(0...max(processors, saved)))
+            XCTAssertEqual(model.compressionThreadIndex, saved)
+            model.selectCompressionThreads(at: processors)
+            XCTAssertEqual(store.preferences.compressionThreads, processors)
+        }
+    }
+
+    func testPowerPolicyCatalogHasSettingsTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for key in ["電力の使用方針:", "低電力モードで並列数を減らす", "低電力モードや高温時に並列数を減らす", "常にすべてのコアを使う"] {
+            let entry = try XCTUnwrap(catalog.strings[key])
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(entry.localizations[language]?.stringUnit)
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                if language == "ja" { XCTAssertEqual(unit.value, key) }
+            }
+        }
+    }
+
+    @MainActor func testSpeedSelectionPersistsWithoutWindow() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let model = PreferencesViewModel(store: store)
+        XCTAssertFalse(model.preferences.prefersSpeed)
+        for enabled in [true, false] {
+            model.changePrefersSpeed(to: enabled)
+            XCTAssertEqual(model.preferences.prefersSpeed, enabled)
+            XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences.prefersSpeed, enabled)
+        }
+    }
+
+    func testSpeedCatalogHasSettingsTranslations() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for (key, english) in [
+            ("速さを優先する（圧縮率がわずかに下がります）", "Prefer speed (slightly larger archives)"),
+            ("コア数の多いMacで、対応する圧縮方式の処理を速めます。", "Speeds up supported compression methods on Macs with many cores.")
+        ] {
+            let entry = try XCTUnwrap(catalog.strings[key])
+            XCTAssertEqual(Set(entry.localizations.keys), Set(LocalizationAcceptance.languages))
+            for language in LocalizationAcceptance.languages {
+                let unit = try XCTUnwrap(entry.localizations[language]?.stringUnit)
+                XCTAssertEqual(unit.state, "translated")
+                XCTAssertFalse(unit.value.isEmpty)
+                if language == "ja" || language == "en" {
+                    let expected = language == "ja" ? key : english
+                    XCTAssertEqual(unit.value, expected)
+                    let bundle = try LocalizationAcceptance.bundle(language)
+                    XCTAssertEqual(bundle.localizedString(forKey: key, value: nil, table: nil), expected)
+                }
+            }
+        }
+    }
+
+    func testAllFormatsReceiveSpeedPreference() {
+        for enabled in [false, true] {
+            for policy in ArchivePreferences.PowerPolicy.allCases {
+                for threads in [0, 1, 36] {
+                    let preferences = ArchivePreferences(compressionThreads: threads, powerPolicy: policy, prefersSpeed: enabled)
+                    for format in ArchivePreferences.formats {
+                        let options = preferences.writerOptions(for: format)
+                        XCTAssertEqual(options.prefersSpeed, enabled, "\(format)")
+                        XCTAssertEqual(options.compressionThreads, threads == 0 ? nil : threads)
+                        XCTAssertEqual(options.powerPolicy, policy.writerPolicy)
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor func testSingleStreamCreationAndSavePanelKeepSpeedPreference() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let directory = try ArchiveTestDirectory()
+        let source = directory.url.appendingPathComponent("payload.txt")
+        try Data("payload".utf8).write(to: source)
+        let creator = ArchiveCreationController(store: store)
+        let panel = ArchiveSavePanelController(store: store, sources: [source])
+        for enabled in [true, false] {
+            store.preferences.prefersSpeed = enabled
+            for (index, stream) in ArchiveCreationPlan.singleStreamFormats.enumerated() {
+                panel.selectFormat(at: ArchivePreferences.formats.count + 2 + index, persistsDefault: false)
+                XCTAssertEqual(panel.singleStreamFormat, stream)
+                XCTAssertEqual(panel.writerOptions.prefersSpeed, enabled)
+                let plan = creator.creationPlan(sources: [source], destination: directory.url.appendingPathComponent("output"),
+                    format: ArchiveCreationPlan.archiveFormat(for: stream), level: .maximum, singleStreamFormat: stream)
+                XCTAssertEqual(plan.options.prefersSpeed, enabled)
+            }
         }
     }
 
@@ -68,11 +193,15 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
         let directory = try ArchiveTestDirectory()
         for threads in [0, 2, 7] {
             store.preferences.compressionThreads = threads
+            store.preferences.powerPolicy = .alwaysUseAllCores
+            store.preferences.prefersSpeed = threads != 2
             for format in ArchivePreferences.formats {
                 let encryption = ArchiveEncryptionSettings(password: format == .zip || format == .sevenZip ? "x" : nil)
                 let plan = controller.creationPlan(sources: [], destination: directory.url.appendingPathComponent("output"),
                                                    format: format, level: .maximum, encryption: encryption)
                 XCTAssertEqual(plan.options.compressionThreads, threads == 0 ? nil : threads)
+                XCTAssertEqual(plan.options.powerPolicy, .alwaysUseAllCores)
+                XCTAssertEqual(plan.options.prefersSpeed, threads != 2)
                 XCTAssertEqual(plan.options.password, encryption.password)
                 if format == .zip || format == .tarGzip { XCTAssertEqual(plan.options.deflateLevel, 9) }
                 if format == .tarBzip2 { XCTAssertEqual(plan.options.bzip2Level, 9) }
@@ -82,6 +211,8 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
         let passwordOptions = ArchiveEncryptionSettings(password: "x")
             .applying(to: store.preferences.writerOptions(for: .zip), format: .zip)
         XCTAssertEqual(passwordOptions.compressionThreads, 2)
+        XCTAssertEqual(passwordOptions.powerPolicy, .alwaysUseAllCores)
+        XCTAssertTrue(passwordOptions.prefersSpeed)
         XCTAssertEqual(passwordOptions.password, "x")
     }
 
@@ -91,15 +222,43 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
             defer { fixture.document.close() }
             let session = try XCTUnwrap(fixture.document.session)
             XCTAssertNil(session.writerOptions(.zip).compressionThreads)
+            XCTAssertFalse(session.writerOptions(.zip).prefersSpeed)
             fixture.store.preferences.compressionThreads = 2
+            fixture.store.preferences.powerPolicy = .alwaysUseAllCores
+            fixture.store.preferences.prefersSpeed = true
             XCTAssertEqual(session.writerOptions(.zip).compressionThreads, 2)
+            XCTAssertEqual(session.writerOptions(.zip).powerPolicy, .alwaysUseAllCores)
+            XCTAssertTrue(session.writerOptions(.zip).prefersSpeed)
             fixture.store.preferences.compressionThreads = 0
+            fixture.store.preferences.powerPolicy = .reduceInLowPowerModeOrThermalPressure
+            fixture.store.preferences.prefersSpeed = false
             XCTAssertNil(session.writerOptions(.zip).compressionThreads)
+            XCTAssertEqual(session.writerOptions(.zip).powerPolicy, .reduceInLowPowerModeOrThermalPressure)
+            XCTAssertFalse(session.writerOptions(.zip).prefersSpeed)
             XCTAssertTrue(fixture.document.session === session)
         }
     }
 
     #if DEBUG
+    @MainActor func testDeferredUpdaterPreparationReceivesPowerPolicy() async throws {
+        let directory = try ArchiveTestDirectory()
+        let url = directory.url.appendingPathComponent("prepare.zip")
+        let writer = try ArchiveWriter.create(url: url, options: .init(compressionThreads: 1))
+        try writer.add(data: Data([0x5a]), as: "entry")
+        try writer.finish()
+        for policy in ArchivePreferences.PowerPolicy.allCases {
+            let preferences = ArchivePreferences(powerPolicy: policy)
+            let session = try ArchiveSession(url: url, writerOptions: { preferences.writerOptions(for: $0) })
+            let policies = Mutex<[CompressionPowerPolicy]>([])
+            await WriterOptions.$testingAutomaticThreads.withValue({ actual in
+                policies.withLock { $0.append(actual) }
+                return 36
+            }) { await session.prepareDeferredEditing() }
+            XCTAssertEqual(policies.withLock { $0 }, [policy.writerPolicy])
+            await session.close()
+        }
+    }
+
     @MainActor func testPasswordVerificationUsesConfiguredAndAutomaticThreads() async throws {
         let fixture = try DeferredSaveFixture(behavior: .immediate)
         defer { fixture.document.close() }
@@ -109,23 +268,33 @@ nonisolated final class CompressionThreadPreferenceTests: XCTestCase {
             password: "known", zipEncryption: .aes256, compressionThreads: 1))
         for index in 0..<100 { try writer.add(data: Data([0x5a]), as: "entry-\(index)") }
         try writer.finish()
-        for threads in [2, 0] {
-            let session = try ArchiveSession(url: url, password: "known", writerOptions: options)
-            fixture.store.preferences.compressionThreads = threads
-            let counts = Mutex<[Int]>([])
-            do {
-                try await ArchivePasswordVerification.execution.withValue(.automatic) {
-                    try await ArchivePasswordVerification.observer.withValue({ event in
-                        if case .workers(let count) = event { counts.withLock { $0.append(count) } }
-                    }) { _ = try await session.deferredSnapshot() }
+        for (index, policy) in ArchivePreferences.PowerPolicy.allCases.enumerated() {
+            fixture.store.preferences.powerPolicy = policy
+            for threads in [2, 0] {
+                let session = try ArchiveSession(url: url, password: "known", writerOptions: options)
+                fixture.store.preferences.compressionThreads = threads
+                let counts = Mutex<[Int]>([]), resolvedPolicies = Mutex<[CompressionPowerPolicy]>([])
+                let automatic = [18, 9, 36][index]
+                do {
+                    try await WriterOptions.$testingAutomaticThreads.withValue({ policy in
+                        resolvedPolicies.withLock { $0.append(policy) }
+                        return automatic
+                    }) {
+                        try await ArchivePasswordVerification.execution.withValue(.automatic) {
+                            try await ArchivePasswordVerification.observer.withValue({ event in
+                                if case .workers(let count) = event { counts.withLock { $0.append(count) } }
+                            }) { _ = try await session.preparedPassword() }
+                        }
+                    }
+                    XCTAssertEqual(counts.withLock { $0 }, [threads == 0 ? automatic : 2])
+                    XCTAssertEqual(resolvedPolicies.withLock { $0 }, threads == 0 ? [policy.writerPolicy] : [])
+                    XCTAssertEqual(session.entryVerification?.indices, Set(0..<100))
+                } catch {
+                    await session.close()
+                    throw error
                 }
-                XCTAssertEqual(counts.withLock { $0 }, [threads == 0 ? min(100, ArchiveHardware.current.automaticCompressionThreads) : 2])
-                XCTAssertEqual(session.entryVerification?.indices, Set(0..<100))
-            } catch {
                 await session.close()
-                throw error
             }
-            await session.close()
         }
     }
     #endif

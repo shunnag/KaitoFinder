@@ -24,9 +24,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
 
     @MainActor func testCompressionThreadViewModelChoicesAndMemoryWarning() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30),
-                         ArchiveHardware(processors: 16, memory: 128 << 30),
-                         ArchiveHardware(processors: 4, memory: 2 << 30)] {
+        for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30, automaticThreads: 8),
+                         ArchiveHardware(processors: 16, memory: 128 << 30, automaticThreads: 16),
+                         ArchiveHardware(processors: 4, memory: 2 << 30, automaticThreads: 2)] {
             store.preferences.compressionThreads = 0
             let model = PreferencesViewModel(store: store, hardware: hardware)
             XCTAssertEqual(model.compressionThreadChoices, Array(0...hardware.processors))
@@ -35,7 +35,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                 model.selectCompressionThreads(at: index)
                 XCTAssertEqual(store.preferences.compressionThreads, index)
                 XCTAssertEqual(model.compressionThreadIndex, index)
-                let threads = index == 0 ? hardware.automaticCompressionThreads : index
+                let threads = index == 0 ? hardware.automaticCompressionThreads() : index
                 let bytes = ArchiveHardware.estimatedLZMA2Memory(threads: threads)
                 XCTAssertTrue(model.memoryNote.text.contains(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .memory)))
                 XCTAssertEqual(model.memoryNote.warns, bytes > hardware.memory / 4)
@@ -53,9 +53,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
 
     @MainActor func testCompressionThreadPopupPersistsRefreshesAndKeepsTabHeight() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30),
-                         ArchiveHardware(processors: 16, memory: 128 << 30),
-                         ArchiveHardware(processors: 4, memory: 2 << 30)] {
+        for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30, automaticThreads: 8),
+                         ArchiveHardware(processors: 16, memory: 128 << 30, automaticThreads: 16),
+                         ArchiveHardware(processors: 4, memory: 2 << 30, automaticThreads: 2)] {
             for saved in [0, 20] {
                 store.preferences.compressionThreads = saved
                 let controller = PreferencesWindowController(store: store, hardware: hardware)
@@ -68,7 +68,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                 let content = try XCTUnwrap(window.contentView)
                 let height = pane.preferredContentSize.height
                 let choices = Array(0...max(hardware.processors, saved))
-                let automatic = String(format: String(localized: "自動（%lld）"), hardware.automaticCompressionThreads)
+                let automatic = String(format: String(localized: "自動（%lld）"), hardware.automaticCompressionThreads())
                 XCTAssertEqual(controller.compressionThreadsPopup.itemTitles, [automatic] + choices.dropFirst().map { String($0) })
                 XCTAssertEqual(controller.compressionThreadsPopup.indexOfSelectedItem, saved)
                 XCTAssertEqual(controller.compressionThreadsPopup.accessibilityLabel(), String(localized: "圧縮の並列数:"))
@@ -94,7 +94,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
 
     @MainActor func testCompressionMemoryWarningTextAndColorFollowSelection() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        let controller = PreferencesWindowController(store: store, hardware: .init(processors: 4, memory: 2 << 30))
+        let controller = PreferencesWindowController(store: store, hardware: .init(processors: 4, memory: 2 << 30, automaticThreads: 2))
         defer { controller.close() }
         let warning = String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。")
         let automatic = controller.compressionMemoryNote.stringValue

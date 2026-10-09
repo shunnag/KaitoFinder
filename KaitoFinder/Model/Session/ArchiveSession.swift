@@ -261,8 +261,9 @@ actor ArchiveSession {
     @discardableResult private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader,
                                            progress: Progress? = nil) throws -> Set<Int> {
         guard !entries.isEmpty else { return [] }
-        let threads = writerOptions(passwordFormat ?? .zip).compressionThreads
-            ?? ArchiveHardware.current.automaticCompressionThreads
+        let options = writerOptions(passwordFormat ?? .zip)
+        let threads = options.compressionThreads
+            ?? ArchiveHardware.current.automaticCompressionThreads(powerPolicy: options.powerPolicy)
         return try ArchivePasswordVerification.verify(entries, using: reader, workers: max(1, threads), progress: progress)
     }
 
@@ -512,7 +513,7 @@ actor ArchiveSession {
         // 失敗はここでは提示せず編集の入口に任せ、読める書庫の表示は妨げない。
         do {
             try verifyDeferredIdentity()
-            _ = try ArchiveUpdater.open(url: sourceURL)
+            _ = try ArchiveUpdater.open(url: sourceURL, options: writerOptions(.zip))
             try verifyDeferredIdentity()
             deferredUpdaterGeneration = generation
         } catch { }
@@ -528,7 +529,7 @@ actor ArchiveSession {
         if format == .zip, volumeLayout == nil, deferredUpdaterGeneration != generation {
             // probe は終端だけ。CD と local record の照合は open を一世代につき一度通す。
             ArchiveReservationDiagnostics.record(.deferredUpdaterOpen)
-            try publishing { _ = try ArchiveUpdater.open(url: sourceURL) }
+            try publishing { _ = try ArchiveUpdater.open(url: sourceURL, options: writerOptions(.zip)) }
             deferredUpdaterGeneration = generation
         }
         return (reader.entries, generation)

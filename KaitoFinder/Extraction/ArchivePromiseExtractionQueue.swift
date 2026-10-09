@@ -160,7 +160,8 @@ nonisolated final class ArchivePromiseExtractionQueue: Sendable {
                 queue.processedIndices.withLock { $0 += snapshot.selection.entries.map(\.index) }
 #endif
                 result = try ExtractionService.extractResolved(snapshot.selection.entries, reader: reader!, to: job.url,
-                    quarantine: snapshot.quarantine, progress: job.progress, promisedItem: job.payload, didWrite: job.didWrite)
+                    quarantine: snapshot.quarantine, progress: job.progress, promisedItem: job.payload, didWrite: job.didWrite,
+                    powerPolicy: job.session.writerOptions(job.session.passwordFormat ?? .zip).powerPolicy)
             }
             try ArchiveCopyOut.check(result)
         }

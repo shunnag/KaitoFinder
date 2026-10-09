@@ -42,13 +42,34 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     }
     enum AdditionPosition: String, Sendable, CaseIterable { case end, beginning }
     enum CarriedOwnerIDPolicy: String, Sendable, CaseIterable { case keep, reset }
+    enum PowerPolicy: String, Sendable, CaseIterable {
+        case reduceInLowPowerMode, reduceInLowPowerModeOrThermalPressure, alwaysUseAllCores
+
+        var writerPolicy: CompressionPowerPolicy {
+            switch self {
+            case .reduceInLowPowerMode: .reduceInLowPowerMode
+            case .reduceInLowPowerModeOrThermalPressure: .reduceInLowPowerModeOrThermalPressure
+            case .alwaysUseAllCores: .alwaysUseAllCores
+            }
+        }
+
+        func title(bundle: Bundle = .main) -> String {
+            switch self {
+            case .reduceInLowPowerMode: String(localized: "低電力モードで並列数を減らす", bundle: bundle)
+            case .reduceInLowPowerModeOrThermalPressure: String(localized: "低電力モードや高温時に並列数を減らす", bundle: bundle)
+            case .alwaysUseAllCores: String(localized: "常にすべてのコアを使う", bundle: bundle)
+            }
+        }
+    }
 
     static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .tarZstd, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress, .sevenZip, .lha]
-    static let compressionThreadRange = 1...64
+    static let compressionThreadRange = WriterOptions.compressionThreadsRange
     static let listTextSizeRange = 10...16
 
     var defaultFormat: GyoshukuKit.ArchiveFormat = .zip
     var compressionThreads = 0
+    var powerPolicy: PowerPolicy = .reduceInLowPowerMode
+    var prefersSpeed = false
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
     var zipLZMALevel = 6
@@ -95,7 +116,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     func writerOptions(for format: GyoshukuKit.ArchiveFormat) -> WriterOptions {
         let placement: AdditionPlacement = additionPosition == .end ? .end : .beginning
         let owners: CarriedOwnerIDs = tarCarriedOwnerIDs == .keep ? .keep : .reset
-        var options = WriterOptions(additionPlacement: format == .zip ? .end : placement)
+        var options = WriterOptions(prefersSpeed: prefersSpeed, powerPolicy: powerPolicy.writerPolicy,
+                                    additionPlacement: format == .zip ? .end : placement)
         if format.isTarFamily {
             options.preserveOwnerIDs = tarPreservesOwnerIDs
             options.carriedTarOwnerIDs = owners
@@ -179,6 +201,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         // 保存パネルと同じキーと拡張子の表現を使う。
         static let defaultFormat = "ArchiveCreationFormat"
         static let compressionThreads = "ArchiveCompressionThreads"
+        static let powerPolicy = "ArchiveCompressionPowerPolicy"
+        static let prefersSpeed = "ArchiveCompressionPrefersSpeed"
         static let sevenZipMethod = "ArchiveSevenZipMethod"
         static let lhaMethod = "ArchiveLhaMethod"
         static let zipMethod = "ArchiveZipMethod"
@@ -230,6 +254,9 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                 ArchiveCreationPlan.filenameExtension(for: $0) == savedFormat
             } ?? value.defaultFormat
             value.compressionThreads = threads(forKey: Key.compressionThreads)
+            value.powerPolicy = defaults.string(forKey: Key.powerPolicy)
+                .flatMap(ArchivePreferences.PowerPolicy.init(rawValue:)) ?? value.powerPolicy
+            value.prefersSpeed = boolean(forKey: Key.prefersSpeed, fallback: value.prefersSpeed)
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod
             value.zipLZMALevel = level(forKey: Key.zipLZMALevel, range: 0...9)
@@ -292,6 +319,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchiveCreationPlan.filenameExtension(for: newValue.defaultFormat), forKey: Key.defaultFormat)
             defaults.set(ArchivePreferences.compressionThreadRange.contains(newValue.compressionThreads)
                          ? newValue.compressionThreads : 0, forKey: Key.compressionThreads)
+            defaults.set(newValue.powerPolicy.rawValue, forKey: Key.powerPolicy)
+            defaults.set(newValue.prefersSpeed, forKey: Key.prefersSpeed)
             defaults.set((0...9).contains(newValue.zipLZMALevel) ? newValue.zipLZMALevel : 6, forKey: Key.zipLZMALevel)
             defaults.set(ArchivePreferences.validLevel(newValue.zipZstdLevel, range: 1...19, fallback: 3), forKey: Key.zipZstdLevel)
             defaults.set(ArchivePreferences.validLevel(newValue.zipPPMdLevel, range: 1...9, fallback: 6), forKey: Key.zipPPMdLevel)

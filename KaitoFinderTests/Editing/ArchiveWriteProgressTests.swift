@@ -9,7 +9,7 @@ nonisolated final class ArchiveWriteProgressTests: XCTestCase {
 
     func testEveryBudgetRowAndFinalPublicationUnit() throws {
         let added: UInt64 = 40 << 20, carried: UInt64 = 12 << 20, archive: UInt64 = 8 << 20
-        for threads in [1, 8] {
+        for threads in [1, 8, 36] {
             let options = WriterOptions(compressionThreads: threads)
             for format in formats {
                 let wait = options.maximumPendingInputBytes(for: format)
@@ -46,6 +46,22 @@ nonisolated final class ArchiveWriteProgressTests: XCTestCase {
                         XCTAssertEqual(progress.userInfo[.fileCompletedCountKey] as? Int, 4)
                     }
                 }
+            }
+        }
+    }
+
+    func testStoredAndBzip2FinishBudgetsFollowWriterOptionsAPI() {
+        let added: UInt64 = 256 << 20
+        for method: CompressionMethod in [.stored, .bzip2] {
+            for threads in [1, 18, 36] {
+                let options = WriterOptions(compressionMethod: method, compressionThreads: threads,
+                                            powerPolicy: .alwaysUseAllCores)
+                let progress = Progress()
+                let ledger = ArchiveWriteProgress(progress: progress, plan: .init(counted: 0,
+                    additions: [added], itemCount: 1, carriedBytes: 0, changesExisting: false))
+                ledger.begin(.writer(.zip), archiveBytes: 0, options: options)
+                XCTAssertEqual(progress.totalUnitCount, Int64(added + min(added,
+                    options.maximumPendingInputBytes(for: .zip)) + 1))
             }
         }
     }

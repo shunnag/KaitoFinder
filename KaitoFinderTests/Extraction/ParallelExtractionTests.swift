@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+@testable import GyoshukuKit
 import KaitoKit
 import Synchronization
 import XCTest
@@ -238,7 +239,8 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
         let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 131072))
         let entries = try ArchiveReader.open(url: fixture.archive).entries
         let automatic = ExtractionExecution.automatic
-        XCTAssertEqual(automatic.workerCount(entries: entries, hasSources: false), min(ProcessInfo.processInfo.activeProcessorCount, 8))
+        XCTAssertEqual(automatic.workerCount(entries: entries, hasSources: false,
+            hardware: .init(processors: 36, memory: 128 << 30, automaticThreads: 36)), 36)
         XCTAssertEqual(automatic.workerCount(entries: entries, hasSources: true), 1)
         XCTAssertEqual(automatic.workerCount(entries: Array(entries.suffix(63)), hasSources: false), 1)
         XCTAssertEqual(ExtractionExecution.parallel(workers: 0).workerCount(entries: entries, hasSources: false), 1)
@@ -258,6 +260,57 @@ nonisolated final class ParallelExtractionTests: XCTestCase {
         for entry in try ArchiveReader.open(url: links.archive).entries {
             XCTAssertEqual(ExtractionExecution.parallel(workers: 4).workerCount(entries: entries + [entry], hasSources: false), 1)
         }
+    }
+
+    @MainActor func testAutomaticExtractionUsesSessionPowerPolicy() async throws {
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 131072))
+        for (index, policy) in ArchivePreferences.PowerPolicy.allCases.enumerated() {
+            let preferences = ArchivePreferences(powerPolicy: policy)
+            let session = try ArchiveSession(url: fixture.archive,
+                writerOptions: { preferences.writerOptions(for: $0) })
+            let destination = fixture.root.appendingPathComponent("policy-\(index)")
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+            let counts = Mutex<[CompressionPowerPolicy]>([])
+            let automatic = [18, 9, 36][index]
+            do {
+                try await WriterOptions.$testingAutomaticThreads.withValue({ actual in
+                    counts.withLock { $0.append(actual) }
+                    return automatic
+                }) {
+                    let snapshot = await session.snapshot()
+                    XCTAssertEqual(ExtractionExecution.automatic.workerCount(entries: snapshot.entries,
+                        hasSources: false, powerPolicy: policy.writerPolicy), automatic)
+                    let result = try await ExtractionService.extract(.init(entries: snapshot.entries),
+                        from: session, to: destination)
+                    XCTAssertTrue(result.failures.isEmpty)
+                    XCTAssertEqual(result.written.count, snapshot.entries.count)
+                }
+                XCTAssertEqual(counts.withLock { $0 }, [policy.writerPolicy, policy.writerPolicy])
+            } catch {
+                await session.close()
+                throw error
+            }
+            await session.close()
+        }
+    }
+
+    @MainActor func testAutomaticBatchExtractionUsesPersistedPowerPolicy() async throws {
+        let fixture = try ScenarioFixture(script: ScenarioFixture.zipScript(count: 80, size: 131072))
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        store.preferences.powerPolicy = .alwaysUseAllCores
+        let preferences = ArchivePreferencesStore(defaults: suite.defaults).preferences
+        let extractor = ArchiveBatchExtractor(preferences: preferences, passwordPrompt: { _, _ in
+            XCTFail("暗号化されていない書庫でパスワードを求めない")
+            throw CancellationError()
+        })
+        let policies = Mutex<[CompressionPowerPolicy]>([])
+        let report = await WriterOptions.$testingAutomaticThreads.withValue({ policy in
+            policies.withLock { $0.append(policy) }
+            return 36
+        }) { await extractor.run(archives: [fixture.archive], base: fixture.root, progress: Progress()) }
+        XCTAssertTrue(report.failures.isEmpty)
+        XCTAssertEqual(report.extracted, [fixture.archive])
+        XCTAssertEqual(policies.withLock { $0 }, [.alwaysUseAllCores])
     }
 
     func testOutOfOrderProgressCapsEachEntryAndTopsUpFailures() throws {

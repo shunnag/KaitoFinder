@@ -14,8 +14,8 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 
 ## バージョン
 
-KaitoFinder 0.6.0（build 9）、KaitoKit 0.12.1、GyoshukuKit 0.8.0、Sparkle 2.10.0。
-同梱版と変更点は[0.6.0 のリリースノート](releases/0.6.0.md)を参照。
+KaitoFinder 0.7.0（build 10）、KaitoKit 0.12.1、GyoshukuKit 0.9.0、Sparkle 2.10.0。
+同梱版と変更点は[0.7.0 のリリースノート](releases/0.7.0.md)を参照。
 
 ## 配布
 
@@ -82,7 +82,7 @@ Xcode 27 で Debug のアプリと app-hosted tests をビルドし、macOS 27 �
 
 ## アーカイブ処理の技術詳細
 
-利用者向け文書から分離した実装上の補足。0.6.0 の挙動と旧READMEの情報を保持する。
+利用者向け文書から分離した実装上の補足。0.7.0 の挙動と旧READMEの情報を保持する。
 
 ### 読み取りと形式の補足
 
