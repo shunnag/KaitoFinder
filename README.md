@@ -77,10 +77,10 @@ Finder のサービスの「**KaitoFinderで圧縮**」からも作成できま�
 
 ## ライセンスと謝辞
 
-KaitoFinder は [MIT ライセンス](LICENSE)で公開しています。0.6.0 には次のライブラリを同梱しています。
+KaitoFinder は [MIT ライセンス](LICENSE)で公開しています。0.7.0 には次のライブラリを同梱しています。
 
 - [KaitoKit](https://github.com/shunnag/KaitoKit) 0.12.1 — 読み取り
-- [GyoshukuKit](https://github.com/shunnag/GyoshukuKit) 0.8.0 — 書き込み
+- [GyoshukuKit](https://github.com/shunnag/GyoshukuKit) 0.9.0 — 書き込み
 - [Sparkle](https://sparkle-project.org/) 2.10.0 — 自動更新
 
 開発者向けのビルド・テスト・配布手順は[開発者向け情報](Documentation/development.md)をご覧ください。
@@ -139,4 +139,4 @@ Archive operations run on your Mac. Update checks and downloads connect to GitHu
 
 ### License
 
-[MIT licensed](LICENSE). Version 0.6.0 includes KaitoKit 0.12.1 (reading), GyoshukuKit 0.8.0 (writing), and Sparkle 2.10.0 (updates).
+[MIT licensed](LICENSE). Version 0.7.0 includes KaitoKit 0.12.1 (reading), GyoshukuKit 0.9.0 (writing), and Sparkle 2.10.0 (updates).
