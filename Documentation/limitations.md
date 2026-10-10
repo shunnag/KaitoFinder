@@ -1,6 +1,6 @@
 # KaitoFinder の制限
 
-KaitoFinder 0.7.0 の利用上の制限です。[対応形式](formats.md)、[利用ガイド](user-guide.md)、[README](../README.md)もご覧ください。
+KaitoFinder 0.8.0 の利用上の制限です。[対応形式](formats.md)、[利用ガイド](user-guide.md)、[README](../README.md)もご覧ください。
 
 ## 制限
 

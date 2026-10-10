@@ -1,6 +1,7 @@
 import CoreFoundation
 import Foundation
 import GyoshukuKit
+import KaitoKit
 
 /// 書き込み処理へ安全に渡せる設定値。展開設定は一括展開の入口から参照する。
 nonisolated struct ArchivePreferences: Sendable, Equatable {
@@ -46,6 +47,14 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         case reduceInLowPowerMode, reduceInLowPowerModeOrThermalPressure, alwaysUseAllCores
 
         var writerPolicy: CompressionPowerPolicy {
+            switch self {
+            case .reduceInLowPowerMode: .reduceInLowPowerMode
+            case .reduceInLowPowerModeOrThermalPressure: .reduceInLowPowerModeOrThermalPressure
+            case .alwaysUseAllCores: .alwaysUseAllCores
+            }
+        }
+
+        var decodePolicy: DecodePowerPolicy {
             switch self {
             case .reduceInLowPowerMode: .reduceInLowPowerMode
             case .reduceInLowPowerModeOrThermalPressure: .reduceInLowPowerModeOrThermalPressure
@@ -201,7 +210,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         // 保存パネルと同じキーと拡張子の表現を使う。
         static let defaultFormat = "ArchiveCreationFormat"
         static let compressionThreads = "ArchiveCompressionThreads"
-        static let powerPolicy = "ArchiveCompressionPowerPolicy"
+        nonisolated static let powerPolicy = "ArchiveCompressionPowerPolicy"
         static let prefersSpeed = "ArchiveCompressionPrefersSpeed"
         static let sevenZipMethod = "ArchiveSevenZipMethod"
         static let lhaMethod = "ArchiveLhaMethod"
@@ -246,6 +255,11 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
 
     init(defaults: UserDefaults) { self.defaults = defaults }
 
+    nonisolated static func storedPowerPolicy(defaults: UserDefaults = .standard) -> ArchivePreferences.PowerPolicy {
+        defaults.string(forKey: Key.powerPolicy)
+            .flatMap(ArchivePreferences.PowerPolicy.init(rawValue:)) ?? .reduceInLowPowerMode
+    }
+
     var preferences: ArchivePreferences {
         get {
             var value = ArchivePreferences()
@@ -254,8 +268,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
                 ArchiveCreationPlan.filenameExtension(for: $0) == savedFormat
             } ?? value.defaultFormat
             value.compressionThreads = threads(forKey: Key.compressionThreads)
-            value.powerPolicy = defaults.string(forKey: Key.powerPolicy)
-                .flatMap(ArchivePreferences.PowerPolicy.init(rawValue:)) ?? value.powerPolicy
+            value.powerPolicy = Self.storedPowerPolicy(defaults: defaults)
             value.prefersSpeed = boolean(forKey: Key.prefersSpeed, fallback: value.prefersSpeed)
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod

@@ -1,9 +1,10 @@
+import Foundation
 @_spi(TarEditLayout) @_spi(SevenZipEditLayout) import KaitoKit
 import Synchronization
 
 nonisolated extension ReaderOptions {
-    static func kaitoFinderVerification(password: String? = nil) -> ReaderOptions {
-        var options = kaitoFinder(password: password)
+    static func kaitoFinderVerification(password: String? = nil, defaults: UserDefaults = .standard) -> ReaderOptions {
+        var options = kaitoFinder(password: password, defaults: defaults)
         options.lazyLocalHeaders = false
         return options
     }
@@ -17,7 +18,7 @@ nonisolated extension ReaderOptions {
     /// 圧縮 tar の一時展開は KaitoKit の inMemorySingleFileLimit（既定 64 MiB）で
     /// メモリからディスクへ切り替わり、stagingFreeSpaceReserve（既定 1 GiB）を残す。
     /// stagingFreeSpaceReserve を含む、その他すべての ReadLimits は既定値を保つ。
-    static func kaitoFinder(password: String? = nil) -> ReaderOptions {
+    static func kaitoFinder(password: String? = nil, defaults: UserDefaults = .standard) -> ReaderOptions {
         #if DEBUG
         kaitoFinderOpenCount.withLock { $0 += 1 }
         #endif
@@ -27,6 +28,8 @@ nonisolated extension ReaderOptions {
         // 表示と編集を .expose に統一し、Finder 製 ZIP の __MACOSX も一覧にそのまま見せる。
         var options = ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max),
                                     password: password, appleDoublePolicy: .expose)
+        // 圧縮と共通の「電力の使用方針」は、自動の復号並列数だけに適用する。
+        options.decodePowerPolicy = ArchivePreferencesStore.storedPowerPolicy(defaults: defaults).decodePolicy
         options.recordsTarEditLayout = true
         options.recordsSevenZipEditLayout = true
         return options
