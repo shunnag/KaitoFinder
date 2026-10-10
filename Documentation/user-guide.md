@@ -1,6 +1,6 @@
 # KaitoFinder 利用ガイド
 
-KaitoFinder 0.7.0 の操作と設定の詳しい説明です。
+KaitoFinder 0.8.0 の操作と設定の詳しい説明です。
 [はじめに・インストール](../README.md)、[対応形式](formats.md)、[制限](limitations.md)も参照してください。
 
 - [開く](#開く)
@@ -186,7 +186,7 @@ Sparkle による自動更新に対応しています。「アップデート」
 
 ## English
 
-Detailed operations for KaitoFinder 0.7.0. See also [installation](../README.md#install), [formats](formats.md#english), and [limitations](limitations.md#english).
+Detailed operations for KaitoFinder 0.8.0. See also [installation](../README.md#install), [formats](formats.md#english), and [limitations](limitations.md#english).
 
 ### Open
 
