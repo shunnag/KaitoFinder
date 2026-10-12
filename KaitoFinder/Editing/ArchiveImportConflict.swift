@@ -133,9 +133,10 @@ nonisolated struct ArchiveImportSourceStamp: Sendable, Equatable {
     }
 
     private static func identity(_ info: stat) -> [Int64] {
+        // Finder・LaunchServices・TCC の xattr（lastuseddate・macl・タグ）は内容を変えずに ctime を更新するので含めない。
+        // ArchiveSetIdentity・VolumeFileStamp・GyoshukuKit の DiskSignature と同じ扱いにする。
         [Int64(info.st_dev), Int64(bitPattern: info.st_ino), Int64(info.st_mode), info.st_size,
-         Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec),
-         Int64(info.st_ctimespec.tv_sec), Int64(info.st_ctimespec.tv_nsec)]
+         Int64(info.st_mtimespec.tv_sec), Int64(info.st_mtimespec.tv_nsec)]
     }
 }
 

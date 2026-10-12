@@ -229,11 +229,10 @@ nonisolated final class ArchiveUndoStack: Sendable {
     }
 
     private static func unchanged(_ first: stat, _ second: stat) -> Bool {
+        // Finder などの xattr 書き込みは内容を変えずに ctime を更新するので比較に含めない。
         first.st_dev == second.st_dev && first.st_ino == second.st_ino && first.st_size == second.st_size
             && first.st_mode == second.st_mode
             && first.st_mtimespec.tv_sec == second.st_mtimespec.tv_sec
             && first.st_mtimespec.tv_nsec == second.st_mtimespec.tv_nsec
-            && first.st_ctimespec.tv_sec == second.st_ctimespec.tv_sec
-            && first.st_ctimespec.tv_nsec == second.st_ctimespec.tv_nsec
     }
 }

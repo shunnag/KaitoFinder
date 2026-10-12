@@ -3,7 +3,7 @@ import Foundation
 
 /// 巻の同一性の証拠。dev・inode・size・mtime（秒と ns）だけを比べる。
 /// xattr や Spotlight で変わる ctime は含めない。`VolumePublishFS.sameFile` と rename 前後の照合が使う。
-/// 用途の違う `ArchiveFileIdentity`（Model）・`ArchiveImportSourceStamp`（ctime を含む）とは統合しない。
+/// 用途の違う `ArchiveFileIdentity`（Model）・`ArchiveImportSourceStamp`（mode も比べる）とは統合しない。
 nonisolated struct VolumeFileStamp: Sendable, Equatable {
     let device: Int32
     let inode: UInt64

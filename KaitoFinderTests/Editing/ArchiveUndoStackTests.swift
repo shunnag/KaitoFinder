@@ -123,6 +123,103 @@ nonisolated final class ArchiveUndoStackTests: XCTestCase {
         XCTAssertFalse(exists(slot.directory))
     }
 
+    func testXattrWriteDuringUndoAndRedoSwapDoesNotRefuseRestoration() async throws {
+        let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("archive.zip")
+        let original = Data("original".utf8), modified = Data("modified".utf8)
+        try original.write(to: archive)
+        let inject = Mutex(false), writes = Mutex(0)
+        let stack = ArchiveUndoStack { source, destination in
+            let code = ArchiveUndoStack.cloneFile(from: source, to: destination)
+            guard code == 0, inject.withLock({ $0 }) else { return code }
+            var before = stat(), after = stat()
+            guard lstat(source.path, &before) == 0,
+                  setxattr(source.path, "com.example.test", "x", 1, 0, XATTR_NOFOLLOW) == 0,
+                  lstat(source.path, &after) == 0 else { return errno }
+            XCTAssertNotEqual([before.st_ctimespec.tv_sec, before.st_ctimespec.tv_nsec],
+                              [after.st_ctimespec.tv_sec, after.st_ctimespec.tv_nsec])
+            XCTAssertEqual(before.st_dev, after.st_dev)
+            XCTAssertEqual(before.st_ino, after.st_ino)
+            XCTAssertEqual(before.st_mode, after.st_mode)
+            XCTAssertEqual(before.st_size, after.st_size)
+            XCTAssertEqual(before.st_mtimespec.tv_sec, after.st_mtimespec.tv_sec)
+            XCTAssertEqual(before.st_mtimespec.tv_nsec, after.st_mtimespec.tv_nsec)
+            writes.withLock { $0 += 1 }
+            return 0
+        }
+        addTeardownBlock { await stack.dispose() }
+        let slot = try XCTUnwrap(stack.capture(archive))
+        stack.recordMutation(slot)
+        try modified.write(to: archive)
+        inject.withLock { $0 = true }
+
+        XCTAssertNil(try stack.swap(slot.id, archive: archive))
+        XCTAssertEqual(try Data(contentsOf: archive), original)
+        XCTAssertTrue(try XCTUnwrap(stack.slots.first).isRedo)
+        XCTAssertNil(try stack.swap(slot.id, archive: archive))
+        XCTAssertEqual(try Data(contentsOf: archive), modified)
+        XCTAssertFalse(try XCTUnwrap(stack.slots.first).isRedo)
+        XCTAssertEqual(writes.withLock { $0 }, 2)
+    }
+
+    func testSwapStillRefusesSizeMtimeInodeAndModeChangesDuringCapture() async throws {
+        for change in SwapSourceChange.allCases {
+            let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("archive.zip")
+            try Data("original".utf8).write(to: archive)
+            let inject = Mutex(false), changed = Mutex(false)
+            let stack = ArchiveUndoStack { source, destination in
+                let code = ArchiveUndoStack.cloneFile(from: source, to: destination)
+                guard code == 0, inject.withLock({ $0 }) else { return code }
+                do {
+                    try Self.changeSwapSource(source, change: change)
+                    changed.withLock { $0 = true }
+                    return 0
+                } catch { return EIO }
+            }
+            addTeardownBlock { await stack.dispose() }
+            let slot = try XCTUnwrap(stack.capture(archive))
+            stack.recordMutation(slot)
+            try Data("modified".utf8).write(to: archive)
+            inject.withLock { $0 = true }
+
+            XCTAssertThrowsError(try stack.swap(slot.id, archive: archive), "\(change)") {
+                guard case ArchiveUndoStack.Failure.sourceChanged = $0 else { return XCTFail("\($0)") }
+            }
+            XCTAssertTrue(changed.withLock { $0 }, "\(change)")
+            XCTAssertEqual(stack.slots.map(\.id), [slot.id])
+            XCTAssertFalse(try XCTUnwrap(stack.slots.first).isRedo)
+            XCTAssertEqual(try Data(contentsOf: slot.url), Data("original".utf8))
+            XCTAssertEqual(try Data(contentsOf: archive), Data((change == .size ? "modified!" : "modified").utf8))
+        }
+    }
+
+    private enum SwapSourceChange: CaseIterable, Sendable {
+        case size, modificationSeconds, modificationNanoseconds, inode, mode
+    }
+
+    private static func changeSwapSource(_ url: URL, change: SwapSourceChange) throws {
+        var info = stat()
+        guard lstat(url.path, &info) == 0 else { throw ExtractionFailure.system(errno) }
+        switch change {
+        case .size:
+            let handle = try FileHandle(forWritingTo: url)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data("!".utf8))
+        case .inode:
+            try Data(contentsOf: url).write(to: url, options: .atomic)
+        case .mode:
+            guard chmod(url.path, (info.st_mode & 0o7777) ^ 0o100) == 0 else { throw ExtractionFailure.system(errno) }
+        case .modificationSeconds, .modificationNanoseconds:
+            break
+        }
+        // size・inode の検証が mtime の違いだけで通らないよう、元の時刻へ戻す。
+        var modification = info.st_mtimespec
+        if change == .modificationSeconds { modification.tv_sec += 1 }
+        if change == .modificationNanoseconds { modification.tv_nsec = (modification.tv_nsec + 1) % 1_000_000_000 }
+        var times = [timespec(tv_sec: 0, tv_nsec: Int(UTIME_OMIT)), modification]
+        guard utimensat(AT_FDCWD, url.path, &times, 0) == 0 else { throw ExtractionFailure.system(errno) }
+    }
+
     @MainActor func testUndoRedoReopensReaderAndAdvancesGeneration() async throws {
         let fixture = try Fixture(), document = try document(fixture)
         let session = try XCTUnwrap(document.session)
