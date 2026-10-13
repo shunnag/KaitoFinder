@@ -51,7 +51,7 @@ Finder のサービスの「**KaitoFinderで圧縮**」からも作成できま�
 - **パスワードを求められます。** 作成者が設定したパスワードが必要です。「このパスワードを記憶」は次回から自動使用する設定で、標準ではオフです。[暗号化の操作](Documentation/user-guide.md#暗号化)をご覧ください。
 - **分割アーカイブはどう開きますか。** 全巻を同じフォルダに置き、「ファイル > 開く…」で選びます。
   `.001`・`.zNN`・`.zxNN` は Finder に関連付けません。[編集と保存の条件](Documentation/user-guide.md#分割アーカイブの編集と保存)も確認してください。
-- **設定や表示を変えたいです。** 「KaitoFinder > 設定…」（⌘,）に一般・圧縮・展開・アップデートの設定があります。列や文字の大きさは「表示 > 表示オプションを表示」（⌘J）で変更できます。
+- **設定や表示を変えたいです。** 「KaitoFinder > 設定…」（⌘,）に一般・圧縮・展開・パフォーマンス・アップデートの設定があります。圧縮はZIP / 7z / tar / LHAに分かれ、並列数・電力・速さ優先はパフォーマンスで変更できます。列や文字の大きさは「表示 > 表示オプションを表示」（⌘J）で変更できます。
 - **開けない・編集できない形式があります。** 読み取り専用の形式は「別名で保存…」で変換できます。
   [対応形式](Documentation/formats.md)と[制限](Documentation/limitations.md)を確認し、問題が続く場合は[GitHub Issues](https://github.com/shunnag/KaitoFinder/issues)へアプリと macOS のバージョン・形式・操作手順をお知らせください。
 
@@ -120,7 +120,7 @@ File > Expand Archives… also extracts several archives together. See the [user
   When encrypting, “ZipCrypto (More Compatible, Less Secure)” offers legacy compatibility. See [compatibility](Documentation/formats.md#compatibility).
 - **Passwords:** Enter the creator's password. “Remember this password” reuses it automatically and is off by default.
 - **Split archives:** Keep all volumes together and use File > Open…; `.001` / `.zNN` / `.zxNN` have no Finder association. Check the [editing conditions](Documentation/user-guide.md#add-and-edit).
-- **Settings:** KaitoFinder > Settings… (⌘,) has General / Compression / Extract / Updates. View > Show View Options (⌘J) changes columns and text size.
+- **Settings:** KaitoFinder > Settings… (⌘,) has General / Compression / Extract / Performance / Updates. Compression has ZIP / 7z / tar / LHA tabs; threads, power usage and speed preference are in Performance. View > Show View Options (⌘J) changes columns and text size.
 - **Read-only or unsupported files:** Try Save As… to convert; see [limitations](Documentation/limitations.md#english). Report app and macOS versions, format and steps via [GitHub Issues](https://github.com/shunnag/KaitoFinder/issues).
 
 ### Formats
