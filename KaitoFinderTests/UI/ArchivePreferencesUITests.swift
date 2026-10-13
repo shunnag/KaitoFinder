@@ -444,6 +444,12 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                            "preferences.compression." + expected)
             XCTAssertEqual(controller.compressionTabView.tabViewType, .topTabsBezelBorder)
             XCTAssertEqual(controller.compressionTabView.tabViewItems.map(\.label), ["ZIP", "7z", "tar", "LHA"])
+            let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+            controller.tabController.selectedTabViewItemIndex = 1
+            let height = pane.preferredContentSize.height
+            controller.compressionTabView.selectTabViewItem(at: 2)
+            controller.compressionTabView.selectTabViewItem(at: controller.viewModel.initialCompressionTabIndex)
+            XCTAssertEqual(pane.preferredContentSize.height, height, accuracy: 0.5)
         }
     }
 
@@ -459,7 +465,10 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         for (popup, format) in [(controller.sevenZipMethodPopup, GyoshukuKit.ArchiveFormat.sevenZip),
                                 (controller.lhaMethodPopup, .lha)] {
             let compression = controller.viewModel.compressionController(for: format)
-            XCTAssertEqual(popup.itemTitles, compression.methods.map { $0.title() })
+            let standard = format == .sevenZip ? ArchivePreferences().sevenZipMethod.rawValue : ArchivePreferences().lhaMethod.rawValue
+            XCTAssertEqual(popup.itemTitles, compression.methods.map {
+                $0.rawValue.lowercased() == standard ? String(format: String(localized: "%@（標準）"), $0.title()) : $0.title()
+            })
         }
         let levels: [(NSPopUpButton, GyoshukuKit.ArchiveFormat, KeyPath<ArchivePreferences, Int>)] = [
             (controller.sevenZipLevelPopup, .sevenZip, \.sevenZipLevel),
@@ -498,9 +507,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             window.setFrameAutosaveName("")
             controller.tabController.selectedTabViewItemIndex = 1
             window.layoutIfNeeded()
-            let size = window.frame.size
+            let width = window.frame.width
             let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
-            let paneSize = pane.preferredContentSize
             XCTAssertEqual(controller.compressionTabView.tabViewItems.map(\.label), ["ZIP", "7z", "tar", "LHA"], language)
             for (inner, popup, description) in [(0, controller.zipMethodPopup, controller.zipMethodDescription),
                                                 (1, controller.sevenZipMethodPopup, controller.sevenZipMethodDescription),
@@ -508,6 +516,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                 controller.compressionTabView.selectTabViewItem(at: inner)
                 window.layoutIfNeeded()
                 let descriptionHeight = description.bounds.height
+                let size = window.frame.size
+                let paneSize = pane.preferredContentSize
                 var descriptions = Set<String>()
                 for index in 0..<popup.numberOfItems {
                     let help = try XCTUnwrap(popup.item(at: index)?.toolTip)
@@ -536,8 +546,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             for inner in [0, 1, 2, 3, 0] {
                 controller.compressionTabView.selectTabViewItem(at: inner)
                 window.layoutIfNeeded()
-                XCTAssertEqual(window.frame.size, size, language)
-                XCTAssertEqual(pane.preferredContentSize, paneSize, language)
+                XCTAssertEqual(window.frame.width, width, accuracy: 0.5, language)
+                XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, pane.preferredContentSize, language)
             }
             for control: NSControl in [controller.zipLevelSlider, controller.sevenZipLevelPopup, controller.lhaLevelPopup,
                                        controller.tarGzipLevelSlider, controller.tarBzip2LevelSlider,
@@ -546,6 +556,225 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                                        controller.sevenZipSolidCheckbox, controller.zipSkipsCompressedTypesCheckbox,
                                        controller.compressionThreadsPopup, controller.powerPolicyPopup, controller.prefersSpeedCheckbox] {
                 XCTAssertFalse(try XCTUnwrap(control.toolTip).isEmpty, language)
+            }
+        }
+    }
+
+    @MainActor func testInnerCompressionTabsResizeWindowAndKeepTopEdgeAndWidth() throws {
+        for language in ["ja", "en"] {
+            let suite = try ArchivePreferencesTestDefaults()
+            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+                                                         bundle: try LocalizationAcceptance.bundle(language))
+            defer { controller.close() }
+            let window = try XCTUnwrap(controller.window)
+            window.setFrameAutosaveName("")
+            if let visible = window.screen?.visibleFrame {
+                window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+            }
+            controller.tabController.selectedTabViewItemIndex = 1
+            let width = window.frame.width, top = window.frame.maxY
+            let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+            var heights: [Int: CGFloat] = [:]
+            for inner in [2, 0, 1, 3, 2] {
+                controller.compressionTabView.selectTabViewItem(at: inner)
+                window.layoutIfNeeded()
+                heights[inner] = pane.preferredContentSize.height
+                XCTAssertEqual(window.frame.width, width, accuracy: 0.5, language)
+                XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5, language)
+                XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, pane.preferredContentSize, language)
+                let innerPane = try XCTUnwrap(controller.compressionTabView.selectedTabViewItem?.view)
+                let tab = PreferencesViewModel.CompressionTab.allCases[inner]
+                let button = try XCTUnwrap(controller.compressionResetButtons[tab])
+                let buttonFrame = button.convert(button.bounds, to: innerPane)
+                XCTAssertGreaterThanOrEqual(innerPane.bounds.maxY - buttonFrame.maxY, 12, language)
+                XCTAssertLessThanOrEqual(innerPane.bounds.maxY - buttonFrame.maxY, 20, language)
+                XCTAssertTrue(innerPane.isFlipped)
+                XCTAssertTrue(UISnapshot.overflowViolations(in: pane.view).isEmpty, language)
+            }
+            let scroll = try XCTUnwrap(pane.view.subviews.compactMap { $0 as? NSScrollView }.first)
+            if !scroll.hasVerticalScroller {
+                for inner in [0, 1, 3] { XCTAssertLessThan(try XCTUnwrap(heights[inner]), try XCTUnwrap(heights[2]), language) }
+            }
+            let initialHeight = try XCTUnwrap(heights[0])
+            controller.compressionTabView.selectTabViewItem(at: 0)
+            XCTAssertEqual(pane.preferredContentSize.height, initialHeight, accuracy: 0.5, language)
+        }
+    }
+
+    @MainActor func testRapidTabSwitchingEndsAtLastSelectionSize() throws {
+        let suite = try ArchivePreferencesTestDefaults()
+        let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        window.setFrameAutosaveName("")
+        if let visible = window.screen?.visibleFrame {
+            window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+        }
+        let width = window.frame.width
+        // 非表示、表示中、アニメーション無効の三経路で、最後の選択から目標を計算する。
+        for mode in 0..<3 {
+            controller.tabController.animationsEnabled = mode != 2
+            if mode > 0 { controller.showWindow(nil) }
+            let top = window.frame.maxY
+            for (outer, inner) in [(1, 2), (0, 0), (1, 1), (3, 3), (1, 0), (4, 2), (1, 3)] {
+                controller.tabController.selectedTabViewItemIndex = outer
+                controller.compressionTabView.selectTabViewItem(at: inner)
+            }
+            let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+            let size = pane.preferredContentSize
+            let frameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
+            let expected = NSRect(x: window.frame.minX, y: top - frameSize.height, width: width, height: frameSize.height)
+            XCTAssertEqual(controller.tabController.preferredContentSize, size)
+            XCTAssertEqual(try XCTUnwrap(controller.tabController.targetWindowFrame), expected)
+            if controller.tabController.animatesSelection {
+                let settled = expectation(description: "最後の選択へのアニメーション完了")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { settled.fulfill() }
+                wait(for: [settled], timeout: 2)
+            } else {
+                XCTAssertEqual(window.frame, expected)
+                XCTAssertTrue(controller.tabController.transitionOptions.isEmpty)
+            }
+            window.layoutIfNeeded()
+            XCTAssertEqual(window.frame, expected)
+            XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, size)
+            XCTAssertTrue(UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView)).isEmpty)
+            XCTAssertEqual(controller.compressionTabView.selectedTabViewItem?.view?.subviews.first?.alphaValue, 1)
+        }
+    }
+
+    @MainActor private final class ChangeCount { var value = 0 }
+
+    @MainActor func testResetButtonsRestoreOnlyTheirFormatDefaults() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let controller = PreferencesWindowController(store: store)
+        defer { controller.close() }
+        let defaults = ArchivePreferences()
+        var changed = defaults
+        changed.zipMethod = .ppmd
+        changed.zipLevel = 1
+        changed.zipLZMALevel = 2
+        changed.zipZstdLevel = 4
+        changed.zipPPMdLevel = 3
+        changed.zipSkipsCompressedTypes.toggle()
+        changed.sevenZipMethod = .ppmd
+        changed.sevenZipLevel = 2
+        changed.sevenZipPPMdLevel = 3
+        changed.sevenZipSolid.toggle()
+        changed.sevenZipFilter = .delta
+        changed.tarGzipLevel = 1
+        changed.tarBzip2Level = 2
+        changed.tarXZLevel = 3
+        changed.tarZstdLevel = 4
+        changed.tarLzipLevel = 5
+        changed.tarLZMALevel = 7
+        changed.tarPreservesOwnerIDs.toggle()
+        changed.tarCarriedOwnerIDs = .reset
+        changed.lhaMethod = .lh7
+        changed.lhaLevel = 8
+        changed.defaultFormat = .tarXZ
+        changed.excludesDSStore.toggle()
+        changed.excludesHiddenFiles.toggle()
+        changed.compressionThreads = 3
+        changed.prefersSpeed.toggle()
+        changed.powerPolicy = .alwaysUseAllCores
+        let count = ChangeCount()
+        let observer = NotificationCenter.default.addObserver(forName: ArchivePreferencesStore.didChange,
+                                                               object: store, queue: .main) { _ in
+            MainActor.assumeIsolated { count.value += 1 }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        for tab in PreferencesViewModel.CompressionTab.allCases {
+            XCTAssertFalse(try XCTUnwrap(controller.compressionResetButtons[tab]).isEnabled)
+        }
+        for tab in PreferencesViewModel.CompressionTab.allCases {
+            store.preferences = changed
+            for other in PreferencesViewModel.CompressionTab.allCases {
+                XCTAssertFalse(controller.viewModel.compressionDefaultsAreCurrent(for: other))
+                XCTAssertTrue(try XCTUnwrap(controller.compressionResetButtons[other]).isEnabled)
+            }
+            var expected = changed
+            switch tab {
+            case .zip:
+                expected.zipMethod = defaults.zipMethod
+                expected.zipLevel = defaults.zipLevel
+                expected.zipLZMALevel = defaults.zipLZMALevel
+                expected.zipZstdLevel = defaults.zipZstdLevel
+                expected.zipPPMdLevel = defaults.zipPPMdLevel
+                expected.zipSkipsCompressedTypes = defaults.zipSkipsCompressedTypes
+            case .sevenZip:
+                expected.sevenZipMethod = defaults.sevenZipMethod
+                expected.sevenZipLevel = defaults.sevenZipLevel
+                expected.sevenZipPPMdLevel = defaults.sevenZipPPMdLevel
+                expected.sevenZipSolid = defaults.sevenZipSolid
+                expected.sevenZipFilter = defaults.sevenZipFilter
+            case .tar:
+                expected.tarGzipLevel = defaults.tarGzipLevel
+                expected.tarBzip2Level = defaults.tarBzip2Level
+                expected.tarXZLevel = defaults.tarXZLevel
+                expected.tarZstdLevel = defaults.tarZstdLevel
+                expected.tarLzipLevel = defaults.tarLzipLevel
+                expected.tarLZMALevel = defaults.tarLZMALevel
+                expected.tarPreservesOwnerIDs = defaults.tarPreservesOwnerIDs
+                expected.tarCarriedOwnerIDs = defaults.tarCarriedOwnerIDs
+            case .lha:
+                expected.lhaMethod = defaults.lhaMethod
+                expected.lhaLevel = defaults.lhaLevel
+            }
+            count.value = 0
+            let button = try XCTUnwrap(controller.compressionResetButtons[tab])
+            XCTAssertEqual(button.identifier?.rawValue, "preferences.compression.reset." + tab.rawValue)
+            XCTAssertEqual(button.title, String(localized: "標準に戻す"))
+            XCTAssertEqual(button.toolTip, String(format: String(localized: "%@の設定を標準に戻します。"), tab.title))
+            XCTAssertEqual(button.accessibilityLabel(), String(format: String(localized: "%@の設定を標準に戻す"), tab.title))
+            sendAction(button)
+            XCTAssertEqual(count.value, 1)
+            XCTAssertEqual(store.preferences, expected)
+            XCTAssertEqual(ArchivePreferencesStore(defaults: suite.defaults).preferences, expected)
+            for other in PreferencesViewModel.CompressionTab.allCases {
+                XCTAssertEqual(controller.viewModel.compressionDefaultsAreCurrent(for: other), other == tab)
+                XCTAssertEqual(try XCTUnwrap(controller.compressionResetButtons[other]).isEnabled, other != tab)
+            }
+            // 別の入口での変更も有効状態へ即座に反映する。
+            store.preferences = defaults
+            for other in PreferencesViewModel.CompressionTab.allCases {
+                XCTAssertFalse(try XCTUnwrap(controller.compressionResetButtons[other]).isEnabled)
+            }
+        }
+    }
+
+    @MainActor func testDefaultMethodItemsCarryStandardMarker() throws {
+        let catalog = try LocalizationAcceptance.catalog()
+        for language in LocalizationAcceptance.languages {
+            let marker = try XCTUnwrap(catalog.strings["%@（標準）"]?.localizations[language]).stringUnit
+            let level = try XCTUnwrap(catalog.strings["6（標準）"]?.localizations[language]).stringUnit.value
+            XCTAssertEqual(marker.state, "translated")
+            XCTAssertEqual(String(format: marker.value, "6"), level, language)
+        }
+        for language in ["ja", "en"] {
+            let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let controller = PreferencesWindowController(store: store, bundle: bundle)
+            defer { controller.close() }
+            let defaults = ArchivePreferences()
+            let sevenZip = controller.viewModel.compressionController(for: .sevenZip)
+            let lha = controller.viewModel.compressionController(for: .lha)
+            let popups: [(NSPopUpButton, [String], Int)] = [
+                (controller.zipMethodPopup, [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle),
+                                             "BZip2", "LZMA", "XZ", String(localized: "Zstandard", bundle: bundle), String(localized: "PPMd", bundle: bundle)],
+                 try XCTUnwrap(PreferencesViewModel.zipMethods.firstIndex(of: defaults.zipMethod))),
+                (controller.sevenZipMethodPopup, sevenZip.methods.map { $0.title(bundle: bundle) }, sevenZip.selectedMethodIndex),
+                (controller.lhaMethodPopup, lha.methods.map { $0.title(bundle: bundle) }, lha.selectedMethodIndex),
+                (controller.sevenZipFilterPopup, ArchivePreferences.SevenZipFilter.allCases.map { $0.title(bundle: bundle) },
+                 try XCTUnwrap(ArchivePreferences.SevenZipFilter.allCases.firstIndex(of: defaults.sevenZipFilter)))
+            ]
+            for (popup, original, standard) in popups {
+                for (index, title) in original.enumerated() {
+                    let expected = index == standard ? String(format: String(localized: "%@（標準）", bundle: bundle), title) : title
+                    XCTAssertEqual(popup.item(at: index)?.title, expected, language)
+                    popup.selectItem(at: index)
+                    sendAction(popup)
+                    XCTAssertEqual(popup.indexOfSelectedItem, index, language)
+                }
             }
         }
     }
@@ -625,6 +854,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         defer { controller.close() }
         let window = try XCTUnwrap(controller.window)
         window.setFrameAutosaveName("")
+        controller.tabController.animationsEnabled = false
         controller.showWindow(nil)
         let visible = try XCTUnwrap(window.screen).visibleFrame
         window.setFrameOrigin(NSPoint(x: visible.minX + 20, y: visible.minY + 20))

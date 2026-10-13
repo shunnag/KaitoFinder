@@ -3,6 +3,19 @@ import GyoshukuKit
 
 /// 画面を出さずに、各コントロールの選択と即時保存を検証できる。
 final class PreferencesViewModel {
+    enum CompressionTab: String, CaseIterable {
+        case zip, sevenZip, tar, lha
+
+        var title: String {
+            switch self {
+            case .zip: "ZIP"
+            case .sevenZip: "7z"
+            case .tar: "tar"
+            case .lha: "LHA"
+            }
+        }
+    }
+
     static let zipMethods: [ArchivePreferences.ZipMethod] = [.deflate, .stored, .bzip2, .lzma, .xz, .zstd, .ppmd]
     static let extractionDestinations: [ArchivePreferences.ExtractionDestination] = [.sameFolder, .ask]
     static let folderPolicies: [ArchivePreferences.FolderPolicy] = [.always, .whenMultipleTopLevelItems, .never]
@@ -103,6 +116,50 @@ final class PreferencesViewModel {
         default: 2
         }
     }
+    // 一つの形式だけをコピーし、通知も一度の保存にまとめる。
+    func resetCompressionDefaults(for tab: CompressionTab) {
+        var value = preferences
+        applyCompressionDefaults(to: &value, for: tab)
+        store.preferences = value
+    }
+
+    func compressionDefaultsAreCurrent(for tab: CompressionTab) -> Bool {
+        var value = preferences
+        applyCompressionDefaults(to: &value, for: tab)
+        return value == preferences
+    }
+
+    private func applyCompressionDefaults(to value: inout ArchivePreferences, for tab: CompressionTab) {
+        let defaults = ArchivePreferences()
+        switch tab {
+        case .zip:
+            value.zipMethod = defaults.zipMethod
+            value.zipLevel = defaults.zipLevel
+            value.zipLZMALevel = defaults.zipLZMALevel
+            value.zipZstdLevel = defaults.zipZstdLevel
+            value.zipPPMdLevel = defaults.zipPPMdLevel
+            value.zipSkipsCompressedTypes = defaults.zipSkipsCompressedTypes
+        case .sevenZip:
+            value.sevenZipMethod = defaults.sevenZipMethod
+            value.sevenZipLevel = defaults.sevenZipLevel
+            value.sevenZipPPMdLevel = defaults.sevenZipPPMdLevel
+            value.sevenZipSolid = defaults.sevenZipSolid
+            value.sevenZipFilter = defaults.sevenZipFilter
+        case .tar:
+            value.tarGzipLevel = defaults.tarGzipLevel
+            value.tarBzip2Level = defaults.tarBzip2Level
+            value.tarXZLevel = defaults.tarXZLevel
+            value.tarZstdLevel = defaults.tarZstdLevel
+            value.tarLzipLevel = defaults.tarLzipLevel
+            value.tarLZMALevel = defaults.tarLZMALevel
+            value.tarPreservesOwnerIDs = defaults.tarPreservesOwnerIDs
+            value.tarCarriedOwnerIDs = defaults.tarCarriedOwnerIDs
+        case .lha:
+            value.lhaMethod = defaults.lhaMethod
+            value.lhaLevel = defaults.lhaLevel
+        }
+    }
+
     var sevenZipMethodIndex: Int { compressionController(for: .sevenZip).selectedMethodIndex }
     var sevenZipLevelIndex: Int { compressionController(for: .sevenZip).selectedLevelIndex }
     var lhaMethodIndex: Int { compressionController(for: .lha).selectedMethodIndex }
@@ -239,26 +296,84 @@ private final class PreferencesScrollDocumentView: NSView {
     override var isFlipped: Bool { true }
 }
 
-/// 設定の切り替えでは上辺と幅を保ち、内容に必要な高さだけを変える。
-final class PreferencesTabViewController: NSTabViewController {
-    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
-        super.tabView(tabView, didSelect: tabViewItem)
-        guard let size = tabViewItem?.viewController?.preferredContentSize, size.width > 0 else { return }
-        preferredContentSize = size
-        guard let window = view.window else { return }
-        let sizeWithTitlebar = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
-        var frame = NSRect(x: window.frame.minX, y: window.frame.maxY - sizeWithTitlebar.height,
-                           width: sizeWithTitlebar.width, height: sizeWithTitlebar.height)
-        if let visible = window.screen?.visibleFrame, frame.height <= visible.height {
-            // 画面下端に置いた一般タブを広げても、圧縮の設定が画面外へ落ちないようにする。
-            frame.origin.y = max(visible.minY, frame.minY)
-        }
-        window.setFrame(frame, display: true,
-                        animate: window.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+// legacyのスクロールバー分を外側の右余白で吸収し、本文の幅を変えない。
+private final class PreferencesScrollView: NSScrollView {
+    var documentTrailingConstraint: NSLayoutConstraint?
+
+    override func tile() {
+        super.tile()
+        let width = hasVerticalScroller && scrollerStyle == .legacy
+            ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+        documentTrailingConstraint?.constant = -24 + width
     }
 }
 
-final class PreferencesWindowController: NSWindowController {
+/// 設定の切り替えでは上辺と幅を保ち、内容に必要な高さだけを変える。
+final class PreferencesTabViewController: NSTabViewController {
+    var animationsEnabled = true
+    var prepareSelectedPane: (() -> Void)?
+    private(set) var targetWindowFrame: NSRect?
+    private var resizeGeneration = 0
+
+    var animatesSelection: Bool {
+        animationsEnabled && view.window?.isVisible == true
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    override func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
+        transitionOptions = animatesSelection ? [.crossfade, .allowUserInteraction] : []
+        super.tabView(tabView, willSelect: tabViewItem)
+    }
+
+    override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = animatesSelection ? 0.22 : 0
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            super.tabView(tabView, didSelect: tabViewItem)
+        }
+        resizeToSelectedPane()
+    }
+
+    // 外部・内部のタブで同じ経路を使う。古い完了処理で最後の選択を上書きしない。
+    func resizeToSelectedPane(animations: (() -> Void)? = nil, completion: (@MainActor () -> Void)? = nil) {
+        prepareSelectedPane?()
+        guard tabViewItems.indices.contains(selectedTabViewItemIndex),
+              let size = tabViewItems[selectedTabViewItemIndex].viewController?.preferredContentSize,
+              size.width > 0 else { completion?(); return }
+        preferredContentSize = size
+        guard let window = view.window else { completion?(); return }
+        let sizeWithTitlebar = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
+        var frame = NSRect(x: window.frame.minX, y: window.frame.maxY - sizeWithTitlebar.height,
+                           width: window.frame.width, height: sizeWithTitlebar.height)
+        if let visible = window.screen?.visibleFrame, frame.height <= visible.height {
+            // 画面下端で広げたときは、従来どおり画面内へ戻す。
+            frame.origin.y = min(visible.maxY - frame.height, max(visible.minY, frame.minY))
+        }
+        resizeGeneration += 1
+        let generation = resizeGeneration
+        targetWindowFrame = frame
+        guard animatesSelection else {
+            window.setFrame(frame, display: true)
+            completion?()
+            return
+        }
+        // 同じframeプロパティへのアニメーションは現在位置から最新の目標へ向かう。
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            window.animator().setFrame(frame, display: true)
+            animations?()
+        } completionHandler: { [weak self, weak window] in
+            Task { @MainActor in
+                completion?()
+                guard let self, self.resizeGeneration == generation, let frame = self.targetWindowFrame else { return }
+                window?.setFrame(frame, display: true)
+            }
+        }
+    }
+}
+
+final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     nonisolated static let frameAutosaveName = "Preferences"
 
     let viewModel: PreferencesViewModel
@@ -277,6 +392,17 @@ final class PreferencesWindowController: NSWindowController {
     let prefersSpeedNote: NSTextField
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
     let compressionTabView = NSTabView()
+    private(set) var compressionResetButtons: [PreferencesViewModel.CompressionTab: NSButton] = [:]
+    private var compressionPaneHeights: [CGFloat] = []
+    private var compressionTabHeight: NSLayoutConstraint?
+    private var compressionBorderHeight: CGFloat = 0
+    private var compressionPane: NSViewController?
+    private var compressionStack: NSStackView?
+    private var compressionScroll: NSScrollView?
+    private var compressionDocumentHeight: NSLayoutConstraint?
+    private var innerSnapshot: NSImageView?
+    private var fadingInnerStack: NSView?
+    private var innerFadeGeneration = 0
     let sevenZipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let sevenZipLevelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let lhaMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -529,6 +655,7 @@ final class PreferencesWindowController: NSWindowController {
                                                name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(softwareUpdatesDidChange(_:)),
                                                name: SoftwareUpdateController.didChange, object: softwareUpdater)
+        tabController.prepareSelectedPane = { [weak self] in self?.updateCompressionPaneSize() }
         refreshControls()
     }
 
@@ -536,6 +663,7 @@ final class PreferencesWindowController: NSWindowController {
 
     override func showWindow(_ sender: Any?) {
         refreshControls()
+        tabController.resizeToSelectedPane()
         super.showWindow(sender)
     }
 
@@ -555,7 +683,14 @@ final class PreferencesWindowController: NSWindowController {
         tarCarriedOwnerIDsPopup.addItems(withTitles: [String(localized: "そのまま保つ", bundle: bundle),
             String(localized: "0に戻す（編集のたびに全体を書き直す）", bundle: bundle)])
         zipMethodPopup.addItems(withTitles: [String(localized: "Deflate", bundle: bundle), String(localized: "無圧縮", bundle: bundle), "BZip2", "LZMA", "XZ", String(localized: "Zstandard", bundle: bundle), String(localized: "PPMd", bundle: bundle)])
+        let defaults = ArchivePreferences()
+        if let index = PreferencesViewModel.zipMethods.firstIndex(of: defaults.zipMethod) {
+            markStandardItem(in: zipMethodPopup, at: index)
+        }
         sevenZipFilterPopup.addItems(withTitles: ArchivePreferences.SevenZipFilter.allCases.map { $0.title(bundle: bundle) })
+        if let index = ArchivePreferences.SevenZipFilter.allCases.firstIndex(of: defaults.sevenZipFilter) {
+            markStandardItem(in: sevenZipFilterPopup, at: index)
+        }
         sevenZipFilterPopup.setAccessibilityLabel(String(localized: "フィルタ", bundle: bundle))
         // 最長のレベル名も初期計測に含め、方式の変更で幅を変えない。
         for (popup, format) in compressionLevelPopups {
@@ -567,6 +702,12 @@ final class PreferencesWindowController: NSWindowController {
         }
         sevenZipMethodPopup.addItems(withTitles: viewModel.compressionController(for: .sevenZip).methods.map { $0.title(bundle: bundle) })
         lhaMethodPopup.addItems(withTitles: viewModel.compressionController(for: .lha).methods.map { $0.title(bundle: bundle) })
+        if let index = viewModel.compressionController(for: .sevenZip).methods.firstIndex(where: { $0.rawValue.lowercased() == defaults.sevenZipMethod.rawValue }) {
+            markStandardItem(in: sevenZipMethodPopup, at: index)
+        }
+        if let index = viewModel.compressionController(for: .lha).methods.firstIndex(where: { $0.rawValue == defaults.lhaMethod.rawValue }) {
+            markStandardItem(in: lhaMethodPopup, at: index)
+        }
         zipLevelSlider.toolTip = CompressionOptionHelp.level(bundle: bundle)
         zipSkipsCompressedTypesCheckbox.toolTip = CompressionOptionHelp.skipsCompressedTypes(bundle: bundle)
         sevenZipSolidCheckbox.toolTip = CompressionOptionHelp.solid(bundle: bundle)
@@ -656,56 +797,147 @@ final class PreferencesWindowController: NSWindowController {
         return views
     }
 
+    private func markStandardItem(in popup: NSPopUpButton, at index: Int) {
+        guard let item = popup.item(at: index) else { return }
+        item.title = String(format: String(localized: "%@（標準）", bundle: bundle), item.title)
+    }
+
     private func configureCompressionTabs(panes: [(String, String, [NSView])]) -> NSView {
         compressionTabView.tabViewType = .topTabsBezelBorder
         compressionTabView.identifier = NSUserInterfaceItemIdentifier("preferences.compression.formats")
         var maximum = NSSize.zero
-        // 非選択タブは階層から外れるため、追加する前にすべての必要寸法を測る。
+        // 非選択タブは階層から外れるため、追加する前に各ペインの必要寸法を測る。
         for (identifier, title, sections) in panes {
-            let pane = NSView()
-            let stack = NSStackView(views: sections)
+            let tab = PreferencesViewModel.CompressionTab(rawValue: identifier)!
+            let button = NSButton(title: String(localized: "標準に戻す", bundle: bundle),
+                                  target: self, action: #selector(resetCompressionDefaults(_:)))
+            button.bezelStyle = .rounded
+            button.identifier = NSUserInterfaceItemIdentifier("preferences.compression.reset." + identifier)
+            button.toolTip = String(format: String(localized: "%@の設定を標準に戻します。", bundle: bundle), title)
+            button.setAccessibilityLabel(String(format: String(localized: "%@の設定を標準に戻す", bundle: bundle), title))
+            compressionResetButtons[tab] = button
+            let actions = NSStackView(views: [NSView(), button])
+            actions.spacing = 0
+            actions.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
+            let pane = PreferencesScrollDocumentView()
+            let stack = NSStackView(views: sections + [actions])
             stack.orientation = .vertical
             stack.alignment = .leading
+            stack.detachesHiddenViews = false
             stack.edgeInsets = NSEdgeInsets(top: 0, left: 2, bottom: 0, right: 2)
             stack.spacing = 14
-            for section in sections { section.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4).isActive = true }
+            for section in sections + [actions] { section.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4).isActive = true }
             let required = stack.fittingSize
             let size = NSSize(width: ceil(required.width) + 32, height: ceil(required.height) + 32)
             maximum.width = max(maximum.width, size.width)
             maximum.height = max(maximum.height, size.height)
+            compressionPaneHeights.append(size.height)
             pane.setFrameSize(size)
             stack.translatesAutoresizingMaskIntoConstraints = false
             pane.addSubview(stack)
             NSLayoutConstraint.activate([
                 stack.leadingAnchor.constraint(equalTo: pane.leadingAnchor, constant: 16),
                 stack.trailingAnchor.constraint(equalTo: pane.trailingAnchor, constant: -16),
-                stack.topAnchor.constraint(equalTo: pane.topAnchor, constant: 16),
-                stack.bottomAnchor.constraint(lessThanOrEqualTo: pane.bottomAnchor, constant: -16)
+                stack.topAnchor.constraint(equalTo: pane.topAnchor, constant: 16)
             ])
             let item = NSTabViewItem(identifier: "preferences.compression." + identifier)
             item.label = title
             item.view = pane
             compressionTabView.addTabViewItem(item)
         }
-        // 標準ベゼルの余白を含め、どのタブでも同じ高さを使う。
         compressionTabView.setFrameSize(NSSize(width: maximum.width + 32, height: maximum.height + 64))
         let border = NSSize(width: compressionTabView.frame.width - compressionTabView.contentRect.width,
                             height: compressionTabView.frame.height - compressionTabView.contentRect.height)
-        // NSTabViewの整列矩形の外に描かれる標準ベゼルもコンテナの内側に収める。
+        compressionBorderHeight = border.height
+        // NSTabViewの整列矩形の外に描かれる標準ベゼルもコンテナ内に収める。
         let insets = compressionTabView.alignmentRectInsets
-        let container = NSView()
+        let container = PreferencesScrollDocumentView()
         compressionTabView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(compressionTabView)
+        let height = container.heightAnchor.constraint(equalToConstant: compressionPaneHeights[viewModel.initialCompressionTabIndex] + border.height)
+        compressionTabHeight = height
         NSLayoutConstraint.activate([
             container.widthAnchor.constraint(greaterThanOrEqualToConstant: maximum.width + border.width),
-            container.heightAnchor.constraint(equalToConstant: maximum.height + border.height),
+            height,
             compressionTabView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: insets.left),
             compressionTabView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -insets.right),
             compressionTabView.topAnchor.constraint(equalTo: container.topAnchor, constant: insets.top),
             compressionTabView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -insets.bottom)
         ])
         compressionTabView.selectTabViewItem(at: viewModel.initialCompressionTabIndex)
+        compressionTabView.delegate = self
         return container
+    }
+
+    func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
+        innerFadeGeneration += 1
+        innerSnapshot?.removeFromSuperview()
+        innerSnapshot = nil
+        fadingInnerStack?.layer?.removeAllAnimations()
+        fadingInnerStack?.alphaValue = 1
+        fadingInnerStack = nil
+        guard tabController.animatesSelection, tabController.selectedTabViewItemIndex == 1,
+              let outgoing = tabView.selectedTabViewItem?.view,
+              let bitmap = outgoing.bitmapImageRepForCachingDisplay(in: outgoing.bounds) else { return }
+        outgoing.cacheDisplay(in: outgoing.bounds, to: bitmap)
+        let image = NSImage(size: outgoing.bounds.size)
+        image.addRepresentation(bitmap)
+        let snapshot = NSImageView(frame: outgoing.bounds)
+        snapshot.image = image
+        snapshot.imageScaling = .scaleNone
+        snapshot.imageAlignment = .alignTopLeft
+        innerSnapshot = snapshot
+    }
+
+    func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
+        guard let item = tabViewItem, let index = tabView.tabViewItems.firstIndex(of: item),
+              compressionPaneHeights.indices.contains(index) else { return }
+        compressionTabHeight?.constant = compressionPaneHeights[index] + compressionBorderHeight
+        updateCompressionPaneSize()
+        guard tabController.selectedTabViewItemIndex == 1 else { return }
+        let snapshot = innerSnapshot
+        let incoming = item.view?.subviews.first
+        let generation = innerFadeGeneration
+        if let snapshot, let pane = item.view {
+            pane.wantsLayer = true
+            pane.layer?.masksToBounds = true
+            pane.addSubview(snapshot)
+            incoming?.alphaValue = 0
+            fadingInnerStack = incoming
+        }
+        tabController.resizeToSelectedPane(animations: {
+            snapshot?.animator().alphaValue = 0
+            incoming?.animator().alphaValue = 1
+        }, completion: { [weak self] in
+            snapshot?.removeFromSuperview()
+            guard let self, self.innerFadeGeneration == generation else { return }
+            incoming?.alphaValue = 1
+            self.innerSnapshot = nil
+            self.fadingInnerStack = nil
+        })
+    }
+
+    private func updateCompressionPaneSize() {
+        guard let pane = compressionPane, let stack = compressionStack, let scroll = compressionScroll else { return }
+        stack.layoutSubtreeIfNeeded()
+        let height = ceil(stack.fittingSize.height) + 48
+        let window = self.window
+        let visibleHeight = (window?.screen ?? NSScreen.main)?.visibleFrame.height ?? 838
+        let titlebar = window?.frameRect(forContentRect: .zero).height ?? 38
+        let available = max(1, visibleHeight - titlebar - 40)
+        let scrolls = height > 698 || height > available
+        compressionDocumentHeight?.constant = height
+        scroll.hasVerticalScroller = scrolls
+        scroll.tile()
+        pane.preferredContentSize.height = scrolls ? min(height, 698, available) : height
+        // 切り替え後は上部の共通設定と新しい形式の先頭から表示する。
+        scroll.contentView.scroll(to: .zero)
+        scroll.reflectScrolledClipView(scroll.contentView)
+    }
+
+    @objc private func resetCompressionDefaults(_ sender: NSButton) {
+        guard let tab = compressionResetButtons.first(where: { $0.value === sender })?.key else { return }
+        viewModel.resetCompressionDefaults(for: tab)
     }
 
     private func levelControl(_ slider: NSSlider, label: NSTextField) -> NSView {
@@ -787,7 +1019,7 @@ final class PreferencesWindowController: NSWindowController {
     private func addTab(title: String, symbol: String, sections: [NSView]) {
         let controller = NSViewController()
         controller.title = title
-        controller.view = NSView()
+        controller.view = PreferencesScrollDocumentView()
         let stack = NSStackView(views: sections)
         stack.identifier = NSUserInterfaceItemIdentifier("preferences.sections." + symbol)
         stack.orientation = .vertical
@@ -798,16 +1030,21 @@ final class PreferencesWindowController: NSWindowController {
             section.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -4).isActive = true
         }
         let required = stack.fittingSize
-        let scrolls = symbol == "archivebox" && required.height > 650
-        // マウスの接続で legacy に切り替わっても、本文に必要な幅を保つ。
-        let scrollerWidth = scrolls ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+        let isCompression = symbol == "archivebox"
+        let maximumHeight = required.height + (compressionPaneHeights.max() ?? 0)
+            - (compressionPaneHeights.indices.contains(viewModel.initialCompressionTabIndex) ? compressionPaneHeights[viewModel.initialCompressionTabIndex] : 0)
+        // 長い内容では従来どおりlegacyの幅を確保し、共通幅の計測を保つ。
+        let scrollerWidth = isCompression && maximumHeight > 650
+            ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
         controller.preferredContentSize = NSSize(width: max(600, ceil(required.width) + 48 + scrollerWidth),
-                                                height: scrolls ? min(698, max(400, (NSScreen.main?.visibleFrame.height ?? 838) - 140)) : ceil(required.height) + 48)
+                                                height: ceil(required.height) + 48)
         controller.view.setFrameSize(controller.preferredContentSize)
         stack.translatesAutoresizingMaskIntoConstraints = false
-        if scrolls {
-            let scroll = NSScrollView()
-            scroll.hasVerticalScroller = true
+        if isCompression {
+            compressionPane = controller
+            compressionStack = stack
+            let scroll = PreferencesScrollView()
+            compressionScroll = scroll
             scroll.drawsBackground = false
             scroll.translatesAutoresizingMaskIntoConstraints = false
             let document = PreferencesScrollDocumentView()
@@ -818,26 +1055,30 @@ final class PreferencesWindowController: NSWindowController {
             // document の最小幅を scroll の必須幅へ伝播させず、表示領域の幅に追従させる。
             let documentWidth = document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor)
             documentWidth.priority = .defaultHigh
+            let documentHeight = document.heightAnchor.constraint(equalToConstant: ceil(required.height) + 48)
+            compressionDocumentHeight = documentHeight
+            let trailing = stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24)
+            scroll.documentTrailingConstraint = trailing
             NSLayoutConstraint.activate([
                 scroll.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
                 scroll.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
                 scroll.topAnchor.constraint(equalTo: controller.view.topAnchor),
                 scroll.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
                 documentWidth,
-                document.heightAnchor.constraint(equalToConstant: ceil(required.height) + 48),
+                documentHeight,
                 stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
                 stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
-                stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24)
+                trailing
             ])
         } else {
             controller.view.addSubview(stack)
             NSLayoutConstraint.activate([
                 stack.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 24),
                 stack.topAnchor.constraint(equalTo: controller.view.topAnchor, constant: 24),
-                stack.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -24),
-                stack.bottomAnchor.constraint(lessThanOrEqualTo: controller.view.bottomAnchor, constant: -24)
+                stack.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor, constant: -24)
             ])
         }
+        if isCompression { updateCompressionPaneSize() }
         let item = NSTabViewItem(viewController: controller)
         item.identifier = "preferences." + symbol
         item.label = title
@@ -883,6 +1124,9 @@ final class PreferencesWindowController: NSWindowController {
 
     private func refreshControls() {
         refreshUpdateControls()
+        for (tab, button) in compressionResetButtons {
+            button.isEnabled = !viewModel.compressionDefaultsAreCurrent(for: tab)
+        }
         let preferences = viewModel.preferences
         showsWelcomeWindowAtLaunchCheckbox.state = preferences.showsWelcomeWindowAtLaunch ? .on : .off
         keepsFoldersOnTopCheckbox.state = preferences.keepsFoldersOnTop ? .on : .off
