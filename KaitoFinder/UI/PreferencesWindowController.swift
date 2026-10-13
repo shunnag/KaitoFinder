@@ -314,6 +314,7 @@ final class PreferencesTabViewController: NSTabViewController {
     var prepareSelectedPane: (() -> Void)?
     private(set) var targetWindowFrame: NSRect?
     private var resizeGeneration = 0
+    private var fadingPanes: [NSView] = []
 
     var animatesSelection: Bool {
         animationsEnabled && view.window?.isVisible == true
@@ -321,27 +322,33 @@ final class PreferencesTabViewController: NSTabViewController {
     }
 
     override func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
-        transitionOptions = animatesSelection ? [.crossfade, .allowUserInteraction] : []
+        finishPendingFades()
         super.tabView(tabView, willSelect: tabViewItem)
     }
 
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = animatesSelection ? 0.22 : 0
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            super.tabView(tabView, didSelect: tabViewItem)
+        super.tabView(tabView, didSelect: tabViewItem)
+        resizeToSelectedPane(fading: tabViewItem?.viewController?.view)
+    }
+
+    // 切り替えの開始時に、外部・内部のペインのフェードをすべて完了させる。
+    func finishPendingFades() {
+        for pane in fadingPanes {
+            pane.layer?.removeAllAnimations()
+            pane.alphaValue = 1
         }
-        resizeToSelectedPane()
+        fadingPanes.removeAll()
     }
 
     // 外部・内部のタブで同じ経路を使う。古い完了処理で最後の選択を上書きしない。
-    func resizeToSelectedPane(animations: (() -> Void)? = nil, completion: (@MainActor () -> Void)? = nil) {
+    func resizeToSelectedPane(fading incoming: NSView? = nil) {
+        finishPendingFades()
         prepareSelectedPane?()
         guard tabViewItems.indices.contains(selectedTabViewItemIndex),
               let size = tabViewItems[selectedTabViewItemIndex].viewController?.preferredContentSize,
-              size.width > 0 else { completion?(); return }
+              size.width > 0 else { return }
         preferredContentSize = size
-        guard let window = view.window else { completion?(); return }
+        guard let window = view.window else { return }
         let sizeWithTitlebar = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
         var frame = NSRect(x: window.frame.minX, y: window.frame.maxY - sizeWithTitlebar.height,
                            width: window.frame.width, height: sizeWithTitlebar.height)
@@ -354,19 +361,23 @@ final class PreferencesTabViewController: NSTabViewController {
         targetWindowFrame = frame
         guard animatesSelection else {
             window.setFrame(frame, display: true)
-            completion?()
             return
+        }
+        if let incoming {
+            incoming.wantsLayer = true
+            incoming.alphaValue = 0
+            fadingPanes.append(incoming)
         }
         // 同じframeプロパティへのアニメーションは現在位置から最新の目標へ向かう。
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.22
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             window.animator().setFrame(frame, display: true)
-            animations?()
+            incoming?.animator().alphaValue = 1
         } completionHandler: { [weak self, weak window] in
             Task { @MainActor in
-                completion?()
                 guard let self, self.resizeGeneration == generation, let frame = self.targetWindowFrame else { return }
+                self.finishPendingFades()
                 window?.setFrame(frame, display: true)
             }
         }
@@ -400,9 +411,6 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     private var compressionStack: NSStackView?
     private var compressionScroll: NSScrollView?
     private var compressionDocumentHeight: NSLayoutConstraint?
-    private var innerSnapshot: NSImageView?
-    private var fadingInnerStack: NSView?
-    private var innerFadeGeneration = 0
     let sevenZipMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let sevenZipLevelPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let lhaMethodPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -489,6 +497,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         window.center()
         window.setFrameAutosaveName(Self.frameAutosaveName)
         tabController.tabStyle = .toolbar
+        tabController.transitionOptions = []
         tabController.canPropagateSelectedChildViewControllerTitle = false
         configureControls()
         compressionMemoryNote.stringValue = viewModel.maximumMemoryNote
@@ -870,23 +879,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     }
 
     func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
-        innerFadeGeneration += 1
-        innerSnapshot?.removeFromSuperview()
-        innerSnapshot = nil
-        fadingInnerStack?.layer?.removeAllAnimations()
-        fadingInnerStack?.alphaValue = 1
-        fadingInnerStack = nil
-        guard tabController.animatesSelection, tabController.selectedTabViewItemIndex == 1,
-              let outgoing = tabView.selectedTabViewItem?.view,
-              let bitmap = outgoing.bitmapImageRepForCachingDisplay(in: outgoing.bounds) else { return }
-        outgoing.cacheDisplay(in: outgoing.bounds, to: bitmap)
-        let image = NSImage(size: outgoing.bounds.size)
-        image.addRepresentation(bitmap)
-        let snapshot = NSImageView(frame: outgoing.bounds)
-        snapshot.image = image
-        snapshot.imageScaling = .scaleNone
-        snapshot.imageAlignment = .alignTopLeft
-        innerSnapshot = snapshot
+        tabController.finishPendingFades()
     }
 
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
@@ -895,26 +888,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         compressionTabHeight?.constant = compressionPaneHeights[index] + compressionBorderHeight
         updateCompressionPaneSize()
         guard tabController.selectedTabViewItemIndex == 1 else { return }
-        let snapshot = innerSnapshot
-        let incoming = item.view?.subviews.first
-        let generation = innerFadeGeneration
-        if let snapshot, let pane = item.view {
-            pane.wantsLayer = true
-            pane.layer?.masksToBounds = true
-            pane.addSubview(snapshot)
-            incoming?.alphaValue = 0
-            fadingInnerStack = incoming
-        }
-        tabController.resizeToSelectedPane(animations: {
-            snapshot?.animator().alphaValue = 0
-            incoming?.animator().alphaValue = 1
-        }, completion: { [weak self] in
-            snapshot?.removeFromSuperview()
-            guard let self, self.innerFadeGeneration == generation else { return }
-            incoming?.alphaValue = 1
-            self.innerSnapshot = nil
-            self.fadingInnerStack = nil
-        })
+        tabController.resizeToSelectedPane(fading: item.view?.subviews.first)
     }
 
     private func updateCompressionPaneSize() {

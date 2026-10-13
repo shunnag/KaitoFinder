@@ -611,34 +611,62 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
         }
         let width = window.frame.width
+        func containsImageView(_ view: NSView) -> Bool {
+            view is NSImageView || view.subviews.contains { containsImageView($0) }
+        }
         // 非表示、表示中、アニメーション無効の三経路で、最後の選択から目標を計算する。
         for mode in 0..<3 {
             controller.tabController.animationsEnabled = mode != 2
             if mode > 0 { controller.showWindow(nil) }
-            let top = window.frame.maxY
-            for (outer, inner) in [(1, 2), (0, 0), (1, 1), (3, 3), (1, 0), (4, 2), (1, 3)] {
-                controller.tabController.selectedTabViewItemIndex = outer
-                controller.compressionTabView.selectTabViewItem(at: inner)
-            }
-            let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
-            let size = pane.preferredContentSize
-            let frameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
-            let expected = NSRect(x: window.frame.minX, y: top - frameSize.height, width: width, height: frameSize.height)
-            XCTAssertEqual(controller.tabController.preferredContentSize, size)
-            XCTAssertEqual(try XCTUnwrap(controller.tabController.targetWindowFrame), expected)
-            if controller.tabController.animatesSelection {
-                let settled = expectation(description: "最後の選択へのアニメーション完了")
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { settled.fulfill() }
-                wait(for: [settled], timeout: 2)
-            } else {
+            // 同期の連続選択に加え、前のフェードの途中で次の選択を送る。
+            for yieldsBetweenSelections in (mode == 1 ? [false, true] : [false]) {
+                let top = window.frame.maxY
+                for (outer, inner) in [(1, 2), (0, 0), (1, 1), (3, 3), (1, 0), (4, 2), (1, 3)] {
+                    controller.tabController.selectedTabViewItemIndex = outer
+                    controller.compressionTabView.selectTabViewItem(at: inner)
+                    XCTAssertTrue(controller.tabController.transitionOptions.isEmpty)
+                    if yieldsBetweenSelections {
+                        let nextSelection = expectation(description: "フェード途中の次の選択")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { nextSelection.fulfill() }
+                        wait(for: [nextSelection], timeout: 2)
+                    }
+                }
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+                let size = pane.preferredContentSize
+                let frameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
+                let expected = NSRect(x: window.frame.minX, y: top - frameSize.height, width: width, height: frameSize.height)
+                XCTAssertEqual(controller.tabController.preferredContentSize, size)
+                XCTAssertEqual(try XCTUnwrap(controller.tabController.targetWindowFrame), expected)
+                if controller.tabController.animatesSelection {
+                    let settled = expectation(description: "最後の選択へのアニメーション完了")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { settled.fulfill() }
+                    wait(for: [settled], timeout: 2)
+                } else {
+                    XCTAssertEqual(window.frame, expected)
+                }
+                window.layoutIfNeeded()
                 XCTAssertEqual(window.frame, expected)
-                XCTAssertTrue(controller.tabController.transitionOptions.isEmpty)
+                XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, size)
+                let violations = UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView))
+                XCTAssertTrue(violations.isEmpty, "mode \(mode), yielded \(yieldsBetweenSelections)\n" + violations.joined(separator: "\n"))
+                let tabView = controller.tabController.tabView
+                let selected = try XCTUnwrap(tabView.selectedTabViewItem?.view)
+                let visible = tabView.subviews.filter { !$0.isHiddenOrHasHiddenAncestor }
+                XCTAssertEqual(tabView.subviews.count, 1)
+                XCTAssertEqual(visible.count, 1)
+                XCTAssertTrue(visible.first === selected)
+                for item in controller.tabController.tabViewItems {
+                    XCTAssertEqual(try XCTUnwrap(item.viewController?.view).alphaValue, 1)
+                }
+                XCTAssertFalse(containsImageView(controller.compressionTabView))
+                for item in controller.compressionTabView.tabViewItems {
+                    let innerPane = try XCTUnwrap(item.view)
+                    XCTAssertEqual(innerPane.subviews.count, 1)
+                    XCTAssertFalse(containsImageView(innerPane))
+                    XCTAssertEqual(innerPane.alphaValue, 1)
+                    XCTAssertEqual(try XCTUnwrap(innerPane.subviews.first).alphaValue, 1)
+                }
             }
-            window.layoutIfNeeded()
-            XCTAssertEqual(window.frame, expected)
-            XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, size)
-            XCTAssertTrue(UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView)).isEmpty)
-            XCTAssertEqual(controller.compressionTabView.selectedTabViewItem?.view?.subviews.first?.alphaValue, 1)
         }
     }
 
