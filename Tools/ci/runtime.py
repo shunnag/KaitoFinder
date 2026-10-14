@@ -14,23 +14,10 @@ import subprocess
 import sys
 
 
-SKIP_CLASSES = (
-    "ArchiveTabSpringLoadingTests",
-    "ArchiveDropIntegrationTests",
-    "ReadOnlyDropConversionUITests",
-)
-# 両 CI job 共通。厳密な保存パネル geometry は、アニメーションによる伸縮が収まる画面を前提とする。
-# 1024x768 hosted VM では画面外補正が設計どおりパネルを動かすため、Mac mini の GUI runs で検証する。
-CI_SKIP_METHODS = (
-    "ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents",
-    "ArchivePasswordUITests/testSplitSavePanelResizesWithoutSlidingContents",
-)
-# macOS 26 の非アクティブな test host では toolbar の visibleItems が揃わない。
-# Mac mini (macOS 27) と xcode-27 job で検証する。
-MACOS_26_SKIP_METHODS = (
-    "ApplicationCommandIntegrationTests/testToolbarAndResponderChainApplyEditsAndRespectTextFocus",
-)
-EXECUTED = re.compile(r"Executed (\d+) tests?, with (\d+) failures")
+from shards import SKIP_CLASSES, CI_SKIP_METHODS, MACOS_26_SKIP_METHODS, SHARDS, selectors, scope_env
+
+
+EXECUTED = re.compile(r"Executed (\d+) tests?, with (?:\d+ tests? skipped and )?(\d+) failures?")
 STARTED = re.compile(r"Test Case '-\[|Test case '.+' (?:started|passed|failed|skipped)|Executed \d+ tests?")
 MISSING_TOOLS = re.compile(r"Required fixture tool is unavailable|7zz is not installed", re.I)
 
@@ -186,17 +173,21 @@ def package(dd, stage, helpers):
                        ("GyoshukuKit", root.parent / "GyoshukuKit")):
         repos[name] = {"path": str(path.resolve()), "sha": output("git", "-C", str(path), "rev-parse", "HEAD")}
     metadata = {"repos": repos, "derived_data": str(dd), "runner_temp": os.environ.get("RUNNER_TEMP"),
-                "xcode": output("xcodebuild", "-version"), "deployment_target": "26.0"}
+                "xcode": output("xcodebuild", "-version"), "deployment_target": "26.0",
+                "shards": {"platform": "macos-26", "count": len(SHARDS["macos-26"]) + 1}}
     (runtime / "manifest.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    selectors = runtime / "selectors.json"
-    selectors.write_text(json.dumps({"run": [], "skip": [
-        f"KaitoFinderTests.{identifier}" for identifier in (*SKIP_CLASSES, *CI_SKIP_METHODS, *MACOS_26_SKIP_METHODS)
-    ]}, indent=2) + "\n")
     bundle = app / "Contents/PlugIns/KaitoFinderTests.xctest"
-    # 絶対 bundle path は restore 時の manifest 検査で一致を保証する。
-    subprocess.run([str(helpers / "make-xctest-configuration"),
-                    str(macos / "Library/PrivateFrameworks/XCTestCore.framework/XCTestCore"), str(bundle),
-                    str(selectors), str(runtime / "direct.xctestconfiguration")], check=True)
+    for shard in range(1, metadata["shards"]["count"] + 1):
+        only, skip = selectors("macos-26", shard, metadata["shards"]["count"])
+        selector_path = runtime / f"selectors-{shard}.json"
+        selector_path.write_text(json.dumps({
+            "run": ["KaitoFinderTests." + identifier for identifier in only],
+            "skip": ["KaitoFinderTests." + identifier for identifier in skip],
+        }, indent=2) + "\n")
+        # 絶対 bundle path は restore 時の manifest 検査で一致を保証する。
+        subprocess.run([str(helpers / "make-xctest-configuration"),
+                        str(macos / "Library/PrivateFrameworks/XCTestCore.framework/XCTestCore"), str(bundle),
+                        str(selector_path), str(runtime / f"direct-{shard}.xctestconfiguration")], check=True)
     print(json.dumps(metadata, indent=2), flush=True)
 
 
@@ -224,7 +215,10 @@ def restore(stage, dd):
     print(json.dumps(metadata, indent=2), flush=True)
 
 
-def patch(products, runtime, only):
+def patch(products, runtime, shard, count, scope):
+    if manifest(runtime.parent)["shards"]["count"] != count:
+        raise RuntimeError("Shard count differs from build job")
+    only, skip = selectors("macos-26", shard, count)
     source, data = test_run(products)
     tests = data["KaitoFinderTests"]
     environment = tests.setdefault("TestingEnvironmentVariables", {})
@@ -238,11 +232,16 @@ def patch(products, runtime, only):
     inserts.append("/usr/lib/libRPAC.dylib")
     environment["DYLD_INSERT_LIBRARIES"] = ":".join(inserts)
     environment.update(CI="1", TEST_RUNNER_CI="1")
+    for key in ("KAITOFINDER_TEST_LANGUAGES", "KAITOFINDER_TEST_MATRIX"):
+        environment.pop(key, None)
+    environment.update(scope_env(scope))
     # xcodebuild.xctestrun(5) の identifier は target 内の Class[/method]。
     tests["SkipTestIdentifiers"] = list(dict.fromkeys([
-        *tests.get("SkipTestIdentifiers", []), *SKIP_CLASSES, *CI_SKIP_METHODS, *MACOS_26_SKIP_METHODS]))
+        *tests.get("SkipTestIdentifiers", []), *skip]))
     if only:
         tests["OnlyTestIdentifiers"] = only
+    else:
+        tests.pop("OnlyTestIdentifiers", None)
     tests.update(TestTimeoutsEnabled=True, DefaultTestExecutionTimeAllowance=600,
                  MaximumTestExecutionTimeAllowance=600, InProcessParallelizationEnabled=False)
     # __TESTROOT__ は xctestrun の親なので Products 直下に書く。
@@ -273,22 +272,25 @@ def fallback_eligible(log, exit_code):
     return exit_code != 0 and not STARTED.search(text)
 
 
-def direct(products, runtime, timeout):
+def direct(products, runtime, timeout, shard, scope):
+    selectors("macos-26", shard, len(SHARDS["macos-26"]) + 1)
     app = products / "Debug/KaitoFinder.app"
     environment = {key: value for key, value in os.environ.items()
                    if not key.startswith(("KAITOFINDER_", "TEST_RUNNER_KAITOFINDER_", "XCTest", "DYLD_"))}
+    # 除外した KAITOFINDER_* のうち、CI の実行範囲だけを明示して渡す。
+    environment.update(scope_env(scope))
     environment.update(
         DYLD_INSERT_LIBRARIES=str(runtime / "usr/lib/libXCTestBundleInject.dylib"),
         DYLD_FRAMEWORK_PATH=f"{runtime}/Frameworks:{products}/Debug:{products}/Debug/PackageFrameworks",
         DYLD_LIBRARY_PATH=f"{runtime}/usr/lib:{products}/Debug",
         XCTestBundlePath=str(app / "Contents/PlugIns/KaitoFinderTests.xctest"),
-        XCTestConfigurationFilePath=str(runtime / "direct.xctestconfiguration"), CI="1", TEST_RUNNER_CI="1")
+        XCTestConfigurationFilePath=str(runtime / f"direct-{shard}.xctestconfiguration"), CI="1", TEST_RUNNER_CI="1")
     if not Path(environment["XCTestConfigurationFilePath"]).is_file():
         raise RuntimeError("Missing pre-generated XCTest configuration; refuse unfiltered execution")
     print(json.dumps({k: v for k, v in environment.items() if k.startswith(("DYLD_", "XCTest")) or k == "CI"}, indent=2), flush=True)
     command = [str(app / "Contents/MacOS/KaitoFinder")]
     print(f"Direct executable (no env/arch wrapper): {command}", flush=True)
-    # Python sets env in posix_spawn/exec, after any SIP-protected parent has launched.
+    # SIP で保護された親の起動後、Python が posix_spawn/exec で環境変数を渡す。
     # stdout は tee 側へ流し、プロセスグループは timeout / step cancel 時にも回収する。
     process = subprocess.Popen(command, env=environment, start_new_session=True)
 
@@ -329,7 +331,7 @@ def main():
     patch_parser = commands.add_parser("patch")
     patch_parser.add_argument("products", type=Path)
     patch_parser.add_argument("runtime", type=Path)
-    patch_parser.add_argument("--only", action="append", default=[])
+    patch_parser.add_argument("--count", type=int, required=True)
     guard_parser = commands.add_parser("guard")
     guard_parser.add_argument("log", type=Path)
     eligible = commands.add_parser("fallback-eligible")
@@ -339,19 +341,22 @@ def main():
     direct_parser.add_argument("products", type=Path)
     direct_parser.add_argument("runtime", type=Path)
     direct_parser.add_argument("--timeout", type=int, default=13800)
+    for command in (patch_parser, direct_parser):
+        command.add_argument("--shard", type=int, required=True)
+        command.add_argument("--scope", required=True)
     args = parser.parse_args()
     if args.command == "package":
         package(args.dd, args.stage, args.helpers)
     elif args.command == "restore":
         restore(args.stage, args.dd)
     elif args.command == "patch":
-        patch(args.products.resolve(), args.runtime.resolve(), args.only)
+        patch(args.products.resolve(), args.runtime.resolve(), args.shard, args.count, args.scope)
     elif args.command == "guard":
         guard(args.log)
     elif args.command == "fallback-eligible":
         sys.exit(0 if fallback_eligible(args.log, args.exit_code) else 1)
     elif args.command == "direct":
-        direct(args.products.resolve(), args.runtime.resolve(), args.timeout)
+        direct(args.products.resolve(), args.runtime.resolve(), args.timeout, args.shard, args.scope)
 
 
 if __name__ == "__main__":

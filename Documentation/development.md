@@ -70,10 +70,17 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 
 ## CI
 
-[CI](../.github/workflows/ci.yml) は main / tag への push、pull request、手動、週次で実行する。
+[CI](../.github/workflows/ci.yml) は main への push、pull request、手動、毎日実行する。
+main の push は、同じ tree と兄弟 SHA が PR で通っていれば重い job を省く。
+文書だけの変更では実行しない（VerificationRecordTests が読む検証記録は除く）。
 Xcode 27 で Debug のアプリと app-hosted tests をビルドし、macOS 27 で試験する。
 別の job では同じビルド成果物と Xcode 27 の XCTest ランタイムを macOS 26 へ運び、
-再コンパイルせず試験する。兄弟 repo は main を取得し、転送先ではビルド時の SHA と
+再コンパイルせず試験する。Xcode 27 は 2 shard、macOS 26 は 3 shard に分ける。
+最後の shard は他の shard に割り当てていない class をすべて実行し、shard-coverage が
+列挙した全テストの実行をちょうど一度ずつ照合する（ZZProcessHealthTests は各 shard で一度）。
+PR と push は 26 言語の描画検査を 6 言語、7z の凍結行列を代表の組だけで実行し、
+毎日の実行と手動実行では全件を実行する。
+兄弟 repo は main を取得し、転送先ではビルド時の SHA と
 ソース・DerivedData の絶対パスを照合する。Sparkle は `Package.resolved` の 2.10.0 を使う。
 
 実ドラッグの 3 class、`Tools/` の実 HID GUI driver、性能 probe、実際の自動更新、

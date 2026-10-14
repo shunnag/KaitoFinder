@@ -64,11 +64,12 @@ nonisolated final class ArchiveControllerPreopeningTests: XCTestCase {
         let controller = try makeController()
         let samples = Mutex((stop: false, count: 0, worst: 0.0))
         let stopped = expectation(description: "latency sampler stopped")
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInteractive).async {
             while !samples.withLock({ $0.stop }) {
                 let start = DispatchTime.now().uptimeNanoseconds
-                DispatchQueue.main.sync {}
-                let elapsed = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+                // main が block を始めるまでの待ちだけを測り、sampler 側の復帰の遅れを含めない。
+                let began = DispatchQueue.main.sync { DispatchTime.now().uptimeNanoseconds }
+                let elapsed = Double(began - start) / 1_000_000
                 samples.withLock { $0.count += 1; $0.worst = max($0.worst, elapsed) }
                 Thread.sleep(forTimeInterval: 0.001)
             }

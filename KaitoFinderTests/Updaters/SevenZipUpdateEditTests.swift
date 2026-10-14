@@ -7,89 +7,103 @@ import XCTest
 
 nonisolated final class SevenZipUpdateEditTests: XCTestCase {
     func testFrozenImmediateEditsKeepUntouchedPacksAndAdoptReader() async throws {
-        for fixture in ["g_plain", "g_aes", "g_aesh", "z_default", "z_aes", "z_aesh", "lib"] {
-            for operation in ["first", "last", "same", "long", "folder", "add", "mkdir", "replace", "move"] {
-                let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.frozen(fixture, at: directory.url)
-                let before = try SevenZipUpdateFixture.reader(archive), entries = before.entries
-                let password = fixture.contains("aes") ? "secret" : nil
-                let session = try ArchiveSession(url: archive, password: password)
-                let original = try Data(contentsOf: archive), identity = try ArchiveFileIdentity.capture(url: archive)
-                let files = entries.filter { $0.kind == .file && $0.formatSpecific["emptyStream"] == "false" }
-                let target = try XCTUnwrap(operation == "last" ? files.last : files.first)
-                let source = directory.url.appendingPathComponent(operation == "replace" ? target.pathComponents.last! : "added.txt")
-                try Data("new".utf8).write(to: source)
-                let trace = SevenZipUpdateTrace(), progress = Progress()
-                var removed: Set<Int> = [], renamed: [Int: String] = [:]
-                try await trace.observing {
-                    try await ArchiveImportTransaction.didCommitForTesting.withValue({ work in
-                        try SevenZipUpdateFixture.assertWork(work, archive: archive, bytes: original, identity: identity)
-                    }) {
-                        switch operation {
-                        case "first", "last":
-                            let result = try await session.remove([SevenZipUpdateFixture.selection(target)], progress: progress)
-                            XCTAssertNil(result.reloadFailure); removed.insert(target.index)
-                        case "same", "long":
-                            let name = operation == "same" ? String(repeating: "x", count: target.pathComponents.last!.utf8.count) : "a-much-longer-name.txt"
-                            let result = try await session.rename(SevenZipUpdateFixture.selection(target), to: name, progress: progress)
-                            XCTAssertNil(result.reloadFailure)
-                            renamed[target.index] = (ArchiveEditPlan.key(target.name).split(separator: "/").map(String.init).dropLast() + [name]).joined(separator: "/")
-                        case "folder":
-                            let folder = try XCTUnwrap(entries.first { folder in
-                                folder.kind == .directory && !ArchiveEditPlan.key(folder.name).isEmpty &&
-                                entries.contains { $0.kind == .file && ArchiveEditPlan.key($0.name).hasPrefix(ArchiveEditPlan.key(folder.name) + "/") }
-                            })
-                            let key = ArchiveEditPlan.key(folder.name)
-                            let children = entries.filter { ArchiveEditPlan.key($0.name) == key || ArchiveEditPlan.key($0.name).hasPrefix(key + "/") }
-                            let selection = ArchiveEditSelection(path: key, isDirectory: true, entries: children)
-                            let result = try await session.rename(selection, to: "renamed-folder", progress: progress)
-                            XCTAssertNil(result.reloadFailure)
-                            let parent = key.split(separator: "/").dropLast().map(String.init)
-                            for child in children { renamed[child.index] = (parent + ["renamed-folder"]).joined(separator: "/") + String(ArchiveEditPlan.key(child.name).dropFirst(key.count)) }
-                        case "add", "replace":
-                            let parent = operation == "replace" ? ArchiveEditPlan.key(target.name).split(separator: "/").map(String.init).dropLast().joined(separator: "/") : ""
-                            let result = try await session.append(urls: [source], to: parent, progress: progress, resolveConflict: { _ in .init(choice: .replace) })
-                            XCTAssertTrue(result.failures.isEmpty); XCTAssertNil(result.reloadFailure)
-                            if operation == "replace" { removed.insert(target.index) }
-                        case "mkdir":
-                            let result = try await session.createFolder(in: "", baseName: "new", progress: progress)
-                            XCTAssertNil(result.reloadFailure)
-                        default:
-                            let parent = ArchiveEditPlan.key(target.name).split(separator: "/").map(String.init).dropLast().joined(separator: "/")
-                            let destination = try XCTUnwrap(entries.first { $0.kind == .directory && !ArchiveEditPlan.key($0.name).isEmpty && ArchiveEditPlan.key($0.name) != parent })
-                            let key = ArchiveEditPlan.key(destination.name)
-                            let result = try await session.edit(moving: [.init(selection: SevenZipUpdateFixture.selection(target), folder: key)], progress: progress)
-                            XCTAssertNil(result.reloadFailure)
-                            renamed[target.index] = key + "/" + target.pathComponents.last!
-                        }
+        let fixtures = ["g_plain", "g_aes", "g_aesh", "z_default", "z_aes", "z_aesh", "lib"]
+        let operations = ["first", "last", "same", "long", "folder", "add", "mkdir", "replace", "move"]
+        // 非 solid と solid の各操作・全 fixture を残し、全 commit strategy を検査する。
+        let representative = [
+            ("g_plain", "first"), ("g_aes", "last"), ("g_aesh", "same"),
+            ("g_plain", "long"), ("g_aes", "folder"), ("g_aesh", "add"),
+            ("g_plain", "mkdir"), ("g_aes", "replace"), ("g_aesh", "move"),
+            ("lib", "first"), ("z_aes", "last"), ("z_aesh", "same"),
+            ("z_default", "long"), ("lib", "folder"), ("z_aes", "add"),
+            ("z_default", "mkdir"), ("z_aesh", "replace"), ("z_default", "move")
+        ]
+        let cases = try TestEnvironment.isRepresentativeMatrix ? representative
+            : fixtures.flatMap { fixture in operations.map { (fixture, $0) } }
+        var observedStrategies = Set<String>()
+        for (fixture, operation) in cases {
+            let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.frozen(fixture, at: directory.url)
+            let before = try SevenZipUpdateFixture.reader(archive), entries = before.entries
+            let password = fixture.contains("aes") ? "secret" : nil
+            let session = try ArchiveSession(url: archive, password: password)
+            let original = try Data(contentsOf: archive), identity = try ArchiveFileIdentity.capture(url: archive)
+            let files = entries.filter { $0.kind == .file && $0.formatSpecific["emptyStream"] == "false" }
+            let target = try XCTUnwrap(operation == "last" ? files.last : files.first)
+            let source = directory.url.appendingPathComponent(operation == "replace" ? target.pathComponents.last! : "added.txt")
+            try Data("new".utf8).write(to: source)
+            let trace = SevenZipUpdateTrace(), progress = Progress()
+            var removed: Set<Int> = [], renamed: [Int: String] = [:]
+            try await trace.observing {
+                try await ArchiveImportTransaction.didCommitForTesting.withValue({ work in
+                    try SevenZipUpdateFixture.assertWork(work, archive: archive, bytes: original, identity: identity)
+                }) {
+                    switch operation {
+                    case "first", "last":
+                        let result = try await session.remove([SevenZipUpdateFixture.selection(target)], progress: progress)
+                        XCTAssertNil(result.reloadFailure); removed.insert(target.index)
+                    case "same", "long":
+                        let name = operation == "same" ? String(repeating: "x", count: target.pathComponents.last!.utf8.count) : "a-much-longer-name.txt"
+                        let result = try await session.rename(SevenZipUpdateFixture.selection(target), to: name, progress: progress)
+                        XCTAssertNil(result.reloadFailure)
+                        renamed[target.index] = (ArchiveEditPlan.key(target.name).split(separator: "/").map(String.init).dropLast() + [name]).joined(separator: "/")
+                    case "folder":
+                        let folder = try XCTUnwrap(entries.first { folder in
+                            folder.kind == .directory && !ArchiveEditPlan.key(folder.name).isEmpty &&
+                            entries.contains { $0.kind == .file && ArchiveEditPlan.key($0.name).hasPrefix(ArchiveEditPlan.key(folder.name) + "/") }
+                        })
+                        let key = ArchiveEditPlan.key(folder.name)
+                        let children = entries.filter { ArchiveEditPlan.key($0.name) == key || ArchiveEditPlan.key($0.name).hasPrefix(key + "/") }
+                        let selection = ArchiveEditSelection(path: key, isDirectory: true, entries: children)
+                        let result = try await session.rename(selection, to: "renamed-folder", progress: progress)
+                        XCTAssertNil(result.reloadFailure)
+                        let parent = key.split(separator: "/").dropLast().map(String.init)
+                        for child in children { renamed[child.index] = (parent + ["renamed-folder"]).joined(separator: "/") + String(ArchiveEditPlan.key(child.name).dropFirst(key.count)) }
+                    case "add", "replace":
+                        let parent = operation == "replace" ? ArchiveEditPlan.key(target.name).split(separator: "/").map(String.init).dropLast().joined(separator: "/") : ""
+                        let result = try await session.append(urls: [source], to: parent, progress: progress, resolveConflict: { _ in .init(choice: .replace) })
+                        XCTAssertTrue(result.failures.isEmpty); XCTAssertNil(result.reloadFailure)
+                        if operation == "replace" { removed.insert(target.index) }
+                    case "mkdir":
+                        let result = try await session.createFolder(in: "", baseName: "new", progress: progress)
+                        XCTAssertNil(result.reloadFailure)
+                    default:
+                        let parent = ArchiveEditPlan.key(target.name).split(separator: "/").map(String.init).dropLast().joined(separator: "/")
+                        let destination = try XCTUnwrap(entries.first { $0.kind == .directory && !ArchiveEditPlan.key($0.name).isEmpty && ArchiveEditPlan.key($0.name) != parent })
+                        let key = ArchiveEditPlan.key(destination.name)
+                        let result = try await session.edit(moving: [.init(selection: SevenZipUpdateFixture.selection(target), folder: key)], progress: progress)
+                        XCTAssertNil(result.reloadFailure)
+                        renamed[target.index] = key + "/" + target.pathComponents.last!
                     }
                 }
-                trace.assertRoute([.updaterOpen])
-                XCTAssertEqual(trace.adoptions.withLock { $0 }, [.adopted])
-                XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount, fixture + "/" + operation)
-                let after = try SevenZipUpdateFixture.reader(archive), output = try Data(contentsOf: archive)
-                let adopted = await session.entries()
-                XCTAssertEqual(adopted, after.entries)
-                let survivors = entries.filter { !removed.contains($0.index) }
-                XCTAssertEqual(after.entries.prefix(survivors.count).map { ArchiveEditPlan.key($0.name) },
-                               survivors.map { ArchiveEditPlan.key(renamed[$0.index] ?? $0.name) }, fixture + "/" + operation)
-                for (old, new) in zip(survivors, after.entries) {
-                    if old.kind != .directory { XCTAssertEqual(try before.read(old), try after.read(new)) }
-                    XCTAssertEqual(new.isEncrypted, old.isEncrypted)
-                    if renamed[old.index] == nil { XCTAssertEqual(new.rawName, old.rawName) }
-                }
-                try SevenZipUpdateFixture.assertCarried(before, bytes: original, after: after, output: output, removed: removed)
-                let snapshot = try XCTUnwrap(before.sevenZipEditingSnapshot())
-                let touchedSolid = snapshot.files.indices.contains { index in
-                    guard removed.contains(index), let substream = snapshot.files[index].substreamIndex else { return false }
-                    return snapshot.folders[snapshot.substreams[substream].folderIndex].substreamIndices.count > 1
-                }
-                let strategy: SevenZipUpdater.CommitStrategy = touchedSolid ? (operation == "replace" ? .relocatedAppend : .reencoded)
-                    : operation == "add" || operation == "mkdir" ? .appendOnly
-                    : operation == "first" || operation == "replace" ? .compacted : .headerOnly
-                XCTAssertEqual(trace.strategies.withLock { $0 }, [strategy], fixture + "/" + operation)
-                await session.close()
             }
+            trace.assertRoute([.updaterOpen])
+            XCTAssertEqual(trace.adoptions.withLock { $0 }, [.adopted])
+            XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount, fixture + "/" + operation)
+            let after = try SevenZipUpdateFixture.reader(archive), output = try Data(contentsOf: archive)
+            let adopted = await session.entries()
+            XCTAssertEqual(adopted, after.entries)
+            let survivors = entries.filter { !removed.contains($0.index) }
+            XCTAssertEqual(after.entries.prefix(survivors.count).map { ArchiveEditPlan.key($0.name) },
+                           survivors.map { ArchiveEditPlan.key(renamed[$0.index] ?? $0.name) }, fixture + "/" + operation)
+            for (old, new) in zip(survivors, after.entries) {
+                if old.kind != .directory { XCTAssertEqual(try before.read(old), try after.read(new)) }
+                XCTAssertEqual(new.isEncrypted, old.isEncrypted)
+                if renamed[old.index] == nil { XCTAssertEqual(new.rawName, old.rawName) }
+            }
+            try SevenZipUpdateFixture.assertCarried(before, bytes: original, after: after, output: output, removed: removed)
+            let snapshot = try XCTUnwrap(before.sevenZipEditingSnapshot())
+            let touchedSolid = snapshot.files.indices.contains { index in
+                guard removed.contains(index), let substream = snapshot.files[index].substreamIndex else { return false }
+                return snapshot.folders[snapshot.substreams[substream].folderIndex].substreamIndices.count > 1
+            }
+            let strategy: SevenZipUpdater.CommitStrategy = touchedSolid ? (operation == "replace" ? .relocatedAppend : .reencoded)
+                : operation == "add" || operation == "mkdir" ? .appendOnly
+                : operation == "first" || operation == "replace" ? .compacted : .headerOnly
+            XCTAssertEqual(trace.strategies.withLock { $0 }, [strategy], fixture + "/" + operation)
+            observedStrategies.formUnion(trace.strategies.withLock { $0 }.compactMap { $0.map { String(describing: $0) } })
+            await session.close()
         }
+        XCTAssertEqual(observedStrategies, Set(["headerOnly", "compacted", "appendOnly", "reencoded", "relocatedAppend"]))
     }
 
     @MainActor func testAttributesAndAllDeletedThenAddedRemainEditable() async throws {

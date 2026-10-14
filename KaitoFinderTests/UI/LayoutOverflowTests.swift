@@ -29,9 +29,9 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
         String(String(repeating: "旅行の写真 Archive ", count: 6).prefix(66)) + ".zip"
     }
 
-    @MainActor private func forEachLanguage(_ languages: [String] = LocalizationAcceptance.languages, _ body: (String, Bundle) throws -> Void) throws {
+    @MainActor private func forEachLanguage(_ languages: [String]? = nil, _ body: (String, Bundle) throws -> Void) throws {
         let app = Bundle(for: ArchiveDocument.self)
-        for language in languages {
+        for language in try languages ?? LocalizationAcceptance.renderedLanguages() {
             let url = try XCTUnwrap(app.url(forResource: language, withExtension: "lproj"), language)
             try body(language, XCTUnwrap(Bundle(url: url), language))
         }
@@ -60,7 +60,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
 
     @MainActor func testPasswordPromptsInEveryLanguage() throws {
         XCTAssertEqual(longArchiveName.count, 70)
-        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
+        try forEachLanguage { language, bundle in
             let names: [(String, String?)] = [("no-name", nil), ("short-name", "写真.zip"), ("long-name", longArchiveName)]
             let challenges: [(String, ArchivePasswordChallenge)] = [("required", .required), ("incorrect", .incorrect)]
             for (state, challenge) in challenges {
@@ -114,7 +114,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testSettingsTabsInEveryLanguage() throws {
-        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
+        try forEachLanguage { language, bundle in
             let suite = try ArchivePreferencesTestDefaults()
             let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle)
             defer { controller.close() }
@@ -196,7 +196,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testWelcomeWindowInEveryLanguageAndAppearance() throws {
-        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
+        try forEachLanguage { language, bundle in
             let suite = try ArchivePreferencesTestDefaults()
             let controller = WelcomeWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
                 bundle: bundle, createAction: {}, createDropAction: { _, _ in })
@@ -281,7 +281,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testSavePanelAccessoryInEveryLanguageAndFormat() throws {
-        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
+        try forEachLanguage { language, bundle in
             let suite = try ArchivePreferencesTestDefaults()
             let save = ArchiveSavePanel(sources: [URL(fileURLWithPath: "/tmp/写真.jpg")], defaults: suite.defaults, bundle: bundle)
             let accessory = try XCTUnwrap(save.panel.accessoryView)
@@ -299,7 +299,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
     }
 
     @MainActor func testStandaloneProgressSheetTruncates120CharacterNamesInEveryLanguage() throws {
-        try forEachLanguage(LocalizationAcceptance.languages) { language, bundle in
+        try forEachLanguage { language, bundle in
             let progress = Progress(totalUnitCount: 1_000)
             progress.completedUnitCount = 345
             let archiveName = String(String(repeating: "旅行の写真 Archive ", count: 10).prefix(116)) + ".zip"
