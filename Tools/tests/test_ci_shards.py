@@ -264,6 +264,99 @@ class CoverageTests(unittest.TestCase):
                 with self.subTest(text=text), self.assertRaises(ValueError):
                     shards.report('xcode-27', 1, 2, 'full', log, target, siblings_checkout=True)
 
+    def test_report_keeps_summary_embedded_in_unified_log(self):
+        log, target = self.root / 'test.log', self.root / 'report.json'
+        log.write_text(
+            "Test Case '-[KaitoFinderTests.ExampleTests testExample]' passed (0.01 seconds).\n"
+            '2026-10-14 13:42:22.122782+0000 KaitoFinder[5994:21375] [default] '
+            'message Executed 1 test, with 0 failures\n'
+        )
+        with patch.object(shards, 'identity', return_value={'sha': SHA, 'tree': TREE}), \
+                patch.object(shards, 'sibling_checkouts', return_value=SIBLINGS):
+            result = shards.report('xcode-27', 1, 2, 'full', log, target, siblings_checkout=True)
+        self.assertEqual(result['executed'], ['KaitoFinderTests/ExampleTests/testExample'])
+
+    def test_report_rejoins_test_case_split_by_unified_log(self):
+        log, target = self.root / 'test.log', self.root / 'report.json'
+        log.write_text(
+            "Test Case '-[KaitoFinderTests.ArchiveDocumentControllerTests "
+            "testNativeZIPGateResolutionAcceptsBothCasesAndLeavesMissingGateAlone]' started.\n"
+            '2026-10-14 13:42:21.707260+0000 KaitoFinder[5994:22046] [scoped] '
+            'Scoped bookmarks can only be created for existing files or directories\n'
+            "Test Case '-[KaitoFinderTests.2026-10-14 13:42:21.708690+0000 "
+            'KaitoFinder[5994:22046] [default] Insert failed for list identifier '
+            'com.apple.LSSharedFileList.ApplicationRecentDocuments Error: '
+            'Error Domain=NSOSStatusErrorDomain Code=-50 "paramErr: error in user parameter list"\n'
+            'ArchiveDocumentControllerTests '
+            "testNativeZIPGateResolutionAcceptsBothCasesAndLeavesMissingGateAlone]' passed (0.003 seconds).\n"
+            "Test Case '-[KaitoFinderTests.ArchiveDocumentControllerTests "
+            "testNumberedGateResolutionPreservesWidthAndFallsBackAfterWidthOverflow]' started.\n"
+            "Test Case '-[KaitoFinderTests.ArchiveDocumentControllerTests "
+            "testNumberedGateResolutionPreservesWidthAndFallsBackAfterWidthOverflow]' passed (0.003 seconds).\n"
+            'Executed 2 tests, with 0 failures\n'
+        )
+        with patch.object(shards, 'identity', return_value={'sha': SHA, 'tree': TREE}), \
+                patch.object(shards, 'sibling_checkouts', return_value=SIBLINGS):
+            result = shards.report('xcode-27', 1, 2, 'full', log, target, siblings_checkout=True)
+        self.assertEqual(len(result['executed']), 2)
+        self.assertIn('KaitoFinderTests/ArchiveDocumentControllerTests/'
+                      'testNativeZIPGateResolutionAcceptsBothCasesAndLeavesMissingGateAlone', result['executed'])
+        self.assertEqual(json.loads(target.read_text()), result)
+
+    def test_report_keeps_test_case_embedded_in_unified_log(self):
+        log, target = self.root / 'test.log', self.root / 'report.json'
+        log.write_text(
+            'build-and-test (2/2)\tUNKNOWN STEP\t2026-10-14T13:42:22.2256910Z '
+            "Test Case '-[KaitoFinderTests.ArchiveDocumentOpeningTests "
+            "testDocumentCreationDisablesConcurrentReading]' started.\n"
+            'build-and-test (2/2)\tUNKNOWN STEP\t2026-10-14T13:42:22.2258510Z '
+            '2026-10-14 13:42:22.122782+0000 KaitoFinder[5994:21375] [default] '
+            'Insert failed for list identifier com.apple.LSSharedFileList.RecentDocuments '
+            "Error: Error Domain=NSOTest Case '-[KaitoFinderTests.ArchiveDocumentOpeningTests "
+            "testDocumentCreationDisablesConcurrentReading]' passed (0.001 seconds).\n"
+            'build-and-test (2/2)\tUNKNOWN STEP\t2026-10-14T13:42:22.2263660Z '
+            'SStatusErrorDomain Code=-50 "paramErr: error in user parameter list"\n'
+            'build-and-test (2/2)\tUNKNOWN STEP\t2026-10-14T13:42:22.2264650Z '
+            "Test Case '-[KaitoFinderTests.ArchiveDocumentOpeningTests "
+            "testHeaderEncryptedReadKeepsLockedDocumentWithoutPresentingPrompt]' started.\n"
+            "Test Case '-[KaitoFinderTests.ArchiveDocumentOpeningTests "
+            "testHeaderEncryptedReadKeepsLockedDocumentWithoutPresentingPrompt]' passed (0.001 seconds).\n"
+            'Executed 2 tests, with 0 failures\n'
+        )
+        with patch.object(shards, 'identity', return_value={'sha': SHA, 'tree': TREE}), \
+                patch.object(shards, 'sibling_checkouts', return_value=SIBLINGS):
+            result = shards.report('xcode-27', 1, 2, 'full', log, target, siblings_checkout=True)
+        self.assertEqual(len(result['executed']), 2)
+        self.assertIn('KaitoFinderTests/ArchiveDocumentOpeningTests/'
+                      'testDocumentCreationDisablesConcurrentReading', result['executed'])
+        self.assertEqual(json.loads(target.read_text()), result)
+
+    def test_report_rejects_duplicates_in_either_parse(self):
+        log, target = self.root / 'test.log', self.root / 'report.json'
+        case = "Test Case '-[KaitoFinderTests.ExampleTests testExample]' passed (0.01 seconds).\n"
+        unified_log = '2026-10-14 13:42:22.122782+0000 KaitoFinder[5994:21375] [default] '
+        for text in (unified_log + case + case,
+                     "Test Case '-[KaitoFinderTests." + unified_log + 'message\n'
+                     + "ExampleTests testExample]' passed (0.01 seconds).\n" + case):
+            log.write_text(text + 'Executed 1 test, with 0 failures\n')
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, 'テスト識別子の重複'):
+                shards.report('xcode-27', 1, 2, 'full', log, target, siblings_checkout=True)
+
+    def test_report_missing_result_lists_started_identifier(self):
+        log, target = self.root / 'test.log', self.root / 'report.json'
+        log.write_text(
+            "Test Case '-[KaitoFinderTests.ExampleTests testExample]' started.\n"
+            '2026-10-14 13:42:22.122782+0000 KaitoFinder[5994:21375] [default] '
+            "Test Case '-[KaitoFinderTests.ExampleTests testExample]' passed (0.01 seconds).\n"
+            "Test Case '-[KaitoFinderTests.ExampleTests testMissing]' started.\n"
+            'Executed 2 tests, with 0 failures\n'
+        )
+        with self.assertRaises(ValueError) as error:
+            shards.report('xcode-27', 1, 2, 'full', log, target, siblings_checkout=True)
+        self.assertEqual(str(error.exception), 'Executed 件数が一致しません: [2, 2] / 1 '
+                         "結果なし=['KaitoFinderTests/ExampleTests/testMissing']")
+        self.assertFalse(target.exists())
+
 
 class RuntimeTests(unittest.TestCase):
     def test_guard_accepts_both_forms_and_rejects_failures_zero_and_silent_skip(self):
