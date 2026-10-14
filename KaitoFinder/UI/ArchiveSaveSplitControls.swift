@@ -33,7 +33,7 @@ import AppKit
         choices.addItem(withTitle: String(localized: "サイズを指定…", bundle: bundle))
         choices.selectItem(at: originalSchedule == nil ? 0 : 1)
         choices.setAccessibilityIdentifier("ArchiveSaveSplit")
-        choices.setAccessibilityLabel(String(localized: "分割:", bundle: bundle))
+        choices.setAccessibilityLabel(ArchiveSavePanel.accessibilityLabel(for: String(localized: "分割:", bundle: bundle)))
         number.setAccessibilityIdentifier("ArchiveSaveSplitSize")
         units.setAccessibilityIdentifier("ArchiveSaveSplitUnits")
         number.widthAnchor.constraint(equalToConstant: 120).isActive = true

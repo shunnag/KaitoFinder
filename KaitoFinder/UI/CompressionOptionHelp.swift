@@ -40,7 +40,7 @@ enum CompressionOptionHelp {
         switch format {
         case .tarGzip: String(localized: "最も広く使われる方式です。どの環境でも開け、速さと圧縮率のバランスが良いのでおすすめです。", bundle: bundle)
         case .tarBzip2: String(localized: "gzipより圧縮率が高めですが、遅い方式です。レベルはブロックの大きさ（100〜900 KB）を決めます。", bundle: bundle)
-        case .tarXZ: String(localized: "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。圧縮には1スレッドあたり約130 MBのメモリを使います。", bundle: bundle)
+        case .tarXZ: String(localized: "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。デフォルトのレベルでは、圧縮に1スレッドあたり約135 MBのメモリを使います。レベルを上げるとさらに増えます。", bundle: bundle)
         case .tarZstd: String(localized: "高速で、圧縮率も比較的高い新しい方式です。編集するたびにアーカイブ全体を書き直します。", bundle: bundle)
         case .tarLzip: String(localized: "LZMAによる圧縮率の高い方式で、各部分にCRC32のチェックサムを持ちます。編集するたびにアーカイブ全体を書き直します。", bundle: bundle)
         case .tarLZMA: String(localized: "古いLZMA形式です。並列化されません。新しく作るならxzかlzipがおすすめです。", bundle: bundle)

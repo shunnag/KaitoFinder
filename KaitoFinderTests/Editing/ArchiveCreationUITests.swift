@@ -216,7 +216,7 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
             pending.append(contentsOf: view.subviews)
         }
         XCTAssertTrue(labels.contains(String(localized: "tar と LHA は暗号化できません")))
-        XCTAssertEqual(labels.filter { $0 == String(localized: "フォーマット") }, [String(localized: "フォーマット")])
+        XCTAssertEqual(labels.filter { $0 == String(localized: "フォーマット:") }, [String(localized: "フォーマット:")])
         XCTAssertEqual(save.formatPopup.accessibilityLabel(), String(localized: "フォーマット"))
         preferences.defaults.set("tar.gz", forKey: "ArchiveCreationFormat")
         let conversion = ArchiveSavePanel(sources: [source], existingURL: directory.url.appendingPathComponent("Original.tar.bz2"),
@@ -224,6 +224,43 @@ nonisolated final class ArchiveCreationUITests: XCTestCase {
         XCTAssertEqual(conversion.panel.nameFieldStringValue, "Original.gz")
         XCTAssertEqual(conversion.controller.format, .tarGzip)
         XCTAssertEqual(conversion.formatPopup.indexOfSelectedItem, 2)
+    }
+
+    @MainActor func testSavePanelRowsUseColonsAndAccessibilityLabelsDoNot() throws {
+        for language in ["ja", "en"] {
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let fields = ArchivePasswordFields(format: .sevenZip,
+                minimumLabelWidth: ArchiveSavePanel.minimumLabelWidth(bundle: bundle), bundle: bundle)
+            let formats = NSPopUpButton(), levels = NSPopUpButton(), methods = NSPopUpButton(), filters = NSPopUpButton()
+            let split = ArchiveSaveSplitControls(layout: nil, bundle: bundle)
+            let accessory = ArchiveSavePanel.makeAccessoryView(formatPopup: formats, levelPopup: levels,
+                fixedLevelNote: ArchiveSavePanel.makeNote("", width: fields.width), encryptionCheckbox: NSButton(),
+                passwordFields: fields, encryptionNote: ArchiveSavePanel.makeNote("", width: fields.width),
+                splitControls: split, bundle: bundle, methodPopup: methods,
+                sevenZipSolidCheckbox: NSButton(), sevenZipFilterPopup: filters)
+            func labels(in view: NSView) -> [String] {
+                (view as? NSTextField).map { [$0.stringValue] } ?? view.subviews.flatMap { labels(in: $0) }
+            }
+            let expected = language == "ja" ? ["フォーマット:", "圧縮方式:", "圧縮レベル:", "フィルタ:", "分割:"]
+                : ["Format:", "Compression method:", "Compression level:", "Filter:", "Split:"]
+            let visibleLabels = labels(in: accessory)
+            for (popup, rowLabel) in zip([formats, methods, levels, filters, split.choices], expected) {
+                XCTAssertEqual(visibleLabels.filter { $0 == rowLabel }, [rowLabel], language)
+                XCTAssertTrue(rowLabel.hasSuffix(":"), language)
+                let spoken = try XCTUnwrap(popup.accessibilityLabel(), language)
+                XCTAssertEqual(spoken, String(rowLabel.dropLast()), language)
+                XCTAssertFalse(spoken.contains(":"), language)
+                XCTAssertFalse(spoken.contains("："), language)
+            }
+        }
+    }
+
+    @MainActor func testSavePanelAccessibilityLabelsStripLocalizedTrailingColons() {
+        for label in ["Method:", "Method :", "Method\u{00a0}:", "Method："] {
+            XCTAssertEqual(ArchiveSavePanel.accessibilityLabel(for: label), "Method")
+        }
+        XCTAssertEqual(ArchiveSavePanel.accessibilityLabel(for: "Method"), "Method")
+        XCTAssertEqual(ArchiveSavePanel.accessibilityLabel(for: "Method: ZIP"), "Method: ZIP")
     }
 
     @MainActor func testFileMenuStartsWithCommandNAndDoesNotOpenUntitledDocuments() throws {

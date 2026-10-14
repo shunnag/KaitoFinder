@@ -3704,163 +3704,163 @@
         }
       }
     },
-    "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。圧縮には1スレッドあたり約130 MBのメモリを使います。" : {
+    "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。デフォルトのレベルでは、圧縮に1スレッドあたり約135 MBのメモリを使います。レベルを上げるとさらに増えます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Metoda s vysokou kompresí. I velké objemy dat dělí pro paralelní kompresi. Používá přibližně 130 MB paměti na kompresní vlákno."
+            "value" : "Metoda s vysokou kompresí. I velké objemy dat dělí pro paralelní kompresi. Na výchozí úrovni používá přibližně 135 MB paměti na kompresní vlákno. Vyšší úrovně používají více."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En metode med høj komprimering. Også store datamængder opdeles og komprimeres parallelt. Bruger ca. 130 MB hukommelse pr. komprimeringstråd."
+            "value" : "En metode med høj komprimering. Også store datamængder opdeles og komprimeres parallelt. På standardniveauet bruges ca. 135 MB hukommelse pr. komprimeringstråd. Højere niveauer bruger mere."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine Methode mit hoher Kompression. Auch große Datenmengen werden für parallele Komprimierung aufgeteilt. Benötigt etwa 130 MB Arbeitsspeicher pro Komprimierungsthread."
+            "value" : "Eine Methode mit hoher Kompression. Auch große Datenmengen werden für parallele Komprimierung aufgeteilt. Benötigt auf der Standardstufe etwa 135 MB Arbeitsspeicher pro Komprimierungsthread. Höhere Stufen benötigen mehr."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A high-compression method. Splits even large amounts of data for parallel compression. Uses about 130 MB of memory per compression thread."
+            "value" : "A high-compression method. Splits even large amounts of data for parallel compression. Uses about 135 MB of memory per compression thread at the default level. Higher levels use more."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un método de alta compresión. Divide incluso grandes conjuntos de datos para comprimirlos en paralelo. Usa unos 130 MB de memoria por hilo de compresión."
+            "value" : "Un método de alta compresión. Divide incluso grandes conjuntos de datos para comprimirlos en paralelo. Con el nivel por omisión, usa unos 135 MB de memoria por hilo de compresión. Los niveles más altos usan más."
           }
         },
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tehokas pakkausmenetelmä. Myös suuret tietomäärät jaetaan rinnakkaista pakkausta varten. Käyttää noin 130 Mt muistia pakkaussäiettä kohden."
+            "value" : "Tehokas pakkausmenetelmä. Myös suuret tietomäärät jaetaan rinnakkaista pakkausta varten. Oletustasolla pakkaus käyttää noin 135 Mt muistia säiettä kohden. Korkeammat tasot käyttävät enemmän muistia."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Une méthode à forte compression. Découpe même les grands volumes de données pour les compresser en parallèle. Utilise environ 130 Mo de mémoire par thread de compression."
+            "value" : "Une méthode à forte compression. Découpe même les grands volumes de données pour les compresser en parallèle. Utilise environ 135 Mo de mémoire par thread de compression au niveau par défaut. Les niveaux plus élevés en utilisent davantage."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "उच्च कंप्रेशन वाली विधि। बड़े डेटा को भी बाँटकर समानांतर कंप्रेशन करती है। कंप्रेशन में प्रति थ्रेड लगभग 130 MB मेमोरी लगती है।"
+            "value" : "उच्च कंप्रेशन वाली विधि। बड़े डेटा को भी बाँटकर समानांतर कंप्रेशन करती है। डिफ़ॉल्ट स्तर पर कंप्रेशन में प्रति थ्रेड लगभग 135 MB मेमोरी लगती है। स्तर बढ़ाने पर और अधिक मेमोरी लगती है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Metode dengan kompresi tinggi. Data besar pun dibagi untuk kompresi paralel. Menggunakan sekitar 130 MB memori per utas kompresi."
+            "value" : "Metode dengan kompresi tinggi. Data besar pun dibagi untuk kompresi paralel. Pada level default, menggunakan sekitar 135 MB memori per utas kompresi. Level yang lebih tinggi menggunakan lebih banyak memori."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un metodo ad alta compressione. Divide anche grandi quantità di dati per comprimerle in parallelo. Usa circa 130 MB di memoria per thread di compressione."
+            "value" : "Un metodo ad alta compressione. Divide anche grandi quantità di dati per comprimerle in parallelo. Usa circa 135 MB di memoria per thread di compressione al livello di default. I livelli più alti ne usano di più."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。圧縮には1スレッドあたり約130 MBのメモリを使います。"
+            "value" : "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。デフォルトのレベルでは、圧縮に1スレッドあたり約135 MBのメモリを使います。レベルを上げるとさらに増えます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "압축률이 높은 방식입니다. 큰 데이터도 나눠 병렬로 압축합니다. 압축 스레드마다 약 130MB의 메모리를 사용합니다."
+            "value" : "압축률이 높은 방식입니다. 큰 데이터도 나눠 병렬로 압축합니다. 기본 수준에서는 압축 스레드마다 약 135MB의 메모리를 사용합니다. 수준을 높이면 더 많이 사용합니다."
           }
         },
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kaedah pemampatan tinggi. Data besar juga dibahagi untuk pemampatan selari. Menggunakan kira-kira 130 MB memori setiap bebenang pemampatan."
+            "value" : "Kaedah pemampatan tinggi. Data besar juga dibahagi untuk pemampatan selari. Pada tahap lalai, menggunakan kira-kira 135 MB memori setiap bebenang pemampatan. Tahap yang lebih tinggi menggunakan lebih banyak memori."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En metode med høy komprimering. Også store datamengder deles opp og komprimeres parallelt. Bruker omtrent 130 MB minne per komprimeringstråd."
+            "value" : "En metode med høy komprimering. Også store datamengder deles opp og komprimeres parallelt. På standardnivået brukes omtrent 135 MB minne per komprimeringstråd. Høyere nivåer bruker mer."
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Een methode met hoge compressie. Ook grote hoeveelheden gegevens worden opgesplitst voor parallelle compressie. Gebruikt ongeveer 130 MB geheugen per compressiethread."
+            "value" : "Een methode met hoge compressie. Ook grote hoeveelheden gegevens worden opgesplitst voor parallelle compressie. Gebruikt op het standaardniveau ongeveer 135 MB geheugen per compressiethread. Hogere niveaus gebruiken meer."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Metoda o wysokiej kompresji. Dzieli także duże zbiory danych do kompresji równoległej. Zużywa około 130 MB pamięci na wątek kompresji."
+            "value" : "Metoda o wysokiej kompresji. Dzieli także duże zbiory danych do kompresji równoległej. Na domyślnym poziomie zużywa około 135 MB pamięci na wątek kompresji. Wyższe poziomy zużywają jej więcej."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um método de alta compressão. Divide até grandes volumes de dados para comprimi-los em paralelo. Usa cerca de 130 MB de memória por thread de compressão."
+            "value" : "Um método de alta compressão. Divide até grandes volumes de dados para comprimi-los em paralelo. No nível padrão, usa cerca de 135 MB de memória por thread de compressão. Níveis mais altos usam mais."
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um método de compressão elevada. Divide também grandes volumes de dados para os comprimir em paralelo. Usa cerca de 130 MB de memória por thread de compressão."
+            "value" : "Um método de compressão elevada. Divide também grandes volumes de dados para os comprimir em paralelo. No nível predefinido, usa cerca de 135 MB de memória por thread de compressão. Níveis mais elevados usam mais."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Метод с высокой степенью сжатия. Даже большие объемы данных разбиваются для параллельного сжатия. Использует около 130 МБ памяти на поток сжатия."
+            "value" : "Метод с высокой степенью сжатия. Даже большие объемы данных разбиваются для параллельного сжатия. На уровне по умолчанию использует около 135 МБ памяти на поток сжатия. На более высоких уровнях используется больше."
           }
         },
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En metod med hög komprimering. Även stora datamängder delas upp och komprimeras parallellt. Använder ungefär 130 MB minne per komprimeringstråd."
+            "value" : "En metod med hög komprimering. Även stora datamängder delas upp och komprimeras parallellt. På den förvalda nivån används ungefär 135 MB minne per komprimeringstråd. Högre nivåer använder mer."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "วิธีที่บีบอัดได้สูง แบ่งแม้แต่ข้อมูลขนาดใหญ่เพื่อบีบอัดแบบขนาน ใช้หน่วยความจำประมาณ 130 MB ต่อเธรดบีบอัด"
+            "value" : "วิธีที่บีบอัดได้สูง แบ่งแม้แต่ข้อมูลขนาดใหญ่เพื่อบีบอัดแบบขนาน ที่ระดับค่าเริ่มต้นจะใช้หน่วยความจำประมาณ 135 MB ต่อเธรดบีบอัด ระดับที่สูงขึ้นจะใช้หน่วยความจำมากขึ้น"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yüksek sıkıştırmalı bir yöntemdir. Büyük verileri de bölerek paralel sıkıştırır. Sıkıştırma iş parçacığı başına yaklaşık 130 MB bellek kullanır."
+            "value" : "Yüksek sıkıştırmalı bir yöntemdir. Büyük verileri de bölerek paralel sıkıştırır. Saptanmış düzeyde sıkıştırma iş parçacığı başına yaklaşık 135 MB bellek kullanır. Daha yüksek düzeyler daha fazla bellek kullanır."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Метод із високим ступенем стиснення. Навіть великі обсяги даних діляться для паралельного стиснення. Використовує близько 130 МБ пам’яті на потік стиснення."
+            "value" : "Метод із високим ступенем стиснення. Навіть великі обсяги даних діляться для паралельного стиснення. На типовому рівні використовує близько 135 МБ пам’яті на потік стиснення. На вищих рівнях використовується більше."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phương thức nén cao. Chia cả lượng dữ liệu lớn để nén song song. Dùng khoảng 130 MB bộ nhớ cho mỗi luồng nén."
+            "value" : "Phương thức nén cao. Chia cả lượng dữ liệu lớn để nén song song. Ở mức mặc định, mỗi luồng nén dùng khoảng 135 MB bộ nhớ. Mức cao hơn dùng nhiều bộ nhớ hơn."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "高压缩率方式。较大的数据也会分割后并行压缩。压缩时每个线程约使用130 MB内存。"
+            "value" : "高压缩率方式。较大的数据也会分割后并行压缩。在默认级别下，压缩时每个线程约使用135 MB内存。级别越高，使用的内存越多。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "高壓縮率方式。大型資料也會分割後平行壓縮。壓縮時每個執行緒約使用130 MB記憶體。"
+            "value" : "高壓縮率方式。大型資料也會分割後平行壓縮。在預設等級下，壓縮時每個執行緒約使用135 MB記憶體。等級越高，使用的記憶體越多。"
           }
         }
       }
@@ -6936,7 +6936,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Prioriter hastighed (lidt større arkiver)"
+            "value" : "Prioriter hastighed (lidt lavere komprimeringsgrad)"
           }
         },
         "de" : {
@@ -6954,7 +6954,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Priorizar la velocidad (archivos ligeramente más grandes)"
+            "value" : "Priorizar la velocidad (archivos comprimidos ligeramente más grandes)"
           }
         },
         "fi" : {
@@ -6996,7 +6996,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "속도 우선 (압축 파일이 약간 커집니다)"
+            "value" : "속도 우선 (아카이브가 약간 커집니다)"
           }
         },
         "ms" : {
@@ -7026,7 +7026,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Priorizar velocidade (arquivos um pouco maiores)"
+            "value" : "Priorizar velocidade (arquivos comprimidos um pouco maiores)"
           }
         },
         "pt-PT" : {
@@ -7074,13 +7074,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "优先速度（压缩文件略大）"
+            "value" : "优先速度（归档略大）"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "優先速度（壓縮檔稍大）"
+            "value" : "優先速度（封存檔稍大）"
           }
         }
       }
@@ -13377,7 +13377,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hele det komprimerede arkiv komprimeres igen ved første arkivering"
+            "value" : "Hele arkivet komprimeres igen, første gang der gemmes"
           }
         },
         "de" : {
@@ -13467,7 +13467,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salvar pela primeira vez compacta novamente todo o arquivo comprimido"
+            "value" : "Salvar pela primeira vez recomprime todo o arquivo comprimido"
           }
         },
         "pt-PT" : {
@@ -14342,7 +14342,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det redigerede arkiv kunne ikke kontrolleres, så arkivet blev ikke gemt. Det oprindelige arkiv er ikke blevet ændret."
+            "value" : "Det redigerede komprimerede arkiv kunne ikke kontrolleres, så det blev ikke gemt. Det oprindelige arkiv er ikke blevet ændret."
           }
         },
         "de" : {
@@ -16593,7 +16593,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Komprimerede %@-arkiver kan ikke ændres."
+            "value" : "%@-arkiver kan ikke ændres."
           }
         },
         "de" : {
@@ -17237,7 +17237,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke dekomprimere %lld arkiver"
+            "value" : "Kunne ikke dekomprimere %lld komprimerede arkiver"
           }
         },
         "de" : {
@@ -17398,7 +17398,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dekomprimerer %lld arkiver…"
+            "value" : "Dekomprimerer %lld komprimerede arkiver…"
           }
         },
         "de" : {
@@ -23398,7 +23398,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gli archivi ZIP divisi nativamente non possono essere modificati."
+            "value" : "Gli archivi ZIP suddivisi nativamente non possono essere modificati."
           }
         },
         "ja" : {
@@ -27369,7 +27369,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dekomprimer arkiver…"
+            "value" : "Dekomprimer komprimerede arkiver…"
           }
         },
         "de" : {
@@ -27850,7 +27850,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ved åbning af arkiver:"
+            "value" : "Ved åbning af komprimerede arkiver:"
           }
         },
         "de" : {
@@ -29616,7 +29616,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke fjerne resultatet af det annullerede arkiv: %@."
+            "value" : "Kunne ikke fjerne resultatet af det annullerede komprimerede arkiv: %@."
           }
         },
         "de" : {
@@ -30099,7 +30099,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dette komprimerede %@-arkiv kan ikke ændres"
+            "value" : "Dette %@-arkiv kan ikke ændres"
           }
         },
         "de" : {
@@ -31065,7 +31065,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arbejdsfilen for dette arkiv overskrider FAT32-grænsen. Gem på en APFS- eller exFAT-disk."
+            "value" : "Arbejdsfilen for dette komprimerede arkiv overskrider FAT32-grænsen. Gem på en APFS- eller exFAT-disk."
           }
         },
         "de" : {
@@ -31101,7 +31101,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस संग्रह की कार्य फ़ाइल FAT32 की सीमा से बड़ी है। APFS या exFAT डिस्क पर सहेजें।"
+            "value" : "इस आर्काइव की कार्य फ़ाइल FAT32 की सीमा से बड़ी है। APFS या exFAT डिस्क पर सहेजें।"
           }
         },
         "id" : {
@@ -31125,7 +31125,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 압축 파일의 작업 파일이 FAT32의 한도를 초과합니다. APFS 또는 exFAT 디스크에 저장해 주세요."
+            "value" : "이 아카이브의 작업 파일이 FAT32의 한도를 초과합니다. APFS 또는 exFAT 디스크에 저장해 주세요."
           }
         },
         "ms" : {
@@ -31155,13 +31155,13 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O arquivo de trabalho deste arquivo compactado excede o limite do FAT32. Salve em um disco APFS ou exFAT."
+            "value" : "O arquivo de trabalho deste arquivo comprimido excede o limite do FAT32. Salve em um disco APFS ou exFAT."
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O ficheiro de trabalho deste arquivo comprimido excede o limite do FAT32. Guarde num disco APFS ou exFAT."
+            "value" : "O ficheiro de trabalho deste arquivo excede o limite do FAT32. Guarde num disco APFS ou exFAT."
           }
         },
         "ru" : {
@@ -31179,7 +31179,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไฟล์ทำงานของไฟล์บีบอัดนี้เกินขีดจำกัดของ FAT32 โปรดบันทึกลงดิสก์ APFS หรือ exFAT"
+            "value" : "ไฟล์ทำงานของที่เก็บถาวรนี้เกินขีดจำกัดของ FAT32 โปรดบันทึกลงดิสก์ APFS หรือ exFAT"
           }
         },
         "tr" : {
@@ -31197,19 +31197,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tệp làm việc của tệp nén này vượt giới hạn FAT32. Hãy lưu vào ổ đĩa APFS hoặc exFAT."
+            "value" : "Tệp làm việc của tệp lưu trữ này vượt giới hạn FAT32. Hãy lưu vào ổ đĩa APFS hoặc exFAT."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此压缩包的工作文件超出了FAT32的限制。请保存到APFS或exFAT磁盘。"
+            "value" : "此归档的工作文件超出了FAT32的限制。请保存到APFS或exFAT磁盘。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此壓縮檔的工作檔案超過FAT32的限制。請儲存到APFS或exFAT磁碟。"
+            "value" : "此封存檔的工作檔案超過FAT32的限制。請儲存到APFS或exFAT磁碟。"
           }
         }
       }
@@ -32834,7 +32834,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En afbrudt arkivering på denne placering kan kræve gendannelse. Andre apps, der læser under arkiveringen, kan se en blanding af gamle og nye volumener."
+            "value" : "Hvis du gemmer på denne placering, og det bliver afbrudt, kan det kræve gendannelse. Andre apps, der læser, mens der gemmes, kan se en blanding af gamle og nye volumener."
           }
         },
         "de" : {
@@ -35889,7 +35889,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alle enheder omskrives og opdeles igen med samme enhedsstørrelse."
+            "value" : "Alle volumener omskrives og opdeles igen med samme volumenstørrelse."
           }
         },
         "de" : {
@@ -41816,6 +41816,167 @@
         }
       }
     },
+    "フォーマット:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formát:"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formato:"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muoto:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format :"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "फ़ॉर्मैट :"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formato:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォーマット:"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "포맷:"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Structuur:"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formato:"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formato:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат:"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format:"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "รูปแบบ:"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biçim:"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат:"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Định dạng:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式："
+          }
+        }
+      }
+    },
     "フォルダ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -46653,7 +46814,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fuldfør afbrudt arkivering og åbn"
+            "value" : "Gem færdig og åbn"
           }
         },
         "de" : {
@@ -46975,7 +47136,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Spørg ikke igen for dette arkiv"
+            "value" : "Spørg ikke igen for dette komprimerede arkiv"
           }
         },
         "de" : {
@@ -47089,7 +47250,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่ต้องถามอีกสำหรับอาร์ไคฟ์นี้"
+            "value" : "ไม่ต้องถามอีกสำหรับที่เก็บถาวรนี้"
           }
         },
         "tr" : {
@@ -47386,7 +47547,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Escolha um destino diferente dos itens que estão sendo compactados."
+            "value" : "Escolha um destino diferente dos itens que estão sendo comprimidos."
           }
         },
         "pt-PT" : {
@@ -47457,7 +47618,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkiver"
+            "value" : "Gem"
           }
         },
         "de" : {
@@ -47529,7 +47690,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkiver"
+            "value" : "Lagre"
           }
         },
         "nl" : {
@@ -47618,7 +47779,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ved arkivering oprettes én fil."
+            "value" : "Når der gemmes, oprettes der én fil."
           }
         },
         "de" : {
@@ -47779,7 +47940,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hele det komprimerede arkiv komprimeres igen ved arkivering"
+            "value" : "Hele arkivet komprimeres igen, når der gemmes"
           }
         },
         "de" : {
@@ -47869,7 +48030,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Salvar compacta novamente todo o arquivo comprimido"
+            "value" : "Salvar recomprime todo o arquivo comprimido"
           }
         },
         "pt-PT" : {
@@ -47940,7 +48101,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ved arkivering bevares de oprindelige volumenstørrelser."
+            "value" : "De oprindelige volumenstørrelser bevares, når der gemmes."
           }
         },
         "de" : {
@@ -48101,7 +48262,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke gemme. Det oprindelige opdelte arkiv er gendannet. Prøv ændringen igen."
+            "value" : "Kunne ikke gemme. Det oprindelige opdelte komprimerede arkiv er gendannet. Prøv ændringen igen."
           }
         },
         "de" : {
@@ -48137,7 +48298,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सहेजना विफल होने पर मूल विभाजित संग्रह बहाल कर दिया गया। बदलाव फिर से करें।"
+            "value" : "सहेजना विफल होने पर मूल विभाजित आर्काइव बहाल कर दिया गया। बदलाव फिर से करें।"
           }
         },
         "id" : {
@@ -48161,19 +48322,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "저장하지 못해 원래 분할 압축 파일로 복원했습니다. 변경을 다시 시도해 주세요."
+            "value" : "저장하지 못해 원래 분할 아카이브로 복원했습니다. 변경을 다시 시도해 주세요."
           }
         },
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simpanan gagal, jadi arkib terbahagi asal telah dipulihkan. Cuba buat perubahan semula."
+            "value" : "Simpanan gagal, jadi arkib berpecah asal telah dipulihkan. Cuba buat perubahan semula."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke lagre. Det opprinnelige oppdelte arkivet er gjenopprettet. Prøv endringen igjen."
+            "value" : "Kunne ikke lagre. Det opprinnelige delte arkivet er gjenopprettet. Prøv endringen igjen."
           }
         },
         "nl" : {
@@ -48191,13 +48352,13 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível salvar. O arquivo compactado dividido original foi restaurado. Tente fazer a alteração novamente."
+            "value" : "Não foi possível salvar. O arquivo comprimido dividido original foi restaurado. Tente fazer a alteração novamente."
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível guardar. O arquivo comprimido dividido original foi restaurado. Tente fazer a alteração novamente."
+            "value" : "Não foi possível guardar. O arquivo dividido original foi restaurado. Tente fazer a alteração novamente."
           }
         },
         "ru" : {
@@ -48209,13 +48370,13 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det gick inte att spara. Det ursprungliga uppdelade arkivet har återställts. Försök göra ändringen igen."
+            "value" : "Det gick inte att spara. Det ursprungliga delade arkivet har återställts. Försök göra ändringen igen."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "บันทึกไม่สำเร็จ จึงคืนค่าไฟล์บีบอัดแบบแบ่งส่วนต้นฉบับแล้ว โปรดลองเปลี่ยนแปลงอีกครั้ง"
+            "value" : "บันทึกไม่สำเร็จ จึงคืนค่าที่เก็บถาวรแบบแบ่งส่วนต้นฉบับแล้ว โปรดลองเปลี่ยนแปลงอีกครั้ง"
           }
         },
         "tr" : {
@@ -48233,19 +48394,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lưu thất bại nên đã khôi phục tệp nén chia phần ban đầu. Hãy thử thay đổi lại."
+            "value" : "Lưu thất bại nên đã khôi phục tệp lưu trữ chia phần ban đầu. Hãy thử thay đổi lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存失败，已恢复原来的分卷压缩包。请重新进行更改。"
+            "value" : "保存失败，已恢复原来的分卷归档。请重新进行更改。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "儲存失敗，已還原原來的分卷壓縮檔。請重新進行更動。"
+            "value" : "儲存失敗，已還原原來的分卷封存檔。請重新進行更動。"
           }
         }
       }
@@ -48262,7 +48423,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke gemme. Det oprindelige opdelte arkiv er gendannet. Ikke-gemte ændringer er bevaret. Prøv at gemme igen."
+            "value" : "Kunne ikke gemme. Det oprindelige opdelte komprimerede arkiv er gendannet. Ikke-gemte ændringer er bevaret. Prøv at gemme igen."
           }
         },
         "de" : {
@@ -48298,7 +48459,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सहेजना विफल होने पर मूल विभाजित संग्रह बहाल कर दिया गया। न सहेजे गए बदलाव रखे गए हैं। फिर से सहेजें।"
+            "value" : "सहेजना विफल होने पर मूल विभाजित आर्काइव बहाल कर दिया गया। न सहेजे गए बदलाव रखे गए हैं। फिर से सहेजें।"
           }
         },
         "id" : {
@@ -48322,19 +48483,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "저장하지 못해 원래 분할 압축 파일로 복원했습니다. 저장하지 않은 변경 사항은 유지됩니다. 다시 저장해 주세요."
+            "value" : "저장하지 못해 원래 분할 아카이브로 복원했습니다. 저장하지 않은 변경 사항은 유지됩니다. 다시 저장해 주세요."
           }
         },
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simpanan gagal, jadi arkib terbahagi asal telah dipulihkan. Perubahan yang belum disimpan dikekalkan. Cuba simpan semula."
+            "value" : "Simpanan gagal, jadi arkib berpecah asal telah dipulihkan. Perubahan yang belum disimpan dikekalkan. Cuba simpan semula."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke lagre. Det opprinnelige oppdelte arkivet er gjenopprettet. Ulagrede endringer er beholdt. Prøv å lagre igjen."
+            "value" : "Kunne ikke lagre. Det opprinnelige delte arkivet er gjenopprettet. Ulagrede endringer er beholdt. Prøv å lagre igjen."
           }
         },
         "nl" : {
@@ -48352,13 +48513,13 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível salvar. O arquivo compactado dividido original foi restaurado. As alterações não salvas foram mantidas. Tente salvar novamente."
+            "value" : "Não foi possível salvar. O arquivo comprimido dividido original foi restaurado. As alterações não salvas foram mantidas. Tente salvar novamente."
           }
         },
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível guardar. O arquivo comprimido dividido original foi restaurado. As alterações não guardadas foram mantidas. Tente guardar novamente."
+            "value" : "Não foi possível guardar. O arquivo dividido original foi restaurado. As alterações não guardadas foram mantidas. Tente guardar novamente."
           }
         },
         "ru" : {
@@ -48370,13 +48531,13 @@
         "sv" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det gick inte att spara. Det ursprungliga uppdelade arkivet har återställts. Osparade ändringar finns kvar. Försök spara igen."
+            "value" : "Det gick inte att spara. Det ursprungliga delade arkivet har återställts. Osparade ändringar finns kvar. Försök spara igen."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "บันทึกไม่สำเร็จ จึงคืนค่าไฟล์บีบอัดแบบแบ่งส่วนต้นฉบับแล้ว การเปลี่ยนแปลงที่ยังไม่ได้บันทึกยังคงอยู่ โปรดลองบันทึกอีกครั้ง"
+            "value" : "บันทึกไม่สำเร็จ จึงคืนค่าที่เก็บถาวรแบบแบ่งส่วนต้นฉบับแล้ว การเปลี่ยนแปลงที่ยังไม่ได้บันทึกยังคงอยู่ โปรดลองบันทึกอีกครั้ง"
           }
         },
         "tr" : {
@@ -48394,19 +48555,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lưu thất bại nên đã khôi phục tệp nén chia phần ban đầu. Các thay đổi chưa lưu vẫn được giữ. Hãy thử lưu lại."
+            "value" : "Lưu thất bại nên đã khôi phục tệp lưu trữ chia phần ban đầu. Các thay đổi chưa lưu vẫn được giữ. Hãy thử lưu lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保存失败，已恢复原来的分卷压缩包。未保存的更改已保留。请重新保存。"
+            "value" : "保存失败，已恢复原来的分卷归档。未保存的更改已保留。请重新保存。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "儲存失敗，已還原原來的分卷壓縮檔。未儲存的更動已保留。請重新儲存。"
+            "value" : "儲存失敗，已還原原來的分卷封存檔。未儲存的更動已保留。請重新儲存。"
           }
         }
       }
@@ -48584,7 +48745,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filsamordningen til arkivering fik timeout. Originalen er uændret. Prøv at arkivere igen."
+            "value" : "Filsamordningen fik timeout, da der skulle gemmes. Originalen er uændret. Prøv at gemme igen."
           }
         },
         "de" : {
@@ -48906,7 +49067,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Samlet ved arkivering"
+            "value" : "Samlet, når der gemmes"
           }
         },
         "de" : {
@@ -50191,7 +50352,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tilbage til arkiveret version"
+            "value" : "Tilbage til sidst gemte version"
           }
         },
         "de" : {
@@ -50263,7 +50424,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gå tilbake til arkivert versjon"
+            "value" : "Gå tilbake til lagret versjon"
           }
         },
         "nl" : {
@@ -51799,7 +51960,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opdelt komprimeret arkiv (%lld volumener på %@). Ved arkivering opdeles det igen med samme volumenstørrelse."
+            "value" : "Opdelt komprimeret arkiv (%lld volumener på %@). Når der gemmes, opdeles det igen med samme volumenstørrelse."
           }
         },
         "de" : {
@@ -51841,13 +52002,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arsip terpisah (%lld volume, masing-masing %@). Saat disimpan akan dibagi lagi dengan ukuran volume yang sama."
+            "value" : "Arsip terbagi (%lld volume, masing-masing %@). Saat disimpan akan dibagi lagi dengan ukuran volume yang sama."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Archivio diviso (%lld volumi da %@). Il salvataggio lo dividerà nuovamente con la stessa dimensione dei volumi."
+            "value" : "Archivio suddiviso (%lld volumi da %@). Il salvataggio lo suddividerà nuovamente con la stessa dimensione dei volumi."
           }
         },
         "ja" : {
@@ -51960,7 +52121,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkivering af det opdelte komprimerede arkiv blev afbrudt"
+            "value" : "Det opdelte komprimerede arkiv blev ikke gemt færdigt"
           }
         },
         "de" : {
@@ -52002,13 +52163,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penyimpanan arsip terpisah terhenti"
+            "value" : "Penyimpanan arsip terbagi terhenti"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il salvataggio dell’archivio diviso è stato interrotto"
+            "value" : "Il salvataggio dell’archivio suddiviso è stato interrotto"
           }
         },
         "ja" : {
@@ -52121,7 +52282,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkivering af det opdelte komprimerede arkiv kunne ikke fuldføres. Redigering er deaktiveret indtil gendannelse. Åbn arkivet igen."
+            "value" : "Det opdelte komprimerede arkiv kunne ikke gemmes færdigt. Redigering er deaktiveret indtil gendannelse. Åbn arkivet igen."
           }
         },
         "de" : {
@@ -52163,13 +52324,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penyimpanan arsip terpisah tidak dapat diselesaikan. Pengeditan dinonaktifkan hingga pemulihan. Buka kembali arsip."
+            "value" : "Penyimpanan arsip terbagi tidak dapat diselesaikan. Pengeditan dinonaktifkan hingga pemulihan. Buka kembali arsip."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Impossibile completare il salvataggio dell’archivio diviso. La modifica è disabilitata fino al recupero. Riapri l’archivio."
+            "value" : "Impossibile completare il salvataggio dell’archivio suddiviso. La modifica è disabilitata fino al recupero. Riapri l’archivio."
           }
         },
         "ja" : {
@@ -52282,7 +52443,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkivering af det opdelte komprimerede arkiv kunne ikke fuldføres. Ikke-arkiverede ændringer bevares. Redigering er deaktiveret indtil gendannelse. Åbn arkivet igen."
+            "value" : "Det opdelte komprimerede arkiv kunne ikke gemmes færdigt. Ikke-gemte ændringer bevares. Redigering er deaktiveret indtil gendannelse. Åbn arkivet igen."
           }
         },
         "de" : {
@@ -52324,13 +52485,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penyimpanan arsip terpisah tidak dapat diselesaikan. Perubahan belum disimpan tetap ada. Pengeditan dinonaktifkan hingga pemulihan. Buka kembali arsip."
+            "value" : "Penyimpanan arsip terbagi tidak dapat diselesaikan. Perubahan belum disimpan tetap ada. Pengeditan dinonaktifkan hingga pemulihan. Buka kembali arsip."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Impossibile completare il salvataggio dell’archivio diviso. Le modifiche non salvate sono conservate. La modifica è disabilitata fino al recupero. Riapri l’archivio."
+            "value" : "Impossibile completare il salvataggio dell’archivio suddiviso. Le modifiche non salvate sono conservate. La modifica è disabilitata fino al recupero. Riapri l’archivio."
           }
         },
         "ja" : {
@@ -52485,13 +52646,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arsip terpisah tidak dapat dipulihkan"
+            "value" : "Arsip terbagi tidak dapat dipulihkan"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Impossibile recuperare l’archivio diviso"
+            "value" : "Impossibile recuperare l’archivio suddiviso"
           }
         },
         "ja" : {
@@ -52646,13 +52807,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arsip terpisah berisi volume dari kumpulan atau versi berbeda."
+            "value" : "Arsip terbagi berisi volume dari kumpulan atau versi berbeda."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’archivio diviso contiene volumi di gruppi o versioni differenti."
+            "value" : "L’archivio suddiviso contiene volumi di gruppi o versioni differenti."
           }
         },
         "ja" : {
@@ -52688,7 +52849,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Archiwum zawiera woluminy z różnych zestawów lub wersji."
+            "value" : "Archiwum wieloczęściowe zawiera woluminy z różnych zestawów lub wersji."
           }
         },
         "pt-BR" : {
@@ -52736,7 +52897,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tệp lưu trữ chứa các phần từ những bộ hoặc phiên bản khác nhau."
+            "value" : "Tệp lưu trữ chia phần chứa các phần từ những bộ hoặc phiên bản khác nhau."
           }
         },
         "zh-Hans" : {
@@ -52765,7 +52926,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opdelte komprimerede arkiver kan redigeres ved at vælge ”Samlet ved arkivering” i Indstillinger."
+            "value" : "Opdelte komprimerede arkiver kan redigeres ved at vælge “Samlet, når der gemmes” i Indstillinger."
           }
         },
         "de" : {
@@ -52807,13 +52968,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arsip terpisah dapat diedit dengan memilih “Bersamaan Saat Menyimpan” di Pengaturan."
+            "value" : "Arsip terbagi dapat diedit dengan memilih “Bersamaan Saat Menyimpan” di Pengaturan."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gli archivi divisi possono essere modificati scegliendo “Insieme al salvataggio” nelle impostazioni."
+            "value" : "Gli archivi suddivisi possono essere modificati scegliendo “Insieme al salvataggio” nelle impostazioni."
           }
         },
         "ja" : {
@@ -52926,7 +53087,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ændringer i et opdelt arkiv kan ikke fortrydes."
+            "value" : "Ændringer i et opdelt komprimeret arkiv kan ikke fortrydes."
           }
         },
         "de" : {
@@ -52950,7 +53111,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Osiin jaetun arkiston muutoksia ei voi kumota."
+            "value" : "Jaetun arkiston muutoksia ei voi kumota."
           }
         },
         "fr" : {
@@ -52992,7 +53153,7 @@
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Perubahan pada arkib terbahagi tidak boleh dibuat asal."
+            "value" : "Perubahan pada arkib berpecah tidak boleh dibuat asal."
           }
         },
         "nb" : {
@@ -53010,7 +53171,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zmian w podzielonym archiwum nie można cofnąć."
+            "value" : "Zmian w archiwum wieloczęściowym nie można cofnąć."
           }
         },
         "pt-BR" : {
@@ -53028,7 +53189,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Изменения разделённого архива нельзя отменить."
+            "value" : "Изменения многотомного архива нельзя отменить."
           }
         },
         "sv" : {
@@ -53040,7 +53201,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่สามารถเลิกทำการเปลี่ยนแปลงอาร์ไคฟ์แบบแบ่งส่วนได้"
+            "value" : "ไม่สามารถเลิกทำการเปลี่ยนแปลงในที่เก็บถาวรแบบแบ่งส่วนได้"
           }
         },
         "tr" : {
@@ -53052,7 +53213,7 @@
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Зміни розділеного архіву неможливо скасувати."
+            "value" : "Зміни багатотомного архіву неможливо скасувати."
           }
         },
         "vi" : {
@@ -53129,13 +53290,13 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Izinkan Penulisan Arsip Terpisah"
+            "value" : "Izinkan Penulisan Arsip Terbagi"
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Consenti la scrittura nell’archivio diviso"
+            "value" : "Consenti la scrittura nell’archivio suddiviso"
           }
         },
         "ja" : {
@@ -53248,7 +53409,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Et opdelt arkiv er ved at blive skrevet. KaitoFinder afsluttes, når skrivningen er færdig. Andre igangværende handlinger annulleres."
+            "value" : "Et opdelt komprimeret arkiv er ved at blive skrevet. KaitoFinder afsluttes, når skrivningen er færdig. Andre igangværende handlinger annulleres."
           }
         },
         "de" : {
@@ -53284,7 +53445,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "विभाजित संग्रह लिखा जा रहा है। लिखना पूरा होने पर KaitoFinder बंद होगा। अन्य चल रही कार्रवाइयाँ रद्द कर दी जाएँगी।"
+            "value" : "विभाजित आर्काइव लिखा जा रहा है। लिखना पूरा होने पर KaitoFinder बंद होगा। अन्य चल रही कार्रवाइयाँ रद्द कर दी जाएँगी।"
           }
         },
         "id" : {
@@ -53308,7 +53469,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "분할 압축 파일을 쓰는 중입니다. 쓰기가 완료되면 KaitoFinder가 종료됩니다. 진행 중인 다른 작업은 취소됩니다."
+            "value" : "분할 아카이브를 쓰는 중입니다. 쓰기가 완료되면 KaitoFinder가 종료됩니다. 진행 중인 다른 작업은 취소됩니다."
           }
         },
         "ms" : {
@@ -53338,7 +53499,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um arquivo dividido está sendo gravado. O KaitoFinder será encerrado quando a gravação terminar. As outras operações em andamento serão canceladas."
+            "value" : "Um arquivo comprimido dividido está sendo gravado. O KaitoFinder será encerrado quando a gravação terminar. As outras operações em andamento serão canceladas."
           }
         },
         "pt-PT" : {
@@ -53362,7 +53523,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "กำลังเขียนไฟล์เก็บถาวรแบบแบ่งส่วน KaitoFinder จะออกเมื่อเขียนเสร็จ การดำเนินการอื่นที่กำลังทำอยู่จะถูกยกเลิก"
+            "value" : "กำลังเขียนที่เก็บถาวรแบบแบ่งส่วน KaitoFinder จะออกเมื่อเขียนเสร็จ การดำเนินการอื่นที่กำลังทำอยู่จะถูกยกเลิก"
           }
         },
         "tr" : {
@@ -53380,7 +53541,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đang ghi tệp lưu trữ chia nhỏ. KaitoFinder sẽ thoát khi ghi xong. Các thao tác khác đang diễn ra sẽ bị hủy."
+            "value" : "Đang ghi tệp lưu trữ chia phần. KaitoFinder sẽ thoát khi ghi xong. Các thao tác khác đang diễn ra sẽ bị hủy."
           }
         },
         "zh-Hans" : {
@@ -53409,7 +53570,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Opdelte arkiver kan ikke redigeres."
+            "value" : "Opdelte komprimerede arkiver kan ikke redigeres."
           }
         },
         "de" : {
@@ -53475,13 +53636,13 @@
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arkib berbilang bahagian tidak boleh diedit."
+            "value" : "Arkib berpecah tidak boleh diedit."
           }
         },
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oppdelte arkiver kan ikke redigeres."
+            "value" : "Delte arkiver kan ikke redigeres."
           }
         },
         "nl" : {
@@ -53493,7 +53654,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nie można edytować podzielonych archiwów."
+            "value" : "Nie można edytować archiwów wieloczęściowych."
           }
         },
         "pt-BR" : {
@@ -53511,7 +53672,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Разделённые архивы нельзя редактировать."
+            "value" : "Многотомные архивы нельзя редактировать."
           }
         },
         "sv" : {
@@ -53535,13 +53696,13 @@
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Розділені архіви не можна редагувати."
+            "value" : "Багатотомні архіви не можна редагувати."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Không thể sửa tệp lưu trữ chia nhỏ."
+            "value" : "Không thể sửa tệp lưu trữ chia phần."
           }
         },
         "zh-Hans" : {
@@ -53570,7 +53731,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Antallet af volumener overskrider grænsen på 128. Vælg en større volumenstørrelse for at arkivere."
+            "value" : "Antallet af volumener overskrider grænsen på 128. Vælg en større volumenstørrelse for at gemme."
           }
         },
         "de" : {
@@ -53731,7 +53892,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ændringen ville overskride grænsen på 128 dele. Vælg en større delstørrelse via Gem som."
+            "value" : "Ændringen ville overskride grænsen på 128 volumener. Vælg en større volumenstørrelse via Gem som."
           }
         },
         "de" : {
@@ -53767,7 +53928,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बदलाव से 128 भागों की सीमा पार हो जाएगी। बड़े भाग का आकार चुनने के लिए इस रूप में सहेजें का उपयोग करें।"
+            "value" : "बदलाव से 128 वॉल्यूम की सीमा पार हो जाएगी। बड़ा वॉल्यूम आकार चुनने के लिए “ऐसे सहेजें” का उपयोग करें।"
           }
         },
         "id" : {
@@ -53803,7 +53964,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Endringen ville overskride grensen på 128 volumer. Velg en større volumstørrelse via Arkiver som."
+            "value" : "Endringen ville overskride grensen på 128 volumer. Velg en større volumstørrelse via Lagre som."
           }
         },
         "nl" : {
@@ -53815,7 +53976,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zmiana przekroczyłaby limit 128 części. Wybierz większy rozmiar części w opcji Zachowaj jako."
+            "value" : "Zmiana przekroczyłaby limit 128 woluminów. Wybierz większy rozmiar woluminu w opcji Zachowaj jako."
           }
         },
         "pt-BR" : {
@@ -53845,7 +54006,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "การเปลี่ยนแปลงจะเกินขีดจำกัด 128 ส่วน ใช้บันทึกเป็นเพื่อเลือกขนาดส่วนที่ใหญ่ขึ้น"
+            "value" : "การเปลี่ยนแปลงจะเกินขีดจำกัด 128 โวลุ่ม ใช้บันทึกเป็นเพื่อเลือกขนาดโวลุ่มที่ใหญ่ขึ้น"
           }
         },
         "tr" : {
@@ -53892,7 +54053,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En anden arkivering eller gendannelse er i gang. Prøv at arkivere igen om lidt."
+            "value" : "Der gemmes eller gendannes allerede. Prøv at gemme igen om lidt."
           }
         },
         "de" : {
@@ -55018,7 +55179,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld klargøringsmapper, der ikke blev arkiveret sidste gang, er flyttet til papirkurven."
+            "value" : "%lld klargøringsmapper, der ikke blev gemt sidste gang, er flyttet til papirkurven."
           }
         },
         "de" : {
@@ -59039,7 +59200,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gem komprimerede arkiver (zip, jpg, mp4 osv.) uden komprimering"
+            "value" : "Gem allerede komprimerede filer (zip, jpg, mp4 osv.) uden komprimering"
           }
         },
         "de" : {
@@ -60005,7 +60166,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ændringerne er arkiveret, men arbejdsmappen mangler stadig at blive ryddet op."
+            "value" : "Ændringerne er gemt, men arbejdsmappen mangler stadig at blive ryddet op."
           }
         },
         "de" : {
@@ -63219,7 +63380,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vælg “Samlet ved arkivering” i Indstillinger for at redigere opdelte arkiver med forskellige enhedsstørrelser."
+            "value" : "Vælg “Samlet, når der gemmes” i Indstillinger for at redigere opdelte komprimerede arkiver med forskellige volumenstørrelser."
           }
         },
         "de" : {
@@ -63243,7 +63404,7 @@
         "fi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Voit muokata osiin jaettuja arkistoja, joiden taltioiden koot vaihtelevat, valitsemalla asetuksista ”Yhdessä tallennettaessa”."
+            "value" : "Voit muokata jaettuja arkistoja, joiden taltioiden koot vaihtelevat, valitsemalla asetuksista ”Yhdessä tallennettaessa”."
           }
         },
         "fr" : {
@@ -63285,7 +63446,7 @@
         "ms" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Untuk mengedit arkib terbahagi dengan saiz volum yang berbeza, pilih “Serentak Semasa Menyimpan” dalam Seting."
+            "value" : "Untuk mengedit arkib berpecah dengan saiz volum yang berbeza, pilih “Serentak Semasa Menyimpan” dalam Seting."
           }
         },
         "nb" : {
@@ -63303,7 +63464,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aby edytować podzielone archiwa z woluminami o różnych rozmiarach, wybierz „Razem przy zachowywaniu” w Ustawieniach."
+            "value" : "Aby edytować archiwa wieloczęściowe z woluminami o różnych rozmiarach, wybierz „Razem przy zachowywaniu” w Ustawieniach."
           }
         },
         "pt-BR" : {
@@ -63321,7 +63482,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Чтобы редактировать разделённые архивы с томами разного размера, выберите «Вместе при сохранении» в настройках."
+            "value" : "Чтобы редактировать многотомные архивы с томами разного размера, выберите «Вместе при сохранении» в настройках."
           }
         },
         "sv" : {
@@ -63333,7 +63494,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "หากต้องการแก้ไขอาร์ไคฟ์ที่แบ่งเป็นโวลุ่มขนาดไม่เท่ากัน ให้เลือก “พร้อมกันเมื่อบันทึก” ในการตั้งค่า"
+            "value" : "หากต้องการแก้ไขที่เก็บถาวรแบบแบ่งส่วนที่มีขนาดโวลุ่มไม่เท่ากัน ให้เลือก “พร้อมกันเมื่อบันทึก” ในการตั้งค่า"
           }
         },
         "tr" : {
@@ -63345,7 +63506,7 @@
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Щоб редагувати розділені архіви з томами різного розміру, виберіть «Разом під час збереження» в параметрах."
+            "value" : "Щоб редагувати багатотомні архіви з томами різного розміру, виберіть «Разом під час збереження» в параметрах."
           }
         },
         "vi" : {
@@ -63380,7 +63541,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Volumenstørrelserne er forskellige. Vælg en størrelse ved arkivering."
+            "value" : "Volumenstørrelserne er forskellige. Vælg en størrelse, når der gemmes."
           }
         },
         "de" : {
@@ -63535,13 +63696,13 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nelze zaznamenat nastavení velikosti dílů. Při příštím otevření zkontrolujte velikost dílů."
+            "value" : "Nelze zaznamenat nastavení velikosti svazků. Při příštím otevření zkontrolujte velikost svazků."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke registrere indstillingen for delstørrelse. Kontroller delstørrelsen, næste gang filerne åbnes."
+            "value" : "Kunne ikke registrere indstillingen for volumenstørrelse. Kontroller volumenstørrelsen, næste gang filerne åbnes."
           }
         },
         "de" : {
@@ -63577,7 +63738,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "खंड के आकार की सेटिंग दर्ज नहीं की जा सकी। अगली बार खोलते समय खंड का आकार जाँचें।"
+            "value" : "वॉल्यूम के आकार की सेटिंग दर्ज नहीं की जा सकी। अगली बार खोलते समय वॉल्यूम का आकार जाँचें।"
           }
         },
         "id" : {
@@ -63613,7 +63774,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke registrere innstillingen for delstørrelse. Kontroller delstørrelsen neste gang filene åpnes."
+            "value" : "Kunne ikke registrere innstillingen for volumstørrelse. Kontroller volumstørrelsen neste gang filene åpnes."
           }
         },
         "nl" : {
@@ -63625,7 +63786,7 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nie można zapisać ustawienia rozmiaru części. Sprawdź rozmiar części przy następnym otwarciu."
+            "value" : "Nie można zapisać ustawienia rozmiaru woluminów. Sprawdź rozmiar woluminów przy następnym otwarciu."
           }
         },
         "pt-BR" : {
@@ -63655,7 +63816,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "บันทึกการตั้งค่าขนาดส่วนไม่ได้ โปรดตรวจสอบขนาดส่วนเมื่อเปิดครั้งถัดไป"
+            "value" : "บันทึกการตั้งค่าขนาดโวลุ่มไม่ได้ โปรดตรวจสอบขนาดโวลุ่มเมื่อเปิดครั้งถัดไป"
           }
         },
         "tr" : {
@@ -64979,19 +65140,19 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nový vícesvazkový archiv se nepodařilo dokončit. Původní archiv se nezměnil. Zkontrolujte pracovní složku v cílovém umístění ve Finderu."
+            "value" : "Nový rozdělený archiv se nepodařilo dokončit. Původní archiv se nezměnil. Zkontrolujte pracovní složku v cílovém umístění ve Finderu."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det nye opdelte arkiv kunne ikke færdiggøres. Det oprindelige arkiv er uændret. Kontrollér arbejdsmappen på destinationen i Finder."
+            "value" : "Det nye opdelte komprimerede arkiv kunne ikke færdiggøres. Det oprindelige arkiv er uændret. Kontrollér arbejdsmappen på destinationen i Finder."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das neue aufgeteilte Archiv konnte nicht fertiggestellt werden. Das ursprüngliche Archiv ist unverändert. Den Arbeitsordner am Zielort im Finder prüfen."
+            "value" : "Das neue geteilte Archiv konnte nicht fertiggestellt werden. Das ursprüngliche Archiv ist unverändert. Den Arbeitsordner am Zielort im Finder prüfen."
           }
         },
         "en" : {
@@ -65045,7 +65206,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "새 분할 압축 파일을 완성하지 못했습니다. 원본 압축 파일은 변경되지 않았습니다. Finder에서 대상 위치의 작업 폴더를 확인해 주세요."
+            "value" : "새 분할 아카이브를 완성하지 못했습니다. 원본 아카이브는 변경되지 않았습니다. Finder에서 대상 위치의 작업 폴더를 확인해 주세요."
           }
         },
         "ms" : {
@@ -65075,7 +65236,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível concluir o novo arquivo dividido. O arquivo original não foi alterado. Verifique a pasta de trabalho no destino pelo Finder."
+            "value" : "Não foi possível concluir o novo arquivo comprimido dividido. O arquivo comprimido original não foi alterado. Verifique a pasta de trabalho no destino pelo Finder."
           }
         },
         "pt-PT" : {
@@ -65099,7 +65260,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่สามารถสร้างไฟล์บีบอัดแบบแบ่งส่วนใหม่ให้เสร็จสมบูรณ์ได้ ไฟล์บีบอัดต้นฉบับไม่เปลี่ยนแปลง โปรดตรวจสอบโฟลเดอร์ทำงานที่ปลายทางใน Finder"
+            "value" : "ไม่สามารถสร้างที่เก็บถาวรแบบแบ่งส่วนใหม่ให้เสร็จสมบูรณ์ได้ ที่เก็บถาวรต้นฉบับไม่เปลี่ยนแปลง โปรดตรวจสอบโฟลเดอร์ทำงานที่ปลายทางใน Finder"
           }
         },
         "tr" : {
@@ -65117,19 +65278,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Không thể hoàn tất tệp nén chia phần mới. Tệp nén gốc không thay đổi. Hãy kiểm tra thư mục làm việc ở vị trí đích trong Finder."
+            "value" : "Không thể hoàn tất tệp lưu trữ chia phần mới. Tệp lưu trữ gốc không thay đổi. Hãy kiểm tra thư mục làm việc ở vị trí đích trong Finder."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法完成新的分卷压缩文件。原压缩文件未更改。请在访达中检查目标位置的工作文件夹。"
+            "value" : "无法完成新的分卷归档。原归档未更改。请在访达中检查目标位置的工作文件夹。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法完成新的分卷壓縮檔。原壓縮檔未更改。請在Finder中檢查目的地的工作檔案夾。"
+            "value" : "無法完成新的分卷封存檔。原封存檔未更改。請在Finder中檢查目的地的工作檔案夾。"
           }
         }
       }
@@ -65140,19 +65301,19 @@
         "cs" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nový vícesvazkový archiv se nepodařilo vytvořit. Původní archiv se nezměnil. Zkuste jej uložit znovu."
+            "value" : "Nový rozdělený archiv se nepodařilo vytvořit. Původní archiv se nezměnil. Zkuste jej uložit znovu."
           }
         },
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Det nye opdelte arkiv kunne ikke oprettes. Det oprindelige arkiv er uændret. Prøv at gemme igen."
+            "value" : "Det nye opdelte komprimerede arkiv kunne ikke oprettes. Det oprindelige arkiv er uændret. Prøv at gemme igen."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das neue aufgeteilte Archiv konnte nicht erstellt werden. Das ursprüngliche Archiv ist unverändert. Erneut speichern."
+            "value" : "Das neue geteilte Archiv konnte nicht erstellt werden. Das ursprüngliche Archiv ist unverändert. Erneut speichern."
           }
         },
         "en" : {
@@ -65206,7 +65367,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "새 분할 압축 파일을 생성하지 못했습니다. 원본 압축 파일은 변경되지 않았습니다. 다시 저장해 주세요."
+            "value" : "새 분할 아카이브를 생성하지 못했습니다. 원본 아카이브는 변경되지 않았습니다. 다시 저장해 주세요."
           }
         },
         "ms" : {
@@ -65236,7 +65397,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível criar o novo arquivo dividido. O arquivo original não foi alterado. Tente salvar novamente."
+            "value" : "Não foi possível criar o novo arquivo comprimido dividido. O arquivo comprimido original não foi alterado. Tente salvar novamente."
           }
         },
         "pt-PT" : {
@@ -65260,7 +65421,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่สามารถสร้างไฟล์บีบอัดแบบแบ่งส่วนใหม่ได้ ไฟล์บีบอัดต้นฉบับไม่เปลี่ยนแปลง โปรดลองบันทึกอีกครั้ง"
+            "value" : "ไม่สามารถสร้างที่เก็บถาวรแบบแบ่งส่วนใหม่ได้ ที่เก็บถาวรต้นฉบับไม่เปลี่ยนแปลง โปรดลองบันทึกอีกครั้ง"
           }
         },
         "tr" : {
@@ -65278,19 +65439,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Không thể tạo tệp nén chia phần mới. Tệp nén gốc không thay đổi. Hãy thử lưu lại."
+            "value" : "Không thể tạo tệp lưu trữ chia phần mới. Tệp lưu trữ gốc không thay đổi. Hãy thử lưu lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法创建新的分卷压缩文件。原压缩文件未更改。请重新保存。"
+            "value" : "无法创建新的分卷归档。原归档未更改。请重新保存。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法建立新的分卷壓縮檔。原壓縮檔未更改。請重新儲存。"
+            "value" : "無法建立新的分卷封存檔。原封存檔未更改。請重新儲存。"
           }
         }
       }
@@ -68034,7 +68195,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld ikke-arkiverede ændringer"
+            "value" : "%lld ikke-gemte ændringer"
           }
         },
         "de" : {
@@ -68195,7 +68356,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ikke-arkiverede emner er flyttet til papirkurven"
+            "value" : "Ikke-gemte emner er flyttet til papirkurven"
           }
         },
         "de" : {
@@ -73830,7 +73991,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The selection does not match an entry in this archive."
+            "value" : "The selection does not match an item in this archive."
           }
         },
         "es" : {
@@ -75762,7 +75923,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The output name is duplicated. The first entry in archive order takes precedence."
+            "value" : "The output name is duplicated. The first item in archive order takes precedence."
           }
         },
         "es" : {
@@ -79788,7 +79949,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Orden en el archivo"
+            "value" : "Orden en el archivo comprimido"
           }
         },
         "fi" : {
@@ -79860,7 +80021,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ordem no arquivo"
+            "value" : "Ordem no arquivo comprimido"
           }
         },
         "pt-PT" : {
@@ -79884,7 +80045,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ลำดับในไฟล์เก็บถาวร"
+            "value" : "ลำดับในที่เก็บถาวร"
           }
         },
         "tr" : {
@@ -79902,7 +80063,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thứ tự trong kho lưu trữ"
+            "value" : "Thứ tự trong tệp lưu trữ"
           }
         },
         "zh-Hans" : {
@@ -80092,7 +80253,7 @@
         "da" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke kontrollere det opdelte arkivs tilstand"
+            "value" : "Kunne ikke kontrollere det opdelte komprimerede arkivs tilstand"
           }
         },
         "de" : {
@@ -80152,7 +80313,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "분할 압축 파일의 상태를 확인할 수 없습니다"
+            "value" : "분할 아카이브의 상태를 확인할 수 없습니다"
           }
         },
         "ms" : {
@@ -80164,7 +80325,7 @@
         "nb" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunne ikke kontrollere tilstanden til det oppdelte arkivet"
+            "value" : "Kunne ikke kontrollere tilstanden til det delte arkivet"
           }
         },
         "nl" : {
@@ -80176,13 +80337,13 @@
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nie można sprawdzić stanu podzielonego archiwum"
+            "value" : "Nie można sprawdzić stanu archiwum wieloczęściowego"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Não foi possível verificar o estado do arquivo dividido"
+            "value" : "Não foi possível verificar o estado do arquivo comprimido dividido"
           }
         },
         "pt-PT" : {
@@ -80206,7 +80367,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่สามารถตรวจสอบสถานะของไฟล์เก็บถาวรที่แบ่งเป็นส่วนได้"
+            "value" : "ไม่สามารถตรวจสอบสถานะของที่เก็บถาวรแบบแบ่งส่วนได้"
           }
         },
         "tr" : {
@@ -80224,19 +80385,19 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Không thể kiểm tra trạng thái của tệp lưu trữ chia nhỏ"
+            "value" : "Không thể kiểm tra trạng thái của tệp lưu trữ chia phần"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无法检查分卷压缩文件的状态"
+            "value" : "无法检查分卷归档的状态"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法檢查分卷壓縮檔的狀態"
+            "value" : "無法檢查分卷封存檔的狀態"
           }
         }
       }
@@ -80593,7 +80754,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Al principio (reescribir todo el archivo con cada edición)"
+            "value" : "Al principio (reescribir todo el archivo comprimido con cada edición)"
           }
         },
         "fi" : {
@@ -80665,7 +80826,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No início (reescrever todo o arquivo a cada edição)"
+            "value" : "No início (reescrever todo o arquivo comprimido a cada edição)"
           }
         },
         "pt-PT" : {
@@ -81398,7 +81559,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restablecer a 0 (reescribir todo el archivo con cada edición)"
+            "value" : "Restablecer a 0 (reescribir todo el archivo comprimido con cada edición)"
           }
         },
         "fi" : {
@@ -81470,7 +81631,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Redefinir para 0 (reescrever todo o arquivo a cada edição)"
+            "value" : "Redefinir para 0 (reescrever todo o arquivo comprimido a cada edição)"
           }
         },
         "pt-PT" : {
