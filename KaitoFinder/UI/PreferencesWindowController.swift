@@ -1,6 +1,11 @@
 import AppKit
 import GyoshukuKit
 
+private func joinedSentences(_ first: String, _ second: String) -> String {
+    let separator = first.hasSuffix("。") || first.hasSuffix("！") || first.hasSuffix("？") ? "" : " "
+    return first + separator + second
+}
+
 /// 画面を出さずに、各コントロールの選択と即時保存を検証できる。
 final class PreferencesViewModel {
     enum CompressionTab: String, CaseIterable {
@@ -61,7 +66,7 @@ final class PreferencesViewModel {
         let memory = ByteCountFormatter.string(fromByteCount: Int64(ArchiveHardware.estimatedLZMA2Memory(threads: threads)),
                                                countStyle: .memory)
         let estimate = String(format: String(localized: "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。", bundle: bundle), memory)
-        return warns ? estimate + " " + String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。", bundle: bundle) : estimate
+        return warns ? joinedSentences(estimate, String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。", bundle: bundle)) : estimate
     }
 
     func selectCompressionThreads(at index: Int) {
@@ -595,11 +600,11 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         excludesDSStoreCheckbox = NSButton(
             checkboxWithTitle: String(localized: ".DS_Store を含めない", bundle: bundle), target: nil, action: nil)
         excludesHiddenFilesCheckbox = NSButton(
-            checkboxWithTitle: String(localized: "隠しファイル(名前が . で始まる)を含めない", bundle: bundle), target: nil, action: nil)
+            checkboxWithTitle: String(localized: "隠しファイル（名前が . で始まる）を含めない", bundle: bundle), target: nil, action: nil)
         zipSkipsCompressedTypesCheckbox = NSButton(
-            checkboxWithTitle: String(localized: "圧縮済みのファイル(zip・jpg・mp4など)は無圧縮で格納", bundle: bundle), target: nil, action: nil)
+            checkboxWithTitle: String(localized: "圧縮済みのファイル（zip・jpg・mp4など）は無圧縮で格納", bundle: bundle), target: nil, action: nil)
         tarPreservesOwnerIDsCheckbox = NSButton(
-            checkboxWithTitle: String(localized: "追加するファイルの所有者ID(uid / gid)を保存", bundle: bundle), target: nil, action: nil)
+            checkboxWithTitle: String(localized: "追加するファイルの所有者ID（uid / gid）を保存", bundle: bundle), target: nil, action: nil)
         revealsExtractedItemsInFinderCheckbox = NSButton(
             checkboxWithTitle: String(localized: "展開した項目をFinderに表示", bundle: bundle), target: nil, action: nil)
         viewModel = PreferencesViewModel(store: store, hardware: hardware, bundle: bundle)
@@ -634,7 +639,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         additionNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         addTab(title: String(localized: "一般", bundle: bundle), symbol: "gearshape", sections: [
             group(rows: [
-                row(String(localized: "新規アーカイブの既定フォーマット:", bundle: bundle), control: defaultFormatPopup),
+                row(String(localized: "新規アーカイブのデフォルトフォーマット:", bundle: bundle), control: defaultFormatPopup),
                 row(String(localized: "アーカイブを開くとき:", bundle: bundle), control: openingBehaviorPopup),
                 row(String(localized: "変更の書き込み:", bundle: bundle), control: saveBehaviorPopup),
                 row("", control: saveNote),
@@ -681,7 +686,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
                 [sevenZipMethodDescription, NSGridCell.emptyContentView],
                 row(String(localized: "圧縮レベル:", bundle: bundle), control: sevenZipLevelPopup),
                 checkboxRow(sevenZipSolidCheckbox),
-                row(String(localized: "フィルタ", bundle: bundle), control: sevenZipFilterPopup),
+                row(String(localized: "フィルタ:", bundle: bundle), control: sevenZipFilterPopup),
                 [sevenZipSolidNote, NSGridCell.emptyContentView]
             ], spanningRows: [1, 3, 5])]),
             ("tar", "tar", [group(rows: [
@@ -929,7 +934,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         let help = CompressionOptionHelp.tar(format, bundle: bundle)
         let views = row(title, control: control)
         views[0].toolTip = help
-        let levelHelp = help + " " + CompressionOptionHelp.level(bundle: bundle)
+        let levelHelp = joinedSentences(help, CompressionOptionHelp.level(bundle: bundle))
         control.toolTip = levelHelp
         for child in control.subviews { child.toolTip = levelHelp }
         return views
@@ -937,7 +942,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
 
     private func markStandardItem(in popup: NSPopUpButton, at index: Int) {
         guard let item = popup.item(at: index) else { return }
-        item.title = String(format: String(localized: "%@（標準）", bundle: bundle), item.title)
+        item.title = String(format: String(localized: "%@（デフォルト）", bundle: bundle), item.title)
     }
 
     private func configureCompressionTabs(panes: [(String, String, [NSView])]) -> NSView {
@@ -947,12 +952,12 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         // 非選択タブは階層から外れるため、追加する前に各ペインの必要寸法を測る。
         for (identifier, title, sections) in panes {
             let tab = PreferencesViewModel.CompressionTab(rawValue: identifier)!
-            let button = NSButton(title: String(localized: "標準に戻す", bundle: bundle),
+            let button = NSButton(title: String(localized: "デフォルトに戻す", bundle: bundle),
                                   target: self, action: #selector(resetCompressionDefaults(_:)))
             button.bezelStyle = .rounded
             button.identifier = NSUserInterfaceItemIdentifier("preferences.compression.reset." + identifier)
-            button.toolTip = String(format: String(localized: "%@の設定を標準に戻します。", bundle: bundle), title)
-            button.setAccessibilityLabel(String(format: String(localized: "%@の設定を標準に戻す", bundle: bundle), title))
+            button.toolTip = String(format: String(localized: "%@の設定をデフォルトに戻します。", bundle: bundle), title)
+            button.setAccessibilityLabel(String(format: String(localized: "%@の設定をデフォルトに戻す", bundle: bundle), title))
             compressionResetButtons[tab] = button
             let actions = NSStackView(views: [NSView(), button])
             actions.spacing = 0

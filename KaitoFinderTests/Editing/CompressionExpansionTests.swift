@@ -483,7 +483,7 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
         XCTAssertFalse(controller.levels.contains(.none))
         let bundle = try LocalizationAcceptance.bundle("ja")
         XCTAssertEqual(ArchiveSavePanelController.Level.fast.title(bundle: bundle, zstd: true), "1（最速）")
-        XCTAssertEqual(ArchiveSavePanelController.Level.three.title(bundle: bundle, zstd: true), "3（標準）")
+        XCTAssertEqual(ArchiveSavePanelController.Level.three.title(bundle: bundle, zstd: true), "3（デフォルト）")
         XCTAssertEqual(ArchiveSavePanelController.Level.nineteen.title(bundle: bundle, zstd: true), "19（最高）")
         XCTAssertEqual(ArchiveSavePanelController.Level.normal.title(bundle: bundle, zstd: true), "6")
     }
@@ -628,7 +628,7 @@ nonisolated final class CompressionExpansionTests: XCTestCase {
 
     func testExpandedStringsHaveAllTwentySixTranslations() throws {
         let strings = try LocalizationAcceptance.catalog().strings
-        for key in ["Zstandard", "PPMd", "x86 (BCJ)", "ARM64", "Delta", "tar.zst", "3（標準）", "19（最高）", "ソリッド圧縮", "フィルタ", "なし", "自動", "tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "0（最速）", "1（最速）", "6（標準）", "9（最高）",
+        for key in ["Zstandard", "PPMd", "x86 (BCJ)", "ARM64", "Delta", "tar.zst", "3（デフォルト）", "19（最高）", "ソリッド圧縮", "フィルタ", "なし", "自動", "tar.lz", "tar.lzma", "tar.lz4", "tar.br", "tar.Z", "0（最速）", "1（最速）", "6（デフォルト）", "9（最高）",
                     "1 ファイルの圧縮", "この形式は圧縮レベルを選べません", "このZIPはmacOSのアーカイブユーティリティやunzipでは開けません"] {
             let localizations = try XCTUnwrap(strings[key]).localizations
             XCTAssertEqual(Set(localizations.keys), Set(LocalizationAcceptance.languages))

@@ -278,8 +278,18 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
     }
 
     static func minimumLabelWidth(bundle: Bundle) -> CGFloat {
-        [String(localized: "フォーマット", bundle: bundle), String(localized: "圧縮レベル", bundle: bundle), String(localized: "圧縮方式:", bundle: bundle), String(localized: "分割:", bundle: bundle), String(localized: "フィルタ", bundle: bundle)]
+        [String(localized: "フォーマット:", bundle: bundle), String(localized: "圧縮レベル:", bundle: bundle), String(localized: "圧縮方式:", bundle: bundle), String(localized: "分割:", bundle: bundle), String(localized: "フィルタ:", bundle: bundle)]
             .map { NSTextField(labelWithString: $0).intrinsicContentSize.width }.max() ?? 0
+    }
+
+    // 読み上げでは行末のコロンと、その前の空白を除く。
+    static func accessibilityLabel(for rowLabel: String) -> String {
+        var label = rowLabel
+        if label.last == ":" || label.last == "：" {
+            label.removeLast()
+            while label.last?.isWhitespace == true { label.removeLast() }
+        }
+        return label
     }
 
     // 保存パネルの外部サービスに接続せず、同じアクセサリを構築できる。
@@ -294,11 +304,11 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
         formatPopup.setAccessibilityIdentifier("ArchiveSaveFormat")
         levelPopup.setAccessibilityLabel(String(localized: "圧縮レベル", bundle: bundle))
         let rows = NSGridView(views: [
-            [NSTextField(labelWithString: String(localized: "フォーマット", bundle: bundle)), formatPopup],
-            [NSTextField(labelWithString: String(localized: "圧縮レベル", bundle: bundle)), levelPopup]
+            [NSTextField(labelWithString: String(localized: "フォーマット:", bundle: bundle)), formatPopup],
+            [NSTextField(labelWithString: String(localized: "圧縮レベル:", bundle: bundle)), levelPopup]
         ])
         if let methodPopup {
-            methodPopup.setAccessibilityLabel(String(localized: "圧縮方式:", bundle: bundle))
+            methodPopup.setAccessibilityLabel(Self.accessibilityLabel(for: String(localized: "圧縮方式:", bundle: bundle)))
             methodPopup.setAccessibilityIdentifier("ArchiveSaveMethod")
             rows.insertRow(at: 1, with: [NSTextField(labelWithString: String(localized: "圧縮方式:", bundle: bundle)), methodPopup])
             rows.row(at: 1).isHidden = methodPopup.isHidden
@@ -308,7 +318,7 @@ final class ArchiveSavePanel: NSObject, NSOpenSavePanelDelegate {
             sevenZipFilterPopup.setAccessibilityIdentifier("ArchiveSaveSevenZipFilter")
             sevenZipFilterPopup.setAccessibilityLabel(String(localized: "フィルタ", bundle: bundle))
             rows.addRow(with: [NSGridCell.emptyContentView, sevenZipSolidCheckbox])
-            rows.addRow(with: [NSTextField(labelWithString: String(localized: "フィルタ", bundle: bundle)), sevenZipFilterPopup])
+            rows.addRow(with: [NSTextField(labelWithString: String(localized: "フィルタ:", bundle: bundle)), sevenZipFilterPopup])
             rows.row(at: rows.numberOfRows - 2).isHidden = sevenZipSolidCheckbox.isHidden
             rows.row(at: rows.numberOfRows - 1).isHidden = sevenZipFilterPopup.isHidden
         }

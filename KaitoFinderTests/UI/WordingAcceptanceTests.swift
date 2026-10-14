@@ -122,10 +122,10 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
 
     func testEditPlacementAndOwnerIDWordingHasAllTwentySixTranslations() throws {
         let keys = ["追加した項目の位置:", "末尾", "先頭（編集のたびに全体を書き直す）", "ZIPでは常に末尾に追加します。",
-                    "追加するファイルの所有者ID(uid / gid)を保存", "変更しない項目の所有者ID:", "そのまま保つ",
+                    "追加するファイルの所有者ID（uid / gid）を保存", "変更しない項目の所有者ID:", "そのまま保つ",
                     "0に戻す（編集のたびに全体を書き直す）", "追加した項目の位置", "変更しない項目の所有者ID"]
         let catalog = try LocalizationAcceptance.catalog()
-        XCTAssertNil(catalog.strings["所有者ID(uid / gid)を保存"])
+        XCTAssertNil(catalog.strings["所有者ID（uid / gid）を保存"])
         for key in keys {
             let translations = try XCTUnwrap(catalog.strings[key]).localizations
             XCTAssertEqual(Set(translations.keys), Set(LocalizationAcceptance.languages), key)
@@ -433,7 +433,7 @@ nonisolated final class WordingAcceptanceTests: XCTestCase {
 
     func testSpanishStyle() throws {
         try checkNameQuotes("es", opening: "“", closing: "”")
-        for (key, text) in try texts("es") where key.contains("アーカイブ") {
+        for (key, text) in try texts("es") where key.replacingOccurrences(of: "アーカイブユーティリティ", with: "").contains("アーカイブ") {
             XCTAssertTrue(text.lowercased().contains("comprimid"), "\(key): \(text)")
         }
     }

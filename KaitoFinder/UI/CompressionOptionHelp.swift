@@ -29,7 +29,7 @@ enum CompressionOptionHelp {
     static func filter(_ filter: ArchivePreferences.SevenZipFilter, bundle: Bundle = .main) -> String {
         switch filter {
         case .none: String(localized: "フィルタを使いません。", bundle: bundle)
-        case .auto: String(localized: "各ファイルの先頭を調べ、x86・x86_64やarm64の実行ファイルにだけ適したフィルタを使います。", bundle: bundle)
+        case .auto: String(localized: "各ファイルの先頭を調べ、x86・x86_64やarm64の実行ファイルにだけ、それぞれに適したフィルタを使います。", bundle: bundle)
         case .bcjX86: String(localized: "x86・x86_64の実行ファイルの圧縮率を上げます。それ以外のファイルには効果がありません。", bundle: bundle)
         case .arm64: String(localized: "arm64の実行ファイルの圧縮率を上げます。それ以外のファイルには効果がありません。", bundle: bundle)
         case .delta: String(localized: "4バイト単位の数値が並ぶデータ（32ビットの音声サンプルなど）の圧縮率を上げます。", bundle: bundle)
@@ -39,10 +39,10 @@ enum CompressionOptionHelp {
     static func tar(_ format: GyoshukuKit.ArchiveFormat, bundle: Bundle = .main) -> String {
         switch format {
         case .tarGzip: String(localized: "最も広く使われる方式です。どの環境でも開け、速さと圧縮率のバランスが良いのでおすすめです。", bundle: bundle)
-        case .tarBzip2: String(localized: "gzipより圧縮率が高めですが、遅い方式です。レベルはブロックの大きさ（100〜900KB）を決めます。", bundle: bundle)
-        case .tarXZ: String(localized: "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。圧縮には1スレッドあたり約130MBのメモリを使います。", bundle: bundle)
+        case .tarBzip2: String(localized: "gzipより圧縮率が高めですが、遅い方式です。レベルはブロックの大きさ（100〜900 KB）を決めます。", bundle: bundle)
+        case .tarXZ: String(localized: "圧縮率の高い方式です。大きなデータも分割して並列に圧縮します。デフォルトのレベルでは、圧縮に1スレッドあたり約135 MBのメモリを使います。レベルを上げるとさらに増えます。", bundle: bundle)
         case .tarZstd: String(localized: "高速で、圧縮率も比較的高い新しい方式です。編集するたびにアーカイブ全体を書き直します。", bundle: bundle)
-        case .tarLzip: String(localized: "LZMAによる圧縮率の高い方式で、各部分にCRC32の検査値を持ちます。編集するたびにアーカイブ全体を書き直します。", bundle: bundle)
+        case .tarLzip: String(localized: "LZMAによる圧縮率の高い方式で、各部分にCRC32のチェックサムを持ちます。編集するたびにアーカイブ全体を書き直します。", bundle: bundle)
         case .tarLZMA: String(localized: "古いLZMA形式です。並列化されません。新しく作るならxzかlzipがおすすめです。", bundle: bundle)
         default: ""
         }
@@ -50,9 +50,9 @@ enum CompressionOptionHelp {
 
     static func lha(_ method: ArchiveSavePanelController.Method, bundle: Bundle = .main) -> String {
         switch method {
-        case .lh5: String(localized: "最も広く使われているLHAの方式です（辞書8KB）。おすすめです。", bundle: bundle)
-        case .lh6: String(localized: "辞書32KBの方式です。lh5より圧縮率が上がることがあります。", bundle: bundle)
-        case .lh7: String(localized: "辞書64KBの方式です。3つのうちで圧縮率が最も高くなりやすい方式です。", bundle: bundle)
+        case .lh5: String(localized: "最も広く使われているLHAの方式です（辞書8 KB）。おすすめです。", bundle: bundle)
+        case .lh6: String(localized: "辞書32 KBの方式です。lh5より圧縮率が上がることがあります。", bundle: bundle)
+        case .lh7: String(localized: "辞書64 KBの方式です。3つのうちで圧縮率が最も高くなりやすい方式です。", bundle: bundle)
         default: ""
         }
     }
@@ -61,7 +61,7 @@ enum CompressionOptionHelp {
         String(localized: "数字が大きいほど圧縮率が上がり、時間がかかります。", bundle: bundle)
     }
     static func solid(bundle: Bundle = .main) -> String {
-        String(localized: "複数のファイルをまとめて圧縮し、似たファイルが多いと圧縮率が上がります。ソリッドブロック内の項目を削除するとそのブロックを再圧縮し、項目のサムネールや自動プレビューは表示されません。", bundle: bundle)
+        String(localized: "複数のファイルをまとめて圧縮し、似たファイルが多いと圧縮率が上がります。ソリッドブロック内の項目を削除すると、そのブロックを再圧縮します。また、項目のサムネールや自動プレビューは表示されません。", bundle: bundle)
     }
     static func skipsCompressedTypes(bundle: Bundle = .main) -> String {
         String(localized: "zip・jpg・mp4など、すでに圧縮されているファイルを再圧縮せずに格納し、時間を節約します。", bundle: bundle)
