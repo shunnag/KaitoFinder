@@ -224,7 +224,10 @@ REPRESENTATIVE_ENV = {
 }
 IDENTIFIER = re.compile(r"^KaitoFinderTests/[A-Za-z_][A-Za-z0-9_]*/[A-Za-z_][A-Za-z0-9_]*(\(\))?$")
 TEST_CASE = re.compile(r"Test Case '-\[KaitoFinderTests\.(\w+) (\w+)\]' (?:passed|failed|skipped)")
+TEST_STARTED = re.compile(r"Test Case '-\[KaitoFinderTests\.(\w+) (\w+)\]' started")
 EXECUTED = re.compile(r"Executed (\d+) tests?")
+UNIFIED_LOG = re.compile(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}[+-]\d{4} "
+                         r"[^\[\r\n]+\[\d+:\d+\][^\n]*\n")
 SIBLINGS = ("KaitoKit", "GyoshukuKit")
 
 
@@ -289,18 +292,31 @@ def enumeration(source, out):
     return data
 
 
+def normalize_test_log(text):
+    # XCTest の行に割り込む unified log を改行ごと除き、分断された行をつなぐ。
+    return UNIFIED_LOG.sub("", text)
+
+
 def report(platform, shard, count, scope, log, out, siblings_checkout=False, siblings_manifest=None):
     selectors(platform, shard, count)
     scope_env(scope)
-    text = log.read_text(errors="replace")
-    executed = [f"KaitoFinderTests/{cls}/{method}" for cls, method in TEST_CASE.findall(text)]
+    raw_text = log.read_text(errors="replace")
+    text = normalize_test_log(raw_text)
+    # 双方向の割り込みに対応し、元ログと正規化後の結果を合わせる。
+    executed = set()
+    for parsed_text in (raw_text, text):
+        results = [f"KaitoFinderTests/{cls}/{method}" for cls, method in TEST_CASE.findall(parsed_text)]
+        if len(set(results)) != len(results):
+            raise ValueError("テスト識別子の重複があります")
+        executed.update(results)
     if not executed:
         raise ValueError("実行したテストがありません")
-    if len(set(executed)) != len(executed):
-        raise ValueError("テスト識別子の重複があります")
-    counts = [int(value) for value in EXECUTED.findall(text)]
+    counts = [int(value) for value in EXECUTED.findall(raw_text) + EXECUTED.findall(text)]
     if not counts or max(counts) != len(executed):
-        raise ValueError(f"Executed 件数が一致しません: {counts} / {len(executed)}")
+        started = {f"KaitoFinderTests/{cls}/{method}" for parsed_text in (raw_text, text)
+                   for cls, method in TEST_STARTED.findall(parsed_text)}
+        raise ValueError(f"Executed 件数が一致しません: {counts} / {len(executed)} "
+                         f"結果なし={sorted(started - executed)}")
     if siblings_checkout == (siblings_manifest is not None):
         raise ValueError("兄弟 SHA の取得元を一つ指定してください")
     if siblings_checkout:
