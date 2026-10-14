@@ -56,21 +56,33 @@ check_session() {
 }
 
 test_with_scheme() {
+  local line
+  local args=()
+  # 除外識別子と shard class は macOS 26 job と共通の Tools/ci/shards.py から取得する。
+  python3 Tools/ci/shards.py xcodebuild-args --platform xcode-27 --shard "$1" --count "$2" > "$RUNNER_TEMP/xcode-27-test-args.txt"
+  while IFS= read -r line; do args+=("$line"); done < "$RUNNER_TEMP/xcode-27-test-args.txt"
+  test "${#args[@]}" -gt 0
+  python3 Tools/ci/shards.py scope-env --scope "$3" > "$RUNNER_TEMP/xcode-27-scope.env"
+  while IFS= read -r line; do export "TEST_RUNNER_$line"; done < "$RUNNER_TEMP/xcode-27-scope.env"
   export TEST_RUNNER_CI=1
-  # 厳密な保存パネル geometry は、アニメーションによる伸縮が収まる画面を前提とする。
-  # 1024x768 hosted VM では画面外補正が設計どおりパネルを動かすため、
-  # この 2 method は Mac mini の GUI runs で検証する（runtime.py の CI_SKIP_METHODS と共通）。
   xcodebuild -project KaitoFinder.xcodeproj -scheme KaitoFinder -configuration Debug \
     -destination 'platform=macOS,arch=arm64' -derivedDataPath "$KF_DERIVED_DATA" \
     -clonedSourcePackagesDirPath "$RUNNER_TEMP/kaitofinder-packages" \
     -resultBundlePath "$RUNNER_TEMP/xcode-27.xcresult" \
     -parallel-testing-enabled NO -test-timeouts-enabled YES \
     -default-test-execution-time-allowance 600 -maximum-test-execution-time-allowance 600 \
-    -skip-testing:KaitoFinderTests/ArchiveTabSpringLoadingTests \
-    -skip-testing:KaitoFinderTests/ArchiveDropIntegrationTests \
-    -skip-testing:KaitoFinderTests/ReadOnlyDropConversionUITests \
-    -skip-testing:KaitoFinderTests/ArchivePasswordUITests/testSavePanelResizesWithoutSlidingContents \
-    -skip-testing:KaitoFinderTests/ArchivePasswordUITests/testSplitSavePanelResizesWithoutSlidingContents \
+    "${args[@]}" \
     test-without-building 2>&1 | tee "$RUNNER_TEMP/xcode-27-tests.log"
   python3 Tools/ci/runtime.py guard "$RUNNER_TEMP/xcode-27-tests.log"
+}
+
+enumerate_tests() {
+  local runs=("$KF_DERIVED_DATA"/Build/Products/KaitoFinder_*.xctestrun)
+  test "${#runs[@]}" -eq 1
+  test -f "${runs[0]}"
+  xcodebuild test-without-building -xctestrun "${runs[0]}" \
+    -destination 'platform=macOS,arch=arm64' \
+    -resultBundlePath "$RUNNER_TEMP/test-enumeration.xcresult" \
+    -enumerate-tests -test-enumeration-style flat -test-enumeration-format json \
+    -test-enumeration-output-path "$1" 2>&1 | tee "$RUNNER_TEMP/test-enumeration.log"
 }

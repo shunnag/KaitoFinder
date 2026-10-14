@@ -697,7 +697,7 @@ nonisolated final class ArchivePasswordUITests: XCTestCase {
     }
 
     @MainActor func testVisibleSavePanelPasswordRowsAndAllThreeSheetsFitInEveryLanguage() throws {
-        for language in LocalizationAcceptance.languages {
+        for language in try LocalizationAcceptance.renderedLanguages() {
             let bundle = try LocalizationAcceptance.bundle(language)
             let suite = try ArchivePreferencesTestDefaults()
             let controller = ArchiveSavePanelController(defaults: suite.defaults)

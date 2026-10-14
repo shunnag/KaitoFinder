@@ -111,7 +111,7 @@ nonisolated final class ArchiveConflictUITests: XCTestCase {
             size: 1_234_567, modificationDate: Date(timeIntervalSince1970: 1_760_000_000), entryCount: 1,
             source: .file(fixture.archive))
         let conflict = ArchiveImportConflict(path: name, existing: item, incoming: item, remainingCount: 1000)
-        for language in LocalizationAcceptance.languages {
+        for language in try LocalizationAcceptance.renderedLanguages() {
             let bundle = try LocalizationAcceptance.bundle(language)
             for appearance in [NSAppearance.Name.aqua, .darkAqua] {
                 let prompt = ArchiveConflictPrompt(conflict: conflict, session: session, bundle: bundle)

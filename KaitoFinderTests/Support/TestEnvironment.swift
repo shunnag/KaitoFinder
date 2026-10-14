@@ -5,6 +5,13 @@ import Foundation
 /// Tools/verify_*.py は .xctestrun の環境変数として渡す。
 nonisolated enum TestEnvironment {
     enum Key: String {
+        // MARK: CI の実行範囲
+
+        /// カンマ区切りの言語コード。設定されていれば、言語ごとに画面を描く重いテストをその言語だけで実行する（LocalizationAcceptance.renderedLanguages）。未設定か空なら 26 言語すべて。
+        case testLanguages = "KAITOFINDER_TEST_LANGUAGES"
+        /// "representative" のとき、7z の凍結 fixture の行列テストを各経路の代表だけで実行する。未設定か空なら全組み合わせ。
+        case testMatrix = "KAITOFINDER_TEST_MATRIX"
+
         // MARK: 性能計測（Probes/）
 
         /// "1" のとき Probes/ の性能計測を実行し、`PROBE-*` の行を出力する。
@@ -79,4 +86,15 @@ nonisolated enum TestEnvironment {
 
     /// CI が設定されているとき true。
     static var isCI: Bool { value(.ci) != nil }
+
+    static var isRepresentativeMatrix: Bool {
+        get throws {
+            guard let value = value(.testMatrix), !value.isEmpty else { return false }
+            guard value == "representative" else {
+                throw NSError(domain: "TestEnvironment", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "KAITOFINDER_TEST_MATRIX の値が不正です: \(value)"])
+            }
+            return true
+        }
+    }
 }

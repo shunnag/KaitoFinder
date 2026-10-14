@@ -11,7 +11,9 @@ Xcode 27 で作った同じ app-hosted bundle を macOS 26 / Xcode 26.6 で再�
 Debug は ad-hoc 署名・hardened runtime 無効。Release の署名済み製品は別途 Mac mini で確認する。
 毎回 `sevenzip`・`xz`・`zstd` を導入し、`/opt/homebrew/bin/` の実体を確認する。
 `TEST_RUNNER_CI=1` をテストホストへ渡し、所要時間の assertion を緩和する。
-`KAITOFINDER_*` の probe / 外部操作用変数は指定しない。
+probe・外部操作用の変数は指定しない。
+PR と push だけ `KAITOFINDER_TEST_LANGUAGES` と `KAITOFINDER_TEST_MATRIX` を指定し、
+描画検査は 6 言語、7z の凍結行列は代表の組で実行する。毎日と手動の実行、ローカルでは全件を実行する。
 
 CI では次の実ドラッグ class を常に除外する。これ以外は既存の `XCTSkip` の条件に従う。
 
@@ -22,7 +24,12 @@ CI では次の実ドラッグ class を常に除外する。これ以外は既�
 これらの class と `Tools/` の実 HID GUI driver、性能 probe、実 Sparkle の更新検証、
 Developer ID 署名・notarization は Mac mini のログイン済み GUI セッションで検証する。
 CI でもロック状態・console session と SIP 状態を出力し、ロック中や console 不在なら試験前に失敗する。
-試験には 600 秒の allowance と 240 分の job 上限を設ける。
+試験には 600 秒の allowance を設ける。Xcode 27 は 2 shard で job 上限 45 分（build と試験は 38 分）、
+macOS 26 向けの build は 15 分、macOS 26 は 3 shard で job 上限 35 分とする。
+primary と fallback はそれぞれ 28 分、fallback の host は 1560 秒で終了して診断を保存する。
+gate は 5 分、shard-coverage は 10 分を上限とする。
+最後の shard は未割り当て class の補集合を実行し、新規 class も検査に含める。
+shard-coverage が列挙した全テストの実行を照合し、ZZProcessHealthTests は各 shard で一度検査する。
 実行 0 件、失敗のある summary、`Required fixture tool is unavailable` / `7zz is not installed`
 による黙った skip を成功にしない。
 
@@ -34,8 +41,7 @@ macOS 26 へは Products 全体と Xcode 27 の platform frameworks / private fr
 まず `.xctestrun` のコピーで DYLD の参照先を同梱ランタイムへ変更し、Xcode 26.6 の
 `test-without-building` で実行する。テスト開始・`Executed` summary の前に失敗した場合だけ、
 同梱 `libXCTestBundleInject.dylib` を指定してアプリの実行ファイルを直接起動する。
-fallback の実行・除外指定と timeout は、Xcode 27 の XCTestCore が生成した
-`XCTestConfigurationFilePath` 用の NSKeyedArchiver ファイルで渡す。
+fallback の実行・除外指定は、shard ごとの `selectors-1..3.json` から Xcode 27 の XCTestCore で生成した `direct-1..3.xctestconfiguration`（`XCTestConfigurationFilePath` 用の NSKeyedArchiver ファイル）で渡す。
 これは private API に依存し、macOS 26 上での動作は初回 CI で確認する必要がある。
 一件でもテストを開始した primary の失敗は fallback で隠さない。
 

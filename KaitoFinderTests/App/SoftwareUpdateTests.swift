@@ -71,6 +71,11 @@ nonisolated final class SoftwareUpdateTests: XCTestCase {
             $0.identifier as? String == "preferences.arrow.triangle.2.circlepath"
         })
         controller.tabController.selectedTabViewItemIndex = updatesIndex
+        let resizeDeadline = Date().addingTimeInterval(5)
+        while controller.tabController.isResizing && Date() < resizeDeadline {
+            _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        XCTAssertFalse(controller.tabController.isResizing, "Settings tab resize did not settle")
         let window = try XCTUnwrap(controller.window)
         window.layoutIfNeeded()
         let frame = window.frame
@@ -133,7 +138,7 @@ nonisolated final class SoftwareUpdateTests: XCTestCase {
     }
 
     @MainActor func testUpdatePaneFitsEveryLanguageInBothAppearances() throws {
-        for language in LocalizationAcceptance.languages {
+        for language in try LocalizationAcceptance.renderedLanguages() {
             for appearance in [NSAppearance.Name.aqua, .darkAqua] {
                 let suite = try ArchivePreferencesTestDefaults()
                 let updater = TestSoftwareUpdater()

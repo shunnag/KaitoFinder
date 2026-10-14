@@ -7,6 +7,21 @@ nonisolated enum LocalizationAcceptance {
     static let languages = ["ja", "en", "de", "fr", "es", "it", "pt-BR", "zh-Hans", "zh-Hant", "ko",
                             "th", "vi", "id", "ms", "hi", "ru", "nl", "pl", "tr", "sv", "da", "nb", "fi", "uk", "cs", "pt-PT"]
 
+    /// UI を言語ごとに描く検査は renderedLanguages、catalog の完全性・文言の検査は languages を使う。
+    static func renderedLanguages() throws -> [String] {
+        guard let value = TestEnvironment.value(.testLanguages),
+              !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return languages }
+        var selected = Set<String>()
+        for token in value.split(separator: ",", omittingEmptySubsequences: false) {
+            let language = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !language.isEmpty, languages.contains(language), selected.insert(language).inserted else {
+                throw NSError(domain: "LocalizationAcceptance", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "KAITOFINDER_TEST_LANGUAGES の値が不正です: \(token)"])
+            }
+        }
+        return languages.filter { selected.contains($0) }
+    }
+
     static func sentenceEnding(_ language: String) -> String {
         if language == "th" { return "" }
         if language == "hi" { return "।" }

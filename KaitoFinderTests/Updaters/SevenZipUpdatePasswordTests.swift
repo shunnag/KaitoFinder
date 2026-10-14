@@ -6,46 +6,52 @@ import XCTest
 
 nonisolated final class SevenZipUpdatePasswordTests: XCTestCase {
     func testFrozenPasswordLifecycleAndDeferredRenameUseUpdater() async throws {
-        for fixture in ["g_plain", "g_aes", "g_aesh", "z_default", "z_aes", "z_aesh", "z_aesonlyh"] {
-            for headers in [false, true] {
-                let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.frozen(fixture, at: directory.url)
-                let original = try ArchiveOracle.contents(SevenZipUpdateFixture.reader(archive), including: .nonDirectories)
-                let encrypted = fixture.contains("aes")
-                let session = try ArchiveSession(url: archive, password: encrypted ? "secret" : nil)
-                XCTAssertEqual(session.capabilities.sevenZipAssessment?.canReencrypt, true)
-                for (pass, action) in [encrypted ? ArchivePasswordAction.change : .set, .change, .remove].enumerated() {
-                    let trace = SevenZipUpdateTrace(), progress = Progress(), password = action == .remove ? nil : "key-\(pass)"
-                    try await trace.observing {
-                        let result = try await session.updatePassword(action, settings: .init(password: password, encryptsSevenZipHeaders: headers), progress: progress)
-                        XCTAssertNil(result.reloadFailure)
-                    }
-                    trace.assertRoute([.updaterOpen])
-                    XCTAssertEqual(trace.strategies.withLock { $0 }, [.reencrypted])
-                    XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
-                    XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
-                    let reader = try SevenZipUpdateFixture.reader(archive, password: password)
-                    try ArchiveOutputProjection(projected: reader.entries, mode: .update(.sevenZip), sevenZipEncryption: password != nil).validate(reader)
-                    XCTAssertEqual(try XCTUnwrap(reader.sevenZipEditingSnapshot()).header.isEncrypted, password != nil && headers)
-                    XCTAssertEqual(try ArchiveOracle.contents(reader, including: .nonDirectories), original)
-                }
-                let snapshot = try await session.deferredSnapshot(), target = try XCTUnwrap(snapshot.entries.first { $0.kind == .file })
-                var pending = ArchivePendingChanges()
-                pending.outputEncryption = .init(password: "saved", encryptsSevenZipHeaders: headers)
-                pending.renames[.init(index: target.index, expectedName: target.name, baseGeneration: snapshot.generation)] = "renamed.txt"
-                let publication = ArchiveSavePublication(); defer { publication.finish() }
-                let trace = SevenZipUpdateTrace(), progress = Progress()
+        let fixtures = ["g_plain", "g_aes", "g_aesh", "z_default", "z_aes", "z_aesh", "z_aesonlyh"]
+        // 各 fixture を一度ずつ使い、暗号状態と solid の両経路で両 header mode を残す。
+        let representative = [
+            ("g_plain", false), ("g_aes", true), ("g_aesh", false), ("z_default", true),
+            ("z_aes", false), ("z_aesh", true), ("z_aesonlyh", false)
+        ]
+        let cases = try TestEnvironment.isRepresentativeMatrix ? representative
+            : fixtures.flatMap { fixture in [false, true].map { (fixture, $0) } }
+        for (fixture, headers) in cases {
+            let directory = try ArchiveTestDirectory(), archive = try SevenZipUpdateFixture.frozen(fixture, at: directory.url)
+            let original = try ArchiveOracle.contents(SevenZipUpdateFixture.reader(archive), including: .nonDirectories)
+            let encrypted = fixture.contains("aes")
+            let session = try ArchiveSession(url: archive, password: encrypted ? "secret" : nil)
+            XCTAssertEqual(session.capabilities.sevenZipAssessment?.canReencrypt, true)
+            for (pass, action) in [encrypted ? ArchivePasswordAction.change : .set, .change, .remove].enumerated() {
+                let trace = SevenZipUpdateTrace(), progress = Progress(), password = action == .remove ? nil : "key-\(pass)"
                 try await trace.observing {
-                    let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: progress, publication: publication)
+                    let result = try await session.updatePassword(action, settings: .init(password: password, encryptsSevenZipHeaders: headers), progress: progress)
                     XCTAssertNil(result.reloadFailure)
                 }
                 trace.assertRoute([.updaterOpen])
+                XCTAssertEqual(trace.strategies.withLock { $0 }, [.reencrypted])
+                XCTAssertEqual(progress.userInfo[.fileTotalCountKey] as? Int, 1)
                 XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
-                let reader = try SevenZipUpdateFixture.reader(archive, password: "saved")
-                XCTAssertEqual(reader.entries[target.index].name, "renamed.txt")
-                try ArchiveOutputProjection(projected: reader.entries, mode: .update(.sevenZip), sevenZipEncryption: true).validate(reader)
-                XCTAssertEqual(try XCTUnwrap(reader.sevenZipEditingSnapshot()).header.isEncrypted, headers)
-                await session.close()
+                let reader = try SevenZipUpdateFixture.reader(archive, password: password)
+                try ArchiveOutputProjection(projected: reader.entries, mode: .update(.sevenZip), sevenZipEncryption: password != nil).validate(reader)
+                XCTAssertEqual(try XCTUnwrap(reader.sevenZipEditingSnapshot()).header.isEncrypted, password != nil && headers)
+                XCTAssertEqual(try ArchiveOracle.contents(reader, including: .nonDirectories), original)
             }
+            let snapshot = try await session.deferredSnapshot(), target = try XCTUnwrap(snapshot.entries.first { $0.kind == .file })
+            var pending = ArchivePendingChanges()
+            pending.outputEncryption = .init(password: "saved", encryptsSevenZipHeaders: headers)
+            pending.renames[.init(index: target.index, expectedName: target.name, baseGeneration: snapshot.generation)] = "renamed.txt"
+            let publication = ArchiveSavePublication(); defer { publication.finish() }
+            let trace = SevenZipUpdateTrace(), progress = Progress()
+            try await trace.observing {
+                let result = try await session.savePending(pending, baseGeneration: snapshot.generation, progress: progress, publication: publication)
+                XCTAssertNil(result.reloadFailure)
+            }
+            trace.assertRoute([.updaterOpen])
+            XCTAssertEqual(progress.completedUnitCount, progress.totalUnitCount)
+            let reader = try SevenZipUpdateFixture.reader(archive, password: "saved")
+            XCTAssertEqual(reader.entries[target.index].name, "renamed.txt")
+            try ArchiveOutputProjection(projected: reader.entries, mode: .update(.sevenZip), sevenZipEncryption: true).validate(reader)
+            XCTAssertEqual(try XCTUnwrap(reader.sevenZipEditingSnapshot()).header.isEncrypted, headers)
+            await session.close()
         }
     }
 

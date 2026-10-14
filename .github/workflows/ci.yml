@@ -15,15 +15,39 @@ name: CI
 # macos-26 のみ: ApplicationCommandIntegrationTests/testToolbarAndResponderChainApplyEditsAndRespectTextFocus
 # macOS 26 の非アクティブな test host では toolbar の visibleItems が揃わない。
 # Mac mini (macOS 27) と xcode-27 job で検証する。
+# Xcode 27 は 2 shard、macOS 26 は 3 shard に分け、最後は未割り当て class の補集合を実行する。
+# shard-coverage が全テストの列挙と実行結果を照合する。ZZProcessHealthTests は各 shard で実行する。
+# PR / push は描画言語と 7z 行列の代表範囲、毎日と手動の実行は全件を検査する。
+# 文書だけの変更は除外し、VerificationRecordTests が読む検証記録は対象に戻す。
+# main の push は同じ tree と兄弟 SHA が PR で成功済みなら重い job を省く。
 on:
   push:
     branches: [main]
-    tags: ['*']
+    paths:
+      - '**'
+      - '.github/**'
+      - '!Documentation/**'
+      # VerificationRecordTests が読む検証記録は CI の対象に残す。
+      - 'Documentation/verification/2026-09-23-volume-set-publisher.md'
+      - '!README.md'
+      - '!LICENSE'
   pull_request:
+    paths:
+      - '**'
+      - '.github/**'
+      - '!Documentation/**'
+      # VerificationRecordTests が読む検証記録は CI の対象に残す。
+      - 'Documentation/verification/2026-09-23-volume-set-publisher.md'
+      - '!README.md'
+      - '!LICENSE'
   workflow_dispatch:
-  # 兄弟 repo の main による破損を、本 repo への push を待たずに検出する。
+  # 兄弟 repo の main による破損を毎日検出する。
   schedule:
-    - cron: '17 21 * * 1'
+    - cron: '17 21 * * *'
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -33,9 +57,41 @@ defaults:
     shell: bash
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      skip: ${{ steps.lookup.outputs.skip }}
+      run-url: ${{ steps.lookup.outputs.run-url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Look up a verified PR tree
+        id: lookup
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 Tools/ci/tested_tree.py lookup --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA" --workflow ci.yml >> "$GITHUB_OUTPUT"
+
   build-and-test:
+    needs: gate
+    if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
+    name: build-and-test (${{ matrix.shard }}/2)
     runs-on: xcode-27
-    timeout-minutes: 240
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      KF_SHARD: ${{ matrix.shard }}
+      KF_SHARD_COUNT: '2'
+      KF_TEST_SCOPE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'full' || 'representative' }}
     steps:
       - uses: actions/checkout@v5
       - name: Clone sibling packages and install fixture tools
@@ -51,17 +107,29 @@ jobs:
           build_helpers "$RUNNER_TEMP/kaitofinder-helpers"
           check_session "$RUNNER_TEMP/kaitofinder-helpers"
       - name: Build and run Debug app-hosted tests
+        timeout-minutes: 38
         env:
           TEST_RUNNER_CI: '1'
         run: |
           source Tools/ci/common.sh
           ci_paths
-          build_tests && check_session "$RUNNER_TEMP/kaitofinder-helpers" && test_with_scheme
+          build_tests && check_session "$RUNNER_TEMP/kaitofinder-helpers" && test_with_scheme "$KF_SHARD" "$KF_SHARD_COUNT" "$KF_TEST_SCOPE"
+      - name: Record shard report
+        run: |
+          python3 Tools/ci/shards.py report --platform xcode-27 --shard "$KF_SHARD" --count "$KF_SHARD_COUNT" --scope "$KF_TEST_SCOPE" --log "$RUNNER_TEMP/xcode-27-tests.log" --out "$RUNNER_TEMP/shard-report.json" --siblings-checkout
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-report-xcode-27-${{ matrix.shard }}
+          path: ${{ runner.temp }}/shard-report.json
+          retention-days: 3
+          if-no-files-found: error
+          overwrite: true
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-27-failure
+          name: xcode-27-failure-${{ matrix.shard }}
+          overwrite: true
           path: |
             ${{ runner.temp }}/*.log
             ${{ runner.temp }}/*.xcresult
@@ -70,10 +138,13 @@ jobs:
           retention-days: 7
 
   build-for-macos-26:
+    needs: gate
+    if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
     runs-on: xcode-27
-    timeout-minutes: 240
+    timeout-minutes: 15
     outputs:
       checkout-sha: ${{ steps.revision.outputs.sha }}
+      runtime-ready: ${{ steps.runtime-artifact.outcome == 'success' }}
     steps:
       - uses: actions/checkout@v5
       - name: Record actual checkout SHA (including PR merge commit)
@@ -89,22 +160,39 @@ jobs:
           ci_paths
           require_xcode_27
           build_helpers "$RUNNER_TEMP/kaitofinder-helpers"
+          check_session "$RUNNER_TEMP/kaitofinder-helpers"
           build_tests && python3 Tools/ci/runtime.py package \
             "$KF_DERIVED_DATA" "$KF_STAGE" "$RUNNER_TEMP/kaitofinder-helpers"
           # tar が framework / bundle の symlink と実行権限を保つ。
           tar -czf "$RUNNER_TEMP/macos-26-tests.tar.gz" -C "$KF_STAGE" Products ci-runtime
       - uses: actions/upload-artifact@v4
+        id: runtime-artifact
         with:
           name: macos-26-tests
           path: ${{ runner.temp }}/macos-26-tests.tar.gz
           if-no-files-found: error
           retention-days: 3
+      - name: Enumerate tests for the coverage check
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          check_session "$RUNNER_TEMP/kaitofinder-helpers"
+          enumerate_tests "$RUNNER_TEMP/test-enumeration-raw.json" && python3 Tools/ci/shards.py enumeration --input "$RUNNER_TEMP/test-enumeration-raw.json" --out "$RUNNER_TEMP/test-enumeration.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-enumeration
+          path: ${{ runner.temp }}/test-enumeration.json
+          if-no-files-found: error
+          retention-days: 3
+          overwrite: true
       - name: Upload build failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: transfer-build-failure
           path: |
+            ${{ runner.temp }}/test-enumeration*.json
+            ${{ runner.temp }}/test-enumeration*.log
             ${{ runner.temp }}/*.log
             ${{ runner.temp }}/*.xcresult
             ~/Library/Logs/DiagnosticReports/KaitoFinder*
@@ -113,8 +201,18 @@ jobs:
 
   macos-26-runtime:
     runs-on: macos-26
-    needs: build-for-macos-26
-    timeout-minutes: 240
+    needs: [gate, build-for-macos-26]
+    if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' && needs.build-for-macos-26.outputs.runtime-ready == 'true' }}
+    name: macos-26-runtime (${{ matrix.shard }}/3)
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      KF_SHARD: ${{ matrix.shard }}
+      KF_SHARD_COUNT: '3'
+      KF_TEST_SCOPE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'full' || 'representative' }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -142,9 +240,11 @@ jobs:
           tar -xzf "$RUNNER_TEMP/macos-26-artifact/macos-26-tests.tar.gz" -C "$KF_STAGE"
           python3 Tools/ci/runtime.py restore "$KF_STAGE" "$KF_DERIVED_DATA"
           check_session "$KF_STAGE/ci-runtime/bin"
-          python3 Tools/ci/runtime.py patch "$KF_DERIVED_DATA/Build/Products" "$KF_STAGE/ci-runtime"
+          python3 Tools/ci/runtime.py patch "$KF_DERIVED_DATA/Build/Products" "$KF_STAGE/ci-runtime" \
+            --shard "$KF_SHARD" --count "$KF_SHARD_COUNT" --scope "$KF_TEST_SCOPE"
       - name: Primary — patched xctestrun with shipped Xcode 27 XCTest
         id: primary
+        timeout-minutes: 28
         # launch/load で失敗したときだけ次の step に進め、最後の gate で成否を確定する。
         continue-on-error: true
         env:
@@ -152,6 +252,7 @@ jobs:
         run: |
           source Tools/ci/common.sh
           ci_paths
+          check_session "$KF_STAGE/ci-runtime/bin"
           set +e
           xcodebuild test-without-building \
             -xctestrun "$KF_DERIVED_DATA/Build/Products/ci-macos-26.xctestrun" \
@@ -172,6 +273,7 @@ jobs:
           python3 Tools/ci/runtime.py guard "$RUNNER_TEMP/macos-26-primary.log"
       - name: Fallback — direct app executable with XCTest configuration
         id: fallback
+        timeout-minutes: 28
         if: steps.primary.outputs.fallback == 'true'
         run: |
           source Tools/ci/common.sh
@@ -179,6 +281,7 @@ jobs:
           check_session "$KF_STAGE/ci-runtime/bin"
           # env / arch で app を起動しない。Python が exec の env を直接渡す。
           python3 -u Tools/ci/runtime.py direct "$KF_DERIVED_DATA/Build/Products" "$KF_STAGE/ci-runtime" \
+            --shard "$KF_SHARD" --scope "$KF_TEST_SCOPE" --timeout 1560 \
             2>&1 | tee "$RUNNER_TEMP/macos-26-direct.log"
           python3 Tools/ci/runtime.py guard "$RUNNER_TEMP/macos-26-direct.log"
       - name: Require a verified successful run
@@ -190,18 +293,85 @@ jobs:
           set -euo pipefail
           printf 'primary=%s fallback=%s\n' "$PRIMARY_OUTCOME" "$FALLBACK_OUTCOME"
           test "$PRIMARY_OUTCOME" = success || test "$FALLBACK_OUTCOME" = success
+      - name: Record shard report
+        if: success()
+        env:
+          PRIMARY_OUTCOME: ${{ steps.primary.outcome }}
+        run: |
+          source Tools/ci/common.sh
+          ci_paths
+          kf_report_log="$RUNNER_TEMP/macos-26-direct.log"
+          if [ "$PRIMARY_OUTCOME" = success ]; then
+            kf_report_log="$RUNNER_TEMP/macos-26-primary.log"
+          fi
+          python3 Tools/ci/shards.py report --platform macos-26 --shard "$KF_SHARD" --count "$KF_SHARD_COUNT" --scope "$KF_TEST_SCOPE" --log "$kf_report_log" --out "$RUNNER_TEMP/shard-report.json" --siblings-manifest "$KF_STAGE/ci-runtime/manifest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-report-macos-26-${{ matrix.shard }}
+          path: ${{ runner.temp }}/shard-report.json
+          retention-days: 3
+          if-no-files-found: error
+          overwrite: true
       - name: Upload runtime diagnostics (including primary failure recovered by fallback)
         if: always() && (failure() || steps.primary.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
-          name: macos-26-diagnostics
+          name: macos-26-diagnostics-${{ matrix.shard }}
+          overwrite: true
           path: |
             ${{ runner.temp }}/macos-26-*.log
             ${{ runner.temp }}/*.xcresult
             ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/manifest.json
-            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/selectors.json
-            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/direct.xctestconfiguration
+            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/selectors-*.json
+            ${{ runner.temp }}/kaitofinder-transfer/ci-runtime/direct-*.xctestconfiguration
             ${{ runner.temp }}/kaitofinder-dd/Build/Products/ci-macos-26.xctestrun
             ~/Library/Logs/DiagnosticReports/KaitoFinder*
           if-no-files-found: warn
           retention-days: 7
+
+  shard-coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [gate, build-and-test, build-for-macos-26, macos-26-runtime]
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Record the already verified tree
+        if: needs.gate.outputs.skip == 'true'
+        env:
+          PR_RUN_URL: ${{ needs.gate.outputs.run-url }}
+        run: |
+          printf '同じ tree と兄弟 SHA は PR run %s で検証済みのため、重い job を省略した。\n' "$PR_RUN_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Require all shards to succeed
+        if: needs.gate.outputs.skip != 'true'
+        env:
+          X27_RESULT: ${{ needs.build-and-test.result }}
+          BUILD_RESULT: ${{ needs.build-for-macos-26.result }}
+          M26_RESULT: ${{ needs.macos-26-runtime.result }}
+        run: |
+          printf 'build-and-test=%s build-for-macos-26=%s macos-26-runtime=%s\n' "$X27_RESULT" "$BUILD_RESULT" "$M26_RESULT"
+          test "$X27_RESULT" = success && test "$BUILD_RESULT" = success && test "$M26_RESULT" = success
+      - uses: actions/checkout@v5
+        if: needs.gate.outputs.skip != 'true'
+      - uses: actions/download-artifact@v4
+        if: needs.gate.outputs.skip != 'true'
+        with:
+          name: test-enumeration
+          path: ${{ runner.temp }}/enumeration
+      - uses: actions/download-artifact@v4
+        if: needs.gate.outputs.skip != 'true'
+        with:
+          pattern: shard-report-*
+          path: ${{ runner.temp }}/reports
+      - name: Verify complete shard coverage
+        id: verify
+        if: needs.gate.outputs.skip != 'true'
+        run: |
+          python3 Tools/ci/shards.py verify --enumeration "$RUNNER_TEMP/enumeration/test-enumeration.json" --reports "$RUNNER_TEMP/reports" --summary "$GITHUB_STEP_SUMMARY" --record-out "$RUNNER_TEMP/tested-tree.json" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: needs.gate.outputs.skip != 'true' && github.event_name == 'pull_request' && steps.verify.outputs.record-name != ''
+        with:
+          name: ${{ steps.verify.outputs.record-name }}
+          path: ${{ runner.temp }}/tested-tree.json
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true

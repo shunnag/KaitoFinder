@@ -514,7 +514,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
 
     @MainActor func testCompressionHelpUpdatesWithoutChangingPaneOrWindowSize() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
-        for language in LocalizationAcceptance.languages {
+        for language in try LocalizationAcceptance.renderedLanguages() {
             let controller = PreferencesWindowController(store: store, bundle: try LocalizationAcceptance.bundle(language))
             defer { controller.close() }
             let window = try XCTUnwrap(controller.window)
@@ -1341,7 +1341,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             "cs": ["Uložit rozbalené soubory do:", "Po rozbalení:", "Vytvořit složku:", "Ve stejné složce jako archiv", "do složky…", "Ponechat archiv beze změny", "Přesunout archiv do koše", "Zobrazit rozbalené položky ve Finderu"],
             "pt-PT": ["Guardar ficheiro(s) descomprimido(s) em:", "Após descomprimir:", "Criar pasta:", "Na mesma pasta que o arquivo", "em…", "Manter o arquivo inalterado", "Mover o arquivo para o Lixo", "Mostrar elementos descomprimidos no Finder"]
         ]
-        for language in LocalizationAcceptance.languages {
+        XCTAssertEqual(Set(expected.keys), Set(LocalizationAcceptance.languages))
+        for language in try LocalizationAcceptance.renderedLanguages() {
             let suite = try ArchivePreferencesTestDefaults()
             let store = ArchivePreferencesStore(defaults: suite.defaults)
             let bundle = try LocalizationAcceptance.bundle(language)

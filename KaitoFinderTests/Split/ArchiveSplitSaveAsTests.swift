@@ -168,7 +168,7 @@ nonisolated final class ArchiveSplitSaveAsTests: XCTestCase {
     @MainActor func testSplitAccessoryFitsEveryLanguageWithEncryption() throws {
         let layout = ArchiveVolumeLayout(scheme: .numbered(stem: "original.zip", width: 3),
             volumes: [.init(url: URL(fileURLWithPath: "/tmp/original.zip.001"), length: 65536)], openedVolumeIndex: 0)
-        for language in LocalizationAcceptance.languages {
+        for language in try LocalizationAcceptance.renderedLanguages() {
             let bundle = try LocalizationAcceptance.bundle(language)
             let fields = ArchivePasswordFields(format: .zip, minimumLabelWidth: ArchiveSavePanel.minimumLabelWidth(bundle: bundle), bundle: bundle)
             let formats = NSPopUpButton(), levels = NSPopUpButton()
