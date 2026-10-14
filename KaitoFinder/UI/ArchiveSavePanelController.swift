@@ -13,9 +13,9 @@ final class ArchiveSavePanelController {
             case .none: return String(localized: "圧縮しない", bundle: bundle)
             case .zero: return String(localized: "0（最速）", bundle: bundle)
             case .fast where !startsAtZero: return String(localized: "1（最速）", bundle: bundle)
-            case .three where zstd: return String(localized: "3（標準）", bundle: bundle)
+            case .three where zstd: return String(localized: "3（デフォルト）", bundle: bundle)
             case .nineteen where zstd: return String(localized: "19（最高）", bundle: bundle)
-            case .normal where !zstd: return String(localized: "6（標準）", bundle: bundle)
+            case .normal where !zstd: return String(localized: "6（デフォルト）", bundle: bundle)
             case .maximum where !zstd: return String(localized: "9（最高）", bundle: bundle)
             default: return String(rawValue)
             }

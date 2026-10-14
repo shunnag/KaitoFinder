@@ -66,6 +66,24 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         XCTAssertTrue(PreferencesViewModel(store: store, hardware: .init(processors: 4, memory: threshold - 4)).memoryNote.warns)
     }
 
+    @MainActor func testSettingsSentencesUseLocalizedSpacing() throws {
+        for language in ["ja", "zh-Hans", "zh-Hant", "en"] {
+            let suite = try ArchivePreferencesTestDefaults()
+            let bundle = try LocalizationAcceptance.bundle(language)
+            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle,
+                                                         hardware: .init(processors: 4, memory: 2 << 30, automaticThreads: 2))
+            defer { controller.close() }
+            let separator = language == "en" ? " " : ""
+            let memory = ByteCountFormatter.string(fromByteCount: Int64(ArchiveHardware.estimatedLZMA2Memory(threads: 4)),
+                                                   countStyle: .memory)
+            let estimate = String(format: String(localized: "7z・tar.xz の圧縮では、最大で約 %@ のメモリを使います。", bundle: bundle), memory)
+            let warning = String(localized: "物理メモリに対して大きいため、ほかの処理が遅くなることがあります。", bundle: bundle)
+            XCTAssertEqual(controller.viewModel.maximumMemoryNote, estimate + separator + warning, language)
+            XCTAssertEqual(controller.tarGzipLevelSlider.toolTip,
+                           CompressionOptionHelp.tar(.tarGzip, bundle: bundle) + separator + CompressionOptionHelp.level(bundle: bundle), language)
+        }
+    }
+
     @MainActor func testCompressionThreadPopupPersistsRefreshesAndKeepsTabHeight() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         for hardware in [ArchiveHardware(processors: 8, memory: 8 << 30, automaticThreads: 8),
@@ -467,6 +485,22 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         }
     }
 
+    @MainActor func testSevenZipFilterRowUsesColonLabel() throws {
+        for (language, expected) in [("ja", "フィルタ:"), ("en", "Filter:")] {
+            let suite = try ArchivePreferencesTestDefaults()
+            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+                                                         bundle: try LocalizationAcceptance.bundle(language))
+            defer { controller.close() }
+            controller.tabController.selectedTabViewItemIndex = 1
+            controller.compressionTabView.selectTabViewItem(at: 1)
+            let pane = try XCTUnwrap(controller.compressionTabView.selectedTabViewItem?.view)
+            func labels(in view: NSView) -> [String] {
+                (view as? NSTextField).map { [$0.stringValue] } ?? view.subviews.flatMap { labels(in: $0) }
+            }
+            XCTAssertTrue(labels(in: pane).contains(expected), language)
+        }
+    }
+
     @MainActor func testFormatPopupsUseSavePanelCatalogsAndPersistEveryLevel() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let controller = PreferencesWindowController(store: store)
@@ -481,7 +515,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             let compression = controller.viewModel.compressionController(for: format)
             let standard = format == .sevenZip ? ArchivePreferences().sevenZipMethod.rawValue : ArchivePreferences().lhaMethod.rawValue
             XCTAssertEqual(popup.itemTitles, compression.methods.map {
-                $0.rawValue.lowercased() == standard ? String(format: String(localized: "%@（標準）"), $0.title()) : $0.title()
+                $0.rawValue.lowercased() == standard ? String(format: String(localized: "%@（デフォルト）"), $0.title()) : $0.title()
             })
         }
         let levels: [(NSPopUpButton, GyoshukuKit.ArchiveFormat, KeyPath<ArchivePreferences, Int>)] = [
@@ -1138,9 +1172,9 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             count.value = 0
             let button = try XCTUnwrap(controller.compressionResetButtons[tab])
             XCTAssertEqual(button.identifier?.rawValue, "preferences.compression.reset." + tab.rawValue)
-            XCTAssertEqual(button.title, String(localized: "標準に戻す"))
-            XCTAssertEqual(button.toolTip, String(format: String(localized: "%@の設定を標準に戻します。"), tab.title))
-            XCTAssertEqual(button.accessibilityLabel(), String(format: String(localized: "%@の設定を標準に戻す"), tab.title))
+            XCTAssertEqual(button.title, String(localized: "デフォルトに戻す"))
+            XCTAssertEqual(button.toolTip, String(format: String(localized: "%@の設定をデフォルトに戻します。"), tab.title))
+            XCTAssertEqual(button.accessibilityLabel(), String(format: String(localized: "%@の設定をデフォルトに戻す"), tab.title))
             sendAction(button)
             XCTAssertEqual(count.value, 1)
             XCTAssertEqual(store.preferences, expected)
@@ -1160,8 +1194,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     @MainActor func testDefaultMethodItemsCarryStandardMarker() throws {
         let catalog = try LocalizationAcceptance.catalog()
         for language in LocalizationAcceptance.languages {
-            let marker = try XCTUnwrap(catalog.strings["%@（標準）"]?.localizations[language]).stringUnit
-            let level = try XCTUnwrap(catalog.strings["6（標準）"]?.localizations[language]).stringUnit.value
+            let marker = try XCTUnwrap(catalog.strings["%@（デフォルト）"]?.localizations[language]).stringUnit
+            let level = try XCTUnwrap(catalog.strings["6（デフォルト）"]?.localizations[language]).stringUnit.value
             XCTAssertEqual(marker.state, "translated")
             XCTAssertEqual(String(format: marker.value, "6"), level, language)
         }
@@ -1184,7 +1218,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             ]
             for (popup, original, standard) in popups {
                 for (index, title) in original.enumerated() {
-                    let expected = index == standard ? String(format: String(localized: "%@（標準）", bundle: bundle), title) : title
+                    let expected = index == standard ? String(format: String(localized: "%@（デフォルト）", bundle: bundle), title) : title
                     XCTAssertEqual(popup.item(at: index)?.title, expected, language)
                     popup.selectItem(at: index)
                     sendAction(popup)
