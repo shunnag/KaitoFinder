@@ -310,11 +310,25 @@ private final class PreferencesScrollView: NSScrollView {
 
 /// 設定の切り替えでは上辺と幅を保ち、内容に必要な高さだけを変える。
 final class PreferencesTabViewController: NSTabViewController {
+    private static let resizeDuration: CFTimeInterval = 0.22
     var animationsEnabled = true
+    var drivesResizeWithTimer = true
+    var targetContentSizes: [NSSize] = []
     var prepareSelectedPane: (() -> Void)?
     private(set) var targetWindowFrame: NSRect?
     private var resizeGeneration = 0
+    private var resizeTimer: Timer?
+    private var resizeStartFrame: NSRect?
+    private var resizeStartTime: CFTimeInterval = 0
+    private var pendingShrinkCommit: (generation: Int, apply: () -> Void)?
     private var fadingPanes: [NSView] = []
+
+    var isResizing: Bool { resizeTimer != nil }
+
+    var targetContentSize: NSSize? {
+        targetContentSizes.indices.contains(selectedTabViewItemIndex)
+            ? targetContentSizes[selectedTabViewItemIndex] : nil
+    }
 
     var animatesSelection: Bool {
         animationsEnabled && view.window?.isVisible == true
@@ -322,13 +336,58 @@ final class PreferencesTabViewController: NSTabViewController {
     }
 
     override func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
-        finishPendingFades()
+        finishPendingResize()
+        if let window = view.window {
+            // AppKitの501の制約が、切り替え前のウインドウ寸法と一致するようにする。
+            let content = window.contentRect(forFrameRect: window.frame).size
+            if Self.isValidSize(content) {
+                tabViewItem?.viewController?.preferredContentSize = content
+                preferredContentSize = content
+            }
+        }
         super.tabView(tabView, willSelect: tabViewItem)
     }
 
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         super.tabView(tabView, didSelect: tabViewItem)
+        prepareSelectedPane?()
         resizeToSelectedPane(fading: tabViewItem?.viewController?.view)
+    }
+
+    override func viewWillDisappear() {
+        // closeだけでなくorderOutやビューの取り外しでも、タイマーを残さない。
+        completePendingResize()
+        super.viewWillDisappear()
+    }
+
+    // 非表示になる前なら、本文・ウインドウ・フェードを最後の選択へ確定できる。
+    func completePendingResize(in window: NSWindow? = nil) {
+        if resizeStartFrame != nil {
+            _ = applyResizeProgress(1, generation: resizeGeneration, in: window)
+        }
+        finishPendingResize()
+    }
+
+    // 次の選択より先に、前の縮小で保留した本文寸法を確定する。
+    func finishPendingResize() {
+        resizeTimer?.invalidate()
+        resizeTimer = nil
+        resizeStartFrame = nil
+        resizeStartTime = 0
+        let pending = pendingShrinkCommit
+        pendingShrinkCommit = nil
+        if let pending, pending.generation == resizeGeneration {
+            pending.apply()
+        }
+        finishPendingFades()
+    }
+
+    func applyCompressionLayout(shrinking: Bool, _ apply: @escaping () -> Void) {
+        if shrinking && animatesSelection && selectedTabViewItemIndex == 1 {
+            pendingShrinkCommit = (resizeGeneration + 1, apply)
+        } else {
+            apply()
+        }
     }
 
     // 切り替えの開始時に、外部・内部のペインのフェードをすべて完了させる。
@@ -340,15 +399,17 @@ final class PreferencesTabViewController: NSTabViewController {
         fadingPanes.removeAll()
     }
 
-    // 外部・内部のタブで同じ経路を使う。古い完了処理で最後の選択を上書きしない。
+    // 目標は別に保管し、preferredContentSizeには各フレームの現在寸法だけを渡す。
     func resizeToSelectedPane(fading incoming: NSView? = nil) {
+        resizeTimer?.invalidate()
+        resizeTimer = nil
         finishPendingFades()
-        prepareSelectedPane?()
-        guard tabViewItems.indices.contains(selectedTabViewItemIndex),
-              let size = tabViewItems[selectedTabViewItemIndex].viewController?.preferredContentSize,
-              size.width > 0 else { return }
-        preferredContentSize = size
-        guard let window = view.window else { return }
+        guard let size = targetContentSize, Self.isValidSize(size), let window = view.window,
+              Self.isValidFrame(window.frame),
+              Self.isValidSize(window.contentRect(forFrameRect: window.frame).size) else {
+            finishPendingResize()
+            return
+        }
         let sizeWithTitlebar = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
         var frame = NSRect(x: window.frame.minX, y: window.frame.maxY - sizeWithTitlebar.height,
                            width: window.frame.width, height: sizeWithTitlebar.height)
@@ -356,31 +417,87 @@ final class PreferencesTabViewController: NSTabViewController {
             // 画面下端で広げたときは、従来どおり画面内へ戻す。
             frame.origin.y = min(visible.maxY - frame.height, max(visible.minY, frame.minY))
         }
+        guard Self.isValidFrame(frame) else { finishPendingResize(); return }
         resizeGeneration += 1
         let generation = resizeGeneration
         targetWindowFrame = frame
+        resizeStartFrame = window.frame
         guard animatesSelection else {
-            window.setFrame(frame, display: true)
+            applyResizeProgress(1)
             return
         }
         if let incoming {
             incoming.wantsLayer = true
             incoming.alphaValue = 0
             fadingPanes.append(incoming)
-        }
-        // 同じframeプロパティへのアニメーションは現在位置から最新の目標へ向かう。
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.22
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            window.animator().setFrame(frame, display: true)
-            incoming?.animator().alphaValue = 1
-        } completionHandler: { [weak self, weak window] in
-            Task { @MainActor in
-                guard let self, self.resizeGeneration == generation, let frame = self.targetWindowFrame else { return }
-                self.finishPendingFades()
-                window?.setFrame(frame, display: true)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Self.resizeDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                incoming.animator().alphaValue = 1
             }
         }
+        guard drivesResizeWithTimer else { return }
+        resizeStartTime = CACurrentMediaTime()
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let continues = MainActor.assumeIsolated {
+                guard self.resizeGeneration == generation else {
+                    // 古い世代のタイマーだけを止め、新しい選択の状態は触らない。
+                    return false
+                }
+                let elapsed = max(0, CACurrentMediaTime() - self.resizeStartTime)
+                let completed = elapsed >= Self.resizeDuration
+                let fraction = min(1, elapsed / Self.resizeDuration)
+                let progress: CGFloat = completed ? 1 : CGFloat(fraction * fraction * (3 - 2 * fraction))
+                let applied = self.applyResizeProgress(progress, generation: generation)
+                // windowが外れた場合も、期限を過ぎた場合も必ず終了する。
+                if !applied || completed {
+                    if self.resizeGeneration == generation { self.finishPendingResize() }
+                    return false
+                }
+                return true
+            }
+            if !continues { timer.invalidate() }
+        }
+        resizeTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @discardableResult func applyResizeProgress(_ progress: CGFloat) -> Bool {
+        let applied = applyResizeProgress(progress, generation: resizeGeneration)
+        if !applied { finishPendingResize() }
+        return applied
+    }
+
+    private func applyResizeProgress(_ progress: CGFloat, generation: Int, in window: NSWindow? = nil) -> Bool {
+        guard generation == resizeGeneration, let start = resizeStartFrame,
+              let target = targetWindowFrame, let window = window ?? view.window,
+              tabViewItems.indices.contains(selectedTabViewItemIndex), progress.isFinite,
+              Self.isValidFrame(start), Self.isValidFrame(target) else { return false }
+        let p = min(1, max(0, progress))
+        let height = (start.height + (target.height - start.height) * p).rounded()
+        // 上辺のクランプが必要な場合だけ、補正量を各フレームに分配する。
+        let top = start.maxY + (target.maxY - start.maxY) * p
+        let frame = p == 1 ? target : NSRect(x: start.minX, y: top - height, width: target.width, height: height)
+        let content = window.contentRect(forFrameRect: frame).size
+        guard Self.isValidFrame(frame), Self.isValidSize(content) else { return false }
+        tabViewItems[selectedTabViewItemIndex].viewController?.preferredContentSize = content
+        preferredContentSize = content
+        if p == 1 {
+            finishPendingResize()
+        }
+        window.setFrame(frame, display: false)
+        window.layoutIfNeeded()
+        window.displayIfNeeded()
+        return true
+    }
+
+    private static func isValidSize(_ size: NSSize) -> Bool {
+        size.width.isFinite && size.height.isFinite && size.width > 0 && size.height > 0
+    }
+
+    private static func isValidFrame(_ frame: NSRect) -> Bool {
+        frame.origin.x.isFinite && frame.origin.y.isFinite && isValidSize(frame.size)
     }
 }
 
@@ -402,12 +519,12 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     let prefersSpeedCheckbox: NSButton
     let prefersSpeedNote: NSTextField
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
-    let compressionTabView = NSTabView()
+    // 最初のitem追加時もcontentRectが負にならない寸法を渡す。
+    let compressionTabView = NSTabView(frame: NSRect(x: 0, y: 0, width: 600, height: 240))
     private(set) var compressionResetButtons: [PreferencesViewModel.CompressionTab: NSButton] = [:]
     private var compressionPaneHeights: [CGFloat] = []
     private var compressionTabHeight: NSLayoutConstraint?
     private var compressionBorderHeight: CGFloat = 0
-    private var compressionPane: NSViewController?
     private var compressionStack: NSStackView?
     private var compressionScroll: NSScrollView?
     private var compressionDocumentHeight: NSLayoutConstraint?
@@ -635,22 +752,24 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         additionPositionPopup.setAccessibilityLabel(String(localized: "追加した項目の位置", bundle: bundle))
         tarCarriedOwnerIDsPopup.setAccessibilityLabel(String(localized: "変更しない項目の所有者ID", bundle: bundle))
         // 長い翻訳も省略しない共通の幅を選び、高さはタブの内容に合わせる。
-        let width = tabController.tabViewItems.reduce(CGFloat(600)) { width, item in
-            max(width, item.viewController?.preferredContentSize.width ?? 0)
-        }
-        for item in tabController.tabViewItems {
+        let width = tabController.targetContentSizes.reduce(CGFloat(600)) { max($0, $1.width) }
+        for (index, item) in tabController.tabViewItems.enumerated() {
             guard let pane = item.viewController else { continue }
-            pane.preferredContentSize.width = width
+            var size = tabController.targetContentSizes[index]
+            size.width = width
             // スクロールバーの表示方式が変わっても、ペインからウインドウの幅を広げない。
             pane.view.widthAnchor.constraint(equalToConstant: width).isActive = true
-            pane.view.setFrameSize(pane.preferredContentSize)
+            pane.view.setFrameSize(size)
             // 共通幅と制約を反映した後の必要高も使い、初期計測より高い内容を切り取らない。
             pane.view.layoutSubtreeIfNeeded()
-            pane.preferredContentSize.height = max(pane.preferredContentSize.height, ceil(pane.view.fittingSize.height))
-            pane.view.setFrameSize(pane.preferredContentSize)
+            size.height = max(size.height, ceil(pane.view.fittingSize.height))
+            tabController.targetContentSizes[index] = size
+            pane.preferredContentSize = size
+            pane.view.setFrameSize(size)
         }
-        let contentSize = tabController.tabViewItems[0].viewController!.preferredContentSize
+        let contentSize = tabController.targetContentSizes[0]
         tabController.preferredContentSize = contentSize
+        tabController.view.setFrameSize(contentSize)
         window.contentViewController = tabController
         window.setContentSize(contentSize)
         window.toolbar?.displayMode = .iconAndLabel
@@ -664,14 +783,24 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
                                                name: ProcessInfo.thermalStateDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(softwareUpdatesDidChange(_:)),
                                                name: SoftwareUpdateController.didChange, object: softwareUpdater)
-        tabController.prepareSelectedPane = { [weak self] in self?.updateCompressionPaneSize() }
+        tabController.prepareSelectedPane = { [weak self] in
+            guard let self, self.tabController.selectedTabViewItemIndex == 1 else { return }
+            self.updateCompressionPaneSize()
+        }
         refreshControls()
     }
 
     required init?(coder: NSCoder) { nil }
 
+    override func close() {
+        tabController.completePendingResize(in: window)
+        super.close()
+    }
+
     override func showWindow(_ sender: Any?) {
         refreshControls()
+        tabController.finishPendingResize()
+        if tabController.selectedTabViewItemIndex == 1 { updateCompressionPaneSize() }
         tabController.resizeToSelectedPane()
         super.showWindow(sender)
     }
@@ -852,9 +981,9 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
             let item = NSTabViewItem(identifier: "preferences.compression." + identifier)
             item.label = title
             item.view = pane
+            compressionTabView.setFrameSize(NSSize(width: maximum.width + 32, height: maximum.height + 64))
             compressionTabView.addTabViewItem(item)
         }
-        compressionTabView.setFrameSize(NSSize(width: maximum.width + 32, height: maximum.height + 64))
         let border = NSSize(width: compressionTabView.frame.width - compressionTabView.contentRect.width,
                             height: compressionTabView.frame.height - compressionTabView.contentRect.height)
         compressionBorderHeight = border.height
@@ -879,34 +1008,44 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     }
 
     func tabView(_ tabView: NSTabView, willSelect tabViewItem: NSTabViewItem?) {
-        tabController.finishPendingFades()
+        // 非表示の内部タブ変更では、表示中の別ペインの伸縮を止めない。
+        if tabController.selectedTabViewItemIndex == 1 { tabController.finishPendingResize() }
     }
 
     func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         guard let item = tabViewItem, let index = tabView.tabViewItems.firstIndex(of: item),
               compressionPaneHeights.indices.contains(index) else { return }
-        compressionTabHeight?.constant = compressionPaneHeights[index] + compressionBorderHeight
         updateCompressionPaneSize()
         guard tabController.selectedTabViewItemIndex == 1 else { return }
         tabController.resizeToSelectedPane(fading: item.view?.subviews.first)
     }
 
     private func updateCompressionPaneSize() {
-        guard let pane = compressionPane, let stack = compressionStack, let scroll = compressionScroll else { return }
+        guard let stack = compressionStack, let scroll = compressionScroll,
+              let tabHeight = compressionTabHeight, let documentHeight = compressionDocumentHeight,
+              let item = compressionTabView.selectedTabViewItem,
+              let index = compressionTabView.tabViewItems.firstIndex(of: item),
+              tabController.targetContentSizes.indices.contains(1) else { return }
         stack.layoutSubtreeIfNeeded()
-        let height = ceil(stack.fittingSize.height) + 48
+        let innerHeight = compressionPaneHeights[index] + compressionBorderHeight
+        let height = ceil(stack.fittingSize.height) + 48 + innerHeight - tabHeight.constant
         let window = self.window
         let visibleHeight = (window?.screen ?? NSScreen.main)?.visibleFrame.height ?? 838
         let titlebar = window?.frameRect(forContentRect: .zero).height ?? 38
         let available = max(1, visibleHeight - titlebar - 40)
         let scrolls = height > 698 || height > available
-        compressionDocumentHeight?.constant = height
-        scroll.hasVerticalScroller = scrolls
-        scroll.tile()
-        pane.preferredContentSize.height = scrolls ? min(height, 698, available) : height
-        // 切り替え後は上部の共通設定と新しい形式の先頭から表示する。
-        scroll.contentView.scroll(to: .zero)
-        scroll.reflectScrolledClipView(scroll.contentView)
+        tabController.targetContentSizes[1].height = scrolls ? min(height, 698, available) : height
+        // スクロール位置は最初のフレームより先に戻し、不要な二度目のtileを避ける。
+        if scroll.contentView.bounds.origin != .zero {
+            scroll.contentView.scroll(to: .zero)
+            scroll.reflectScrolledClipView(scroll.contentView)
+        }
+        tabController.applyCompressionLayout(shrinking: innerHeight < tabHeight.constant || height < documentHeight.constant) {
+            tabHeight.constant = innerHeight
+            documentHeight.constant = height
+            scroll.hasVerticalScroller = scrolls
+            scroll.tile()
+        }
     }
 
     @objc private func resetCompressionDefaults(_ sender: NSButton) {
@@ -1010,18 +1149,17 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         // 長い内容では従来どおりlegacyの幅を確保し、共通幅の計測を保つ。
         let scrollerWidth = isCompression && maximumHeight > 650
             ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
-        controller.preferredContentSize = NSSize(width: max(600, ceil(required.width) + 48 + scrollerWidth),
-                                                height: ceil(required.height) + 48)
-        controller.view.setFrameSize(controller.preferredContentSize)
+        let size = NSSize(width: max(600, ceil(required.width) + 48 + scrollerWidth), height: ceil(required.height) + 48)
+        tabController.targetContentSizes.append(size)
+        controller.view.setFrameSize(size)
         stack.translatesAutoresizingMaskIntoConstraints = false
         if isCompression {
-            compressionPane = controller
             compressionStack = stack
-            let scroll = PreferencesScrollView()
+            let scroll = PreferencesScrollView(frame: NSRect(origin: .zero, size: size))
             compressionScroll = scroll
             scroll.drawsBackground = false
             scroll.translatesAutoresizingMaskIntoConstraints = false
-            let document = PreferencesScrollDocumentView()
+            let document = PreferencesScrollDocumentView(frame: NSRect(origin: .zero, size: size))
             document.translatesAutoresizingMaskIntoConstraints = false
             document.addSubview(stack)
             scroll.documentView = document
@@ -1040,6 +1178,8 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
                 scroll.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
                 documentWidth,
                 documentHeight,
+                document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+                document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
                 stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
                 stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
                 trailing
@@ -1053,6 +1193,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
             ])
         }
         if isCompression { updateCompressionPaneSize() }
+        controller.preferredContentSize = tabController.targetContentSizes.last!
         let item = NSTabViewItem(viewController: controller)
         item.identifier = "preferences." + symbol
         item.label = title

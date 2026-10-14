@@ -601,6 +601,20 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         }
     }
 
+    @MainActor private func spinPreferencesRunLoop(for interval: TimeInterval) {
+        let elapsed = expectation(description: "設定のcommonモードで\(interval)秒待つ")
+        let timer = Timer(timeInterval: interval, repeats: false) { _ in elapsed.fulfill() }
+        RunLoop.main.add(timer, forMode: .common)
+        defer { timer.invalidate() }
+        wait(for: [elapsed], timeout: 2)
+    }
+
+    @MainActor private func requireMotionAnimations() throws {
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { throw XCTSkip("視差効果を減らす設定が有効です。") }
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+        if session?["CGSSessionScreenIsLocked"] as? Bool == true { throw XCTSkip("画面がロックされています。") }
+    }
+
     @MainActor func testRapidTabSwitchingEndsAtLastSelectionSize() throws {
         let suite = try ArchivePreferencesTestDefaults()
         let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
@@ -619,32 +633,34 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
             controller.tabController.animationsEnabled = mode != 2
             if mode > 0 { controller.showWindow(nil) }
             // 同期の連続選択に加え、前のフェードの途中で次の選択を送る。
-            for yieldsBetweenSelections in (mode == 1 ? [false, true] : [false]) {
+            let switches = mode == 1 ? [(false, 1), (false, 0), (true, 1), (true, 0)] : [(false, 1), (false, 0)]
+            for (yieldsBetweenSelections, finalOuter) in switches {
                 let top = window.frame.maxY
-                for (outer, inner) in [(1, 2), (0, 0), (1, 1), (3, 3), (1, 0), (4, 2), (1, 3)] {
+                var selections = [(1, 2), (0, 0), (1, 1), (3, 3), (1, 0), (4, 2), (1, 3)]
+                // 最後が一般でも、非表示の圧縮タブ変更で伸縮が中断されないことを確かめる。
+                if finalOuter == 0 { selections.append((0, 2)) }
+                for (outer, inner) in selections {
                     controller.tabController.selectedTabViewItemIndex = outer
                     controller.compressionTabView.selectTabViewItem(at: inner)
                     XCTAssertTrue(controller.tabController.transitionOptions.isEmpty)
                     if yieldsBetweenSelections {
-                        let nextSelection = expectation(description: "フェード途中の次の選択")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { nextSelection.fulfill() }
-                        wait(for: [nextSelection], timeout: 2)
+                        spinPreferencesRunLoop(for: 0.05)
                     }
                 }
-                let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
-                let size = pane.preferredContentSize
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[finalOuter].viewController)
+                let size = try XCTUnwrap(controller.tabController.targetContentSize)
                 let frameSize = window.frameRect(forContentRect: NSRect(origin: .zero, size: size)).size
                 let expected = NSRect(x: window.frame.minX, y: top - frameSize.height, width: width, height: frameSize.height)
-                XCTAssertEqual(controller.tabController.preferredContentSize, size)
                 XCTAssertEqual(try XCTUnwrap(controller.tabController.targetWindowFrame), expected)
                 if controller.tabController.animatesSelection {
-                    let settled = expectation(description: "最後の選択へのアニメーション完了")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { settled.fulfill() }
-                    wait(for: [settled], timeout: 2)
+                    spinPreferencesRunLoop(for: 0.6)
                 } else {
                     XCTAssertEqual(window.frame, expected)
                 }
                 window.layoutIfNeeded()
+                XCTAssertFalse(controller.tabController.isResizing)
+                XCTAssertEqual(controller.tabController.preferredContentSize, size)
+                XCTAssertEqual(pane.preferredContentSize, size)
                 XCTAssertEqual(window.frame, expected)
                 XCTAssertEqual(try XCTUnwrap(window.contentView).bounds.size, size)
                 let violations = UISnapshot.overflowViolations(in: try XCTUnwrap(window.contentView))
@@ -666,6 +682,325 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                     XCTAssertEqual(innerPane.alphaValue, 1)
                     XCTAssertEqual(try XCTUnwrap(innerPane.subviews.first).alphaValue, 1)
                 }
+            }
+        }
+    }
+
+    @MainActor private final class MotionSamples {
+        var markers: [String: [CGFloat]] = [:]
+        var heights = Set<CGFloat>()
+        var nextSelection = 1
+    }
+
+    @MainActor private static func sampleMotion(in controller: PreferencesWindowController, into samples: MotionSamples) {
+        guard let window = controller.window, let content = window.contentView else { return }
+        samples.heights.insert(window.frame.height)
+        var markers: [(String, NSView)] = []
+        if controller.tabController.selectedTabViewItemIndex == 1 {
+            markers = [("excludesDSStore", controller.excludesDSStoreCheckbox), ("compressionTabs", controller.compressionTabView)]
+            if let item = controller.compressionTabView.selectedTabViewItem,
+               let stack = item.view?.subviews.first as? NSStackView, let first = stack.arrangedSubviews.first {
+                markers.append(("inner.\(item.identifier ?? "")", first))
+            } else {
+                XCTFail("選択した圧縮ペインの先頭コントロールを計測できません。")
+            }
+        } else if controller.tabController.selectedTabViewItemIndex == 0 {
+            markers = [("keepsFoldersOnTop", controller.keepsFoldersOnTopCheckbox)]
+        }
+        for (name, marker) in markers {
+            XCTAssertTrue(marker.window === window, "\(name)が計測対象のウインドウにありません。")
+            let distance = content.bounds.height - content.convert(marker.bounds, from: marker).maxY
+            samples.markers[name, default: []].append(distance)
+        }
+    }
+
+    @MainActor private func assertControlsStayedStill(_ samples: MotionSamples, context: String,
+                                                      file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertFalse(samples.markers.isEmpty, context, file: file, line: line)
+        for (marker, distances) in samples.markers {
+            XCTAssertLessThanOrEqual(distances.max()! - distances.min()!, 0.5,
+                                     "\(context): \(marker) \(distances)", file: file, line: line)
+        }
+    }
+
+    @MainActor func testSwitchKeepsControlsStillWhileWindowResizes() throws {
+        for language in ["ja", "en"] {
+            for legacy in [false, true] {
+                let suite = try ArchivePreferencesTestDefaults()
+                let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+                                                             bundle: try LocalizationAcceptance.bundle(language))
+                defer { controller.close() }
+                let window = try XCTUnwrap(controller.window)
+                window.setFrameAutosaveName("")
+                controller.tabController.drivesResizeWithTimer = false
+                controller.showWindow(nil)
+                if let visible = window.screen?.visibleFrame {
+                    window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+                }
+                let compression = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+                let scroll = try XCTUnwrap(compression.view.subviews.compactMap { $0 as? NSScrollView }.first)
+                if legacy { scroll.scrollerStyle = .legacy; scroll.tile() }
+
+                func step(from start: NSRect, through progress: [CGFloat], context: String) -> MotionSamples {
+                    let samples = MotionSamples()
+                    let target = controller.tabController.targetWindowFrame!
+                    let animated = controller.tabController.animatesSelection
+                    // 「視差効果を減らす」でもテストを省略せず、即時切り替えを確かめる。
+                    XCTAssertEqual(window.frame, animated ? start : target, context)
+                    for p in progress {
+                        controller.tabController.applyResizeProgress(p)
+                        window.layoutIfNeeded()
+                        let height = (start.height + (target.height - start.height) * p).rounded()
+                        let commanded = !animated || p == 1 ? target
+                            : NSRect(x: start.minX, y: start.maxY - height, width: start.width, height: height)
+                        XCTAssertEqual(window.frame.maxY, start.maxY, accuracy: 0.5, context)
+                        XCTAssertEqual(window.frame, commanded, context)
+                        let contentSize = window.contentRect(forFrameRect: commanded).size
+                        XCTAssertEqual(controller.tabController.preferredContentSize, contentSize, context)
+                        XCTAssertEqual(controller.tabController.tabViewItems[controller.tabController.selectedTabViewItemIndex].viewController?.preferredContentSize,
+                                       contentSize, context)
+                        Self.sampleMotion(in: controller, into: samples)
+                    }
+                    assertControlsStayedStill(samples, context: context)
+                    if progress.last == 1 {
+                        XCTAssertEqual(window.frame, target, context)
+                        XCTAssertEqual(controller.tabController.preferredContentSize, controller.tabController.targetContentSize)
+                        XCTAssertEqual(controller.tabController.tabViewItems[controller.tabController.selectedTabViewItemIndex].viewController?.preferredContentSize,
+                                       controller.tabController.targetContentSize)
+                    }
+                    return samples
+                }
+                let progress = (0...10).map { CGFloat($0) / 10 }
+                for (from, to) in [(0, 1), (1, 0), (0, 2), (2, 0), (1, 3), (3, 1)] {
+                    controller.tabController.animationsEnabled = false
+                    controller.tabController.selectedTabViewItemIndex = 1
+                    controller.compressionTabView.selectTabViewItem(at: from)
+                    window.layoutIfNeeded()
+                    controller.tabController.animationsEnabled = true
+                    let start = window.frame
+                    controller.compressionTabView.selectTabViewItem(at: to)
+                    _ = step(from: start, through: progress, context: "\(language), legacy \(legacy), inner \(from)→\(to)")
+                }
+                for (from, to) in [(0, 1), (1, 0)] {
+                    controller.tabController.animationsEnabled = false
+                    controller.compressionTabView.selectTabViewItem(at: 0)
+                    controller.tabController.selectedTabViewItemIndex = from
+                    window.layoutIfNeeded()
+                    controller.tabController.animationsEnabled = true
+                    let start = window.frame
+                    controller.tabController.selectedTabViewItemIndex = to
+                    _ = step(from: start, through: progress, context: "\(language), legacy \(legacy), outer \(from)→\(to)")
+                }
+                // 拡大中の再選択と、縮小で保留したレイアウトの確定後の再選択を検査する。
+                for (from, via, to) in [(0, 1, 2), (1, 0, 3)] {
+                    controller.tabController.animationsEnabled = false
+                    controller.tabController.selectedTabViewItemIndex = 1
+                    controller.compressionTabView.selectTabViewItem(at: from)
+                    window.layoutIfNeeded()
+                    controller.tabController.animationsEnabled = true
+                    let start = window.frame
+                    controller.compressionTabView.selectTabViewItem(at: via)
+                    let first = step(from: start, through: [0, 0.1, 0.2, 0.3, 0.4, 0.5], context: "\(language), legacy \(legacy), interrupted \(from)→\(via)")
+                    let interrupted = window.frame
+                    controller.compressionTabView.selectTabViewItem(at: to)
+                    let second = step(from: interrupted, through: progress, context: "\(language), legacy \(legacy), interrupted →\(to)")
+                    for name in ["excludesDSStore", "compressionTabs"] {
+                        let distances = (first.markers[name] ?? []) + (second.markers[name] ?? [])
+                        XCTAssertFalse(distances.isEmpty)
+                        XCTAssertLessThanOrEqual(distances.max()! - distances.min()!, 0.5, "\(language): \(name) interrupted chain")
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor func testRealTimerResizeKeepsControlsStill() throws {
+        try requireMotionAnimations()
+        let suite = try ArchivePreferencesTestDefaults()
+        let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        window.setFrameAutosaveName("")
+        controller.showWindow(nil)
+        if let visible = window.screen?.visibleFrame {
+            window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+        }
+        XCTAssertTrue(controller.tabController.animatesSelection)
+        for (from, selections) in [(0, [1]), (1, [0]), (0, [1, 2, 3, 0])] {
+            controller.tabController.animationsEnabled = false
+            controller.tabController.selectedTabViewItemIndex = 1
+            controller.compressionTabView.selectTabViewItem(at: from)
+            window.layoutIfNeeded()
+            window.displayIfNeeded()
+            spinPreferencesRunLoop(for: 0.05)
+            controller.tabController.animationsEnabled = true
+            let top = window.frame.maxY, width = window.frame.width
+            let samples = MotionSamples()
+            let sample: @MainActor () -> Void = { Self.sampleMotion(in: controller, into: samples) }
+            let sampler = Timer(timeInterval: 0.004, repeats: true) { _ in
+                MainActor.assumeIsolated { sample() }
+            }
+            RunLoop.main.add(sampler, forMode: .common)
+            defer { sampler.invalidate() }
+            // 選択もcommonモードで送り、表示準備の完了から次の選択まで30msを置く。
+            let selectNext: @MainActor () -> Bool = {
+                guard samples.nextSelection < selections.count else { return false }
+                controller.compressionTabView.selectTabViewItem(at: selections[samples.nextSelection])
+                samples.nextSelection += 1
+                return samples.nextSelection < selections.count
+            }
+            controller.compressionTabView.selectTabViewItem(at: selections[0])
+            window.layoutIfNeeded()
+            sample()
+            let selectionTimer = Timer(timeInterval: 0.03, repeats: true) { timer in
+                let continues = MainActor.assumeIsolated { selectNext() }
+                if continues { timer.fireDate = Date().addingTimeInterval(0.03) }
+                else { timer.invalidate() }
+            }
+            defer { selectionTimer.invalidate() }
+            if selections.count > 1 { RunLoop.main.add(selectionTimer, forMode: .common) }
+            spinPreferencesRunLoop(for: 0.5)
+            sampler.invalidate()
+            selectionTimer.invalidate()
+            window.layoutIfNeeded()
+            sample()
+            XCTAssertGreaterThan(samples.heights.count, 3, "real timer \(from)→\(selections): \(samples.heights.sorted())")
+            assertControlsStayedStill(samples, context: "real timer \(from)→\(selections)")
+            XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5)
+            XCTAssertEqual(window.frame.width, width, accuracy: 0.5)
+            XCTAssertEqual(window.frame, controller.tabController.targetWindowFrame)
+            XCTAssertFalse(controller.tabController.isResizing)
+            XCTAssertEqual(controller.tabController.preferredContentSize, controller.tabController.targetContentSize)
+            XCTAssertEqual(controller.tabController.tabViewItems[1].viewController?.preferredContentSize,
+                           controller.tabController.targetContentSize)
+        }
+    }
+
+    @MainActor func testClosingDuringResizeStopsTimerAndCommitsLayout() throws {
+        try requireMotionAnimations()
+        for action in ["controllerClose", "windowClose", "orderOut"] {
+            for (from, to) in [(0, 1), (1, 0)] {
+                let suite = try ArchivePreferencesTestDefaults()
+                let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
+                defer { controller.close() }
+                let window = try XCTUnwrap(controller.window)
+                window.setFrameAutosaveName("")
+                controller.tabController.animationsEnabled = false
+                controller.showWindow(nil)
+                if let visible = window.screen?.visibleFrame {
+                    window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+                }
+                controller.tabController.selectedTabViewItemIndex = 1
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[1].viewController)
+                let scroll = try XCTUnwrap(pane.view.subviews.compactMap { $0 as? NSScrollView }.first)
+                let document = try XCTUnwrap(scroll.documentView)
+                controller.compressionTabView.selectTabViewItem(at: to)
+                window.layoutIfNeeded()
+                let completedDocumentSize = document.frame.size
+                controller.compressionTabView.selectTabViewItem(at: from)
+                window.layoutIfNeeded()
+                controller.tabController.animationsEnabled = true
+                controller.compressionTabView.selectTabViewItem(at: to)
+                XCTAssertTrue(controller.tabController.isResizing, action)
+                let incoming = try XCTUnwrap(controller.compressionTabView.selectedTabViewItem?.view?.subviews.first)
+                spinPreferencesRunLoop(for: 0.05)
+                let target = try XCTUnwrap(controller.tabController.targetWindowFrame)
+                let size = try XCTUnwrap(controller.tabController.targetContentSize)
+                switch action {
+                case "controllerClose": controller.close()
+                case "windowClose": window.close()
+                default: window.orderOut(nil)
+                }
+                XCTAssertFalse(controller.tabController.isResizing, action)
+                XCTAssertEqual(window.frame, target, action)
+                XCTAssertEqual(controller.tabController.preferredContentSize, size, action)
+                XCTAssertEqual(pane.preferredContentSize, size, action)
+                XCTAssertEqual(document.frame.size, completedDocumentSize, action)
+                XCTAssertEqual(incoming.alphaValue, 1, action)
+                spinPreferencesRunLoop(for: 0.4)
+                XCTAssertFalse(controller.tabController.isResizing, action)
+                XCTAssertEqual(window.frame, target, action)
+            }
+        }
+    }
+
+    @MainActor func testCompletedResizeStopsTimer() throws {
+        try requireMotionAnimations()
+        let suite = try ArchivePreferencesTestDefaults()
+        let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        window.setFrameAutosaveName("")
+        controller.tabController.animationsEnabled = false
+        controller.showWindow(nil)
+        if let visible = window.screen?.visibleFrame {
+            window.setFrameTopLeftPoint(NSPoint(x: visible.minX + 20, y: visible.maxY - 20))
+        }
+        controller.tabController.selectedTabViewItemIndex = 1
+        controller.compressionTabView.selectTabViewItem(at: 0)
+        window.layoutIfNeeded()
+        controller.tabController.animationsEnabled = true
+        for index in [1, 0] {
+            controller.compressionTabView.selectTabViewItem(at: index)
+            XCTAssertTrue(controller.tabController.isResizing)
+            spinPreferencesRunLoop(for: 0.4)
+            XCTAssertFalse(controller.tabController.isResizing)
+            XCTAssertEqual(window.frame, controller.tabController.targetWindowFrame)
+            XCTAssertEqual(controller.tabController.preferredContentSize, controller.tabController.targetContentSize)
+        }
+    }
+
+    @MainActor func testDetachingDuringResizeStopsTimer() throws {
+        try requireMotionAnimations()
+        let suite = try ArchivePreferencesTestDefaults()
+        let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
+        defer { controller.close() }
+        let window = try XCTUnwrap(controller.window)
+        window.setFrameAutosaveName("")
+        controller.tabController.animationsEnabled = false
+        controller.showWindow(nil)
+        controller.tabController.selectedTabViewItemIndex = 1
+        controller.compressionTabView.selectTabViewItem(at: 0)
+        window.layoutIfNeeded()
+        controller.tabController.animationsEnabled = true
+        controller.compressionTabView.selectTabViewItem(at: 1)
+        XCTAssertTrue(controller.tabController.isResizing)
+        spinPreferencesRunLoop(for: 0.05)
+        window.contentViewController = nil
+        spinPreferencesRunLoop(for: 0.4)
+        XCTAssertFalse(controller.tabController.isResizing)
+    }
+
+    @MainActor func testPreferencesViewsStartWithNonnegativeGeometry() throws {
+        func check(_ view: NSView, context: String) {
+            for size in [view.frame.size, view.bounds.size] {
+                XCTAssertTrue(size.width.isFinite && size.height.isFinite, context)
+                XCTAssertGreaterThanOrEqual(size.width, 0, context)
+                XCTAssertGreaterThanOrEqual(size.height, 0, context)
+            }
+            if let tabs = view as? NSTabView {
+                XCTAssertGreaterThanOrEqual(tabs.contentRect.size.width, 0, context)
+                XCTAssertGreaterThanOrEqual(tabs.contentRect.size.height, 0, context)
+            }
+            for child in view.subviews { check(child, context: context) }
+        }
+        for language in ["ja", "en"] {
+            let suite = try ArchivePreferencesTestDefaults()
+            let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
+                                                         bundle: try LocalizationAcceptance.bundle(language))
+            defer { controller.close() }
+            check(controller.tabController.view, context: language)
+            for item in controller.tabController.tabViewItems {
+                check(try XCTUnwrap(item.viewController?.view), context: language)
+            }
+            for item in controller.compressionTabView.tabViewItems { check(try XCTUnwrap(item.view), context: language) }
+            controller.tabController.animationsEnabled = false
+            controller.showWindow(nil)
+            controller.tabController.selectedTabViewItemIndex = 1
+            for index in [0, 1, 2, 3] {
+                controller.compressionTabView.selectTabViewItem(at: index)
+                controller.window?.layoutIfNeeded()
+                check(controller.tabController.view, context: language)
             }
         }
     }
