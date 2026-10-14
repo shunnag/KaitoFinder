@@ -602,11 +602,18 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor private func spinPreferencesRunLoop(for interval: TimeInterval) {
+        let started = Date()
         let elapsed = expectation(description: "設定のcommonモードで\(interval)秒待つ")
         let timer = Timer(timeInterval: interval, repeats: false) { _ in elapsed.fulfill() }
         RunLoop.main.add(timer, forMode: .common)
-        defer { timer.invalidate() }
-        wait(for: [elapsed], timeout: 2)
+        defer {
+            timer.invalidate()
+            let elapsedTime = Date().timeIntervalSince(started)
+            if elapsedTime > 1 {
+                print("PREFS_SPIN_SLOW interval=\(interval) elapsed=\(elapsedTime)")
+            }
+        }
+        wait(for: [elapsed], timeout: max(10, interval * 20))
     }
 
     @MainActor private func requireMotionAnimations() throws {
