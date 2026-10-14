@@ -4,6 +4,20 @@ import XCTest
 @testable import KaitoFinder
 
 nonisolated final class ArchivePreferencesUITests: XCTestCase {
+    override func tearDown() {
+        let drain: @Sendable () -> Void = {
+            MainActor.assumeIsolated {
+                Self.drainDeferredWindowTeardown(timeout: 5)
+            }
+        }
+        if Thread.isMainThread {
+            drain()
+        } else {
+            DispatchQueue.main.sync(execute: drain)
+        }
+        super.tearDown()
+    }
+
     @MainActor func testFolderOpeningPopupPersistsAndRefreshes() throws {
         _ = NSApplication.shared
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
@@ -601,6 +615,31 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         }
     }
 
+    @MainActor private static func drainDeferredWindowTeardown(timeout: TimeInterval = 60) {
+        let started = ProcessInfo.processInfo.systemUptime
+        var responsiveSince = started
+        let tick = Timer(timeInterval: 0.05, repeats: true) { _ in }
+        RunLoop.main.add(tick, forMode: .common)
+        defer {
+            tick.invalidate()
+            let elapsed = ProcessInfo.processInfo.systemUptime - started
+            if elapsed > 1 { print("PREFS_DRAIN elapsed=\(elapsed)") }
+        }
+        while ProcessInfo.processInfo.systemUptime - started < timeout {
+            let sliceStarted = ProcessInfo.processInfo.systemUptime
+            autoreleasepool {
+                _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+            }
+            // Include the pool pop: earlier windows can do their deferred teardown there.
+            let sliceEnded = ProcessInfo.processInfo.systemUptime
+            if sliceEnded - sliceStarted > 0.1 {
+                responsiveSince = sliceEnded
+            } else if sliceEnded - responsiveSince >= 0.3 {
+                break
+            }
+        }
+    }
+
     @MainActor private func spinPreferencesRunLoop(for interval: TimeInterval) {
         let started = Date()
         let elapsed = expectation(description: "設定のcommonモードで\(interval)秒待つ")
@@ -623,6 +662,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testRapidTabSwitchingEndsAtLastSelectionSize() throws {
+        Self.drainDeferredWindowTeardown()
         let suite = try ArchivePreferencesTestDefaults()
         let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
         defer { controller.close() }
@@ -731,6 +771,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testSwitchKeepsControlsStillWhileWindowResizes() throws {
+        Self.drainDeferredWindowTeardown()
         for language in ["ja", "en"] {
             for legacy in [false, true] {
                 let suite = try ArchivePreferencesTestDefaults()
@@ -822,6 +863,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testRealTimerResizeKeepsControlsStill() throws {
+        Self.drainDeferredWindowTeardown()
         try requireMotionAnimations()
         let suite = try ArchivePreferencesTestDefaults()
         let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
@@ -884,6 +926,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testClosingDuringResizeStopsTimerAndCommitsLayout() throws {
+        Self.drainDeferredWindowTeardown()
         try requireMotionAnimations()
         for action in ["controllerClose", "windowClose", "orderOut"] {
             for (from, to) in [(0, 1), (1, 0)] {
@@ -932,6 +975,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testCompletedResizeStopsTimer() throws {
+        Self.drainDeferredWindowTeardown()
         try requireMotionAnimations()
         let suite = try ArchivePreferencesTestDefaults()
         let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
@@ -958,6 +1002,7 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
     }
 
     @MainActor func testDetachingDuringResizeStopsTimer() throws {
+        Self.drainDeferredWindowTeardown()
         try requireMotionAnimations()
         let suite = try ArchivePreferencesTestDefaults()
         let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults))
