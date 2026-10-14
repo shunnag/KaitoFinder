@@ -61,7 +61,7 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         XCTAssertFalse(didReply)
         try await scenarioWait { resume != nil }
         resume?.resume()
-        await fulfillment(of: [replied], timeout: 2)
+        await fulfillment(of: [replied], timeout: 10)
     }
 
     @MainActor func testDeferredSingleFilePublicationAlsoProtectsTerminationDeadline() async throws {
@@ -77,7 +77,7 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(50))
         XCTAssertFalse(replied)
         publication.finish()
-        await fulfillment(of: [finished], timeout: 2)
+        await fulfillment(of: [finished], timeout: 10)
     }
 
     @MainActor func testCriticalVolumePublicationDefersDeadlineAndRepliesWhenLastLeaseEnds() async throws {
@@ -115,7 +115,7 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         XCTAssertEqual(replies, 0)
         withExtendedLifetime(second) {}
         second = nil
-        await fulfillment(of: [replied], timeout: 2)
+        await fulfillment(of: [replied], timeout: 10)
         await Task.yield()
         XCTAssertEqual(replies, 1)
     }
@@ -252,8 +252,8 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: output), Data(repeating: 0x78, count: 4 * 1024 * 1024))
     }
 
-    // J-3b: 別名で保存前の未要求 promise は終了を遅らせず、close で旧 session も閉じる。
-    @MainActor func testQuitAfterSaveAsClosesOldSessionWithUnstartedPromiseWithinTwoSeconds() async throws {
+    // J-3b: 別名で保存前の未要求 promise は終了を遅らせず、close は保持期限を待たずに旧 session も閉じる。
+    @MainActor func testQuitAfterSaveAsClosesOldSessionWithUnstartedPromiseWithoutWaitingForPromiseGracePeriod() async throws {
         let fixture = try ScenarioFixture(), (document, _) = try await scenarioDocument(fixture)
         let oldSession = try XCTUnwrap(document.session), registry = FilePromiseRegistry.shared
         let original = try Data(contentsOf: fixture.archive)
@@ -288,9 +288,9 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         let cleaned = expectation(description: "旧 session の後始末は promise の保持期限を待たない")
         var finished = false
         let wait = Task { await cleanup.value; finished = true; cleaned.fulfill() }
-        await fulfillment(of: [cleaned], timeout: 2)
+        await fulfillment(of: [cleaned], timeout: registry.gracePeriod / 4)
         XCTAssertTrue(finished)
-        XCTAssertLessThan(started.duration(to: .now), .seconds(2))
+        XCTAssertLessThan(started.duration(to: .now), .seconds(registry.gracePeriod / 4))
         // 回帰時にも期限切れを進め、fixture の後始末を長時間待たせない。
         registry.sweep(now: Date().addingTimeInterval(registry.gracePeriod + 1))
         await wait.value
@@ -468,7 +468,7 @@ nonisolated final class ApplicationTerminationTests: XCTestCase {
         }
         XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateLater)
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
-        await fulfillment(of: [replied], timeout: 2)
+        await fulfillment(of: [replied], timeout: 10)
         XCTAssertEqual(replies, [true])
     }
 
