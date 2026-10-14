@@ -119,7 +119,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
             let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults), bundle: bundle)
             defer { controller.close() }
             controller.window?.setFrameAutosaveName("")
-            let tabs = ["general", "compression", "extraction", "updates"]
+            let tabs = ["general", "compression", "extraction", "performance", "updates"]
             XCTAssertEqual(controller.tabController.tabViewItems.count, tabs.count)
             let window = try XCTUnwrap(controller.window)
             XCTAssertFalse(window.styleMask.contains(.resizable))
@@ -139,18 +139,26 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                 XCTAssertEqual(content.bounds.height, pane.preferredContentSize.height, accuracy: 0.5, language)
                 XCTAssertEqual(window.frame.maxY, top, accuracy: 0.5, language)
                 heights.append(content.bounds.height)
-                for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-                    window.appearance = try XCTUnwrap(NSAppearance(named: appearance))
-                    try snapshot(content, name: "\(language)-settings-\(tab)-\(name)")
-                    if ["ja", "en"].contains(language), let frame = content.superview {
-                        try UISnapshot.render(frame, name: "\(language)-settings-\(tab)-\(name)-window")
+                let innerTabs = index == 1 ? Array(0..<controller.compressionTabView.numberOfTabViewItems) : [0]
+                for inner in innerTabs {
+                    if index == 1 { controller.compressionTabView.selectTabViewItem(at: inner) }
+                    window.layoutIfNeeded()
+                    for (name, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                        window.appearance = try XCTUnwrap(NSAppearance(named: appearance))
+                        try snapshot(content, name: "\(language)-settings-\(tab)-\(inner)-\(name)")
+                        if ["ja", "en"].contains(language), let frame = content.superview {
+                            try UISnapshot.render(frame, name: "\(language)-settings-\(tab)-\(inner)-\(name)-window")
+                        }
                     }
+                    XCTAssertEqual(content.bounds.height, pane.preferredContentSize.height, accuracy: 0.5, language)
                 }
                 window.appearance = nil
                 if index == 1 {
                     for (slider, label) in [(controller.zipLevelSlider, controller.zipLevelLabel),
                                             (controller.tarGzipLevelSlider, controller.tarGzipLevelLabel),
                                             (controller.tarBzip2LevelSlider, controller.tarBzip2LevelLabel)] {
+                        controller.compressionTabView.selectTabViewItem(at: slider === controller.zipLevelSlider ? 0 : 2)
+                        window.layoutIfNeeded()
                         let original = label.frame
                         for level in [6, 9] {
                             slider.integerValue = level
@@ -164,9 +172,9 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                     try snapshot(controller.tabController.view, name: "\(language)-settings-compression-level-9")
                 }
-                if index <= 2 {
+                if index != 1 && index != 4 {
                     let popups = index == 0 ? [controller.defaultFormatPopup, controller.openingBehaviorPopup, controller.folderOpeningPopup]
-                        : index == 1 ? [controller.compressionThreadsPopup]
+                        : index == 3 ? [controller.compressionThreadsPopup, controller.powerPolicyPopup]
                         : [controller.extractionDestinationPopup, controller.afterExpansionPopup, controller.folderPolicyPopup]
                     for popup in popups {
                         for item in 0..<popup.numberOfItems {
@@ -179,7 +187,7 @@ nonisolated final class LayoutOverflowTests: XCTestCase {
                     }
                 }
             }
-            XCTAssertGreaterThan(heights[1], heights[0], language)
+            XCTAssertTrue(heights.allSatisfy { $0 > 0 }, language)
             XCTAssertGreaterThan(heights[1], heights[2], language)
             controller.tabController.selectedTabViewItemIndex = 0
             window.layoutIfNeeded()

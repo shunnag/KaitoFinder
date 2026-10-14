@@ -67,7 +67,10 @@ nonisolated final class SoftwareUpdateTests: XCTestCase {
         delegate.showPreferences(nil)
         let controller = try XCTUnwrap(delegate.preferencesWindowController)
         defer { controller.close() }
-        controller.tabController.selectedTabViewItemIndex = 3
+        let updatesIndex = try XCTUnwrap(controller.tabController.tabViewItems.firstIndex {
+            $0.identifier as? String == "preferences.arrow.triangle.2.circlepath"
+        })
+        controller.tabController.selectedTabViewItemIndex = updatesIndex
         let window = try XCTUnwrap(controller.window)
         window.layoutIfNeeded()
         let frame = window.frame
@@ -138,8 +141,11 @@ nonisolated final class SoftwareUpdateTests: XCTestCase {
                 let controller = PreferencesWindowController(store: ArchivePreferencesStore(defaults: suite.defaults),
                     bundle: try LocalizationAcceptance.bundle(language), softwareUpdater: updater)
                 defer { controller.close() }
-                controller.tabController.selectedTabViewItemIndex = 3
-                let pane = try XCTUnwrap(controller.tabController.tabViewItems[3].viewController?.view)
+                let updatesIndex = try XCTUnwrap(controller.tabController.tabViewItems.firstIndex {
+                    $0.identifier as? String == "preferences.arrow.triangle.2.circlepath"
+                })
+                controller.tabController.selectedTabViewItemIndex = updatesIndex
+                let pane = try XCTUnwrap(controller.tabController.tabViewItems[updatesIndex].viewController?.view)
                 pane.appearance = NSAppearance(named: appearance)
                 pane.layoutSubtreeIfNeeded()
                 XCTAssertTrue(UISnapshot.overflowViolations(in: pane).isEmpty,
