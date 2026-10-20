@@ -57,6 +57,26 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         XCTAssertEqual(ReaderOptions.kaitoFinderOpenCount.withLock { $0 } - before, opens)
     }
 
+    func testManyRetainedSessionsReleaseIdleHandlesAndReopenForExtraction() async throws {
+        let directory = try ArchiveTestDirectory()
+        let original = try archive(directory.url)
+        var sessions: [ArchiveSession] = []
+        func openCount() -> Int { (0..<1024).reduce(0) { $0 + (fcntl(Int32($1), F_GETFD) >= 0 ? 1 : 0) } }
+        let before = openCount()
+        for index in 0..<300 {
+            let url = directory.url.appendingPathComponent("book-\(index).zip")
+            try FileManager.default.copyItem(at: original, to: url)
+            sessions.append(try ArchiveSession(url: url))
+        }
+        XCTAssertLessThanOrEqual(openCount() - before, 70)
+        XCTAssertEqual(ReaderOptions.kaitoFinder().fileAccessPolicy, .bounded)
+        for index in [0, 150, 299, 1] {
+            let reader = try await sessions[index].extractionReader()
+            XCTAssertEqual(try reader.read(reader.entries[0]), Data("keep".utf8))
+        }
+        for session in sessions { await session.close() }
+    }
+
     func testAllFormatsAndSpellingsAdoptEveryImmediateOperation() async throws {
         for (format, suffix) in Self.spellings {
             for operation in 0..<6 {
