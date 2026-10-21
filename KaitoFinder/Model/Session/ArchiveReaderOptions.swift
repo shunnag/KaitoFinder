@@ -30,9 +30,6 @@ nonisolated extension ReaderOptions {
                                     password: password, appleDoublePolicy: .expose)
         // 圧縮と共通の「電力の使用方針」は、自動の復号並列数だけに適用する。
         options.decodePowerPolicy = ArchivePreferencesStore.storedPowerPolicy(defaults: defaults).decodePolicy
-        // 多数のセッションを開いても未使用の入力 FD はプロセス共通の上限に収める。
-        // 編集側の inode snapshot は GyoshukuKit が別途所有し、差替後に reader を採用する。
-        options.fileAccessPolicy = .bounded
         options.recordsTarEditLayout = true
         options.recordsSevenZipEditLayout = true
         return options

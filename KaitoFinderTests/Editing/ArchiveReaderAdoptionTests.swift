@@ -57,24 +57,59 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         XCTAssertEqual(ReaderOptions.kaitoFinderOpenCount.withLock { $0 } - before, opens)
     }
 
-    func testManyRetainedSessionsReleaseIdleHandlesAndReopenForExtraction() async throws {
-        let directory = try ArchiveTestDirectory()
-        let original = try archive(directory.url)
-        var sessions: [ArchiveSession] = []
-        func openCount() -> Int { (0..<1024).reduce(0) { $0 + (fcntl(Int32($1), F_GETFD) >= 0 ? 1 : 0) } }
-        let before = openCount()
-        for index in 0..<300 {
-            let url = directory.url.appendingPathComponent("book-\(index).zip")
-            try FileManager.default.copyItem(at: original, to: url)
-            sessions.append(try ArchiveSession(url: url))
+    func testMovedArchiveRemainsReadableAfterOpeningManyOtherSessions() async throws {
+        AppDelegate.raiseFileDescriptorLimit()
+        let expected = Data("original bytes".utf8)
+        for relocation in ["rename", "move", "parent"] {
+            let directory = try ArchiveTestDirectory()
+            let parent = directory.url.appendingPathComponent("source", isDirectory: true)
+            let destination = directory.url.appendingPathComponent("destination", isDirectory: true)
+            try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: false)
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+            let original = parent.appendingPathComponent("original.zip")
+            do {
+                let writer = try ArchiveWriter.create(url: original, format: .zip, options: .init(compressionMethod: .stored))
+                try writer.add(data: expected, as: "entry")
+                try writer.finish()
+            }
+            let session = try ArchiveSession(url: original, allowsImmediateSplitSave: true)
+            var sessions = [session]
+            do {
+                let moved: URL
+                switch relocation {
+                case "rename":
+                    moved = parent.appendingPathComponent("renamed.zip")
+                    try FileManager.default.moveItem(at: original, to: moved)
+                case "move":
+                    moved = destination.appendingPathComponent(original.lastPathComponent)
+                    try FileManager.default.moveItem(at: original, to: moved)
+                default:
+                    let renamedParent = directory.url.appendingPathComponent("renamed-source", isDirectory: true)
+                    try FileManager.default.moveItem(at: parent, to: renamedParent)
+                    moved = renamedParent.appendingPathComponent(original.lastPathComponent)
+                }
+                // NSDocument が追跡した移動先を反映する。元の reader は開き直さない。
+                try await session.followDeferredMove(to: moved)
+                // 旧方針の共有ハンドル枠を超え、最初の書庫から十分に読み取りを遠ざける。
+                for index in 0..<80 {
+                    let url = directory.url.appendingPathComponent("book-\(index).zip")
+                    try FileManager.default.copyItem(at: moved, to: url)
+                    let other = try ArchiveSession(url: url)
+                    sessions.append(other)
+                    let reader = try await other.extractionReader()
+                    let entry = try XCTUnwrap(reader.entries.first)
+                    XCTAssertEqual(try reader.read(entry), expected)
+                }
+                XCTAssertEqual(ReaderOptions.kaitoFinder().fileAccessPolicy, .persistent)
+                let reader = try await session.extractionReader()
+                let entry = try XCTUnwrap(reader.entries.first)
+                XCTAssertEqual(try reader.read(entry), expected, relocation)
+            } catch {
+                for retained in sessions { await retained.close() }
+                throw error
+            }
+            for retained in sessions { await retained.close() }
         }
-        XCTAssertLessThanOrEqual(openCount() - before, 70)
-        XCTAssertEqual(ReaderOptions.kaitoFinder().fileAccessPolicy, .bounded)
-        for index in [0, 150, 299, 1] {
-            let reader = try await sessions[index].extractionReader()
-            XCTAssertEqual(try reader.read(reader.entries[0]), Data("keep".utf8))
-        }
-        for session in sessions { await session.close() }
     }
 
     func testAllFormatsAndSpellingsAdoptEveryImmediateOperation() async throws {
