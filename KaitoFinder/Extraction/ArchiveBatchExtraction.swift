@@ -130,6 +130,9 @@ nonisolated struct ArchiveBatchPlan: Sendable {
                 if item.destinationFolder != parent {
                     try await Self.createFolder(item.destinationFolder)
                     createdFolder = item.destinationFolder
+                    if let quarantine = await opened.quarantine {
+                        try ExtractionQuarantine.apply(quarantine, to: item.destinationFolder)
+                    }
                 }
                 let payloads = ArchiveEntryPayload.payloads(for: root.children, archiveURL: item.archive,
                                                            generation: snapshot.generation)

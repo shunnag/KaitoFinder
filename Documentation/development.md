@@ -70,6 +70,9 @@ Finder や実際のウインドウで確認する操作は [手動検証手順](
 
 ## CI
 
+GitHub Actions はコミット SHA で固定し、Dependabot で月 1 回、更新を 1 つの PR にまとめて追跡します。
+`brew install` は従来どおりバージョンを固定しない方針です。
+
 [CI](../.github/workflows/ci.yml) は main への push、pull request、手動、毎日実行する。
 main の push は、同じ tree と兄弟 SHA が PR で通っていれば重い job を省く。
 文書だけの変更では実行しない（VerificationRecordTests が読む検証記録は除く）。
@@ -107,6 +110,11 @@ PR と push は 26 言語の描画検査を 6 言語、7z の凍結行列を代�
 KaitoKit 既定の reader 制限は、1,000,000 項目 / 保持するメタデータ 256 MiB、RAR / `.001` セットの128巻、コーデック辞書 1 GiB。
 項目ごと・全体の展開サイズはアプリで制限せず、展開先の空き容量に従う。
 パーミッションが格納されていない項目には、プラットフォーム既定の mode（ファイル 0666 / フォルダ 0777 に umask を適用）を使う。
+
+KaitoKit 0.17.0 候補の `maxSevenZipEntryKDFWork` の既定は `16 * (1 << 24)`（268,435,456 SHA-256 rounds）。`maxStuffItXKDFWork` も `.sitx` を開くときのパスワード処理に適用される。
+予算は reader と password の組ごとで、別の password の設定で戻り、同じ password の再設定や読取失敗では戻らない。`reopen()` / `open()` は満額で始まる。
+「全選択 → 展開」で検証と展開が並列になる場合、新しい reader は V + 1 + P 個（V はパスワード検証の `min(threads, 項目数)`、1 は snapshot、P は並列展開の worker）となり、総予算は reader 数ぶん掛かる。V / P が core 数まで増えると、既定の 10 core 機では 21 個、16 core 機では 33 個になる。
+誤った password の再入力も毎回新しい open になるが、`.limitExceeded` は再入力に写さず終了する。入力なしの一覧表示では entry の鍵導出は走らないが、vault に path 完全一致で保存済みの password があると、追加入力なしで一件につき一回だけ自動投入され、導出が一回走る。
 
 ### 一時コピーと原本の確認
 

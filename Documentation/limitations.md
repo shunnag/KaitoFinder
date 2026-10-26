@@ -12,7 +12,9 @@ KaitoFinder 0.10.4 の利用上の制限です。[対応形式](formats.md)、[�
   ファイルごと・全体の展開サイズにはアプリ独自の上限はありませんが、展開先に十分な空き容量が必要です。
   圧縮方式や管理情報の大きさによる追加の上限もあります。
 - ファイルのアクセス権が記録されていない場合は、標準のアクセス権を使います。
+- 外部で開く一時コピーは読み取り専用（0400）で書庫の quarantine を引き継ぎますが、外部起動前の判定は対応書庫型かどうかだけで、拡張子や項目の種類は検査しません。Terminal の `.terminal` の `CommandString` のように読むだけで動く設定、mount する `.sparseimage` / `.cdr`、任意 URL を開く `.webloc` / `.url` / `.inetloc` は、このアクセス権と書庫型の判定では止まりません。開くアプリは LaunchServices が選びます。
 - 表示はリスト形式です。アイコン・カラム・ギャラリー形式への切り替えはできません。
+- 表示名の双方向制御文字・不可視文字は加工しません。項目の種類はアイコンと「種類」列（真の拡張子に基づく）で確認してください。
 - サムネイルは 8 MiB 以下の画像のみです。暗号化された項目、ソリッド形式の 7z / RAR の項目、動画・音声は対象外です。
 - 自己展開形式（SFX）は作成できません。対応する SFX の読み取りはできます。
 
@@ -25,6 +27,8 @@ KaitoFinder 0.10.4 の利用上の制限です。[対応形式](formats.md)、[�
 - Each archive supports up to 1,000,000 items; RAR / `.001` split sets support up to 128 volumes.
   The app has no separate per-file or total extraction-size limit, but the destination needs enough free space. Compression methods and the size of archive management information impose additional limits.
 - Items without stored permissions use standard permissions.
+- Temporary copies opened externally are read-only (0400) and inherit the archive’s quarantine, but the check before external launch only identifies supported archive types; it does not inspect extensions or item kinds. These permissions and the archive-type check do not block settings that act when read, such as `CommandString` in Terminal’s `.terminal` files, disk images mounted from `.sparseimage` / `.cdr`, or arbitrary URLs opened by `.webloc` / `.url` / `.inetloc`. LaunchServices selects the application.
 - Browsing uses a list. Icon, column, and gallery views are unavailable.
+- Bidirectional control characters and invisible characters in display names are preserved. Check an item’s kind using its icon and the Kind column, which is based on the true extension.
 - Thumbnails cover images up to 8 MiB only; encrypted items, solid 7z / RAR items, video, and audio are excluded.
 - Self-extracting archives (SFX) cannot be created; supported SFX can be read.

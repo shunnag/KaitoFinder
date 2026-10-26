@@ -104,6 +104,34 @@ nonisolated final class ArchiveConflictUITests: XCTestCase {
         }
     }
 
+    @MainActor func testConflictHeadingFoldsArchiveNameNewlines() async throws {
+        let fixture = try ScenarioFixture(), session = try ArchiveSession(url: fixture.archive)
+        let name = "report.txt”\u{000A}すべての項目を削除"
+        let item = ArchiveConflictItem(name: name, location: "archive.zip", kind: .file,
+            size: 8, modificationDate: nil, entryCount: 1, source: nil)
+        let conflict = ArchiveImportConflict(path: name, existing: item, incoming: item, remainingCount: 1)
+        for language in ["ja", "en"] {
+            let prompt = ArchiveConflictPrompt(conflict: conflict, session: session,
+                                               bundle: try LocalizationAcceptance.bundle(language))
+            XCTAssertEqual(prompt.alert.messageText.components(separatedBy: .newlines).count, 1, language)
+            XCTAssertTrue(prompt.alert.messageText.contains("report.txt” すべての項目を削除"), language)
+            XCTAssertTrue(prompt.alert.buttons[0].hasDestructiveAction)
+            try UISnapshot.render(prompt.alert, name: "\(language)-conflict-single-line-name")
+        }
+        await session.close()
+    }
+
+    @MainActor func testFailureAlertFoldsArchiveNameNewlines() throws {
+        let name = "report.txt”\u{000A}すべての項目を削除"
+        for language in ["ja", "en"] {
+            let alert = ArchiveWindowController.makeFailureAlert("“\(name)”を展開できませんでした",
+                bundle: try LocalizationAcceptance.bundle(language))
+            XCTAssertEqual(alert.informativeText.components(separatedBy: .newlines).count, 1, language)
+            XCTAssertTrue(alert.informativeText.contains("report.txt” すべての項目を削除"), language)
+            try UISnapshot.render(alert, name: "\(language)-failure-single-line-name")
+        }
+    }
+
     @MainActor func testComparisonLayoutInEveryLanguageAndAppearanceWithLongNames() async throws {
         let fixture = try ScenarioFixture(), session = try ArchiveSession(url: fixture.archive)
         let name = String(repeating: "旅行 Report ", count: 12) + ".txt"

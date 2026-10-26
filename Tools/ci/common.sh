@@ -28,6 +28,8 @@ clone_siblings() {
 
 require_fixture_tools() {
   for tool in 7zz xz zstd; do test -x "/opt/homebrew/bin/$tool"; done
+  7zz i 2>&1 | head -2 || true
+  for tool in xz zstd; do "$tool" --version 2>&1 | head -1 || true; done
 }
 
 build_tests() {
