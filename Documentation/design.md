@@ -1360,7 +1360,7 @@ ZIP だけが在位更新(`ArchiveUpdater`:生き残る record を byte のま�
 - **格納されていないパーミッション**: 通常の展開ではファイル 0666 / フォルダ 0777 に起動時の umask を適用する。
   ファイルは 0600 で作成し、同じ descriptor へ quarantine を適用して本文の CRC 検証が完了してから mode を広げる。
   合成フォルダは子の作成中は 0700 とし、完了時に既定 mode を適用する。読み取り専用の一時コピーは 0400 を保つ。
-- **RLO 偽装拡張子**を検出して警告する。
+- **表示名の制限**: 表示名の双方向制御文字・不可視文字は加工しない。
 - 展開結果の宣言サイズを信用しない。Archive Utility は 4 GiB 以上を
   ZIP64 無しで mod 2^32 で書く(実測:5 GiB が 1 GiB)。
 - 破損書庫の救済(`recoverDamagedArchives`)で得た byte は認証されていない。
@@ -1561,6 +1561,8 @@ KVO で画面の状態を追従させる。HTTPS のフィードと Ed25519 公�
    自分で作った書庫にまで印が付き、付けなければ「印付きの app をフォルダごと
    固めて、また取り出す」で印が消える迂回路になる。この二つの伝播で両方を塞ぐ。
    実機での確認は `Documentation/manual-verification.md` に置く。
+
+   外部で開く一時コピーは 0400 と書庫の quarantine を保つが、外部起動前の判定は対応書庫型かどうかだけで、拡張子や項目の種類は検査しない。Terminal の `.terminal` の `CommandString` のようにファイルを読むだけで動く設定、mount する `.sparseimage` / `.cdr`、任意 URL を開く `.webloc` / `.url` / `.inetloc` は、このアクセス権と書庫型の判定では止まらない。handler の選択は LaunchServices に従う。
 3. ~~**undo をどう持つか。**~~ **解決(2026-09-10)。** 当初案の 2 つはどちらも採らなかった。
    `NSFileVersion` はファイル全体を複製するので 4 GiB 級で破綻し、entry model 上の
    undo stack は削除された byte を持たない。書庫ファイルそのものを `clonefile` で

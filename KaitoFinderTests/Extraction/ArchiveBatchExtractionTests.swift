@@ -195,6 +195,26 @@ nonisolated final class ArchiveBatchExtractionTests: XCTestCase {
         assertAbsent(fixture.directory.url.appendingPathComponent("photo.jpg"))
     }
 
+    @MainActor func testDefaultWrapperFolderInheritsArchiveQuarantine() async throws {
+        let fixture = try Fixture(), base = try fixture.folder("chosen")
+        let bytes = ["x.txt": Data("x".utf8), "y.txt": Data("y".utf8)]
+        let quarantine = Data("0081;66df0000;KaitoFinderTests;".utf8)
+        for (name, value) in [("marked.app", Optional(quarantine)), ("unmarked.app", nil)] {
+            let archive = try fixture.archive(name + ".zip", files: bytes)
+            try ExtractionQuarantine.apply(value, to: archive)
+            let engine = ArchiveBatchExtractor(preferences: ArchivePreferences(), passwordPrompt: { _, _ in
+                XCTFail("暗号化していないアーカイブは入力を求めない")
+                throw CancellationError()
+            }, reveal: { _ in })
+            let report = await engine.run(archives: [archive], base: base, progress: Progress())
+            XCTAssertEqual(report.extracted, [archive])
+            XCTAssertTrue(report.failures.isEmpty, report.failures.map(\.reason).description)
+            let folder = base.appendingPathComponent(name, isDirectory: true)
+            try assertContents(folder, bytes)
+            XCTAssertEqual(try ExtractionQuarantine.read(from: folder), value, name)
+        }
+    }
+
     @MainActor func testNeverCreatesWrapperEvenWithMultipleTopLevelFiles() async throws {
         let fixture = try Fixture(), base = try fixture.folder("chosen")
         let bytes = ["x.txt": Data("x".utf8), "y.txt": fixture.secret]

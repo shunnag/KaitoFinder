@@ -21,7 +21,7 @@ final class ArchiveConflictPrompt: NSObject {
         applyToRemaining = NSButton(checkboxWithTitle: String(localized: "残りのファイルにも適用", bundle: bundle), target: nil, action: nil)
         compareButton = NSButton(title: String(localized: "内容を比較…", bundle: bundle), target: nil, action: nil)
         super.init()
-        let name = conflict.incoming.name
+        let name = ArchiveFailureReport.singleLine(conflict.incoming.name)
         alert.messageText = String(localized: "“\(name)”を置き換えますか？", bundle: bundle)
         let count = conflict.remainingCount
         alert.informativeText = String(localized: "同名の項目: 残り\(count)件", bundle: bundle)

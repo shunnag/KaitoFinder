@@ -4,6 +4,10 @@ import Foundation
 nonisolated enum ArchiveFailureReport {
     static let displayedLineLimit = 20
 
+    static func singleLine(_ text: String) -> String {
+        String(text.prefix(1024)).components(separatedBy: .newlines).joined(separator: " ")
+    }
+
     static func describe<S: Sequence>(_ failures: S, name: (S.Element) -> String,
                                      reason: (S.Element) -> String, bundle: Bundle = .main,
                                      line: (String) -> String = { $0 }) -> String {
@@ -12,9 +16,6 @@ nonisolated enum ArchiveFailureReport {
         let locale = bundle.bundleURL.pathExtension == "lproj"
             ? Locale(identifier: bundle.bundleURL.deletingPathExtension().lastPathComponent) : Locale.current
         func count(_ value: Int) -> String { value.formatted(.number.locale(locale)) }
-        func singleLine(_ text: String) -> String {
-            String(text.prefix(1024)).components(separatedBy: .newlines).joined(separator: " ")
-        }
         var lines = items.prefix(displayedLineLimit).map { failure in
             let itemName = singleLine(name(failure))
             return line((itemName.isEmpty ? "" : itemName + ": ") + singleLine(reason(failure)))
