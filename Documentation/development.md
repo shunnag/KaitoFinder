@@ -14,8 +14,8 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 
 ## バージョン
 
-KaitoFinder 0.10.5（build 19）、KaitoKit 0.17.0、GyoshukuKit 0.14.0、Sparkle 2.10.1。
-同梱版と変更点は[0.10.5 のリリースノート](releases/0.10.5.md)を参照。
+KaitoFinder 0.10.6（build 20）、KaitoKit 0.18.0、GyoshukuKit 0.15.0、Sparkle 2.10.1。
+同梱版と変更点は[0.10.6 のリリースノート](releases/0.10.6.md)を参照。
 
 ## 配布
 
@@ -84,7 +84,7 @@ Xcode 27 で Debug のアプリと app-hosted tests をビルドし、macOS 27 �
 PR と push は 26 言語の描画検査を 6 言語、7z の凍結行列を代表の組だけで実行し、
 毎日の実行と手動実行では全件を実行する。
 兄弟 repo は main を取得し、転送先ではビルド時の SHA と
-ソース・DerivedData の絶対パスを照合する。Sparkle は `Package.resolved` の 2.10.0 を使う。
+ソース・DerivedData の絶対パスを照合する。Sparkle は `Package.resolved` の 2.10.1 を使う。
 
 実ドラッグの 3 class、`Tools/` の実 HID GUI driver、性能 probe、実際の自動更新、
 署名・notarization は Mac mini で検証する。CI との分担・ログの判定は
@@ -92,7 +92,7 @@ PR と push は 26 言語の描画検査を 6 言語、7z の凍結行列を代�
 
 ## アーカイブ処理の技術詳細
 
-利用者向け文書から分離した実装上の補足。0.10.5 の挙動と旧READMEの情報を保持する。
+利用者向け文書から分離した実装上の補足。0.10.6 の挙動と旧READMEの情報を保持する。
 
 ### 読み取りと形式の補足
 
@@ -111,7 +111,7 @@ KaitoKit 既定の reader 制限は、1,000,000 項目 / 保持するメタデ�
 項目ごと・全体の展開サイズはアプリで制限せず、展開先の空き容量に従う。
 パーミッションが格納されていない項目には、プラットフォーム既定の mode（ファイル 0666 / フォルダ 0777 に umask を適用）を使う。
 
-KaitoKit 0.17.0 候補の `maxSevenZipEntryKDFWork` の既定は `16 * (1 << 24)`（268,435,456 SHA-256 rounds）。`maxStuffItXKDFWork` も `.sitx` を開くときのパスワード処理に適用される。
+KaitoKit 0.17.0 以降の `maxSevenZipEntryKDFWork` の既定は `16 * (1 << 24)`（268,435,456 SHA-256 rounds）。`maxStuffItXKDFWork` も `.sitx` を開くときのパスワード処理に適用される。
 予算は reader と password の組ごとで、別の password の設定で戻り、同じ password の再設定や読取失敗では戻らない。`reopen()` / `open()` は満額で始まる。
 「全選択 → 展開」で検証と展開が並列になる場合、新しい reader は V + 1 + P 個（V はパスワード検証の `min(threads, 項目数)`、1 は snapshot、P は並列展開の worker）となり、総予算は reader 数ぶん掛かる。V / P が core 数まで増えると、既定の 10 core 機では 21 個、16 core 機では 33 個になる。
 誤った password の再入力も毎回新しい open になるが、`.limitExceeded` は再入力に写さず終了する。入力なしの一覧表示では entry の鍵導出は走らないが、vault に path 完全一致で保存済みの password があると、追加入力なしで一件につき一回だけ自動投入され、導出が一回走る。
