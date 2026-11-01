@@ -32,6 +32,10 @@ KaitoFinder 0.2.0 は文書型・一覧・プレビューへ接続し、ZIP の�
 ZIP の既定は Deflate。BZip2 / LZMA / XZ 選択時は macOS 付属ツールとの互換性を注記する。
 候補と保留・除外理由は [圧縮拡張の記録](pending/2026-10-06-compression-expansion.md)を参照。
 
+2026-11-02: SFX prefix のある RAR4 / RAR5 分割書庫に対応した。先頭巻の署名 offset と原本の identity を検証し、
+RAR4 の old / new numbering と RAR5 の `.partN.rar` に対応する。実書庫と unrar で全 byte を照合した。
+[検証記録](https://github.com/shunnag/KaitoKit/blob/main/Documentation/verification/2026-11-02-rar-sfx-multivolume.md)を参照。
+
 ## 今回つながりを修正した形式
 
 - ZIP Zstandard（method 93）、ZIP PPMd（98）、CAB LZX はエンジンに実装済みだった。
@@ -51,7 +55,7 @@ ZIP の既定は Deflate。BZip2 / LZMA / XZ 選択時は macOS 付属ツール�
 |---|---|---|
 | ZIP | stored、Shrink、Reduce 1〜4、Implode、Deflate、Deflate64、BZip2、LZMA、Zstandard 20/93、XZ 95、PPMd 98、ZipCrypto/AES、ZIP64・split | tokenize 7、JPEG 96、WavPack 97、Strong Encryption、spanned/split SFX |
 | 7z | LZMA1/2、PPMd7、Deflate、BZip2、Zstandard、Copy、AES、Delta、Swap2/Swap4、各 BCJ/BCJ2（BCJ / ARM64 修正込み）、solid・分割 | RISC-V、その他の拡張 coder |
-| RAR | RAR4 unpack 29、RAR5 compression version 0・file copy、対応済み標準 filter、暗号化・多巻 | RAR4 unpack 15/20/26・custom VM、RAR5 version 1、SFX と多巻の組合せ |
+| RAR | RAR4 unpack 29、RAR5 compression version 0・file copy、対応済み標準 filter、暗号化・多巻・分割 SFX | RAR4 unpack 15/20/26・custom VM、RAR5 version 1 |
 | LHA | level 0〜3、lh0/1/4〜7/lhx、lz4/lz5/lzs、pm0、SFX | lh2/lh3/pm1/pm2 の展開、resource fork の個別公開 |
 | CAB | None、MSZIP、LZX。手元の cabinet に収まる file | Quantum、cabinet をまたぐ一つの file |
 | tar・単一ストリーム | tar、GNU sparse pax 0.0 / 0.1 / 1.0、gzip、bzip2、XZ、Zstandard、compress、LZMA_Alone、LZ4 modern/legacy、lzip、Brotli、pbzx。tar.lz / tar.br と圧縮 cpio も読み取る | 旧 GNU `S` 型・star / Solaris sparse、LZ4 外部辞書、lzop、外部 Zstandard 辞書、未対応 XZ filter、lzip version 0、shared dictionary Brotli |
