@@ -1,6 +1,6 @@
 # 自動更新と配布
 
-Sparkle 2.10.0 を Swift Package Manager で組み込む。解決した版は
+Sparkle 2.10.1 を Swift Package Manager で組み込む。解決した版は
 `KaitoFinder.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` に記録する。
 アプリは従来どおり sandbox なし、Release は hardened runtime を有効にする。
 Sparkle のライセンスはアプリの `Sparkle-LICENSE.txt` に同梱する。
@@ -92,6 +92,7 @@ python3 Tools/prepare_update.py \
 0.10.2 (build 16) は 2026-10-21 に公開済み（`verification/2026-10-21-release-0.10.2.md`）。
 0.10.3 (build 17) は 2026-10-21 に公開済み（`verification/2026-10-21-release-0.10.3.md`）。
 0.10.4 (build 18) は 2026-10-23 に公開済み（`verification/2026-10-23-release-0.10.4.md`）。
+0.10.5 (build 19) は 2026-10-27 に公開済み（`verification/2026-10-27-release-0.10.5.md`）。
 
 ## ローカルの検証
 
