@@ -24343,7 +24343,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Limite du dictionnaire d’extraction :"
+            "value" : "Limite du dictionnaire d’extraction :"
           }
         },
         "hi" : {
@@ -24462,7 +24462,7 @@
         }
       }
     },
-    "物理メモリが 32 GiB 以上のMacでは 8 GiB を選べます。8 GiB では大きなRAR5書庫を扱えますが、展開とパスワード確認は直列になります。" : {
+    "物理メモリが 32 GiB以上のMacでは 8 GiBを選べます。8 GiBでは大きなRAR5アーカイブを扱えますが、展開とパスワード確認は直列になります。" : {
       "localizations" : {
         "cs" : {
           "stringUnit" : {
@@ -24491,7 +24491,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En un Mac con al menos 32 GiB de memoria física, puedes seleccionar 8 GiB. Esto permite procesar archivos RAR5 grandes, pero la extracción y la verificación de contraseñas se ejecutan en serie."
+            "value" : "En un Mac con al menos 32 GiB de memoria física, puedes seleccionar 8 GiB. Esto permite procesar archivos RAR5 comprimidos de gran tamaño, pero la extracción y la verificación de contraseñas se ejecutan en serie."
           }
         },
         "fi" : {
@@ -24527,7 +24527,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "物理メモリが 32 GiB 以上のMacでは 8 GiB を選べます。8 GiB では大きなRAR5書庫を扱えますが、展開とパスワード確認は直列になります。"
+            "value" : "物理メモリが 32 GiB以上のMacでは 8 GiBを選べます。8 GiBでは大きなRAR5アーカイブを扱えますが、展開とパスワード確認は直列になります。"
           }
         },
         "ko" : {
@@ -24569,7 +24569,7 @@
         "pt-PT" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Num Mac com pelo menos 32 GiB de memória física, pode selecionar 8 GiB. Isto permite processar arquivos RAR5 grandes, mas a extração e a verificação da palavra-passe são executadas em série."
+            "value" : "Num Mac com pelo menos 32 GiB de memória física, pode selecionar 8 GiB. Isto permite processar arquivos RAR5 grandes, mas a extração e a verificação da palavra‑passe são executadas em série."
           }
         },
         "ru" : {

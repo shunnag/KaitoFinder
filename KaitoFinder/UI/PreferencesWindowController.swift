@@ -90,7 +90,7 @@ final class PreferencesViewModel {
     }
     var dictionaryLimitNote: String {
         joinedSentences(
-            String(localized: "物理メモリが 32 GiB 以上のMacでは 8 GiB を選べます。8 GiB では大きなRAR5書庫を扱えますが、展開とパスワード確認は直列になります。", bundle: bundle),
+            String(localized: "物理メモリが 32 GiB以上のMacでは 8 GiBを選べます。8 GiBでは大きなRAR5アーカイブを扱えますが、展開とパスワード確認は直列になります。", bundle: bundle),
             String(localized: "次に開くアーカイブから有効になります。", bundle: bundle))
     }
 
