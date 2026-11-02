@@ -1,11 +1,11 @@
 # KaitoFinder の対応形式
 
-対象: KaitoFinder 0.10.7 / KaitoKit 0.19.0 / GyoshukuKit 0.16.0。
+対象: KaitoFinder 0.10.8 / KaitoKit 0.20.0 / GyoshukuKit 0.16.0。
 [README](../README.md)、[利用ガイド](user-guide.md)、[制限](limitations.md)へ戻れます。
 
 ## 開ける形式
 
-- ZIP / ZIP64、7z、RAR4 / RAR5、LHA / LZH
+- ZIP / ZIP64、7z、RAR 1.3 / 1.4 / RAR4 / RAR5、LHA / LZH
 - StuffIt (`.sit` / `.sea`)、StuffIt X (`.sitx`)
 - tar、cpio、ar (`.deb`)、ISO 9660、xar (`.pkg`)、CAB、RPM
 - Apple Disk Image (`.dmg`)、UDF (`.udf`)、WIM (`.wim` / `.swm`)、Compound File（`.msi` など）、CHM (`.chm`)、ARJ (`.arj`)
@@ -95,7 +95,7 @@ tar.gz・tar.bz2・tar.xz は対応する区切りごとに編集する。ほか
 
 ### Readable formats
 
-- ZIP / ZIP64, 7z, RAR4 / RAR5, LHA / LZH
+- ZIP / ZIP64, 7z, RAR 1.3 / 1.4 / RAR4 / RAR5, LHA / LZH
 - StuffIt (`.sit` / `.sea`), StuffIt X (`.sitx`)
 - tar, cpio, ar (`.deb`), ISO 9660, xar (`.pkg`), CAB, RPM
 - Apple Disk Image (`.dmg`), UDF (`.udf`), WIM (`.wim` / `.swm`), Compound File (`.msi` and others), CHM (`.chm`), ARJ (`.arj`)
