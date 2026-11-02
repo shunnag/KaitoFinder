@@ -29,6 +29,30 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         try await assertOpensThroughDocumentController(archive, in: directory)
     }
 
+    @MainActor func testRARSFXOpensThroughDocumentController() async throws {
+        let fixtures = TestPaths.kaitoKitFixtures.appendingPathComponent("rar13")
+        let first = try XCTUnwrap(Data(base64Encoded: Data(contentsOf: fixtures.appendingPathComponent("split.rar.b64")), options: .ignoreUnknownCharacters))
+        let continuation = try XCTUnwrap(Data(base64Encoded: Data(contentsOf: fixtures.appendingPathComponent("split.r00.b64")), options: .ignoreUnknownCharacters))
+        let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("opening.exe")
+        var stub = Data(repeating: 0, count: 64)
+        stub[0] = 0x4d
+        stub[1] = 0x5a
+        stub[2] = 64
+        stub[4] = 1
+        stub.replaceSubrange(28..<32, with: Data("RSFX".utf8))
+        try (stub + first).write(to: archive)
+        try continuation.write(to: directory.url.appendingPathComponent("opening.r00"))
+        try requireDocumentTypeLookup(archive)
+        try await assertOpensThroughDocumentController(archive, in: directory, expectedTopLevelPaths: ["compressed.txt", "stored.txt"])
+    }
+
+    @MainActor func testOrdinaryEXEIsNotClassifiedAsAnArchive() throws {
+        let directory = try ArchiveTestDirectory(), executable = directory.url.appendingPathComponent("ordinary.exe")
+        try Data([0x4d, 0x5a, 0, 0]).write(to: executable)
+        let type = try? NSDocumentController.shared.typeForContents(of: executable)
+        XCTAssertNotEqual(type, ArchiveDocumentController.splitVolumeType)
+    }
+
     @MainActor func testInvalidZIPReturnsLocalizedDocumentErrorWithUnderlyingKaitoError() async throws {
         let directory = try ArchiveTestDirectory(), archive = directory.url.appendingPathComponent("bad.zip")
         try Data("not an archive".utf8).write(to: archive)
