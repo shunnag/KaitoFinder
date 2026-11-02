@@ -88,6 +88,9 @@ nonisolated final class DictionaryLimitPreferenceTests: XCTestCase {
     }
 
     func testActualRAR5VersionOneUsesConfiguredDictionaryLimit() throws {
+        guard ArchiveHardware.current.dictionaryLimitChoices.contains(8) else {
+            throw XCTSkip("requires at least 32 GiB of physical memory")
+        }
         guard let path = TestEnvironment.value(.rar5Version1Archive),
               let expectedSHA256 = TestEnvironment.value(.rar5Version1SHA256) else {
             throw XCTSkip("set KAITOFINDER_RAR5_V1_ARCHIVE and KAITOFINDER_RAR5_V1_SHA256")

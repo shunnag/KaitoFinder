@@ -20,6 +20,7 @@
 - 関連 72 tests: 初回は成功。reader 差替え対応後は `ArchivePasswordVerificationTests.testPromptRetriesSeriallyBeforeParallelCandidateVerification` が 1 件失敗したが、同メソッドの個別再実行は成功した。
 - 最終のパスワード・辞書設定・reader adoption・import verification 43 tests: **43 tests / 0 failures**。実 RAR5 version 1 の 1 書庫もこの実行に含む。
 - `ArchiveReaderAdoptionTests`: **16 tests / 0 failures**。8 GiB で開いた後に設定を 1 GiB へ戻し、reader 採用では 8 GiB / 直列を保持し、1 GiB の新規 reader へのフォールバックでは並列へ戻ることを確認。
+- 8 GiB を選べる実機が必要な adoption・実書庫テストは、物理メモリ 32 GiB 未満では明示的に skip する。CI の低メモリ環境でも製品の 1 GiB 制限をそのまま検証できるようにした。
 - `ArchivePreferencesUITests.testSettingsStringsHaveAllTwentySixTranslations`: 成功。
 - `Localizable.xcstrings`: `python3 -m json.tool` で JSON として検証。
 - 標準の全テストは **1,795 tests / 34 skipped / 4 failures**。4 件は日本語・フランス語・欧州ポルトガル語の新しい文言規約違反で、圧縮・展開の失敗ではない。修正後に `WordingAcceptanceTests` **50 tests / 0 failures**、`ArchivePreferencesUITests` **29 tests / 0 failures** を確認した。この全テストの後に追加した adoption 回帰テストと文言修正は PR の CI でも検証する。

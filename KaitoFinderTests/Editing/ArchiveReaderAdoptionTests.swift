@@ -113,6 +113,9 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
     }
 
     func testReaderAdoptionAndFallbackKeepTheirActualDictionaryLimits() async throws {
+        guard ArchiveHardware.current.dictionaryLimitChoices.contains(8) else {
+            throw XCTSkip("requires at least 32 GiB of physical memory")
+        }
         let key = ArchivePreferencesStore.Key.dictionaryLimit, defaults = UserDefaults.standard
         let previous = defaults.object(forKey: key)
         defer {
