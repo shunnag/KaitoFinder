@@ -8,8 +8,10 @@ nonisolated enum ExtractionExecution: Sendable {
 
     func workerCount(entries: [ArchiveEntry], hasSources: Bool,
                      powerPolicy: CompressionPowerPolicy = .reduceInLowPowerMode,
-                     hardware: ArchiveHardware = .current) -> Int {
+                     hardware: ArchiveHardware = .current,
+                     dictionarySize: UInt64 = ArchivePreferences.defaultDictionarySize) -> Int {
         if case .serial = self { return 1 }
+        guard dictionarySize <= ArchivePreferences.defaultDictionarySize else { return 1 }
         // 不明サイズの累積制限は reader 間で共有できない。
         guard !hasSources, entries.allSatisfy({
             ($0.kind == .file || $0.kind == .directory) && $0.pendingID == nil && $0.uncompressedSize != nil

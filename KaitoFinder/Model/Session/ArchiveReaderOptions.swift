@@ -3,8 +3,9 @@ import Foundation
 import Synchronization
 
 nonisolated extension ReaderOptions {
-    static func kaitoFinderVerification(password: String? = nil, defaults: UserDefaults = .standard) -> ReaderOptions {
-        var options = kaitoFinder(password: password, defaults: defaults)
+    static func kaitoFinderVerification(password: String? = nil, defaults: UserDefaults = .standard,
+                                        hardware: ArchiveHardware = .current) -> ReaderOptions {
+        var options = kaitoFinder(password: password, defaults: defaults, hardware: hardware)
         options.lazyLocalHeaders = false
         return options
     }
@@ -17,8 +18,9 @@ nonisolated extension ReaderOptions {
     /// 項目ごと・全体のサイズ上限を解除し、展開は出力先の空き容量に従う。
     /// 圧縮 tar の一時展開は KaitoKit の inMemorySingleFileLimit（既定 64 MiB）で
     /// メモリからディスクへ切り替わり、stagingFreeSpaceReserve（既定 1 GiB）を残す。
-    /// stagingFreeSpaceReserve を含む、その他すべての ReadLimits は既定値を保つ。
-    static func kaitoFinder(password: String? = nil, defaults: UserDefaults = .standard) -> ReaderOptions {
+    /// stagingFreeSpaceReserve は既定を保ち、辞書上限だけは展開設定を適用する。
+    static func kaitoFinder(password: String? = nil, defaults: UserDefaults = .standard,
+                            hardware: ArchiveHardware = .current) -> ReaderOptions {
         #if DEBUG
         kaitoFinderOpenCount.withLock { $0 += 1 }
         #endif
@@ -28,6 +30,7 @@ nonisolated extension ReaderOptions {
         // 表示と編集を .expose に統一し、Finder 製 ZIP の __MACOSX も一覧にそのまま見せる。
         var options = ReaderOptions(limits: ReadLimits(maxEntrySize: .max, maxTotalUncompressedSize: .max),
                                     password: password, appleDoublePolicy: .expose)
+        options.limits.maxDictionarySize = ArchivePreferencesStore.effectiveDictionarySize(defaults: defaults, hardware: hardware)
         // 圧縮と共通の「電力の使用方針」は、自動の復号並列数だけに適用する。
         options.decodePowerPolicy = ArchivePreferencesStore.storedPowerPolicy(defaults: defaults).decodePolicy
         options.recordsTarEditLayout = true

@@ -18,4 +18,16 @@ nonisolated struct ArchiveHardware: Sendable, Equatable {
     static func estimatedLZMA2Memory(threads: Int) -> UInt64 {
         UInt64(30 + 135 * threads) * (1 << 20)
     }
+
+    var dictionaryLimitChoices: [Int] {
+        ArchivePreferences.dictionaryLimitChoices.filter { $0 == 1 || UInt64($0) << 30 <= memory / 4 }
+    }
+
+    func dictionaryLimitGiB(for requested: Int) -> Int {
+        dictionaryLimitChoices.contains(requested) ? requested : 1
+    }
+
+    func dictionarySize(for requestedGiB: Int) -> UInt64 {
+        UInt64(dictionaryLimitGiB(for: requestedGiB)) << 30
+    }
 }

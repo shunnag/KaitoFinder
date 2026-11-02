@@ -34,7 +34,9 @@ nonisolated enum ArchivePasswordVerification {
         }
     }
 
-    static func workerCount(entries: [ArchiveEntry], requested: Int, hasPassword: Bool) -> Int {
+    static func workerCount(entries: [ArchiveEntry], requested: Int, hasPassword: Bool,
+                            dictionarySize: UInt64 = ArchivePreferences.defaultDictionarySize) -> Int {
+        guard dictionarySize <= ArchivePreferences.defaultDictionarySize else { return 1 }
         // 不明サイズの累積制限と solid の復号状態は直列で維持する。
         guard hasPassword, entries.allSatisfy({ $0.uncompressedSize != nil && $0.solidGroup < 0 }) else { return 1 }
         #if DEBUG
@@ -52,14 +54,16 @@ nonisolated enum ArchivePasswordVerification {
     }
 
     static func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader, workers requested: Int,
-                       progress: Progress? = nil) throws -> Set<Int> {
+                       progress: Progress? = nil,
+                       dictionarySize: UInt64 = ArchivePreferencesStore.effectiveDictionarySize()) throws -> Set<Int> {
         guard !entries.isEmpty else { return [] }
         func checkCancellation() throws {
             try Task.checkCancellation()
             if progress?.isCancelled == true { throw CancellationError() }
         }
         try checkCancellation()
-        let count = workerCount(entries: entries, requested: requested, hasPassword: reader.password != nil)
+        let count = workerCount(entries: entries, requested: requested, hasPassword: reader.password != nil,
+                                dictionarySize: dictionarySize)
         #if DEBUG
         let observer = observer.get()
         #endif

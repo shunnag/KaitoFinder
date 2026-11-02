@@ -41,6 +41,10 @@ nonisolated enum TestEnvironment {
         case scaleTiming = "KAITOFINDER_SCALE_TIMING"
         /// "1" のとき、4 GiB + 1 byte の ZIP64 項目を実際に展開する（LargeArchiveTests）。
         case largeEntryTests = "KAITOFINDER_LARGE_ENTRY_TESTS"
+        /// RAR5 version 1 の実書庫の path（DictionaryLimitPreferenceTests）。
+        case rar5Version1Archive = "KAITOFINDER_RAR5_V1_ARCHIVE"
+        /// RAR5 version 1 の実書庫から期待する出力の SHA-256。
+        case rar5Version1SHA256 = "KAITOFINDER_RAR5_V1_SHA256"
         /// 空でないとき、そのボリュームへ tar の backslash を含む名前を展開する（TarBackslashExtractionTests）。
         case tarBackslashDestination = "KAITOFINDER_P13_DESTINATION"
         /// 設定されているとき、BatchImportExportProbeTests が作成・追加の結果をこのフォルダへ書き出す。

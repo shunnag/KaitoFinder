@@ -83,6 +83,22 @@ final class PreferencesViewModel {
         store.preferences.powerPolicy = Self.powerPolicies[index]
     }
 
+    var dictionaryLimitChoices: [Int] { hardware.dictionaryLimitChoices }
+    var dictionaryLimitTitles: [String] { dictionaryLimitChoices.map { "\($0) GiB" } }
+    var dictionaryLimitIndex: Int {
+        dictionaryLimitChoices.firstIndex(of: hardware.dictionaryLimitGiB(for: preferences.dictionaryLimitGiB)) ?? 0
+    }
+    var dictionaryLimitNote: String {
+        joinedSentences(
+            String(localized: "物理メモリが 32 GiB以上のMacでは 8 GiBを選べます。8 GiBでは大きなRAR5アーカイブを扱えますが、展開とパスワード確認は直列になります。", bundle: bundle),
+            String(localized: "次に開くアーカイブから有効になります。", bundle: bundle))
+    }
+
+    func selectDictionaryLimit(at index: Int) {
+        guard dictionaryLimitChoices.indices.contains(index) else { return }
+        store.preferences.dictionaryLimitGiB = dictionaryLimitChoices[index]
+    }
+
     func changePrefersSpeed(to enabled: Bool) { store.preferences.prefersSpeed = enabled }
 
     var defaultFormatIndex: Int { ArchivePreferences.formats.firstIndex(of: preferences.defaultFormat)! }
@@ -521,6 +537,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     let tarCarriedOwnerIDsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let compressionThreadsPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let powerPolicyPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let dictionaryLimitPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let prefersSpeedCheckbox: NSButton
     let prefersSpeedNote: NSTextField
     let compressionMemoryNote = NSTextField(wrappingLabelWithString: "")
@@ -720,15 +737,18 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
             ], spanningRows: [1])
         ])
         let powerNote = secondaryNote(String(localized: "圧縮と展開の両方で、自動の並列数に使います。", bundle: bundle), width: 360)
+        let dictionaryNote = secondaryNote(viewModel.dictionaryLimitNote, width: 360)
         addTab(title: String(localized: "パフォーマンス", bundle: bundle), symbol: "speedometer", sections: [
             group(rows: [
                 row(String(localized: "圧縮の並列数:", bundle: bundle), control: compressionThreadsPopup),
                 row("", control: compressionMemoryNote),
+                row(String(localized: "展開の辞書上限:", bundle: bundle), control: dictionaryLimitPopup),
+                row("", control: dictionaryNote),
                 row(String(localized: "電力の使用方針:", bundle: bundle), control: powerPolicyPopup),
                 row("", control: powerNote),
                 checkboxRow(prefersSpeedCheckbox),
                 [prefersSpeedNote, NSGridCell.emptyContentView]
-            ], spanningRows: [4, 5])
+            ], spanningRows: [6, 7])
         ])
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
@@ -815,6 +835,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
                                                  String(localized: "その場で展開", bundle: bundle)])
         compressionThreadsPopup.addItems(withTitles: viewModel.compressionThreadTitles)
         powerPolicyPopup.addItems(withTitles: viewModel.powerPolicyTitles)
+        dictionaryLimitPopup.addItems(withTitles: viewModel.dictionaryLimitTitles)
         defaultFormatPopup.addItems(withTitles: ArchivePreferences.formats.map { ArchiveSavePanelController.title(for: $0, bundle: bundle) })
         saveBehaviorPopup.addItems(withTitles: [String(localized: "すぐに書き込む", bundle: bundle),
                                                String(localized: "保存時にまとめて書き込む", bundle: bundle)])
@@ -856,6 +877,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         sevenZipSolidCheckbox.toolTip = CompressionOptionHelp.solid(bundle: bundle)
         compressionThreadsPopup.toolTip = CompressionOptionHelp.threads(bundle: bundle)
         powerPolicyPopup.toolTip = CompressionOptionHelp.power(bundle: bundle)
+        dictionaryLimitPopup.toolTip = viewModel.dictionaryLimitNote
         prefersSpeedCheckbox.toolTip = CompressionOptionHelp.speed(bundle: bundle)
         extractionDestinationPopup.addItems(withTitles: [String(localized: "アーカイブと同じディレクトリ内", bundle: bundle), String(localized: "場所を選択…", bundle: bundle)])
         afterExpansionPopup.addItems(withTitles: [String(localized: "アーカイブをそのままにする", bundle: bundle),
@@ -877,6 +899,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
             (tarCarriedOwnerIDsPopup, #selector(changeTarCarriedOwnerIDs(_:))),
             (compressionThreadsPopup, #selector(changeCompressionThreads(_:))),
             (powerPolicyPopup, #selector(changePowerPolicy(_:))),
+            (dictionaryLimitPopup, #selector(changeDictionaryLimit(_:))),
             (prefersSpeedCheckbox, #selector(changePrefersSpeed(_:))),
             (sevenZipMethodPopup, #selector(changeSevenZipMethod(_:))),
             (sevenZipLevelPopup, #selector(changeSevenZipLevel(_:))),
@@ -1267,6 +1290,7 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
         }
         compressionThreadsPopup.selectItem(at: viewModel.compressionThreadIndex)
         powerPolicyPopup.selectItem(at: viewModel.powerPolicyIndex)
+        dictionaryLimitPopup.selectItem(at: viewModel.dictionaryLimitIndex)
         prefersSpeedCheckbox.state = preferences.prefersSpeed ? .on : .off
         let memoryNote = viewModel.memoryNote
         compressionMemoryNote.stringValue = memoryNote.text
@@ -1374,6 +1398,9 @@ final class PreferencesWindowController: NSWindowController, NSTabViewDelegate {
     }
     @objc private func changePowerPolicy(_ sender: NSPopUpButton) {
         viewModel.selectPowerPolicy(at: sender.indexOfSelectedItem)
+    }
+    @objc private func changeDictionaryLimit(_ sender: NSPopUpButton) {
+        viewModel.selectDictionaryLimit(at: sender.indexOfSelectedItem)
     }
     @objc private func changePrefersSpeed(_ sender: NSButton) { viewModel.changePrefersSpeed(to: sender.state == .on) }
     @objc private func changeZipLevel(_ sender: NSSlider) { viewModel.changeZipLevel(to: sender.integerValue) }
