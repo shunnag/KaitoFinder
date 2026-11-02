@@ -507,7 +507,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
         defer { controller.close() }
         let performance = try XCTUnwrap(controller.tabController.tabViewItems[3].viewController?.view)
         for control in [controller.compressionThreadsPopup, controller.compressionMemoryNote,
-                        controller.powerPolicyPopup, controller.prefersSpeedCheckbox, controller.prefersSpeedNote] {
+                        controller.dictionaryLimitPopup, controller.powerPolicyPopup,
+                        controller.prefersSpeedCheckbox, controller.prefersSpeedNote] {
             XCTAssertTrue(control.isDescendant(of: performance))
         }
         for (popup, format) in [(controller.sevenZipMethodPopup, GyoshukuKit.ArchiveFormat.sevenZip),
@@ -602,7 +603,8 @@ nonisolated final class ArchivePreferencesUITests: XCTestCase {
                                        controller.tarXZLevelPopup, controller.tarZstdLevelPopup,
                                        controller.tarLzipLevelPopup, controller.tarLZMALevelPopup,
                                        controller.sevenZipSolidCheckbox, controller.zipSkipsCompressedTypesCheckbox,
-                                       controller.compressionThreadsPopup, controller.powerPolicyPopup, controller.prefersSpeedCheckbox] {
+                                       controller.compressionThreadsPopup, controller.dictionaryLimitPopup,
+                                       controller.powerPolicyPopup, controller.prefersSpeedCheckbox] {
                 XCTAssertFalse(try XCTUnwrap(control.toolTip).isEmpty, language)
             }
         }

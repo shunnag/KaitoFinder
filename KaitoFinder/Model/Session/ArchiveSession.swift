@@ -82,6 +82,8 @@ actor ArchiveSession {
     nonisolated var sourceURL: URL { sourceURLStorage.withLock { $0 } }
     nonisolated private let formatStorage: Mutex<KaitoKit.ArchiveFormat>
     nonisolated var format: KaitoKit.ArchiveFormat { formatStorage.withLock { $0 } }
+    nonisolated private let dictionarySizeStorage: Mutex<UInt64>
+    nonisolated var dictionarySizeLimit: UInt64 { dictionarySizeStorage.withLock { $0 } }
     nonisolated private let encryptionStorage: Mutex<EncryptionState>
     private struct EncryptionState: Sendable {
         var hasEncryptedEntries: Bool
@@ -117,8 +119,10 @@ actor ArchiveSession {
         self.password = password
         self.writerOptions = writerOptions
         self.importOptions = importOptions
+        let options = ReaderOptions.kaitoFinder(password: password)
+        dictionarySizeStorage = Mutex(options.limits.maxDictionarySize)
         let original = try ArchiveSetIdentity.capture(url: url)
-        let reader = try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+        let reader = try ArchiveReader.open(url: url, options: options)
         let metadata = try ArchiveVolumeMetadata.inspect(url: url, volumeSet: reader.volumeSet, store: volumeMetadataStore)
         let layout = metadata.layout
         let identity = try Self.currentIdentity(url: url, layout: layout)
@@ -215,7 +219,8 @@ actor ArchiveSession {
                     // 複数の file promise が同じシートを待っていた場合は、先に採用された値を使う。
                     if revision != passwordRevision { break }
                     do {
-                        let replacement = try ArchiveReader.open(url: sourceURL, options: .kaitoFinder(password: candidate))
+                        let options = ReaderOptions.kaitoFinder(password: candidate)
+                        let replacement = try ArchiveReader.open(url: sourceURL, options: options)
                         guard replacement.entries == (try requireCurrentReader().entries) else {
                             throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
                         }
@@ -223,10 +228,12 @@ actor ArchiveSession {
                            ArchiveSetIdentity(volumeSet: volumeSet) != sourceIdentity {
                             throw ArchiveEditError.archiveChanged
                         }
-                        let verified = try verify(encrypted, using: replacement, progress: progress)
+                        let verified = try verify(encrypted, using: replacement, progress: progress,
+                                                  dictionarySize: options.limits.maxDictionarySize)
                         try checkReadRequest(generation: expectedGeneration)
                         // 間違った候補は保持しない。採用は検証が最後まで成功した時だけ。
                         reader = replacement
+                        dictionarySizeStorage.withLock { $0 = options.limits.maxDictionarySize }
                         password = candidate
                         passwordRevision &+= 1
                         verifiedEntries = verified
@@ -259,12 +266,13 @@ actor ArchiveSession {
     }
 
     @discardableResult private func verify(_ entries: [ArchiveEntry], using reader: ArchiveReader,
-                                           progress: Progress? = nil) throws -> Set<Int> {
+                                           progress: Progress? = nil, dictionarySize: UInt64? = nil) throws -> Set<Int> {
         guard !entries.isEmpty else { return [] }
         let options = writerOptions(passwordFormat ?? .zip)
         let threads = options.compressionThreads
             ?? ArchiveHardware.current.automaticCompressionThreads(powerPolicy: options.powerPolicy)
-        return try ArchivePasswordVerification.verify(entries, using: reader, workers: max(1, threads), progress: progress)
+        return try ArchivePasswordVerification.verify(entries, using: reader, workers: max(1, threads), progress: progress,
+                                                       dictionarySize: dictionarySize ?? dictionarySizeLimit)
     }
 
     // MARK: - 閉じる
@@ -571,11 +579,13 @@ actor ArchiveSession {
     /// 証明済みの rollback もフォルダの移動も、entry と予約の世代は変えない。
     private func reanchorSplitReader(at url: URL, layout: ArchiveVolumeLayout, identity: ArchiveSetIdentity) throws {
         // 証明済みの rollback を、呼び出し Task の取消しだけで回復待ちに変えない。
-        let replacement = try ArchiveVerifiedOutput.openAfterPublication(url: url, options: .kaitoFinder(password: password))
+        let options = ReaderOptions.kaitoFinder(password: password)
+        let replacement = try ArchiveVerifiedOutput.openAfterPublication(url: url, options: options)
         let assembled = try replacement.volumeSet.map { ArchiveSetIdentity(volumeSet: $0) } ?? ArchiveSetIdentity.capture(url: url)
         guard assembled.volumes == identity.volumes,
               try ArchiveSetIdentity.capture(layout: layout) == identity else { throw ArchiveEditError.archiveChanged }
         reader = replacement
+        dictionarySizeStorage.withLock { $0 = options.limits.maxDictionarySize }
         sourceURLStorage.withLock { $0 = url }
         sourceIdentity = identity
         volumeLayoutStorage.withLock { $0 = layout }
@@ -905,7 +915,10 @@ actor ArchiveSession {
         // fallback の open より先に staging と eager なキャッシュを解放する。
         output = nil
         let replacement = try adopted ?? ArchiveStageDiagnostics.measure(.reloadOpen) {
-            try ArchiveVerifiedOutput.openAfterPublication(url: sourceURL, options: .kaitoFinder(password: password))
+            let options = ReaderOptions.kaitoFinder(password: password)
+            let replacement = try ArchiveVerifiedOutput.openAfterPublication(url: sourceURL, options: options)
+            dictionarySizeStorage.withLock { $0 = options.limits.maxDictionarySize }
+            return replacement
         }
         let metadata = try ArchiveVolumeMetadata.inspect(url: sourceURL, volumeSet: replacement.volumeSet, store: volumeMetadataStore)
         let layout = metadata.layout
@@ -979,6 +992,7 @@ actor ArchiveSession {
             #if DEBUG
             Self.readerAdoptionObserverForTesting.get()?(.adopted)
             #endif
+            dictionarySizeStorage.withLock { $0 = output.dictionarySizeLimit }
             return replacement
         } catch { return fallback(.reopenFailed) }
     }

@@ -191,6 +191,7 @@ nonisolated enum ArchiveImportTransaction {
         let reader: ArchiveReader
         let hint: URL
         let adoptable: Bool
+        let dictionarySizeLimit: UInt64
     }
 
     /// 台帳に記録してから作業ディレクトリを作る。作成に失敗したら記録も取り消す。
@@ -428,8 +429,8 @@ nonisolated enum ArchiveImportTransaction {
                     TarUpdaterError.outputVerificationFailed(reason: "output identity"))).reported(file: archive)
             }
         }
+        let verificationOptions = ReaderOptions.kaitoFinderVerification(password: options.password)
         do {
-            let verificationOptions = ReaderOptions.kaitoFinderVerification(password: options.password)
             verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
                 guard let spliced = produced.spliced, let spliceBase = produced.spliceBase else {
                     return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
@@ -465,7 +466,8 @@ nonisolated enum ArchiveImportTransaction {
         #if DEBUG
         try didVerifyForTesting.get()?(work)
         #endif
-        return VerifiedWork(identity: identity, source: source, reader: verified, hint: hint, adoptable: adoptable)
+        return VerifiedWork(identity: identity, source: source, reader: verified, hint: hint, adoptable: adoptable,
+                            dictionarySizeLimit: verificationOptions.limits.maxDictionarySize)
     }
 
     /// 公開境界。原本が変わっていないことを確かめ、rename 一回で作業ファイルを原本に差し替える。
@@ -491,7 +493,8 @@ nonisolated enum ArchiveImportTransaction {
         verifiedOutput?.publishedMode = produced.publishedMode
         if verified.adoptable {
             verifiedOutput?.output = ArchiveVerifiedOutput(identity: verified.identity, reader: verified.reader, source: verified.source,
-                hint: verified.hint, verificationPassword: context.options.password, format: context.outputFormat)
+                hint: verified.hint, verificationPassword: context.options.password, format: context.outputFormat,
+                dictionarySizeLimit: verified.dictionarySizeLimit)
         }
         context.ledger.didPublish()
     }

@@ -161,7 +161,8 @@ nonisolated final class ArchivePromiseExtractionQueue: Sendable {
 #endif
                 result = try ExtractionService.extractResolved(snapshot.selection.entries, reader: reader!, to: job.url,
                     quarantine: snapshot.quarantine, progress: job.progress, promisedItem: job.payload, didWrite: job.didWrite,
-                    powerPolicy: job.session.writerOptions(job.session.passwordFormat ?? .zip).powerPolicy)
+                    powerPolicy: job.session.writerOptions(job.session.passwordFormat ?? .zip).powerPolicy,
+                    dictionarySize: job.session.dictionarySizeLimit)
             }
             try ArchiveCopyOut.check(result)
         }

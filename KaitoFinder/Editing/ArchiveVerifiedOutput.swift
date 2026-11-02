@@ -63,19 +63,22 @@ nonisolated final class ArchiveVerifiedOutput {
     let hint: URL
     var verificationPassword: String?
     let format: GyoshukuKit.ArchiveFormat
+    let dictionarySizeLimit: UInt64
     #if DEBUG
     var didReleaseForTesting: (@Sendable () -> Void)?
     deinit { didReleaseForTesting?() }
     #endif
 
     init(identity: ArchiveSetIdentity, reader: ArchiveReader, source: ArchiveVerifiedFileSource,
-         hint: URL, verificationPassword: String?, format: GyoshukuKit.ArchiveFormat) {
+         hint: URL, verificationPassword: String?, format: GyoshukuKit.ArchiveFormat,
+         dictionarySizeLimit: UInt64) {
         self.identity = identity
         self.reader = reader
         self.source = source
         self.hint = hint
         self.verificationPassword = verificationPassword
         self.format = format
+        self.dictionarySizeLimit = dictionarySizeLimit
     }
 
     static func usesPublishedName(_ archive: URL, format: GyoshukuKit.ArchiveFormat) -> Bool {

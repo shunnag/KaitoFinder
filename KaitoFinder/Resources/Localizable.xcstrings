@@ -24302,6 +24302,326 @@
         }
       }
     },
+    "展開の辞書上限:" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit slovníku rozbalování:"
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordbogsgrænse for udpakning:"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grenze für das Wörterbuch beim Entpacken:"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Extraction dictionary limit:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Límite del diccionario de extracción:"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purkamisen sanakirjaraja:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite du dictionnaire d’extraction :"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "निष्कर्षण शब्दकोश सीमा:"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batas kamus ekstraksi:"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite del dizionario di estrazione:"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開の辞書上限:"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "압축 해제 사전 상한:"
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Had kamus pengekstrakan:"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordboksgrense for utpakking:"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Woordenboeklimiet voor uitpakken:"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit słownika rozpakowywania:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite do dicionário de extração:"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limite do dicionário de extração:"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ограничение словаря при распаковке:"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordlistegräns för uppackning:"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ขีดจำกัดพจนานุกรมการแตกไฟล์:"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Çıkarma sözlüğü sınırı:"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обмеження словника розпакування:"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giới hạn từ điển giải nén:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解压字典上限："
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解壓字典上限："
+          }
+        }
+      }
+    },
+    "物理メモリが 32 GiB 以上のMacでは 8 GiB を選べます。8 GiB では大きなRAR5書庫を扱えますが、展開とパスワード確認は直列になります。" : {
+      "localizations" : {
+        "cs" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na Macu s alespoň 32 GiB fyzické paměti můžete zvolit 8 GiB. To umožní zpracovat velké archivy RAR5, ale rozbalování a ověřování hesla poběží sériově."
+          }
+        },
+        "da" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "På en Mac med mindst 32 GiB fysisk hukommelse kan du vælge 8 GiB. Det understøtter store RAR5-arkiver, men udpakning og adgangskontrol kører serielt."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf einem Mac mit mindestens 32 GiB physischem Speicher kannst du 8 GiB auswählen. Dadurch werden große RAR5-Archive unterstützt, aber Extraktion und Passwortprüfung laufen seriell."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On a Mac with at least 32 GiB of physical memory, you can select 8 GiB. This supports large RAR5 archives, but extraction and password verification run serially."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En un Mac con al menos 32 GiB de memoria física, puedes seleccionar 8 GiB. Esto permite procesar archivos RAR5 grandes, pero la extracción y la verificación de contraseñas se ejecutan en serie."
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Macissa, jossa on vähintään 32 GiB fyysistä muistia, voit valita 8 GiB. Tämä tukee suuria RAR5-arkistoja, mutta purkaminen ja salasanan tarkistus suoritetaan sarjassa."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sur un Mac doté d’au moins 32 Gio de mémoire physique, vous pouvez sélectionner 8 Gio. Cela permet de traiter de grandes archives RAR5, mais l’extraction et la vérification du mot de passe s’effectuent en série."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कम से कम 32 GiB भौतिक मेमोरी वाले Mac पर आप 8 GiB चुन सकते हैं। इससे बड़े RAR5 आर्काइव संभाले जा सकते हैं, लेकिन निष्कर्षण और पासवर्ड सत्यापन क्रम से चलता है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pada Mac dengan memori fisik minimal 32 GiB, Anda dapat memilih 8 GiB. Ini mendukung arsip RAR5 besar, tetapi ekstraksi dan verifikasi kata sandi berjalan secara serial."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Su un Mac con almeno 32 GiB di memoria fisica puoi selezionare 8 GiB. Questo supporta archivi RAR5 di grandi dimensioni, ma l’estrazione e la verifica della password vengono eseguite in serie."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物理メモリが 32 GiB 以上のMacでは 8 GiB を選べます。8 GiB では大きなRAR5書庫を扱えますが、展開とパスワード確認は直列になります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "물리 메모리가 32 GiB 이상인 Mac에서는 8 GiB를 선택할 수 있습니다. 큰 RAR5 아카이브를 처리할 수 있지만 압축 해제와 암호 확인은 직렬로 실행됩니다."
+          }
+        },
+        "ms" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pada Mac dengan sekurang-kurangnya 32 GiB memori fizikal, anda boleh memilih 8 GiB. Ini menyokong arkib RAR5 besar, tetapi pengekstrakan dan pengesahan kata laluan berjalan secara bersiri."
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "På en Mac med minst 32 GiB fysisk minne kan du velge 8 GiB. Dette støtter store RAR5-arkiver, men utpakking og passordkontroll kjøres serielt."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Op een Mac met minimaal 32 GiB fysiek geheugen kun je 8 GiB selecteren. Dit ondersteunt grote RAR5-archieven, maar uitpakken en wachtwoordcontrole verlopen serieel."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na Macu z co najmniej 32 GiB pamięci fizycznej możesz wybrać 8 GiB. Umożliwia to obsługę dużych archiwów RAR5, ale rozpakowywanie i weryfikacja hasła odbywają się szeregowo."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em um Mac com pelo menos 32 GiB de memória física, você pode selecionar 8 GiB. Isso permite processar arquivos RAR5 grandes, mas a extração e a verificação de senha são executadas em série."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Num Mac com pelo menos 32 GiB de memória física, pode selecionar 8 GiB. Isto permite processar arquivos RAR5 grandes, mas a extração e a verificação da palavra-passe são executadas em série."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На Mac с не менее чем 32 ГиБ физической памяти можно выбрать 8 ГиБ. Это позволяет обрабатывать большие архивы RAR5, но распаковка и проверка пароля выполняются последовательно."
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "På en Mac med minst 32 GiB fysiskt minne kan du välja 8 GiB. Detta stöder stora RAR5-arkiv, men uppackning och lösenordsverifiering körs seriellt."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บน Mac ที่มีหน่วยความจำจริงอย่างน้อย 32 GiB คุณสามารถเลือก 8 GiB ได้ ซึ่งรองรับไฟล์เก็บถาวร RAR5 ขนาดใหญ่ แต่การแตกไฟล์และการตรวจสอบรหัสผ่านจะทำงานแบบลำดับ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En az 32 GiB fiziksel belleğe sahip bir Mac’te 8 GiB seçebilirsiniz. Bu, büyük RAR5 arşivlerini destekler ancak çıkarma ve parola doğrulama işlemleri seri olarak çalışır."
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На Mac із щонайменше 32 ГіБ фізичної пам’яті можна вибрати 8 ГіБ. Це підтримує великі архіви RAR5, але розпакування й перевірка пароля виконуються послідовно."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trên Mac có ít nhất 32 GiB bộ nhớ vật lý, bạn có thể chọn 8 GiB. Điều này hỗ trợ kho lưu trữ RAR5 lớn, nhưng việc giải nén và xác minh mật khẩu chạy tuần tự."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在物理内存至少为 32 GiB 的 Mac 上，可以选择 8 GiB。这可处理大型 RAR5 归档，但解压和密码验证将串行进行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在實體記憶體至少為 32 GiB 的 Mac 上，可以選擇 8 GiB。這可處理大型 RAR5 封存檔，但解壓縮與密碼驗證會串列進行。"
+          }
+        }
+      }
+    },
     "アーカイブが大きすぎるか複雑すぎるため、読み込みの上限を超えました(%@)" : {
       "localizations" : {
         "cs" : {

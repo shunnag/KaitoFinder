@@ -74,10 +74,13 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
     static let formats: [GyoshukuKit.ArchiveFormat] = [.zip, .tar, .tarGzip, .tarBzip2, .tarXZ, .tarZstd, .tarLzip, .tarLZMA, .tarLZ4, .tarBrotli, .tarCompress, .sevenZip, .lha]
     static let compressionThreadRange = WriterOptions.compressionThreadsRange
     static let listTextSizeRange = 10...16
+    static let dictionaryLimitChoices = [1, 8]
+    static let defaultDictionarySize: UInt64 = 1 << 30
 
     var defaultFormat: GyoshukuKit.ArchiveFormat = .zip
     var compressionThreads = 0
     var powerPolicy: PowerPolicy = .reduceInLowPowerMode
+    var dictionaryLimitGiB = 1
     var prefersSpeed = false
     var zipMethod: ZipMethod = .deflate
     var zipLevel = 6
@@ -211,6 +214,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
         static let defaultFormat = "ArchiveCreationFormat"
         static let compressionThreads = "ArchiveCompressionThreads"
         nonisolated static let powerPolicy = "ArchiveCompressionPowerPolicy"
+        nonisolated static let dictionaryLimit = "ArchiveExtractionDictionaryLimitGiB"
         static let prefersSpeed = "ArchiveCompressionPrefersSpeed"
         static let sevenZipMethod = "ArchiveSevenZipMethod"
         static let lhaMethod = "ArchiveLhaMethod"
@@ -260,6 +264,19 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             .flatMap(ArchivePreferences.PowerPolicy.init(rawValue:)) ?? .reduceInLowPowerMode
     }
 
+    nonisolated static func storedDictionaryLimitGiB(defaults: UserDefaults = .standard) -> Int {
+        guard let number = defaults.object(forKey: Key.dictionaryLimit) as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == Double(number.intValue),
+              ArchivePreferences.dictionaryLimitChoices.contains(number.intValue) else { return 1 }
+        return number.intValue
+    }
+
+    nonisolated static func effectiveDictionarySize(defaults: UserDefaults = .standard,
+                                                     hardware: ArchiveHardware = .current) -> UInt64 {
+        hardware.dictionarySize(for: storedDictionaryLimitGiB(defaults: defaults))
+    }
+
     var preferences: ArchivePreferences {
         get {
             var value = ArchivePreferences()
@@ -269,6 +286,7 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             } ?? value.defaultFormat
             value.compressionThreads = threads(forKey: Key.compressionThreads)
             value.powerPolicy = Self.storedPowerPolicy(defaults: defaults)
+            value.dictionaryLimitGiB = Self.storedDictionaryLimitGiB(defaults: defaults)
             value.prefersSpeed = boolean(forKey: Key.prefersSpeed, fallback: value.prefersSpeed)
             value.zipMethod = defaults.string(forKey: Key.zipMethod).flatMap(ArchivePreferences.ZipMethod.init(rawValue:))
                 ?? value.zipMethod
@@ -333,6 +351,8 @@ nonisolated struct ArchivePreferences: Sendable, Equatable {
             defaults.set(ArchivePreferences.compressionThreadRange.contains(newValue.compressionThreads)
                          ? newValue.compressionThreads : 0, forKey: Key.compressionThreads)
             defaults.set(newValue.powerPolicy.rawValue, forKey: Key.powerPolicy)
+            defaults.set(ArchivePreferences.dictionaryLimitChoices.contains(newValue.dictionaryLimitGiB)
+                         ? newValue.dictionaryLimitGiB : 1, forKey: Key.dictionaryLimit)
             defaults.set(newValue.prefersSpeed, forKey: Key.prefersSpeed)
             defaults.set((0...9).contains(newValue.zipLZMALevel) ? newValue.zipLZMALevel : 6, forKey: Key.zipLZMALevel)
             defaults.set(ArchivePreferences.validLevel(newValue.zipZstdLevel, range: 1...19, fallback: 3), forKey: Key.zipZstdLevel)
