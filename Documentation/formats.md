@@ -18,6 +18,7 @@
 `.msi` / `.arj` は、他のアプリがファイル型を登録している環境での関連付けにも対応する。
 
 ZIP / 7z / RAR の分割巻、対応する SFX（自己展開形式）、暗号化アーカイブも読み取れる。
+`.exe` は書庫として検出できた場合だけ開き、実行ファイルとしては起動しない。
 
 ZIP 内の XZ と旧 Zstandard、旧方式 Shrink / Reduce 1〜4 / Implode、
 7z の Zstandard coder の展開・プレビューにも対応する。
@@ -106,6 +107,7 @@ tar.gz・tar.bz2・tar.xz は対応する区切りごとに編集する。ほか
 #### Split, self-extracting, and special formats
 
 `.msi` / `.arj` associations also work when another app registers the type. Split ZIP / 7z / RAR volumes, supported SFX (self-extracting archives), and encrypted archives can be read.
+An `.exe` is opened only when its contents are recognized as an archive; it is never launched as an executable.
 ZIP XZ, legacy Zstandard, Shrink / Reduce 1–4 / Implode, and 7z Zstandard support extraction and previews.
 Some variants and compression methods are unsupported. Finder-created ZIPs preserve `__MACOSX` companion files when listing and editing.
 Office / Outlook document extensions and extensionless pbzx Payload files have no associations; use File > Open….

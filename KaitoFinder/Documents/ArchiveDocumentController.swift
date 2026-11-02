@@ -57,6 +57,9 @@ class ArchiveDocumentController: NSDocumentController {
     }
 
     override func typeForContents(of url: URL) throws -> String {
+        if url.pathExtension.lowercased() == "exe", (try? FormatDetector.detect(url: url)) != nil {
+            return Self.splitVolumeType
+        }
         let type = try super.typeForContents(of: url)
         if documentClass(forType: type) == nil, ArchiveSplitVolume.isOpenableName(url.lastPathComponent) {
             return Self.splitVolumeType
