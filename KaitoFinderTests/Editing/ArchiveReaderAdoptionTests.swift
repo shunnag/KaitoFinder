@@ -112,6 +112,34 @@ nonisolated final class ArchiveReaderAdoptionTests: XCTestCase {
         }
     }
 
+    func testReaderAdoptionAndFallbackKeepTheirActualDictionaryLimits() async throws {
+        let key = ArchivePreferencesStore.Key.dictionaryLimit, defaults = UserDefaults.standard
+        let previous = defaults.object(forKey: key)
+        defer {
+            if let previous { defaults.set(previous, forKey: key) }
+            else { defaults.removeObject(forKey: key) }
+        }
+        for adopts in [true, false] {
+            let directory = try ArchiveTestDirectory(), url = try archive(directory.url)
+            defaults.set(8, forKey: key)
+            let session = try ArchiveSession(url: url)
+            XCTAssertEqual(session.dictionarySizeLimit, UInt64(8) << 30)
+            try await ArchiveSession.willAdoptReaderForTesting.withValue({ output in
+                XCTAssertEqual(output.dictionarySizeLimit, UInt64(8) << 30)
+                UserDefaults.standard.set(1, forKey: key)
+                if !adopts { output.verificationPassword = "mismatched" }
+            }) {
+                check(try await session.createFolder(in: "", baseName: "new", progress: Progress()))
+            }
+            let expected = adopts ? UInt64(8) << 30 : ArchivePreferences.defaultDictionarySize
+            XCTAssertEqual(session.dictionarySizeLimit, expected)
+            let entries = await session.entries()
+            XCTAssertEqual(ExtractionExecution.parallel(workers: 4).workerCount(
+                entries: entries, hasSources: false, dictionarySize: session.dictionarySizeLimit), adopts ? 1 : 4)
+            await session.close()
+        }
+    }
+
     func testAllFormatsAndSpellingsAdoptEveryImmediateOperation() async throws {
         for (format, suffix) in Self.spellings {
             for operation in 0..<6 {
