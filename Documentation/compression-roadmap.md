@@ -1,4 +1,4 @@
-# 圧縮形式の棚卸しと追加計画（2026-09-22 更新）
+# 圧縮形式の棚卸しと追加計画（2026-11-02 更新）
 
 KaitoFinder、KaitoKit、GyoshukuKit の現在の作業ツリーを照合した。
 「形式を一覧できる」「中身を読める」「新しく作れる」は別の能力として扱う。
@@ -14,7 +14,7 @@ KaitoFinder、KaitoKit、GyoshukuKit の現在の作業ツリーを照合した�
 [保存・UIの検証](verification/2026-09-18-native-save-panel.md)を参照。
 
 優先4のうち Swap2/Swap4 の読み取りも追加した。独立生成のplain／AES書庫で、
-solid逆順・分割・プレビュー・複数ファイル追加とundo/redoを検証した。RISC-Vは未追加。
+solid逆順・分割・プレビュー・複数ファイル追加とundo/redoを検証した。RISC-Vは当時未追加。
 [追加検証](verification/2026-09-18-sevenzip-swap.md)を参照。
 
 優先5の LZ4 frame を追加した。単体・圧縮tar・連結・skippable・上限、両エンジン全件、
@@ -32,7 +32,14 @@ KaitoFinder 0.2.0 は文書型・一覧・プレビューへ接続し、ZIP の�
 ZIP の既定は Deflate。BZip2 / LZMA / XZ 選択時は macOS 付属ツールとの互換性を注記する。
 候補と保留・除外理由は [圧縮拡張の記録](pending/2026-10-06-compression-expansion.md)を参照。
 
-2026-11-02: SFX prefix のある RAR4 / RAR5 分割書庫に対応した。先頭巻の署名 offset と原本の identity を検証し、
+2026-11-02: 7z / XZ の RISC-V filter と RAR5 compression version 1 に対応した。
+RISC-V は JAL、AUIPC と後続命令の対、縮小命令を含む入力を扱う。RAR5 version 1 は 80 distance symbols、
+4 GiB を超える非2の累乗辞書と長い距離を扱い、5 GiB 出力の実書庫 2 種類で原本と全 byte が一致した。
+[7z RISC-V](https://github.com/shunnag/KaitoKit/blob/main/Documentation/verification/2026-11-02-sevenzip-riscv.md)、
+[XZ RISC-V](https://github.com/shunnag/KaitoKit/blob/main/Documentation/verification/2026-11-02-xz-riscv.md)、
+[RAR5 version 1](https://github.com/shunnag/KaitoKit/blob/main/Documentation/verification/2026-11-02-rar5-version1.md)を参照。
+
+同日に SFX prefix のある RAR4 / RAR5 分割書庫にも対応した。先頭巻の署名 offset と原本の identity を検証し、
 RAR4 の old / new numbering と RAR5 の `.partN.rar` に対応する。実書庫と unrar で全 byte を照合した。
 [検証記録](https://github.com/shunnag/KaitoKit/blob/main/Documentation/verification/2026-11-02-rar-sfx-multivolume.md)を参照。
 
@@ -54,8 +61,8 @@ RAR4 の old / new numbering と RAR5 の `.partN.rar` に対応する。実書�
 | 系統 | 読み取り済みの主な範囲 | 残る主な範囲 |
 |---|---|---|
 | ZIP | stored、Shrink、Reduce 1〜4、Implode、Deflate、Deflate64、BZip2、LZMA、Zstandard 20/93、XZ 95、PPMd 98、ZipCrypto/AES、ZIP64・split | tokenize 7、JPEG 96、WavPack 97、Strong Encryption、spanned/split SFX |
-| 7z | LZMA1/2、PPMd7、Deflate、BZip2、Zstandard、Copy、AES、Delta、Swap2/Swap4、各 BCJ/BCJ2（BCJ / ARM64 修正込み）、solid・分割 | RISC-V、その他の拡張 coder |
-| RAR | RAR4 unpack 29、RAR5 compression version 0・file copy、対応済み標準 filter、暗号化・多巻・分割 SFX | RAR4 unpack 15/20/26・custom VM、RAR5 version 1 |
+| 7z | LZMA1/2、PPMd7、Deflate、BZip2、Zstandard、Copy、AES、Delta、Swap2/Swap4、各 BCJ/BCJ2（BCJ / ARM64 / RISC-V 修正込み）、solid・分割 | その他の拡張 coder |
+| RAR | RAR4 unpack 29、RAR5 compression version 0/1・file copy、対応済み標準 filter、暗号化・多巻・分割 SFX | RAR4 unpack 15/20/26・custom VM |
 | LHA | level 0〜3、lh0/1/4〜7/lhx、lz4/lz5/lzs、pm0、SFX | lh2/lh3/pm1/pm2 の展開、resource fork の個別公開 |
 | CAB | None、MSZIP、LZX。手元の cabinet に収まる file | Quantum、cabinet をまたぐ一つの file |
 | tar・単一ストリーム | tar、GNU sparse pax 0.0 / 0.1 / 1.0、gzip、bzip2、XZ、Zstandard、compress、LZMA_Alone、LZ4 modern/legacy、lzip、Brotli、pbzx。tar.lz / tar.br と圧縮 cpio も読み取る | 旧 GNU `S` 型・star / Solaris sparse、LZ4 外部辞書、lzop、外部 Zstandard 辞書、未対応 XZ filter、lzip version 0、shared dictionary Brotli |
@@ -76,9 +83,9 @@ ISO/UDF や MSI は「圧縮 codec」ではなく容器・ファイルシステ�
 | 1 | ZIP 20 の互換読み取り / 追加済み | 旧 method ID を既存 Zstandard へ接続。保存形式は従来の stored/Deflate | 独立生成93のpayloadを保ちIDのみ20へ変更。CRC、AES actual method、local/central不一致、split、プレビュー。歴史的20書庫との直接比較は未確認 |
 | 2 | ZIP XZ 95 / 追加済み | `ZipReader` の範囲付き入力を XZ に接続。AESでは認証済み圧縮入力を上限付きで一時保持 | Windows 系のツールで生成した書庫との全バイト一致、0 byte、連結、ZIP64/split、CRC/辞書上限、暗号化、プレビュー・編集。新規XZ圧縮出力は追加していない |
 | 3 | tar.xz / tar.bz2 出力 / 実装済み・画面検証中 | TarWriter の出力先へストリーム compressor を挟む。XZ は Apple Compression、BZip2 は system libbz2 を候補とする | BSD tar・xz/bzip2・7zz で全項目照合、空書庫、4 GiB、取消し、容量不足、元入力の変更、atomic publish、undo/redo、保存設定 |
-| 4 | 7z Swap2/Swap4 / 追加済み。RISC-V / 未追加 | Swapはcoder graphのfilterとして追加し、readをまたぐ未完単位を保持。RISC-Vは変換規則の独立確定から着手する | Swapは7zz独立生成、端数・極小buffer、solid逆順、AES、truncate、split、アプリの編集を通過。両エンジン全件と160変異入力も成功。アプリ全UIは継続中。RISC-Vは公開規則と独立fixtureが未充足 |
+| 4 | 7z Swap2/Swap4、7z / XZ RISC-V / 追加済み | Swapはcoder graphのfilterとして追加し、readをまたぐ未完単位を保持。RISC-Vは公開命令形式とblack-box入出力から逆変換を独立に確定し、7z / XZのdecoderへ接続 | Swapは7zz独立生成、端数・極小buffer、solid逆順、AES、truncate、split、アプリの編集を通過。RISC-Vは7zz / xzの実書庫と独立モデルで全byte、chunk境界、連結stream、checkを検証 |
 | 5 | LZ4 modern/legacy frame、lzip / 追加済み | LZ4 blockとframe、XXH32を公開仕様から実装。lzip は KaitoKit 0.8.0 の reader を単体・圧縮 tar・プレビューへ接続 | 公式ツールの生成物、連結/skippable、checksum、辞書・出力上限、8 MiB境界、disk staging、拡張子判定 |
-| 6 | CAB跨ぎ、RAR5 version 1、LHA旧方式 / 中〜大 | 実書庫を先に集め、volume identity/solid状態/展開上限を設計。新codecは個別の作業単位にする | 複数の独立fixtureとtoolの一致、欠巻・差替え・順不同read、壊れた辞書/距離、暗号化、変異入力 |
+| 6 | CAB跨ぎ、LHA旧方式 / 中〜大 | 実書庫を先に集め、volume identity/solid状態/展開上限を設計。新codecは個別の作業単位にする | 複数の独立fixtureとtoolの一致、欠巻・差替え・順不同read、壊れた辞書/距離、暗号化、変異入力 |
 | 7 | ZIP JPEG/WavPack、旧Mac/DOS/Amiga形式等 / 大 | 公開仕様と再配布可能fixtureの入手状況から順番を決める。容器とcodecを別実装にする | 実在書庫と独立decoderによる全バイト一致。自作writerと自作readerの一致だけでは完了にしない |
 
 ZIP の ID と旧 ID 20 の扱いは [PKWARE APPNOTE](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT) を参照。
