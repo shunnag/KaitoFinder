@@ -1,6 +1,6 @@
 # KaitoFinder 利用ガイド
 
-KaitoFinder 0.10.8 の操作と設定の詳しい説明です。
+KaitoFinder 0.10.9 の操作と設定の詳しい説明です。
 [はじめに・インストール](../README.md)、[対応形式](formats.md)、[制限](limitations.md)も参照してください。
 
 - [開く](#開く)
@@ -136,6 +136,7 @@ Finder の関連付け、「開く…」、最近使った項目に共通で、�
 「ようこそKaitoFinderへ」には二つの領域があります。「アーカイブを開く」へアーカイブをドロップすると開きます。
 「アーカイブを作成」へファイルやフォルダをドロップすると作成に進みます。どちらもクリックして選べます。
 「起動時にようこそウインドウを表示」をオフにすると、起動時の表示を省けます。
+Finder の関連付けから書庫を開いた場合も、設定にかかわらず起動時のようこそは表示しません（表示済みの場合は閉じます）。
 「ウインドウ > ようこそKaitoFinderへ」（⇧⌘1）で再表示できます。
 
 ## 設定
@@ -188,7 +189,7 @@ Sparkle による自動更新に対応しています。「アップデート」
 
 ## English
 
-Detailed operations for KaitoFinder 0.10.8. See also [installation](../README.md#install), [formats](formats.md#english), and [limitations](limitations.md#english).
+Detailed operations for KaitoFinder 0.10.9. See also [installation](../README.md#install), [formats](formats.md#english), and [limitations](limitations.md#english).
 
 ### Open
 
@@ -287,7 +288,7 @@ Changes are applied together after all answers. In a mode supporting undo, one U
 ### Welcome Window
 
 Welcome to KaitoFinder has two areas. Open Archive opens dropped archives; Create Archive starts creation from dropped files or folders. Both can also be clicked.
-Turn off Show the welcome window at launch in Settings to hide it at startup. Window > Welcome to KaitoFinder (⇧⌘1) shows it again.
+Turn off Show the welcome window at launch in Settings to hide it at startup. Opening an archive through a Finder association also suppresses Welcome regardless of that setting, closing it if it is already visible. Window > Welcome to KaitoFinder (⇧⌘1) shows it again.
 
 ### Settings
 

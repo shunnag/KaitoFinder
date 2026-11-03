@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         archiveMenuMainWindow?.windowController as? ArchiveWindowController
     }
     private(set) var welcomeWindowController: WelcomeWindowController?
+    private var hasAssociatedOpenRequests = false
     private(set) var forgetPasswordsTask: Task<Void, Never>?
     private(set) var archiveCreationTask: Task<Void, Never>?
     private(set) var creationOpenPanel: NSOpenPanel?
@@ -87,8 +88,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         welcomeWindowController?.window?.makeKeyAndOrderFront(sender)
     }
 
-    nonisolated static func shouldShowWelcome(argumentsHadFiles: Bool, hasDocuments: Bool, preference: Bool) -> Bool {
-        !argumentsHadFiles && !hasDocuments && preference
+    nonisolated static func shouldShowWelcome(argumentsHadFiles: Bool, associatedOpen: Bool = false, hasDocuments: Bool, preference: Bool) -> Bool {
+        !argumentsHadFiles && !associatedOpen && !hasDocuments && preference
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -428,10 +429,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation, 
         // LaunchServices の起動時 open が文書を登録する機会を待ってから判断する。
         DispatchQueue.main.async { [weak self] in
             guard let self, Self.shouldShowWelcome(argumentsHadFiles: hadFiles,
+                associatedOpen: hasAssociatedOpenRequests,
                 hasDocuments: !NSDocumentController.shared.documents.isEmpty,
                 preference: self.preferencesStore.preferences.showsWelcomeWindowAtLaunch) else { return }
             self.showWelcome(nil)
         }
+    }
+
+    func application(_ application: NSApplication, openFiles filenames: [String]) -> Bool {
+        hasAssociatedOpenRequests = true
+        welcomeWindowController?.close()
+        return openLaunchArguments(filenames) { NSApp.presentError($0) }
     }
 
     func openLaunchArguments(_ arguments: [String], present: (NSError) -> Void) -> Bool {

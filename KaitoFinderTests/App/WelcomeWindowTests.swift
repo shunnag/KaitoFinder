@@ -52,6 +52,10 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         }
     }
 
+    func testAssociatedOpenSuppressesWelcomeWithPreference() {
+        XCTAssertFalse(AppDelegate.shouldShowWelcome(argumentsHadFiles: false, associatedOpen: true, hasDocuments: false, preference: true))
+    }
+
     @MainActor func testDockReopenWithoutWindowsIgnoresPreferenceAndReusesController() throws {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         store.preferences.showsWelcomeWindowAtLaunch = false
