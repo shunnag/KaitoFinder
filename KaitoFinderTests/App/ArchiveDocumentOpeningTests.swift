@@ -156,6 +156,41 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         XCTAssertNotNil(document.windowControllers.first?.window)
     }
 
+    @MainActor func testAssociatedOpenSuppressesAndClosesWelcomeWithoutChangingDocumentOpening() async throws {
+        let directory = try fixtureDirectory(), archive = directory.url.appendingPathComponent("associated.zip")
+        try directory.run(ExternalTool.zip, ["-q", "-D", archive.path, "note.txt"])
+        try requireDocumentTypeLookup(archive)
+        let suite = try ArchivePreferencesTestDefaults()
+        let delegate = AppDelegate(preferencesStore: ArchivePreferencesStore(defaults: suite.defaults))
+        addTeardownBlock { @MainActor in
+            delegate.welcomeWindowController?.close()
+            for document in NSDocumentController.shared.documents where document.fileURL == archive {
+                document.close()
+                if let document = document as? ArchiveDocument {
+                    await document.undoCleanup?.value
+                    await document.materializationCleanup?.value
+                    await document.sessionCleanup?.value
+                }
+            }
+            withExtendedLifetime(directory) {}
+        }
+        delegate.showWelcome(nil)
+        XCTAssertTrue(delegate.welcomeWindowController?.window?.isVisible == true)
+        XCTAssertTrue(delegate.application(NSApplication.shared, openFiles: [archive.path]))
+        XCTAssertFalse(delegate.welcomeWindowController?.window?.isVisible == true)
+        XCTAssertFalse(AppDelegate.shouldShowWelcome(argumentsHadFiles: false, associatedOpen: true, hasDocuments: false, preference: true))
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !NSDocumentController.shared.documents.contains(where: {
+            $0.fileURL == archive && $0.windowControllers.first?.window != nil
+        }), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let document = try XCTUnwrap(NSDocumentController.shared.documents.first { $0.fileURL == archive } as? ArchiveDocument)
+        XCTAssertNotNil(document.session)
+        XCTAssertNotNil(document.windowControllers.first?.window)
+    }
+
     @MainActor func testMissingLaunchArgumentKeepsWelcomeEligibleAndIgnoresOptions() throws {
         let directory = try ArchiveTestDirectory(), missing = directory.url.appendingPathComponent("missing.zip")
         let suite = try ArchivePreferencesTestDefaults()
