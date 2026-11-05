@@ -101,6 +101,8 @@ func hasInputPath(_ app: NSRunningApplication) -> Bool {
     app.bundleURL?.standardizedFileURL.resolvingSymlinksInPath().path == appPath
 }
 
+func oldProcessExited() -> Bool { NSRunningApplication(processIdentifier: oldPID)?.isTerminated ?? true }
+
 func runningApps() -> [NSRunningApplication] {
     NSWorkspace.shared.runningApplications.filter { hasInputPath($0) && !$0.isTerminated }
 }
@@ -214,13 +216,13 @@ print("pressed:", pressedInstallTitle)
 var relaunchTitle: String?
 guard wait(relaunchButtonTimeout, {
     relaunchTitle = clickButton(oldPID, matching: ["インストールして再起動", "Install and Relaunch"])
-    return relaunchTitle != nil
-}), let pressedRelaunchTitle = relaunchTitle else {
+    return relaunchTitle != nil || oldProcessExited()
+}) else {
     fail(.relaunchButton, "Timed out waiting for the install and relaunch button.")
 }
-print("pressed:", pressedRelaunchTitle)
+print("pressed:", relaunchTitle ?? "(the original process exited during the press)")
 
-guard wait(oldProcessExitTimeout, { NSRunningApplication(processIdentifier: oldPID)?.isTerminated ?? true }) else {
+guard wait(oldProcessExitTimeout, { oldProcessExited() }) else {
     fail(.oldProcessExit, "Timed out waiting for the old process to exit.")
 }
 print("old process exited")
