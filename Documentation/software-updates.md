@@ -97,6 +97,7 @@ python3 Tools/prepare_update.py \
 0.10.7 (build 21) は 2026-11-02 に公開済み（`verification/2026-11-02-release-0.10.7.md`）。
 0.10.8 (build 22) は 2026-11-03 に公開済み（`verification/2026-11-03-release-0.10.8.md`）。
 0.10.9 (build 23) は 2026-11-03 に公開済み（`verification/2026-11-03-release-0.10.9.md`）。
+0.10.10 (build 24) は 2026-11-05 に公開済み（`verification/2026-11-05-release-0.10.10.md`）。
 
 ## ローカルの検証
 
