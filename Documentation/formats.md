@@ -1,6 +1,6 @@
 # KaitoFinder の対応形式
 
-対象: KaitoFinder 0.10.10 / KaitoKit 0.22.0 / GyoshukuKit 0.18.0。
+対象: KaitoFinder 0.10.11 / KaitoKit 0.22.1 / GyoshukuKit 0.18.0。
 [README](../README.md)、[利用ガイド](user-guide.md)、[制限](limitations.md)へ戻れます。
 
 ## 開ける形式
