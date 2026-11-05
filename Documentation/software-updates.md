@@ -73,6 +73,28 @@ python3 Tools/prepare_update.py \
    リリースノートはフィード内に埋め込まれる。公開後にフィードを手編集せず、変更する場合は再署名する。
 5. 一つ前の配布版で「アップデートを確認…」からインストール・再起動まで検証する。
 
+手順5は Mac mini のGUIセッションで次のドライバーでも実行できる（ssh からは `gui-run` を使い、実行元にアクセシビリティ権限が必要）。
+実際の公開フィードから更新するため、新版の公開後に実行する。指定した一時コピーをその場で置き換え、実際の設定ドメインを使うので、通常の KaitoFinder を終了し、設定を退避・復元する。
+バージョンは例。`previous` を一つ前の公開版、`new` を今回の公開版に合わせる。
+
+```sh
+set -eu
+previous=0.10.9
+new=0.10.10
+mkdir -p build
+swiftc Tools/drive_standard_update_dialog.swift -o build/drive_standard_update_dialog
+work_dir=$(mktemp -d /private/tmp/kaitofinder-standard-update.XXXXXX)
+trap 'rm -rf "$work_dir"' EXIT
+curl -fL "https://github.com/shunnag/KaitoFinder/releases/download/v${previous}/KaitoFinder-${previous}.zip" \
+  -o "$work_dir/previous.zip"
+ditto -x -k "$work_dir/previous.zip" "$work_dir"
+defaults export com.shunnag.KaitoFinder "$work_dir/preferences.plist"
+trap 'defaults delete com.shunnag.KaitoFinder || true
+defaults import com.shunnag.KaitoFinder "$work_dir/preferences.plist" && rm -rf "$work_dir"' EXIT
+gui-run "$work_dir" "$PWD/build/drive_standard_update_dialog" \
+  "$work_dir/KaitoFinder.app" --expect-version "$new"
+```
+
 初回は Sparkle を含む配布版を手動で配布する必要がある。Sparkle がなかった旧版へ、この仕組みだけで追加はできない。
 初回フィードを公開するまでは、GitHub の更新URLは利用できず、手動確認では取得エラーになる。
 初回リリース 0.1.0 (build 2) は 2026-09-19 に公開済み（`verification/2026-09-19-release-review.md` の「初回リリース」節）。
