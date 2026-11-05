@@ -120,6 +120,7 @@ gui-run "$work_dir" "$PWD/build/drive_standard_update_dialog" \
 0.10.8 (build 22) は 2026-11-03 に公開済み（`verification/2026-11-03-release-0.10.8.md`）。
 0.10.9 (build 23) は 2026-11-03 に公開済み（`verification/2026-11-03-release-0.10.9.md`）。
 0.10.10 (build 24) は 2026-11-05 に公開済み（`verification/2026-11-05-release-0.10.10.md`）。
+0.10.11 (build 25) は 2026-11-05 に公開済み（`verification/2026-11-05-release-0.10.11.md`）。
 
 ## ローカルの検証
 
