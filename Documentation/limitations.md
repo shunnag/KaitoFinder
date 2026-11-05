@@ -11,7 +11,7 @@ KaitoFinder 0.10.10 の利用上の制限です。[対応形式](formats.md)、[
 - 一つのアーカイブは最大1,000,000項目、RAR / `.001` の分割セットは最大128巻です。
   ファイルごと・全体の展開サイズにはアプリ独自の上限はありませんが、展開先に十分な空き容量が必要です。
   圧縮方式や管理情報の大きさによる追加の上限もあります。
-- コーデック辞書の上限は 1 GiB です。RAR5 compression version 1 の書庫のうち、これを超える実確保量が必要なものは展開できません。
+- コーデック辞書の上限は既定で 1 GiB です。物理メモリが 32 GiB 以上の Mac では「設定… › パフォーマンス」の「展開の辞書上限」で 8 GiB を選べます（展開とパスワード確認は直列になります）。RAR5 compression version 1 の書庫のうち、選択した上限を超える実確保量が必要なものは展開できません。
 - ファイルのアクセス権が記録されていない場合は、標準のアクセス権を使います。
 - 外部で開く一時コピーは読み取り専用（0400）で書庫の quarantine を引き継ぎますが、外部起動前の判定は対応書庫型かどうかだけで、拡張子や項目の種類は検査しません。Terminal の `.terminal` の `CommandString` のように読むだけで動く設定、mount する `.sparseimage` / `.cdr`、任意 URL を開く `.webloc` / `.url` / `.inetloc` は、このアクセス権と書庫型の判定では止まりません。開くアプリは LaunchServices が選びます。
 - 表示はリスト形式です。アイコン・カラム・ギャラリー形式への切り替えはできません。
@@ -27,7 +27,7 @@ KaitoFinder 0.10.10 の利用上の制限です。[対応形式](formats.md)、[
   Above 64 MiB, the startup disk needs roughly the expanded tar size in free space. Opening stops if free space drops below 1 GiB while expanding.
 - Each archive supports up to 1,000,000 items; RAR / `.001` split sets support up to 128 volumes.
   The app has no separate per-file or total extraction-size limit, but the destination needs enough free space. Compression methods and the size of archive management information impose additional limits.
-- The codec dictionary limit is 1 GiB. RAR5 compression version 1 archives that need a larger allocation cannot be extracted.
+- The codec dictionary limit is 1 GiB by default. On a Mac with at least 32 GiB of physical memory, you can select 8 GiB under Settings > Performance > Extraction dictionary limit (extraction and password verification then run serially). RAR5 compression version 1 archives that need a larger allocation than the selected limit cannot be extracted.
 - Items without stored permissions use standard permissions.
 - Temporary copies opened externally are read-only (0400) and inherit the archive’s quarantine, but the check before external launch only identifies supported archive types; it does not inspect extensions or item kinds. These permissions and the archive-type check do not block settings that act when read, such as `CommandString` in Terminal’s `.terminal` files, disk images mounted from `.sparseimage` / `.cdr`, or arbitrary URLs opened by `.webloc` / `.url` / `.inetloc`. LaunchServices selects the application.
 - Browsing uses a list. Icon, column, and gallery views are unavailable.
