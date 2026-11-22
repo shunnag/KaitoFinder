@@ -37,6 +37,10 @@ GitHub の `releases/latest` はリリース対象コミットの `created_at` �
 アプリには HTTPS のフィードURLと Ed25519 公開鍵が必要。
 `SURequireSignedFeed` と `SUVerifyUpdateBeforeExtraction` を有効にし、更新情報とダウンロードした書庫を検証する。
 
+Sparkle ライブラリを更新するときは、公式タグが指すコミットと `Package.resolved` を照合し、
+配布元のタグ・コミットの署名と SPM 用 ZIP に付属する署名の有無を確認する。署名があれば検証し、
+確認結果をリリースの検証記録に残す。公式 ZIP の SHA-256 も、そのタグの `Package.swift` の checksum と照合する。
+
 この Mac では、Sparkle の `generate_keys --account com.shunnag.KaitoFinder` で専用の鍵を作成済み。
 秘密鍵はログインキーチェーンにあり、リポジトリや更新ファイルには含めない。
 `SUPublicEDKey` に対応する鍵を、今後の更新でも継続して使う。
@@ -49,6 +53,7 @@ GitHub の `releases/latest` はリリース対象コミットの `created_at` �
    Sparkle の新旧判定は `CFBundleVersion` を使う。テスト用ビルド番号を正式版へ流用しない。
 2. [配布手順](design.md#115-配布sandbox-なしnotarize-済み-2026-09-15)に従って、Developer ID で署名し、
    notarize してアプリに staple する。Sparkle.framework と内部のヘルパーも含めて署名する。
+   KaitoFinder の配布用に署名したアプリを Apple の公証サービスへ提出することは、今後のリリースも含めてプロジェクト所有者が承認済み（2026-11-22）。
 3. staple 後のアプリから、次のツールでZIPと署名付きフィードを作る。
 
 ```sh
@@ -70,6 +75,7 @@ python3 Tools/prepare_update.py \
 
 4. 生成物を確認してから、対応する `v0.5.2` の下書き GitHub Release に `KaitoFinder-0.5.2.zip` と
    `appcast.xml` を添付する。両方のアップロード後に最新の正式リリースとして公開し、上記の固定フィードURLから取得できることを確認する。
+   公開 URL から再取得したフィードと ZIP が、手順 3 で署名検証したファイルとそれぞれバイト単位で一致することを確認する。
    リリースノートはフィード内に埋め込まれる。公開後にフィードを手編集せず、変更する場合は再署名する。
 5. 一つ前の配布版で「アップデートを確認…」からインストール・再起動まで検証する。
 
@@ -121,6 +127,7 @@ gui-run "$work_dir" "$PWD/build/drive_standard_update_dialog" \
 0.10.9 (build 23) は 2026-11-03 に公開済み（`verification/2026-11-03-release-0.10.9.md`）。
 0.10.10 (build 24) は 2026-11-05 に公開済み（`verification/2026-11-05-release-0.10.10.md`）。
 0.10.11 (build 25) は 2026-11-05 に公開済み（`verification/2026-11-05-release-0.10.11.md`）。
+0.10.12 (build 26) は 2026-11-22 に公開済み。[起動・署名・公開更新の検証記録](verification/2026-11-22-release-0.10.12.md)を参照。
 
 ## ローカルの検証
 
