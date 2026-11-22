@@ -14,8 +14,8 @@ KaitoFinder は「一覧のできる圧縮ソフト」ではなく、**名前空
 
 ## バージョン
 
-KaitoFinder 0.10.11（build 25）、KaitoKit 0.22.1、GyoshukuKit 0.18.0、Sparkle 2.10.1。
-同梱版と変更点は[0.10.11 のリリースノート](releases/0.10.11.md)を参照。
+KaitoFinder 0.10.12（build 26）、KaitoKit 0.22.1、GyoshukuKit 0.18.0、Sparkle 2.10.1。
+同梱版と変更点は[0.10.12 のリリースノート](releases/0.10.12.md)を参照。
 
 ## 配布
 

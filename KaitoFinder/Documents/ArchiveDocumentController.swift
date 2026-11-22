@@ -3,6 +3,7 @@ import KaitoKit
 
 /// Finder の関連付けを増やさず、アプリ内では分割巻を文書として開く。
 class ArchiveDocumentController: NSDocumentController {
+    static let willOpenForDisplay = Notification.Name("ArchiveDocumentControllerWillOpenForDisplay")
     var volumeRecoveryIndex = RecoverableWorkIndex.shared
     var volumeMetadataStore = ArchiveVolumeMetadataStore.shared
     var volumeRecoveryError: (ArchiveVolumeOpenRecovery) -> NSError = { ArchiveVolumeOpenError(recovery: $0).presentedError }
@@ -40,6 +41,10 @@ class ArchiveDocumentController: NSDocumentController {
     private var openings: [URL: Opening] = [:]
     private var nextOpeningPanelPoint: NSPoint?
 
+    var hasPendingDisplayRequests: Bool {
+        openings.values.contains { $0.requests.contains(where: \.display) }
+    }
+
     func openingSheet(for url: URL) -> ExtractionProgressSheet? {
         openings[ArchiveSplitVolume.gateURL(for: url).standardizedFileURL]?.sheet
     }
@@ -69,6 +74,7 @@ class ArchiveDocumentController: NSDocumentController {
 
     override func openDocument(withContentsOf url: URL, display displayDocument: Bool,
                                completionHandler: @escaping (NSDocument?, Bool, (any Error)?) -> Void) {
+        if displayDocument { NotificationCenter.default.post(name: Self.willOpenForDisplay, object: self) }
         // 既存文書の検索は回復の探索より先に行う。この文書の publisher が gate を隠している間も同じ。
         let gate = ArchiveSplitVolume.gateURL(for: url)
         let canonicalParent = url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL

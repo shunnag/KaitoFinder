@@ -40,20 +40,23 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         }
     }
 
-    func testLaunchDecisionRequiresNoFilesNoDocumentsAndEnabledPreference() {
+    @MainActor func testWelcomeRequiresDefaultLaunchWithoutFilesAndEnabledPreference() throws {
+        let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
+        let delegate = AppDelegate(preferencesStore: store)
+        defer { delegate.welcomeWindowController?.close() }
         for files in [false, true] {
-            for documents in [false, true] {
+            for isDefault in [false, true] {
                 for preference in [false, true] {
-                    XCTAssertEqual(AppDelegate.shouldShowWelcome(argumentsHadFiles: files, hasDocuments: documents,
-                        preference: preference), !files && !documents && preference,
-                        "files=\(files), documents=\(documents), preference=\(preference)")
+                    store.preferences.showsWelcomeWindowAtLaunch = preference
+                    let launch = Notification(name: NSApplication.didFinishLaunchingNotification,
+                        userInfo: [NSApplication.launchIsDefaultUserInfoKey: NSNumber(value: isDefault)])
+                    delegate.showWelcomeForLaunch(launch, argumentsHadFiles: files)
+                    XCTAssertEqual(delegate.welcomeWindowController?.window?.isVisible == true,
+                                   isDefault && !files && preference)
+                    delegate.welcomeWindowController?.close()
                 }
             }
         }
-    }
-
-    func testAssociatedOpenSuppressesWelcomeWithPreference() {
-        XCTAssertFalse(AppDelegate.shouldShowWelcome(argumentsHadFiles: false, associatedOpen: true, hasDocuments: false, preference: true))
     }
 
     @MainActor func testDockReopenWithoutWindowsIgnoresPreferenceAndReusesController() throws {
@@ -155,6 +158,8 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         sheet.begin(on: window)
         XCTAssertNil(window.attachedSheet)
         XCTAssertTrue(ExtractionProgressSheet.hasPendingSheet(on: window))
+        NotificationCenter.default.post(name: ArchiveDocumentController.willOpenForDisplay, object: NSDocumentController.shared)
+        XCTAssertTrue(window.isVisible)
         let frameSnapshot = ArchiveWindowFrameSnapshot()
         defer { frameSnapshot.restore() }
         let archive = ArchiveWindowController()
