@@ -176,9 +176,12 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         }
         delegate.showWelcome(nil)
         XCTAssertTrue(delegate.welcomeWindowController?.window?.isVisible == true)
-        XCTAssertTrue(delegate.application(NSApplication.shared, openFiles: [archive.path]))
+        let controller = try XCTUnwrap(NSDocumentController.shared as? ArchiveDocumentController)
+        controller.openDocument(withContentsOf: archive, display: true) { _, _, error in XCTAssertNil(error) }
         XCTAssertFalse(delegate.welcomeWindowController?.window?.isVisible == true)
-        XCTAssertFalse(AppDelegate.shouldShowWelcome(argumentsHadFiles: false, associatedOpen: true, hasDocuments: false, preference: true))
+        XCTAssertTrue(controller.hasPendingDisplayRequests)
+        XCTAssertFalse(delegate.applicationShouldHandleReopen(.shared, hasVisibleWindows: false))
+        XCTAssertFalse(delegate.welcomeWindowController?.window?.isVisible == true)
 
         let deadline = ContinuousClock.now + .seconds(5)
         while !NSDocumentController.shared.documents.contains(where: {
@@ -203,7 +206,10 @@ nonisolated final class ArchiveDocumentOpeningTests: XCTestCase {
         XCTAssertEqual(presented.first?.code, NSFileNoSuchFileError)
         XCTAssertEqual(presented.first?.userInfo[NSFilePathErrorKey] as? String, missing.path)
         XCTAssertEqual(presented.first?.userInfo[NSURLErrorKey] as? URL, missing)
-        XCTAssertTrue(AppDelegate.shouldShowWelcome(argumentsHadFiles: hadFiles, hasDocuments: false, preference: true))
+        delegate.showWelcomeForLaunch(Notification(name: NSApplication.didFinishLaunchingNotification,
+            userInfo: [NSApplication.launchIsDefaultUserInfoKey: true]), argumentsHadFiles: hadFiles)
+        defer { delegate.welcomeWindowController?.close() }
+        XCTAssertEqual(delegate.welcomeWindowController?.window?.isVisible, true)
     }
 
     private func requireDocumentTypeLookup(_ url: URL) throws {

@@ -43,6 +43,8 @@ final class WelcomeWindowController: NSWindowController {
                                                name: ArchivePreferencesStore.didChange, object: store)
         NotificationCenter.default.addObserver(self, selector: #selector(archiveWindowBecameMain(_:)),
                                                name: NSWindow.didBecomeMainNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(closeIfIdle(_:)),
+                                               name: ArchiveDocumentController.willOpenForDisplay, object: NSDocumentController.shared)
         refreshCheckbox()
         window.initialFirstResponder = openDropZone
         openDropZone.nextKeyView = createDropZone
@@ -118,9 +120,14 @@ final class WelcomeWindowController: NSWindowController {
     }
 
     @objc private func archiveWindowBecameMain(_ notification: Notification) {
-        guard window?.attachedSheet == nil, !ExtractionProgressSheet.hasPendingSheet(on: window),
-              let archiveWindow = notification.object as? NSWindow,
+        guard let archiveWindow = notification.object as? NSWindow,
               archiveWindow.windowController is ArchiveWindowController else { return }
+        closeIfIdle(notification)
+    }
+
+    @objc private func closeIfIdle(_ notification: Notification) {
+        guard window?.isVisible == true, window?.attachedSheet == nil,
+              !ExtractionProgressSheet.hasPendingSheet(on: window) else { return }
         close()
     }
 }
