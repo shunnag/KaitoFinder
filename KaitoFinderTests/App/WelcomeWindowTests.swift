@@ -44,6 +44,11 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
         let suite = try ArchivePreferencesTestDefaults(), store = ArchivePreferencesStore(defaults: suite.defaults)
         let delegate = AppDelegate(preferencesStore: store)
         defer { delegate.welcomeWindowController?.close() }
+        // このテストは文書のない新規プロセスの起動を再現する。
+        let controller = NSDocumentController.shared
+        let registered = controller.documents
+        registered.forEach(controller.removeDocument)
+        defer { registered.forEach(controller.addDocument) }
         for files in [false, true] {
             for isDefault in [false, true] {
                 for preference in [false, true] {
@@ -52,11 +57,19 @@ nonisolated final class WelcomeWindowTests: XCTestCase {
                         userInfo: [NSApplication.launchIsDefaultUserInfoKey: NSNumber(value: isDefault)])
                     delegate.showWelcomeForLaunch(launch, argumentsHadFiles: files)
                     XCTAssertEqual(delegate.welcomeWindowController?.window?.isVisible == true,
-                                   isDefault && !files && preference)
+                                   isDefault && !files && preference,
+                                   "defaultLaunch=\(isDefault), argumentsHadFiles=\(files), preference=\(preference)")
                     delegate.welcomeWindowController?.close()
                 }
             }
         }
+        let document = ArchiveDocument()
+        controller.addDocument(document)
+        defer { document.close() }
+        store.preferences.showsWelcomeWindowAtLaunch = true
+        delegate.showWelcomeForLaunch(Notification(name: NSApplication.didFinishLaunchingNotification,
+            userInfo: [NSApplication.launchIsDefaultUserInfoKey: true]), argumentsHadFiles: false)
+        XCTAssertFalse(delegate.welcomeWindowController?.window?.isVisible == true)
     }
 
     @MainActor func testDockReopenWithoutWindowsIgnoresPreferenceAndReusesController() throws {
