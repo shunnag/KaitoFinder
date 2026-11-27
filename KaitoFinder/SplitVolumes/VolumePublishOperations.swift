@@ -16,7 +16,7 @@ nonisolated struct VolumePublishOperations: Sendable {
     }
     var willRemove: @Sendable (URL) throws -> Void = { _ in }
     var didRemove: @Sendable (URL) throws -> Void = { _ in }
-    var openReader: @Sendable (URL, ReaderOptions) throws -> ArchiveReader = { try ArchiveReader.open(url: $0, options: $1) }
+    var openReader: @Sendable (URL, ReaderOptions) throws -> ArchiveReader = { try ArchiveReader.openForFinder(url: $0, options: $1) }
     /// commit 後に reader で行う診断で、使う側が明示的に有効にする。nil なら回復中に reader を開かない。
     var recoveryReaderDiagnostic: (@Sendable (String?) -> Void)? = nil
     var volumeInfo: @Sendable (VolumePublishDirectory) throws -> VolumePublishFS.VolumeInfo = { try VolumePublishFS.volumeInfo($0) }

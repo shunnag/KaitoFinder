@@ -291,7 +291,7 @@ nonisolated extension ArchiveCapabilities {
     /// 圧縮 tar の外側の判定に、書庫の解析や一時展開を要しない）。
     static func inspect(url: URL, format: KaitoKit.ArchiveFormat, password: String? = nil) -> Self {
         inspect(url: url, format: format, password: password) {
-            try ArchiveReader.open(url: url, options: .kaitoFinder(password: password))
+            try ArchiveReader.openForFinder(url: url, options: .kaitoFinder(password: password))
         }
     }
 }

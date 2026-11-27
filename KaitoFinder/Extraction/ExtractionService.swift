@@ -159,6 +159,8 @@ nonisolated enum ExtractionService {
         let syntax = ExtractionPath.NameSyntax(reader.format)
         let root: URL, scope: OutputMapping.Scope
         var virtualRootParent: ExtractionDestination?
+        var unpublishedDirectory: URL?
+        defer { if let unpublishedDirectory { _ = rmdir(unpublishedDirectory.path) } }
         if let item = promisedItem {
             guard destination.isFileURL else { throw ExtractionFailure.refused(String(localized: "出力先はfile URLが必要です。")) }
             let parent = try ExtractionDestination(url: destination.deletingLastPathComponent(), quarantine: quarantine, nameSyntax: syntax)
@@ -167,6 +169,7 @@ nonisolated enum ExtractionService {
             if item.isDirectory {
                 try ArchiveImportPlan.checkCancellation(progress)
                 try parent.directory(leaf, explicit: true)
+                unpublishedDirectory = destination
                 root = destination
                 scope = .subtree(try ExtractionPath.components(item.path, syntax: syntax))
                 if item.entryIndex == nil { virtualRootParent = parent }
@@ -181,6 +184,7 @@ nonisolated enum ExtractionService {
             // /var と /private/var を混在させず、親と同じ実パスで root を仕上げる。
             try virtualRootParent.finishSynthesizedDirectory(virtualRootParent.url([destination.lastPathComponent]))
         }
+        unpublishedDirectory = nil
         return result
     }
 
@@ -210,16 +214,34 @@ nonisolated enum ExtractionService {
         powerPolicy: CompressionPowerPolicy = .reduceInLowPowerMode,
         dictionarySize: UInt64
     ) throws -> ExtractionResult {
+        let budget = ExtractionOutputBudget(archiveLimit: reader.maximumTotalOutputSize)
+        return try ParallelDecodeMemoryBudget.$active.withValue(FinderArchiveLimits.decodeMemory) {
+            try runWithBudget(entries, reader: reader, destination: destination, quarantine: quarantine,
+                progress: progress, mapping: mapping, readOnly: readOnly, didWrite: didWrite, didProcess: didProcess,
+                sources: sources, execution: execution, powerPolicy: powerPolicy, dictionarySize: dictionarySize, budget: budget)
+        }
+    }
+
+    private static func runWithBudget(
+        _ entries: [ArchiveEntry], reader: ArchiveReader, destination: URL, quarantine: Data?, progress: Progress,
+        mapping: OutputMapping, readOnly: Bool, didWrite: (@Sendable (Int) -> Void)?, didProcess: (@Sendable (Int) -> Void)?,
+        sources: ArchivePendingReadSnapshot.Sources?, execution: ExtractionExecution, powerPolicy: CompressionPowerPolicy,
+        dictionarySize: UInt64, budget: ExtractionOutputBudget
+    ) throws -> ExtractionResult {
         let counter = ExtractionProgress(entries: entries, progress: progress)
         let position = Mutex(0)
-        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax) { count in
+        let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax, budget: budget) { count in
             counter.wrote(count, at: position.withLock { $0 })
             didWrite?(count)
+        }
+        if !progress.isCancelled && !Task.isCancelled {
+            do { try output.preflight(entries, mapping: mapping, checkCancellation: checkCancellation) }
+            catch is CancellationError { return ExtractionResult(written: [], failures: [], cancelled: true) }
         }
         let workerCount = execution.workerCount(entries: entries, hasSources: sources != nil, powerPolicy: powerPolicy,
                                                 dictionarySize: dictionarySize)
         let parallel = workerCount > 1 ? try? ParallelExtraction(reader: reader, destination: destination,
-            quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax, count: workerCount, counter: counter,
+            quarantine: quarantine, readOnly: readOnly, nameSyntax: mapping.syntax, count: workerCount, budget: budget, counter: counter,
             didWrite: didWrite, didProcess: didProcess) : nil
         let orderedFiles = parallel == nil ? Set<Int>() : ParallelExtraction.orderedFiles(entries, mapping: mapping)
         var planned: [ParallelExtraction.File] = []

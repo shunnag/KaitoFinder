@@ -145,7 +145,7 @@ nonisolated enum ArchiveCreationTransaction {
             try ArchiveImportPlan.checkCancellation(progress)
         }
         try ExtractionQuarantine.apply(quarantine, to: output)
-        _ = try ArchiveReader.open(url: output, options: .kaitoFinder(password: plan.options.password))
+        _ = try ArchiveReader.openForFinder(url: output, options: .kaitoFinder(password: plan.options.password))
         try willPublish?()
         try ArchiveImportPlan.checkCancellation(progress)
         // 書き直しの間に変わった巻も、保存先へ公開する直前に検出する。

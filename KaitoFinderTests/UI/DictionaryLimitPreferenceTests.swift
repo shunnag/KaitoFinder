@@ -35,8 +35,9 @@ nonisolated final class DictionaryLimitPreferenceTests: XCTestCase {
             for options in [ReaderOptions.kaitoFinder(defaults: suite.defaults, hardware: hardware),
                             ReaderOptions.kaitoFinderVerification(defaults: suite.defaults, hardware: hardware)] {
                 XCTAssertEqual(options.limits.maxDictionarySize, expected, "memory=\(memory)")
-                XCTAssertEqual(options.limits.maxEntrySize, .max)
-                XCTAssertEqual(options.limits.maxTotalUncompressedSize, .max)
+                XCTAssertEqual(options.limits.maxEntrySize, UInt64(1) << 40)
+                XCTAssertEqual(options.limits.maxTotalUncompressedSize, UInt64(4) << 40)
+                XCTAssertEqual(options.expansionLimit, .init(minimumAllowance: 1 << 30, maximumRatio: 1024))
             }
         }
         suite.defaults.removeObject(forKey: ArchivePreferencesStore.Key.dictionaryLimit)

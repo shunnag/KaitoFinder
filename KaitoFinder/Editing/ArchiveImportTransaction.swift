@@ -433,7 +433,7 @@ nonisolated enum ArchiveImportTransaction {
         do {
             verified = try ArchiveStageDiagnostics.measure(.verificationOpen) {
                 guard let spliced = produced.spliced, let spliceBase = produced.spliceBase else {
-                    return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
+                    return try ArchiveReader.openForFinder(source: source, sourceURL: hint, options: verificationOptions)
                 }
                 do {
                     return try ArchiveReader.openSplicedCompressedTar(output: source, sourceURL: hint, base: spliceBase,
@@ -442,7 +442,7 @@ nonisolated enum ArchiveImportTransaction {
                     #if DEBUG
                     didFallBackToFullVerificationForTesting.get()?("\(error.reason)")
                     #endif
-                    return try ArchiveReader.open(source: source, sourceURL: hint, options: verificationOptions)
+                    return try ArchiveReader.openForFinder(source: source, sourceURL: hint, options: verificationOptions)
                 }
             }
         } catch is CancellationError { throw CancellationError() }

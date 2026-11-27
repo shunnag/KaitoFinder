@@ -10,6 +10,7 @@ nonisolated final class ExtractionDestination {
     private let descriptor: Int32
     private var quarantine: Data?
     private let permissionMask: mode_t
+    private let budget: ExtractionOutputBudget
     private let readOnly: Bool
     private let nameSyntax: ExtractionPath.NameSyntax
     private let didWrite: (@Sendable (Int) -> Void)?
@@ -21,7 +22,9 @@ nonisolated final class ExtractionDestination {
     private static let directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC
 
     init(url: URL, quarantine: Data?, readOnly: Bool = false, nameSyntax: ExtractionPath.NameSyntax = .portable,
+         budget: ExtractionOutputBudget = .init(archiveLimit: FinderArchiveLimits.total),
          didWrite: (@Sendable (Int) -> Void)? = nil) throws {
+        self.budget = budget
         self.readOnly = readOnly
         self.nameSyntax = nameSyntax
         self.didWrite = didWrite
@@ -41,6 +44,65 @@ nonisolated final class ExtractionDestination {
     deinit {
         if let cachedParent { Darwin.close(cachedParent.descriptor) }
         Darwin.close(descriptor)
+    }
+
+    /// Estimate known output on each actual volume. Missing parents inherit the
+    /// nearest existing directory's volume. O_EXCL will skip existing leaves.
+    func preflight(_ entries: [ArchiveEntry], mapping: ExtractionService.OutputMapping,
+                   checkCancellation: () throws -> Void) throws {
+        guard entries.count > 1 else { return }
+        var remaining: [dev_t: UInt64] = [:]
+        var planned = Set<String>()
+        var previous: [String]?
+        var parent: (fd: Int32, device: dev_t, complete: Bool)?
+        defer { if let parent { close(parent.fd) } }
+
+        for entry in entries {
+            try checkCancellation()
+            guard entry.kind == .file || (entry.kind == .hardlink && (entry.compressedSize ?? entry.uncompressedSize ?? 0) > 0),
+                  let size = entry.uncompressedSize, size > 0,
+                  let path = try? mapping.components(entry.name), let leaf = path.last,
+                  planned.insert(path.joined(separator: "/")).inserted else { continue }
+            let components = Array(path.dropLast())
+            if previous != components {
+                if let parent { close(parent.fd) }
+                parent = nil
+                previous = components
+                parent = try existingParent(forEstimate: components)
+            }
+            guard let parent else { continue }
+            if parent.complete {
+                var info = stat()
+                if fstatat(parent.fd, leaf, &info, AT_SYMLINK_NOFOLLOW) == 0 || errno != ENOENT { continue }
+            }
+            let available = try remaining[parent.device] ?? budget.usableCapacity(on: parent.fd)
+            guard size <= available else { throw ExtractionFailure.system(ENOSPC) }
+            remaining[parent.device] = available - size
+        }
+    }
+
+    private func existingParent(forEstimate components: [String]) throws -> (fd: Int32, device: dev_t, complete: Bool)? {
+        var fd = dup(descriptor)
+        guard fd >= 0 else { throw ExtractionFailure.system(errno) }
+        var complete = true
+        for component in components {
+            let next = openat(fd, component, Self.directoryFlags)
+            guard next >= 0 else {
+                if errno == ENOENT { complete = false; break }
+                // Let the normal entry path report inaccessible or invalid parents.
+                close(fd)
+                return nil
+            }
+            close(fd)
+            fd = next
+        }
+        var info = stat()
+        guard fstat(fd, &info) == 0 else {
+            let code = errno
+            close(fd)
+            throw ExtractionFailure.system(code)
+        }
+        return (fd, info.st_dev, complete)
     }
 
     func url(_ components: [String]) -> URL {
@@ -155,9 +217,11 @@ nonisolated final class ExtractionDestination {
     func file(_ components: [String], entry: ArchiveEntry, stream: EntryStream, buffer: inout [UInt8],
               createParents: Bool = true,
               checkCancellation: () throws -> Void) throws {
-        try createExclusiveFile(components, entry: entry, createParents: createParents, checkCancellation: checkCancellation) { file in
+        try createExclusiveFile(components, entry: entry, createParents: createParents, checkCancellation: checkCancellation) { file, allowance in
             try ExtractionService.consume(stream, buffer: &buffer, checkCancellation: checkCancellation) { bytes in
-                try Self.writeAll(file, bytes, checkCancellation: checkCancellation)
+                try budget.writing(bytes.count, on: file, file: &allowance) {
+                    try Self.writeAll(file, bytes, checkCancellation: checkCancellation)
+                }
                 didWrite?(bytes.count)
             }
         }
@@ -167,7 +231,8 @@ nonisolated final class ExtractionDestination {
     /// 途中で失敗した出力は defer で unlink し、未検証の payload を公開しない。
     /// `beforeRecordingIdentity` は属性を付けた後、取消し検査と identity 記録の前に呼ぶ（退避物の再照合の位置）。
     private func createExclusiveFile(_ components: [String], entry: ArchiveEntry, createParents: Bool = true,
-                                     checkCancellation: () throws -> Void, fill: (Int32) throws -> Void,
+                                     isStaged: Bool = false, checkCancellation: () throws -> Void,
+                                     fill: (Int32, inout ExtractionOutputBudget.File) throws -> Void,
                                      beforeRecordingIdentity: () throws -> Void = {}) throws {
         let parent = try parentDescriptor(for: Array(components.dropLast()), create: createParents)
         let leaf = components.last!
@@ -182,7 +247,8 @@ nonisolated final class ExtractionDestination {
         // 0600 のまま quarantine を先に適用し、CRC 検証完了後だけ既定の mode へ広げる。
         // 属性設定失敗時も未検証 payload を公開しない。宣言サイズで read を止めない。
         try ExtractionQuarantine.apply(quarantine, toDescriptor: file)
-        try fill(file)
+        var allowance = try budget.begin(on: file, declared: entry.uncompressedSize ?? 0, isStaged: isStaged)
+        try fill(file, &allowance)
         try attributes(entry, descriptor: file)
         // プレビューと外部オープンは所有者の読み取りだけを許す。公開前、同じ fd で適用する。
         if readOnly {
@@ -250,7 +316,7 @@ nonisolated final class ExtractionDestination {
         guard input >= 0 else { throw ExtractionFailure.system(errno) }
         defer { close(input) }
         try addition.stagedStamp.verify(descriptor: input)
-        try createExclusiveFile(components, entry: entry, checkCancellation: checkCancellation, fill: { file in
+        try createExclusiveFile(components, entry: entry, isStaged: true, checkCancellation: checkCancellation, fill: { file, allowance in
             while true {
                 try checkCancellation()
                 let count = buffer.withUnsafeMutableBytes { read(input, $0.baseAddress, $0.count) }
@@ -258,7 +324,9 @@ nonisolated final class ExtractionDestination {
                 guard count >= 0 else { throw ExtractionFailure.system(errno) }
                 if count == 0 { break }
                 try buffer.withUnsafeBytes { bytes in
-                    try Self.writeAll(file, UnsafeRawBufferPointer(rebasing: bytes[..<count]), checkCancellation: checkCancellation)
+                    try budget.writing(count, on: file, file: &allowance) {
+                        try Self.writeAll(file, UnsafeRawBufferPointer(rebasing: bytes[..<count]), checkCancellation: checkCancellation)
+                    }
                 }
                 didWrite?(count)
             }
