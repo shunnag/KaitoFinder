@@ -54,10 +54,10 @@ nonisolated final class ParallelExtraction: Sendable {
         let position: Position
 
         init(reader: sending ArchiveReader, destination: URL, quarantine: Data?, readOnly: Bool, nameSyntax: ExtractionPath.NameSyntax,
-             counter: ExtractionProgress, didWrite: (@Sendable (Int) -> Void)?) throws {
+             budget: ExtractionOutputBudget, counter: ExtractionProgress, didWrite: (@Sendable (Int) -> Void)?) throws {
             let position = Position()
             self.position = position
-            let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, nameSyntax: nameSyntax) { count in
+            let output = try ExtractionDestination(url: destination, quarantine: quarantine, readOnly: readOnly, nameSyntax: nameSyntax, budget: budget) { count in
                 counter.wrote(count, at: position.value.withLock { $0 })
                 didWrite?(count)
             }
@@ -70,13 +70,13 @@ nonisolated final class ParallelExtraction: Sendable {
     private let didProcess: (@Sendable (Int) -> Void)?
 
     init(reader: ArchiveReader, destination: URL, quarantine: Data?, readOnly: Bool, nameSyntax: ExtractionPath.NameSyntax, count: Int,
-         counter: ExtractionProgress, didWrite: (@Sendable (Int) -> Void)?,
+         budget: ExtractionOutputBudget, counter: ExtractionProgress, didWrite: (@Sendable (Int) -> Void)?,
          didProcess: (@Sendable (Int) -> Void)?) throws {
         self.counter = counter
         self.didProcess = didProcess
         workers = try (0..<count).map { _ in
-            try Worker(reader: reader.reopen(), destination: destination, quarantine: quarantine,
-                       readOnly: readOnly, nameSyntax: nameSyntax, counter: counter, didWrite: didWrite)
+            try Worker(reader: reader.reopenForFinder(workers: count), destination: destination, quarantine: quarantine,
+                       readOnly: readOnly, nameSyntax: nameSyntax, budget: budget, counter: counter, didWrite: didWrite)
         }
     }
 
@@ -132,37 +132,39 @@ nonisolated final class ParallelExtraction: Sendable {
             group.enter()
             DispatchQueue.global(qos: .userInitiated).async { [counter, didProcess] in
                 defer { group.leave() }
-                worker.resources.withLock { resources in
-                    var buffer = [UInt8](repeating: 0, count: ExtractionService.streamBufferSize)
-                    func checkCancellation() throws {
-                        if progress.isCancelled || stopped.withLock({ $0 }) { throw CancellationError() }
-                    }
-                    while true {
-                        let index = next.withLock { value in
-                            defer { value += 1 }
-                            return value
+                ParallelDecodeMemoryBudget.$active.withValue(FinderArchiveLimits.decodeMemory) {
+                    worker.resources.withLock { resources in
+                        var buffer = [UInt8](repeating: 0, count: ExtractionService.streamBufferSize)
+                        func checkCancellation() throws {
+                            if progress.isCancelled || stopped.withLock({ $0 }) { throw CancellationError() }
                         }
-                        guard index < buckets.count else { return }
-                        for file in buckets[index] {
-                            do {
-                                try checkCancellation()
-                                worker.position.value.withLock { $0 = file.position }
-                                try resources.output.file(file.components, entry: file.entry,
-                                    stream: resources.reader.stream(file.entry), buffer: &buffer,
-                                    createParents: false, checkCancellation: checkCancellation)
-                                let item = try ExtractionService.written(file.entry, components: file.components,
-                                                                         output: resources.output)
-                                results.withLock { $0.written.append(item) }
-                            } catch is CancellationError {
-                                stopped.withLock { $0 = true }
-                                return
-                            } catch {
-                                let failure = ExtractionResult.Failure(entryIndex: file.entry.index, name: file.entry.name,
-                                                                       reason: ArchiveErrorText.describe(error))
-                                results.withLock { $0.failures.append(failure) }
+                        while true {
+                            let index = next.withLock { value in
+                                defer { value += 1 }
+                                return value
                             }
-                            counter.finishedEntry(at: file.position)
-                            didProcess?(file.entry.index)
+                            guard index < buckets.count else { return }
+                            for file in buckets[index] {
+                                do {
+                                    try checkCancellation()
+                                    worker.position.value.withLock { $0 = file.position }
+                                    try resources.output.file(file.components, entry: file.entry,
+                                        stream: resources.reader.stream(file.entry), buffer: &buffer,
+                                        createParents: false, checkCancellation: checkCancellation)
+                                    let item = try ExtractionService.written(file.entry, components: file.components,
+                                                                             output: resources.output)
+                                    results.withLock { $0.written.append(item) }
+                                } catch is CancellationError {
+                                    stopped.withLock { $0 = true }
+                                    return
+                                } catch {
+                                    let failure = ExtractionResult.Failure(entryIndex: file.entry.index, name: file.entry.name,
+                                                                           reason: ArchiveErrorText.describe(error))
+                                    results.withLock { $0.failures.append(failure) }
+                                }
+                                counter.finishedEntry(at: file.position)
+                                didProcess?(file.entry.index)
+                            }
                         }
                     }
                 }

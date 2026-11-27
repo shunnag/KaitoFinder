@@ -68,7 +68,9 @@ nonisolated enum ArchivePasswordVerification {
         let observer = observer.get()
         #endif
         guard count > 1 else {
-            return try serial(entries, reader: reader, checkCancellation: checkCancellation)
+            return try ParallelDecodeMemoryBudget.$active.withValue(FinderArchiveLimits.decodeMemory) {
+                try serial(entries, reader: reader, checkCancellation: checkCancellation)
+            }
         }
 
         // 既知の鍵を引き継ぐため、worker から password provider は呼ばれない。
@@ -77,13 +79,15 @@ nonisolated enum ArchivePasswordVerification {
         do {
             for index in 0..<count {
                 try checkCancellation()
-                workers.append(try Worker(reader: reader.reopen(),
+                workers.append(try Worker(reader: reader.reopenForFinder(workers: count),
                     range: (entries.count * index / count)..<(entries.count * (index + 1) / count)))
             }
         } catch is CancellationError { throw CancellationError() }
         catch {
             // 複製できない形式も元の reader の検証結果に従う。
-            return try serial(entries, reader: reader, checkCancellation: checkCancellation)
+            return try ParallelDecodeMemoryBudget.$active.withValue(FinderArchiveLimits.decodeMemory) {
+                try serial(entries, reader: reader, checkCancellation: checkCancellation)
+            }
         }
         #if DEBUG
         observer?(.workers(count))
@@ -93,41 +97,43 @@ nonisolated enum ArchivePasswordVerification {
             group.enter()
             DispatchQueue.global(qos: .userInitiated).async {
                 defer { group.leave() }
-                worker.state.withLock { state in
-                    assert(state.reader.password != nil)
-                    var buffer = [UInt8](repeating: 0, count: Self.verificationBufferSize)
+                ParallelDecodeMemoryBudget.$active.withValue(FinderArchiveLimits.decodeMemory) {
+                    worker.state.withLock { state in
+                        assert(state.reader.password != nil)
+                        var buffer = [UInt8](repeating: 0, count: Self.verificationBufferSize)
                     #if DEBUG
-                    var bytes: UInt64 = 0
-                    defer { Self.bytesReadForTesting.withLock { $0 += bytes } }
+                        var bytes: UInt64 = 0
+                        defer { Self.bytesReadForTesting.withLock { $0 += bytes } }
                     #endif
-                    func checkCancellation() throws {
-                        if progress?.isCancelled == true || stopped.withLock({ $0 }) { throw CancellationError() }
-                    }
-                    state.outcomes.reserveCapacity(worker.range.count)
-                    for position in worker.range {
-                        let entry = entries[position]
-                        do {
-                            try checkCancellation()
+                        func checkCancellation() throws {
+                            if progress?.isCancelled == true || stopped.withLock({ $0 }) { throw CancellationError() }
+                        }
+                        state.outcomes.reserveCapacity(worker.range.count)
+                        for position in worker.range {
+                            let entry = entries[position]
+                            do {
+                                try checkCancellation()
                             #if DEBUG
-                            observer?(.willVerify(entry.index))
+                                observer?(.willVerify(entry.index))
                             #endif
-                            try checkCancellation()
-                            try ExtractionService.consume(state.reader.stream(entry), buffer: &buffer,
-                                                          checkCancellation: checkCancellation) { chunk in
+                                try checkCancellation()
+                                try ExtractionService.consume(state.reader.stream(entry), buffer: &buffer,
+                                                              checkCancellation: checkCancellation) { chunk in
                                 #if DEBUG
-                                bytes += UInt64(chunk.count)
-                                observer?(.didRead(entry.index, chunk.count))
+                                    bytes += UInt64(chunk.count)
+                                    observer?(.didRead(entry.index, chunk.count))
                                 #endif
+                                }
+                                state.outcomes.append(.success(entry.index))
+                            } catch is CancellationError {
+                                stopped.withLock { $0 = true }
+                                return
+                            } catch KaitoError.wrongPassword {
+                                state.outcomes.append(.failure(KaitoError.wrongPassword))
+                            } catch {
+                                state.outcomes.append(.failure(error))
+                                return
                             }
-                            state.outcomes.append(.success(entry.index))
-                        } catch is CancellationError {
-                            stopped.withLock { $0 = true }
-                            return
-                        } catch KaitoError.wrongPassword {
-                            state.outcomes.append(.failure(KaitoError.wrongPassword))
-                        } catch {
-                            state.outcomes.append(.failure(error))
-                            return
                         }
                     }
                 }

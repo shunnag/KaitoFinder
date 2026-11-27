@@ -117,12 +117,17 @@ actor ArchiveSession {
         self.volumeMetadataStore = volumeMetadataStore
         sourceURLStorage = Mutex(url)
         self.password = password
-        self.writerOptions = writerOptions
+        self.writerOptions = { format in
+            var options = writerOptions(format)
+            if options.editingReadLimits == nil { options.editingReadLimits = FinderArchiveLimits.readLimits }
+            if options.editingExpansionLimit == nil { options.editingExpansionLimit = FinderArchiveLimits.expansion }
+            return options
+        }
         self.importOptions = importOptions
         let options = ReaderOptions.kaitoFinder(password: password)
         dictionarySizeStorage = Mutex(options.limits.maxDictionarySize)
         let original = try ArchiveSetIdentity.capture(url: url)
-        let reader = try ArchiveReader.open(url: url, options: options)
+        let reader = try ArchiveReader.openForFinder(url: url, options: options)
         let metadata = try ArchiveVolumeMetadata.inspect(url: url, volumeSet: reader.volumeSet, store: volumeMetadataStore)
         let layout = metadata.layout
         let identity = try Self.currentIdentity(url: url, layout: layout)
@@ -146,13 +151,13 @@ actor ArchiveSession {
 
     func extractionReader() throws -> sending ArchiveReader {
         let reader = try requireCurrentReader()
-        return try reader.reopen()
+        return try reader.reopenForFinder()
     }
 
     func extractionSnapshot(progress: Progress? = nil) async throws -> sending (reader: ArchiveReader, quarantine: Data?) {
         let entries = try requireCurrentReader().entries
         try await prepareEncryptedEntries(entries, generation: generation, progress: progress)
-        return (try requireCurrentReader().reopen(), quarantine)
+        return (try requireCurrentReader().reopenForFinder(), quarantine)
     }
 
     func preparedPassword(progress: Progress? = nil) async throws -> String? {
@@ -220,7 +225,7 @@ actor ArchiveSession {
                     if revision != passwordRevision { break }
                     do {
                         let options = ReaderOptions.kaitoFinder(password: candidate)
-                        let replacement = try ArchiveReader.open(url: sourceURL, options: options)
+                        let replacement = try ArchiveReader.openForFinder(url: sourceURL, options: options)
                         guard replacement.entries == (try requireCurrentReader().entries) else {
                             throw ExtractionFailure.refused(String(localized: "アーカイブが変更されています。開き直してください。"))
                         }
@@ -401,7 +406,7 @@ actor ArchiveSession {
             try ArchiveImportTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                              options: options, password: password, progress: progress,
                                              didProcess: didProcess, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                                             sessionReader: mode.reusesSessionReader ? try reader.reopen() : nil)
+                                             sessionReader: mode.reusesSessionReader ? try reader.reopenForFinder() : nil)
         }
         if !result.addedPaths.isEmpty {
             // 公開済みの書き込みと表示の失敗を区別し、旧 byte に戻ったとは報告しない。
@@ -472,7 +477,7 @@ actor ArchiveSession {
             try ArchiveImportTransaction.createFolder(plan: plan, archive: sourceURL, mode: mode,
                                                       options: options, password: password, progress: progress,
                                                       willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                                                      sessionReader: mode.reusesSessionReader ? try reader.reopen() : nil)
+                                                      sessionReader: mode.reusesSessionReader ? try reader.reopenForFinder() : nil)
         }
         do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(appended: [(plan.path, true)], mode: publishedMode)) }
         catch { result.reloadFailure = Self.reloadFailureMessage }
@@ -499,7 +504,7 @@ actor ArchiveSession {
             try ArchiveEditTransaction.run(plan: plan, archive: sourceURL, mode: mode,
                                            options: options, password: password, progress: progress,
                                            willOpenUpdater: willOpenUpdater, willPublish: willPublish, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                                           sessionReader: mode.reusesSessionReader ? try reader.reopen() : nil, occupancy: occupancy)
+                                           sessionReader: mode.reusesSessionReader ? try reader.reopenForFinder() : nil, occupancy: occupancy)
         }
         if result.published {
             do { try reloadAfterMutation(verification: result.publishedIdentity.map { .init(identity: $0, indices: nil) }, adopting: consume verified, advancing: ArchiveNameIndexChange(plan: plan, mode: publishedMode)) }
@@ -640,7 +645,7 @@ actor ArchiveSession {
                         try plan.validate()
                         try willPublish?()
                     }, expectedIdentity: sourceIdentity, verifiedOutput: verifiedOutput,
-                    sessionReader: mode.reusesSessionReader ? try requireCurrentReader().reopen() : nil,
+                    sessionReader: mode.reusesSessionReader ? try requireCurrentReader().reopenForFinder() : nil,
                     additionalQuarantine: quarantine,
                     publication: publication, deferredPlan: plan,
                     expectedOutput: .init(plan: plan, mode: mode, zipEncryption: zipEncryption, sevenZipEncryption: sevenZipEncryption)) { editor in
@@ -879,7 +884,7 @@ actor ArchiveSession {
             try willProbeEncryptedHeadersForTesting.get()?()
             #endif
             if afterPublication { _ = try ArchiveVerifiedOutput.openAfterPublication(url: url, options: .kaitoFinder()) }
-            else { _ = try ArchiveReader.open(url: url, options: .kaitoFinder()) }
+            else { _ = try ArchiveReader.openForFinder(url: url, options: .kaitoFinder()) }
             return false
         }
         catch KaitoError.passwordRequired { return true }
@@ -987,7 +992,7 @@ actor ArchiveSession {
         guard let verified = output.reader, [.zip, .tar, .sevenZip, .lha].contains(verified.format) else { return fallback(.format) }
         do {
             verified.password = password
-            let replacement = try ArchiveStageDiagnostics.measure(.readerAdoption) { try verified.reopen() }
+            let replacement = try ArchiveStageDiagnostics.measure(.readerAdoption) { try verified.reopenForFinder() }
             output.reader = nil
             #if DEBUG
             Self.readerAdoptionObserverForTesting.get()?(.adopted)
@@ -1066,10 +1071,10 @@ actor ArchiveSession {
         let reopened: ArchiveReader?
 #if DEBUG
         if reusing != revision, let source = promiseSourceForTesting {
-            reopened = try ArchiveReader.open(source: source, sourceURL: sourceURL, options: .kaitoFinder(password: password))
-        } else { reopened = reusing == revision ? nil : try requireCurrentReader().reopen() }
+            reopened = try ArchiveReader.openForFinder(source: source, sourceURL: sourceURL, options: .kaitoFinder(password: password))
+        } else { reopened = reusing == revision ? nil : try requireCurrentReader().reopenForFinder() }
 #else
-        reopened = reusing == revision ? nil : try requireCurrentReader().reopen()
+        reopened = reusing == revision ? nil : try requireCurrentReader().reopenForFinder()
 #endif
         return (reopened, selection, quarantine, revision)
     }
@@ -1098,7 +1103,7 @@ actor ArchiveSession {
         // この境界以降は revision が変わっても、複製 reader と退避 lease の内容で完走する。
         // 即時追加と同じく、原本の印を優先し、なければ最初の追加元の印を全出力へ伝える。
         let savedQuarantine = try quarantine ?? ExtractionQuarantine.firstValue(from: snapshot.stagedURLs) { try Task.checkCancellation() }
-        return (try requireCurrentReader().reopen(), .init(entries: entries), savedQuarantine, snapshot, lease)
+        return (try requireCurrentReader().reopenForFinder(), .init(entries: entries), savedQuarantine, snapshot, lease)
     }
 }
 
